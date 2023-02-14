@@ -161,7 +161,7 @@ pub enum ProteinEdit {
 
 mod protein {
     use nom::{
-        bytes::complete::{take, take_while, take_while1},
+        bytes::complete::take,
         multi::{many0, many1},
     };
 
@@ -169,7 +169,7 @@ mod protein {
 
     pub fn aa1(input: &str) -> Result<(&str, &str), nom::Err<nom::error::Error<&str>>> {
         let (rest, c) = take(1usize)(input)?;
-        if !AA1.contains(&c) {
+        if !AA1.contains(c) {
             Err(nom::Err::Error(nom::error::Error::new(
                 input,
                 nom::error::ErrorKind::Fail,
@@ -191,7 +191,7 @@ mod protein {
 
     pub fn aat1(input: &str) -> Result<(&str, &str), nom::Err<nom::error::Error<&str>>> {
         let (rest, c) = take(1usize)(input)?;
-        if !AAT1.contains(&c) {
+        if !AAT1.contains(c) {
             Err(nom::Err::Error(nom::error::Error::new(
                 input,
                 nom::error::ErrorKind::Fail,
@@ -209,7 +209,7 @@ mod protein {
         many1(aat1)(input)
     }
 
-    pub const AA3: &'static [&'static str] = &[
+    pub const AA3: &[&str] = &[
         "Ala", "Cys", "Asp", "Glu", "Phe", "Gly", "His", "Ile", "Lys", "Leu", "Met", "Asn", "Pro",
         "Gln", "Arg", "Ser", "Thr", "Val", "Trp", "Tyr", "Asx", "Glx", "Xaa", "Sec",
     ];
@@ -234,7 +234,7 @@ mod protein {
         many1(aa3)(input)
     }
 
-    pub const AAT3: &'static [&'static str] = &[
+    pub const AAT3: &[&str] = &[
         "Ala", "Cys", "Asp", "Glu", "Phe", "Gly", "His", "Ile", "Lys", "Leu", "Met", "Asn", "Pro",
         "Gln", "Arg", "Ser", "Thr", "Val", "Trp", "Tyr", "Asx", "Glx", "Xaa", "Sec", "Ter",
     ];
@@ -264,7 +264,7 @@ mod protein_edit {
     use nom::branch::alt;
     use nom::character::complete::{digit0, digit1};
     use nom::combinator::opt;
-    use nom::multi::many0;
+
     use nom::sequence::pair;
     use nom::{bytes::complete::tag, IResult};
 
@@ -433,7 +433,7 @@ mod protein_edit {
 
 impl ProteinEdit {
     pub fn parse(input: &str) -> IResult<&str, Self> {
-        Ok(alt((
+        alt((
             protein_edit::subst_qm,
             protein_edit::subst_aa,
             protein_edit::delins,
@@ -445,7 +445,7 @@ impl ProteinEdit {
             protein_edit::ext_pos_shift,
             protein_edit::ext_minimal,
             protein_edit::ident,
-        ))(input)?)
+        ))(input)
     }
 }
 
@@ -635,7 +635,7 @@ mod na_edit {
 
 impl NaEdit {
     pub fn parse(input: &str) -> IResult<&str, Self> {
-        Ok(alt((
+        alt((
             na_edit::ident,
             na_edit::subst,
             na_edit::delins_ref_alt,
@@ -644,7 +644,7 @@ impl NaEdit {
             na_edit::dup,
             na_edit::inv_num,
             na_edit::inv_ref,
-        ))(input)?)
+        ))(input)
     }
 }
 
