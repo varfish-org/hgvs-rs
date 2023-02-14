@@ -695,6 +695,138 @@ mod test {
     use pretty_assertions::assert_eq;
 
     #[test]
+    fn protein_aa1() {
+        assert_eq!(protein::aa1("ACD"), Ok(("CD", "A")));
+        assert_eq!(
+            protein::aa1("*"),
+            Err(nom::Err::Error(nom::error::Error::new(
+                "*",
+                nom::error::ErrorKind::Fail,
+            )))
+        );
+    }
+
+    #[test]
+    fn protein_aa10() {
+        assert_eq!(protein::aa10(""), Ok(("", vec![])));
+        assert_eq!(protein::aa10("ACD"), Ok(("", vec!["A", "C", "D"])));
+    }
+
+    #[test]
+    fn protein_aa11() {
+        assert_eq!(
+            protein::aa11(""),
+            Err(nom::Err::Error(nom::error::Error::new(
+                "",
+                nom::error::ErrorKind::Eof,
+            )))
+        );
+        assert_eq!(protein::aa11("ACD"), Ok(("", vec!["A", "C", "D"])));
+    }
+
+    #[test]
+    fn protein_aat1() {
+        assert_eq!(protein::aat1("*ACD"), Ok(("ACD", "*")));
+        assert_eq!(
+            protein::aat1("="),
+            Err(nom::Err::Error(nom::error::Error::new(
+                "=",
+                nom::error::ErrorKind::Fail,
+            )))
+        );
+    }
+
+    #[test]
+    fn protein_aat10() {
+        assert_eq!(protein::aat10(""), Ok(("", vec![])));
+        assert_eq!(protein::aat10("ACD*"), Ok(("", vec!["A", "C", "D", "*"])));
+    }
+
+    #[test]
+    fn protein_aat11() {
+        assert_eq!(
+            protein::aat11(""),
+            Err(nom::Err::Error(nom::error::Error::new(
+                "",
+                nom::error::ErrorKind::Eof,
+            )))
+        );
+        assert_eq!(protein::aat11("ACD*"), Ok(("", vec!["A", "C", "D", "*"])));
+    }
+
+    #[test]
+    fn protein_aa3() {
+        assert_eq!(protein::aa3("LeuMet"), Ok(("Met", "Leu")));
+        assert_eq!(
+            protein::aa3("Ter"),
+            Err(nom::Err::Error(nom::error::Error::new(
+                "Ter",
+                nom::error::ErrorKind::Fail,
+            )))
+        );
+    }
+
+    #[test]
+    fn protein_aa30() {
+        assert_eq!(protein::aa30(""), Ok(("", vec![])));
+        assert_eq!(
+            protein::aa30("MetValTrp"),
+            Ok(("", vec!["Met", "Val", "Trp"]))
+        );
+    }
+
+    #[test]
+    fn protein_aa31() {
+        assert_eq!(
+            protein::aa31(""),
+            Err(nom::Err::Error(nom::error::Error::new(
+                "",
+                nom::error::ErrorKind::Eof,
+            )))
+        );
+        assert_eq!(
+            protein::aa30("MetValTrp"),
+            Ok(("", vec!["Met", "Val", "Trp"]))
+        );
+    }
+
+    #[test]
+    fn protein_aat3() {
+        assert_eq!(protein::aat3("TerLeuMet"), Ok(("LeuMet", "Ter")));
+        assert_eq!(
+            protein::aat3("==="),
+            Err(nom::Err::Error(nom::error::Error::new(
+                "===",
+                nom::error::ErrorKind::Fail,
+            )))
+        );
+    }
+
+    #[test]
+    fn protein_aat30() {
+        assert_eq!(protein::aat30(""), Ok(("", vec![])));
+        assert_eq!(
+            protein::aat30("TerLeuMet"),
+            Ok(("", vec!["Ter", "Leu", "Met"]))
+        );
+    }
+
+    #[test]
+    fn protein_aat31() {
+        assert_eq!(
+            protein::aat31(""),
+            Err(nom::Err::Error(nom::error::Error::new(
+                "",
+                nom::error::ErrorKind::Eof,
+            )))
+        );
+        assert_eq!(
+            protein::aat31("TerLeuMet"),
+            Ok(("", vec!["Ter", "Leu", "Met"]))
+        );
+    }
+
+    #[test]
     fn proteinedit_subst_qm() {
         assert_eq!(
             protein_edit::subst_qm("?"),
