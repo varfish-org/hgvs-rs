@@ -1,25 +1,175 @@
-// HGVS sequence variant
+// This file describes the Pest grammar for a subset of the HGVS variant specification.  The
+// subset is limited to those rules that define sequence variants precisely.  It does not
+// currently cover rules for translocations or conversions.
+//
+// The basic structure of a HGVS sequence variant is:
+//
+// ```
+// <ac>:<type>.<posedit>
+// ```
+//
+// Where `<ac>` is a sequence accession, `<type>` determines the sequence type and coordinate
+// system (one of `cgmnpr`) and `<posedit>` is a string/list/object of positions and edit
+// operations.  A `posedit` itself is composed of a position and an edit.
 
-// hgvs_variant = @{ g_variant | m_variant | c_variant | n_variant | r_variant | p_variant }
+// HGVS sequence variant ------------------------------------------------------------------------
 
-hgvs_variant = @{ g_variant }
+hgvs_variant = { g_variant | m_variant | c_variant | n_variant | r_variant | p_variant }
 
-g_variant = @{ accession }
-// m_variant = @{ accession }
-// c_variant = @{ accession }
-// n_variant = @{ accession }
-// r_variant = @{ accession }
-// p_variant = @{ accession }
+g_variant = { accn ~ ":" ~ "g" ~ "." ~ g_posedit }
+m_variant = { accn ~ ":" ~ "m" ~ "." ~ m_posedit }
+c_variant = { accn ~ ":" ~ "c" ~ "." ~ c_posedit }
+n_variant = { accn ~ ":" ~ "n" ~ "." ~ n_posedit }
+r_variant = { accn ~ ":" ~ "r" ~ "." ~ r_posedit }
+p_variant = { accn ~ ":" ~ "p" ~ "." ~ p_posedit }
 
-// Accessions, possibly versioned.  Should accept, e.g., `NM_01234.5`, `LRG_01234.1`.
-accession = @{
+// HGVS Positions -------------------------------------------------------------------------------
+//
+// e.g., NM_01234.5:c.22+6 (without an edit)
+//
+// This is unofficial syntax.
+
+// HGVS Edit ------------------------------------------------------------------------------------
+//
+// Without accession, e.g., c.76+3A>T
+
+// PosEdit --------------------------------------------------------------------------------------
+//
+// position + edit
+
+// Edits
+//
+// Sequence-specific operations a ta position.  subst, delins, del, and ins are represented
+// using two structs, `NARefAlt`, and `AARefAlt`.
+//
+// `_mu` = "maybe uncertain"
+
+rna_edit_mu = { rna_edit | ("(" ~ rna_edit:edit ~ ")") }
+rna_edit = { rna_ident | rna_subst | rna_delins | rna_ins | rna_del | rna_dup |
+             rna_inv | rna_con }
+rna_ident = { rna* ~ "=" }
+rna_subst = { rna ~ '>' rna:alt             -> hgvs.edit.NARefAlt(ref=ref,alt=alt)
+rna_delins = 'del' (<num>|<rna*>):ref 'ins' <rna+>:alt  -> hgvs.edit.NARefAlt(ref=ref,alt=alt)
+rna_del = 'del' (<num>|<rna*>):ref        -> hgvs.edit.NARefAlt(ref=ref,alt=None)
+rna_ins = 'ins' <rna+>:alt                -> hgvs.edit.NARefAlt(ref=None,alt=alt)
+rna_dup = 'dup' <rna*>:ref                -> hgvs.edit.Dup(ref=ref)
+rna_inv = 'inv' (<num>|<rna*>):ref        -> hgvs.edit.Inv(ref=None)
+rna_con = 'con' hgvs_position:pos         -> hgvs.edit.Conv(from_ac=pos.ac, from_type=pos.type, from_pos=pos.pos)
+
+
+pro_edit_mu = { pro_edit | ("(" ~ pro_edit ~ ")") }
+pro_edit = { pro_fs | pro_ext | pro_subst | pro_delins | pro_ins | pro_del | pro_dup |
+             pro_ident }
+pro_subst = { aat13 | "?" }
+pro_delins = { "delins" ~ aat13_seq }
+pro_del = { "del" }
+pro_ins = { "ins" ~ aat13_seq }
+pro_dup = { "dup" }
+pro_fs = { aat13? ~ fs }
+pro_ext = { aat13? ~ ext }
+pro_ident = { "=" }
+
+// Locations ------------------------------------------------------------------------------------
+//
+// Much of the complexity below is to handle the combination of various location syntax and
+// uncertainty.
+
+// potentially indefinite / uncertain intervals
+c_interval = def_c_interval | ("(" ~ def_c_interval ~ ")")
+g_interval = def_g_interval | ("(" ~ def_g_interval ~ ")")
+m_interval = def_m_interval | ("(" ~ def_m_interval ~ ")")
+n_interval = def_n_interval | ("(" ~ def_n_interval ~ ")")
+p_interval = def_p_interval | ("(" ~ def_p_interval ~ ")")
+r_interval = def_r_interval | ("(" ~ def_r_interval ~ ")")
+
+// definite intervals
+def_c_interval = { c_pos ~ ("_" ~ c_pos)? }
+def_g_interval = { g_pos ~ ("_" ~ g_pos)? }
+def_m_interval = { m_pos ~ ("_" ~ m_pos)? }
+def_n_interval = { n_pos ~ ("_" ~ n_pos)? }
+def_p_interval = { p_pos ~ ("_" ~ p_pos)? }
+def_r_interval = { r_pos ~ ("_" ~ r_pos)? }
+
+// positions
+c_pos = { def_c_pos }
+g_pos = { def_g_pos }
+m_pos = { def_m_pos }
+n_pos = { def_n_pos }
+p_pos = { def_p_pos }
+r_pos = { def_r_pos }
+
+// definite positions
+def_c_pos = { (base ~ offset) | ("*" ~ offset)}
+def_g_pos = { (num | "?" ) }
+def_m_pos = { (num | "?" ) }
+def_n_pos = { base ~ offset }
+def_p_pos = { (term13 | aa13) ~ num }
+def_r_pos = { base ~ offset }
+
+// Basic Types ----------------------------------------------------------------------------------
+//
+// Amino acids may be referred to with 1 or 3 letters.  In the following rules, `1`=1-letter AA,
+// `3`=3-letter, `13`=1 or 3, and `t` = includes terminator codon.  `_seq` refers to a sequence
+// of any of these.
+
+// AA fs/ext
+fs = { "fs" ~ aa13_fs? }
+ext = { "ext" ~ aa13_ext? }
+aa13_fs = { term13 ~ fsext_offset }
+aa13_ext = { (term13 ~ fsext_offset) | (aa13? ~ nnum) }
+fsext_offset = { (num | "?")? }
+
+// sequences of NA/AA
+dna_seq = { dna+ }
+rna_seq = { rna+ }
+at13_seq = { aat3_seq | aat1_seq }
+aat1_seq = { term1 | (aa1+ term1?) }
+aat3_seq = { term3 | (aa3+ term3?) }
+aa13_seq = { aa3_seq | aaq_seq }
+aa1_seq = { aa1+ }
+aa3_seq = { aa3+ }
+
+// individual residues
+aa1 = { "A" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "K" | "L" | "M" | "N" | "P" | "Q" |
+        "R" | "S" | "T" | "V" | "W" | "Y" | "B" | "Z" | "X" | "U" }
+aa13 = { aa3 | aa1 }
+aa3 = { "Ala" | "Cys" | "Asp" | "Glu" | "Phe" | "Gly" | "His" | "Ile" | "Lys" | "Leu" |
+        "Met" | "Asn" | "Pro" | "Gln" | "Arg" | "Ser" | "Thr" | "Val" | "Trp" | "Tyr" |
+        "Asx" | "Glx" | "Xaa" | "Sec" }
+aat1 = { term1 | aa1 }
+aat13 = { aat3 | aat1 }
+aat3 = { term3 | aa3 }
+dna = { dna_iupac }
+dna_iupac = { "A" | "C" | "G" | "T" | "R" | "Y" | "M" | "K" | "W" | "S" | "B" | "D" | "H" |
+              "V" | "N" | "a" | "c" | "g" | "t" | "r" | "y" | "m" | "k" | "w" | "s" | "b" |
+              "d" | "h" | "v" | "n" }
+na_iupac = { "A" | "C" | "G" | "T" | "U" | "R" | "Y" | "M" | "K" | "W" | "S" | "B" | "D" |
+             "H" | "V" | "N" | "a" | "c" | "g" | "t" | "u" | "r" | "y" | "m" | "k" | "w" |
+             "s" | "b" | "d" | "h" | "v" | "n" }
+rna = { rna_iupac }
+rna_iupac = { "A" | "C" | "G" | "U" | "R" | "Y" | "M" | "K" | "W" | "S" | "B" | "D" | "H" |
+              "V" | "N" | "a" | "c" | "g" | "u" | "r" | "y" | "m" | "k" | "w" | "s" | "b" |
+              "d" | "h" | "v" | "n" }
+term1 = { "X" | "*" }
+term13 = { term3 | term1 }
+term3 = { "Ter" }
+
+// position primitives
+// TODO(already in hgvs.pymeta): #331: support uncertain (?) bases and offsets
+bases = snum
+nnum = { "-" ~ num }
+num = { ASCII_DIGIT+ }
+offset = { snum? }
+pm = { "+" | "-" }
+snum = { pm? ~ num }
+
+// accessions, possibly versioned.  Should accept, e.g., `NM_01234.5`, `LRG_01234.1`
+accn = {
     ASCII_ALPHA ~
     ASCII_ALPHANUMERIC+ ~
     ("_" ~ ASCII_ALPHANUMERIC+)? ~
     ("." ~ ASCII_DIGIT+)?
 }
-
-// An optional gene expression.
-opt_gene_expr = @{ paren_gene? }
-paren_gene = @{ "(" ~ gene_symbol ~ ")" }
-gene_symbol = @{ ASCII_ALPHA ~ ASCII_ALPHANUMERIC+ }
+opt_gene_expr = { paren_gene? }
+paren_gene = { "(" ~ gene_symbol ~ ")" }
+gene_symbol = { ASCII_ALPHA ~ ASCII_ALPHANUMERIC+ }
