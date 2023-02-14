@@ -159,6 +159,8 @@ pub enum ProteinEdit {
     Ident,
 }
 
+// NB: code is tested welll
+#[allow(dead_code)]
 mod protein {
     use nom::{
         bytes::complete::take,
@@ -434,17 +436,17 @@ mod protein_edit {
 impl ProteinEdit {
     pub fn parse(input: &str) -> IResult<&str, Self> {
         alt((
+            protein_edit::fs,
+            protein_edit::ext_neg_shift,
+            protein_edit::ext_pos_shift,
+            protein_edit::ext_minimal,
+            protein_edit::ident,
             protein_edit::subst_qm,
             protein_edit::subst_aa,
             protein_edit::delins,
             protein_edit::del,
             protein_edit::ins,
             protein_edit::dup,
-            protein_edit::fs,
-            protein_edit::ext_neg_shift,
-            protein_edit::ext_pos_shift,
-            protein_edit::ext_minimal,
-            protein_edit::ident,
         ))(input)
     }
 }
@@ -1571,6 +1573,524 @@ mod test {
         assert_eq!(
             na_edit::inv_num("inv12"),
             Ok(("", NaEdit::InvNum { count: 12 }))
+        );
+    }
+
+    #[test]
+    fn proteinedit_parse() {
+        assert_eq!(
+            ProteinEdit::parse("?"),
+            Ok((
+                "",
+                ProteinEdit::Subst {
+                    alternative: "?".to_owned()
+                }
+            ))
+        );
+
+        assert_eq!(
+            ProteinEdit::parse("L"),
+            Ok((
+                "",
+                ProteinEdit::Subst {
+                    alternative: "L".to_owned()
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("X"),
+            Ok((
+                "",
+                ProteinEdit::Subst {
+                    alternative: "X".to_owned()
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("*"),
+            Ok((
+                "",
+                ProteinEdit::Subst {
+                    alternative: "*".to_owned()
+                }
+            ))
+        );
+
+        assert_eq!(
+            ProteinEdit::parse("Leu"),
+            Ok((
+                "",
+                ProteinEdit::Subst {
+                    alternative: "Leu".to_owned()
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("Ter"),
+            Ok((
+                "",
+                ProteinEdit::Subst {
+                    alternative: "Ter".to_owned()
+                }
+            ))
+        );
+
+        assert_eq!(
+            ProteinEdit::parse("delinsLeu"),
+            Ok((
+                "",
+                ProteinEdit::DelIns {
+                    alternative: "Leu".to_owned()
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("delinsLeuTer"),
+            Ok((
+                "",
+                ProteinEdit::DelIns {
+                    alternative: "LeuTer".to_owned()
+                }
+            ))
+        );
+
+        assert_eq!(
+            ProteinEdit::parse("delinsL"),
+            Ok((
+                "",
+                ProteinEdit::DelIns {
+                    alternative: "L".to_owned()
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("delinsL*"),
+            Ok((
+                "",
+                ProteinEdit::DelIns {
+                    alternative: "L*".to_owned()
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("delinsLX"),
+            Ok((
+                "",
+                ProteinEdit::DelIns {
+                    alternative: "LX".to_owned()
+                }
+            ))
+        );
+
+        assert_eq!(ProteinEdit::parse("dup"), Ok(("", ProteinEdit::Dup)));
+
+        assert_eq!(
+            ProteinEdit::parse("Lfs"),
+            Ok((
+                "",
+                ProteinEdit::Fs {
+                    alternative: Some("L".to_owned()),
+                    terminal: None,
+                    length: UncertainChange::None,
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("fs"),
+            Ok((
+                "",
+                ProteinEdit::Fs {
+                    alternative: None,
+                    terminal: None,
+                    length: UncertainChange::None
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("fs*"),
+            Ok((
+                "",
+                ProteinEdit::Fs {
+                    alternative: None,
+                    terminal: Some("*".to_owned()),
+                    length: UncertainChange::None
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("fsX"),
+            Ok((
+                "",
+                ProteinEdit::Fs {
+                    alternative: None,
+                    terminal: Some("X".to_owned()),
+                    length: UncertainChange::None
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("fs*?"),
+            Ok((
+                "",
+                ProteinEdit::Fs {
+                    alternative: None,
+                    terminal: Some("*".to_owned()),
+                    length: UncertainChange::Unknown
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("fsX?"),
+            Ok((
+                "",
+                ProteinEdit::Fs {
+                    alternative: None,
+                    terminal: Some("X".to_owned()),
+                    length: UncertainChange::Unknown
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("fs*12"),
+            Ok((
+                "",
+                ProteinEdit::Fs {
+                    alternative: None,
+                    terminal: Some("*".to_owned()),
+                    length: UncertainChange::Known(12)
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("fsX12"),
+            Ok((
+                "",
+                ProteinEdit::Fs {
+                    alternative: None,
+                    terminal: Some("X".to_owned()),
+                    length: UncertainChange::Known(12)
+                }
+            ))
+        );
+
+        assert_eq!(
+            ProteinEdit::parse("ext-1"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: None,
+                    ext_aa: None,
+                    change: UncertainChange::Known(-1),
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("LextM-1"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: Some("L".to_owned()),
+                    ext_aa: Some("M".to_string()),
+                    change: UncertainChange::Known(-1),
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("LeuextMet-1"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: Some("Leu".to_owned()),
+                    ext_aa: Some("Met".to_string()),
+                    change: UncertainChange::Known(-1),
+                }
+            ))
+        );
+
+        assert_eq!(
+            ProteinEdit::parse("LextX"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: Some("L".to_owned()),
+                    ext_aa: Some("X".to_string()),
+                    change: UncertainChange::None,
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("Lext*"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: Some("L".to_owned()),
+                    ext_aa: Some("*".to_string()),
+                    change: UncertainChange::None,
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("LeuextTer"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: Some("Leu".to_owned()),
+                    ext_aa: Some("Ter".to_string()),
+                    change: UncertainChange::None,
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("extX"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: None,
+                    ext_aa: Some("X".to_string()),
+                    change: UncertainChange::None,
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("ext*"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: None,
+                    ext_aa: Some("*".to_string()),
+                    change: UncertainChange::None,
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("extTer"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: None,
+                    ext_aa: Some("Ter".to_string()),
+                    change: UncertainChange::None,
+                }
+            ))
+        );
+
+        assert_eq!(
+            ProteinEdit::parse("LextX?"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: Some("L".to_owned()),
+                    ext_aa: Some("X".to_string()),
+                    change: UncertainChange::Unknown,
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("Lext*?"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: Some("L".to_owned()),
+                    ext_aa: Some("*".to_string()),
+                    change: UncertainChange::Unknown,
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("LeuextTer?"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: Some("Leu".to_owned()),
+                    ext_aa: Some("Ter".to_string()),
+                    change: UncertainChange::Unknown,
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("extX?"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: None,
+                    ext_aa: Some("X".to_string()),
+                    change: UncertainChange::Unknown,
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("ext*?"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: None,
+                    ext_aa: Some("*".to_string()),
+                    change: UncertainChange::Unknown,
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("extTer?"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: None,
+                    ext_aa: Some("Ter".to_string()),
+                    change: UncertainChange::Unknown,
+                }
+            ))
+        );
+
+        assert_eq!(
+            ProteinEdit::parse("LextX10"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: Some("L".to_owned()),
+                    ext_aa: Some("X".to_string()),
+                    change: UncertainChange::Known(10),
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("Lext*10"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: Some("L".to_owned()),
+                    ext_aa: Some("*".to_string()),
+                    change: UncertainChange::Known(10),
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("LeuextTer10"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: Some("Leu".to_owned()),
+                    ext_aa: Some("Ter".to_string()),
+                    change: UncertainChange::Known(10),
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("extX10"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: None,
+                    ext_aa: Some("X".to_string()),
+                    change: UncertainChange::Known(10),
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("ext*10"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: None,
+                    ext_aa: Some("*".to_string()),
+                    change: UncertainChange::Known(10),
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("extTer10"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: None,
+                    ext_aa: Some("Ter".to_string()),
+                    change: UncertainChange::Known(10),
+                }
+            ))
+        );
+
+        assert_eq!(
+            ProteinEdit::parse("Lext"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: Some("L".to_owned()),
+                    ext_aa: None,
+                    change: UncertainChange::None,
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("Leuext"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: Some("Leu".to_owned()),
+                    ext_aa: None,
+                    change: UncertainChange::None,
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("ext"),
+            Ok((
+                "",
+                ProteinEdit::Ext {
+                    aa_ext: None,
+                    ext_aa: None,
+                    change: UncertainChange::None,
+                }
+            ))
+        );
+
+        assert_eq!(ProteinEdit::parse("="), Ok(("", ProteinEdit::Ident)));
+
+        assert_eq!(ProteinEdit::parse("del"), Ok(("", ProteinEdit::Del)));
+
+        assert_eq!(
+            ProteinEdit::parse("insL"),
+            Ok((
+                "",
+                ProteinEdit::Ins {
+                    alternative: "L".to_owned()
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("insL*"),
+            Ok((
+                "",
+                ProteinEdit::Ins {
+                    alternative: "L*".to_owned()
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("insLX"),
+            Ok((
+                "",
+                ProteinEdit::Ins {
+                    alternative: "LX".to_owned()
+                }
+            ))
+        );
+
+        assert_eq!(
+            ProteinEdit::parse("insLeu"),
+            Ok((
+                "",
+                ProteinEdit::Ins {
+                    alternative: "Leu".to_owned()
+                }
+            ))
+        );
+        assert_eq!(
+            ProteinEdit::parse("insLeuTer"),
+            Ok((
+                "",
+                ProteinEdit::Ins {
+                    alternative: "LeuTer".to_owned()
+                }
+            ))
         );
     }
 
