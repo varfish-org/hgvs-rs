@@ -154,6 +154,8 @@ impl Parseable for NaEdit {
         alt((
             na_edit::ident,
             na_edit::subst,
+            na_edit::del_ref,
+            na_edit::del_num,
             na_edit::delins_ref_alt,
             na_edit::delins_num_alt,
             na_edit::ins,

@@ -26,6 +26,8 @@ pub enum NaEdit {
     },
     /// A substitution where the reference is a number and alternative is a count.
     NumAlt { count: i32, alternative: String },
+    /// Deletion of one or more nucleic acid characters.
+    Del { reference: String },
     /// Insertion of one or more nucleic acid characters.
     Ins { alternative: String },
     /// Duplication of nucleic acid reference sequence.
