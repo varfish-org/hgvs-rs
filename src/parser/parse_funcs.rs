@@ -409,7 +409,54 @@ pub mod na_edit {
 }
 
 /// Parsing of CDS position and interval.
-pub mod cds_pos {}
+pub mod cds_pos {
+    use nom::{
+        branch::alt,
+        bytes::complete::tag,
+        character::complete::digit1,
+        combinator::{opt, recognize},
+        sequence::{pair, tuple},
+        IResult,
+    };
+
+    use crate::parser::{CdsFrom, CdsInterval, CdsPos};
+
+    fn pos_from_start(input: &str) -> IResult<&str, CdsPos> {
+        let (rest, base) = recognize(pair(opt(alt((tag("+"), tag("-")))), digit1))(input)?;
+        let (rest, offset) = opt(recognize(pair(alt((tag("+"), tag("-"))), digit1)))(rest)?;
+        Ok((
+            rest,
+            CdsPos {
+                base: str::parse::<i32>(base).unwrap(),
+                offset: offset.map(|offset| str::parse::<i32>(offset).unwrap()),
+                cds_from: CdsFrom::Start,
+            },
+        ))
+    }
+
+    fn pos_from_end(input: &str) -> IResult<&str, CdsPos> {
+        let (rest, _) = tag("*")(input)?;
+        let (rest, base) = digit1(rest)?;
+        let (rest, offset) = opt(recognize(pair(alt((tag("+"), tag("-"))), digit1)))(rest)?;
+        Ok((
+            rest,
+            CdsPos {
+                base: str::parse::<i32>(base).unwrap(),
+                offset: offset.map(|offset| str::parse::<i32>(offset).unwrap()),
+                cds_from: CdsFrom::End,
+            },
+        ))
+    }
+
+    pub fn pos(input: &str) -> IResult<&str, CdsPos> {
+        Ok(alt((pos_from_start, pos_from_end))(input)?)
+    }
+
+    pub fn int(input: &str) -> IResult<&str, CdsInterval> {
+        let (rest, (begin, _, end)) = tuple((pos, tag("_"), pos))(input)?;
+        Ok((rest, CdsInterval { begin, end }))
+    }
+}
 
 /// Parsing of Genome position and interval.
 pub mod genome_pos {
@@ -567,7 +614,7 @@ mod test {
     use crate::parser::{
         ds::{ProteinEdit, UncertainLengthChange},
         GenomeInterval, MtInterval, NaEdit, ProtInterval, ProtPos, RnaInterval, RnaPos, TxInterval,
-        TxPos,
+        TxPos, CdsFrom, CdsPos, CdsInterval,
     };
 
     use super::*;
@@ -1494,6 +1541,309 @@ mod test {
                 MtInterval {
                     begin: None,
                     end: None,
+                }
+            ))
+        );
+    }
+
+
+    #[test]
+    fn cdspos_int() {
+        assert_eq!(
+            cds_pos::int("123_123"),
+            Ok((
+                "",
+                CdsInterval {
+                    begin: CdsPos {
+                        base: 123,
+                        offset: None,
+                        cds_from: CdsFrom::Start,
+                    },
+                    end: CdsPos {
+                        base: 123,
+                        offset: None,
+                        cds_from: CdsFrom::Start,
+                    },
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::int("+123_+123"),
+            Ok((
+                "",
+                CdsInterval {
+                    begin: CdsPos {
+                        base: 123,
+                        offset: None,
+                        cds_from: CdsFrom::Start,
+                    },
+                    end: CdsPos {
+                        base: 123,
+                        offset: None,
+                        cds_from: CdsFrom::Start,
+                    },
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::int("-123_-123"),
+            Ok((
+                "",
+                CdsInterval {
+                    begin: CdsPos {
+                        base: -123,
+                        offset: None,
+                        cds_from: CdsFrom::Start,
+                    },
+                    end: CdsPos {
+                        base: -123,
+                        offset: None,
+                        cds_from: CdsFrom::Start,
+                    },
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::int("123+42_123+42"),
+            Ok((
+                "",
+                CdsInterval {
+                    begin: CdsPos {
+                        base: 123,
+                        offset: Some(42),
+                        cds_from: CdsFrom::Start,
+                    },
+                    end: CdsPos {
+                        base: 123,
+                        offset: Some(42),
+                        cds_from: CdsFrom::Start,
+                    },
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::int("+123+42_+123+42"),
+            Ok((
+                "",
+                CdsInterval {
+                    begin: CdsPos {
+                        base: 123,
+                        offset: Some(42),
+                        cds_from: CdsFrom::Start,
+                    },
+                    end: CdsPos {
+                        base: 123,
+                        offset: Some(42),
+                        cds_from: CdsFrom::Start,
+                    },
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::int("-123+42_-123+42"),
+            Ok((
+                "",
+                CdsInterval {
+                    begin: CdsPos {
+                        base: -123,
+                        offset: Some(42),
+                        cds_from: CdsFrom::Start,
+                    },
+                    end: CdsPos {
+                        base: -123,
+                        offset: Some(42),
+                        cds_from: CdsFrom::Start,
+                    },
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::int("123-42_123-42"),
+            Ok((
+                "",
+                CdsInterval {
+                    begin: CdsPos {
+                        base: 123,
+                        offset: Some(-42),
+                        cds_from: CdsFrom::Start,
+                    },
+                    end: CdsPos {
+                        base: 123,
+                        offset: Some(-42),
+                        cds_from: CdsFrom::Start,
+                    },
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::int("+123-42_+123-42"),
+            Ok((
+                "",
+                CdsInterval {
+                    begin: CdsPos {
+                        base: 123,
+                        offset: Some(-42),
+                        cds_from: CdsFrom::Start,
+                    },
+                    end: CdsPos {
+                        base: 123,
+                        offset: Some(-42),
+                        cds_from: CdsFrom::Start,
+                    },
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::int("-123-42_-123-42"),
+            Ok((
+                "",
+                CdsInterval {
+                    begin: CdsPos {
+                        base: -123,
+                        offset: Some(-42),
+                        cds_from: CdsFrom::Start,
+                    },
+                    end: CdsPos {
+                        base: -123,
+                        offset: Some(-42),
+                        cds_from: CdsFrom::Start,
+                    },
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn cdspos_pos() {
+        assert_eq!(
+            cds_pos::pos("123"),
+            Ok((
+                "",
+                CdsPos {
+                    base: 123,
+                    offset: None,
+                        cds_from: CdsFrom::Start,
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::pos("+123"),
+            Ok((
+                "",
+                CdsPos {
+                    base: 123,
+                    offset: None,
+                        cds_from: CdsFrom::Start,
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::pos("-123"),
+            Ok((
+                "",
+                CdsPos {
+                    base: -123,
+                    offset: None,
+                        cds_from: CdsFrom::Start,
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::pos("123+42"),
+            Ok((
+                "",
+                CdsPos {
+                    base: 123,
+                    offset: Some(42),
+                        cds_from: CdsFrom::Start,
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::pos("+123+42"),
+            Ok((
+                "",
+                CdsPos {
+                    base: 123,
+                    offset: Some(42),
+                        cds_from: CdsFrom::Start,
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::pos("-123+42"),
+            Ok((
+                "",
+                CdsPos {
+                    base: -123,
+                    offset: Some(42),
+                        cds_from: CdsFrom::Start,
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::pos("123-42"),
+            Ok((
+                "",
+                CdsPos {
+                    base: 123,
+                    offset: Some(-42),
+                        cds_from: CdsFrom::Start,
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::pos("+123-42"),
+            Ok((
+                "",
+                CdsPos {
+                    base: 123,
+                    offset: Some(-42),
+                        cds_from: CdsFrom::Start,
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::pos("-123-42"),
+            Ok((
+                "",
+                CdsPos {
+                    base: -123,
+                    offset: Some(-42),
+                        cds_from: CdsFrom::Start,
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::pos("*123"),
+            Ok((
+                "",
+                CdsPos {
+                    base: 123,
+                    offset: None,
+                        cds_from: CdsFrom::End,
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::pos("*123+42"),
+            Ok((
+                "",
+                CdsPos {
+                    base: 123,
+                    offset: Some(42),
+                        cds_from: CdsFrom::End,
+                }
+            ))
+        );
+        assert_eq!(
+            cds_pos::pos("*123-42"),
+            Ok((
+                "",
+                CdsPos {
+                    base: 123,
+                    offset: Some(-42),
+                        cds_from: CdsFrom::End,
                 }
             ))
         );

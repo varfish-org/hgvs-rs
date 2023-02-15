@@ -148,8 +148,8 @@ pub struct CdsInterval {
 /// CDS end.
 #[derive(Clone, Debug, PartialEq)]
 pub enum CdsFrom {
-    CdsStart,
-    CdsEnd,
+    Start,
+    End,
 }
 
 /// CDS position.
