@@ -314,9 +314,9 @@ impl Display for HgvsVariant {
             } => {
                 write!(f, "{}", accession)?;
                 if let Some(gene_symbol) = gene_symbol {
-                    write!(f, "{}", gene_symbol)?;
+                    write!(f, "({})", gene_symbol)?;
                 }
-                write!(f, "{}", loc_edit)
+                write!(f, ":c.{}", loc_edit)
             }
             HgvsVariant::GenomeVariant {
                 accession,
@@ -325,9 +325,9 @@ impl Display for HgvsVariant {
             } => {
                 write!(f, "{}", accession)?;
                 if let Some(gene_symbol) = gene_symbol {
-                    write!(f, "{}", gene_symbol)?;
+                    write!(f, "({})", gene_symbol)?;
                 }
-                write!(f, "{}", loc_edit)
+                write!(f, ":g.{}", loc_edit)
             }
             HgvsVariant::MtVariant {
                 accession,
@@ -336,9 +336,9 @@ impl Display for HgvsVariant {
             } => {
                 write!(f, "{}", accession)?;
                 if let Some(gene_symbol) = gene_symbol {
-                    write!(f, "{}", gene_symbol)?;
+                    write!(f, "({})", gene_symbol)?;
                 }
-                write!(f, "{}", loc_edit)
+                write!(f, ":m.{}", loc_edit)
             }
             HgvsVariant::TxVariant {
                 accession,
@@ -347,9 +347,9 @@ impl Display for HgvsVariant {
             } => {
                 write!(f, "{}", accession)?;
                 if let Some(gene_symbol) = gene_symbol {
-                    write!(f, "{}", gene_symbol)?;
+                    write!(f, "({})", gene_symbol)?;
                 }
-                write!(f, "{}", loc_edit)
+                write!(f, ":n.{}", loc_edit)
             }
             HgvsVariant::ProtVariant {
                 accession,
@@ -358,9 +358,9 @@ impl Display for HgvsVariant {
             } => {
                 write!(f, "{}", accession)?;
                 if let Some(gene_symbol) = gene_symbol {
-                    write!(f, "{}", gene_symbol)?;
+                    write!(f, "({})", gene_symbol)?;
                 }
-                write!(f, "{}", loc_edit)
+                write!(f, ":p.{}", loc_edit)
             }
             HgvsVariant::RnaVariant {
                 accession,
@@ -369,9 +369,9 @@ impl Display for HgvsVariant {
             } => {
                 write!(f, "{}", accession)?;
                 if let Some(gene_symbol) = gene_symbol {
-                    write!(f, "{}", gene_symbol)?;
+                    write!(f, "({})", gene_symbol)?;
                 }
-                write!(f, "{}", loc_edit)
+                write!(f, ":r.{}", loc_edit)
             }
         }
     }
@@ -383,8 +383,8 @@ mod test {
 
     use crate::parser::{
         Accession, CdsFrom, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval,
-        GenomeLocEdit, MtInterval, MtLocEdit, Mu, NaEdit, ProtInterval, ProtLocEdit, ProtPos,
-        ProteinEdit, RnaInterval, RnaLocEdit, RnaPos, TxInterval, TxLocEdit, TxPos,
+        GenomeLocEdit, HgvsVariant, MtInterval, MtLocEdit, Mu, NaEdit, ProtInterval, ProtLocEdit,
+        ProtPos, ProteinEdit, RnaInterval, RnaLocEdit, RnaPos, TxInterval, TxLocEdit, TxPos,
         UncertainLengthChange,
     };
 
@@ -1511,6 +1511,321 @@ mod test {
         assert_eq!(
             format!("{}", ProtLocEdit::NoProteinUncertain,),
             "0?".to_string()
+        );
+    }
+
+    #[test]
+    fn hgvs_variant_cds() {
+        assert_eq!(
+            format!(
+                "{}",
+                HgvsVariant::CdsVariant {
+                    accession: Accession {
+                        value: "NA12345.1".to_string()
+                    },
+                    gene_symbol: Some(GeneSymbol {
+                        value: "TTN".to_string()
+                    }),
+                    loc_edit: CdsLocEdit {
+                        loc: Mu::Certain(CdsInterval {
+                            begin: CdsPos {
+                                base: 100,
+                                offset: None,
+                                cds_from: CdsFrom::Start,
+                            },
+                            end: CdsPos {
+                                base: 100,
+                                offset: None,
+                                cds_from: CdsFrom::Start,
+                            }
+                        }),
+                        edit: Mu::Certain(NaEdit::RefAlt {
+                            reference: "C".to_string(),
+                            alternative: "T".to_string()
+                        })
+                    }
+                }
+            ),
+            "NA12345.1(TTN):c.100C>T".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                HgvsVariant::CdsVariant {
+                    accession: Accession {
+                        value: "NA12345.1".to_string()
+                    },
+                    gene_symbol: None,
+                    loc_edit: CdsLocEdit {
+                        loc: Mu::Certain(CdsInterval {
+                            begin: CdsPos {
+                                base: 100,
+                                offset: None,
+                                cds_from: CdsFrom::Start,
+                            },
+                            end: CdsPos {
+                                base: 100,
+                                offset: None,
+                                cds_from: CdsFrom::Start,
+                            }
+                        }),
+                        edit: Mu::Certain(NaEdit::RefAlt {
+                            reference: "C".to_string(),
+                            alternative: "T".to_string()
+                        })
+                    }
+                }
+            ),
+            "NA12345.1:c.100C>T".to_string(),
+        );
+    }
+
+    #[test]
+    fn hgvs_variant_genome() {
+        assert_eq!(
+            format!(
+                "{}",
+                HgvsVariant::GenomeVariant {
+                    accession: Accession {
+                        value: "NA12345.1".to_string()
+                    },
+                    gene_symbol: Some(GeneSymbol {
+                        value: "TTN".to_string()
+                    }),
+                    loc_edit: GenomeLocEdit {
+                        loc: Mu::Certain(GenomeInterval {
+                            begin: Some(100),
+                            end: Some(100)
+                        }),
+                        edit: Mu::Certain(NaEdit::RefAlt {
+                            reference: "C".to_string(),
+                            alternative: "T".to_string()
+                        })
+                    }
+                }
+            ),
+            "NA12345.1(TTN):g.100C>T".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                HgvsVariant::GenomeVariant {
+                    accession: Accession {
+                        value: "NA12345.1".to_string()
+                    },
+                    gene_symbol: None,
+                    loc_edit: GenomeLocEdit {
+                        loc: Mu::Certain(GenomeInterval {
+                            begin: Some(100),
+                            end: Some(100)
+                        }),
+                        edit: Mu::Certain(NaEdit::RefAlt {
+                            reference: "C".to_string(),
+                            alternative: "T".to_string()
+                        })
+                    }
+                }
+            ),
+            "NA12345.1:g.100C>T".to_string(),
+        );
+    }
+
+    #[test]
+    fn hgvs_variant_mt() {
+        assert_eq!(
+            format!(
+                "{}",
+                HgvsVariant::MtVariant {
+                    accession: Accession {
+                        value: "NA12345.1".to_string()
+                    },
+                    gene_symbol: Some(GeneSymbol {
+                        value: "TTN".to_string()
+                    }),
+                    loc_edit: MtLocEdit {
+                        loc: Mu::Certain(MtInterval {
+                            begin: Some(100),
+                            end: Some(100)
+                        }),
+                        edit: Mu::Certain(NaEdit::RefAlt {
+                            reference: "C".to_string(),
+                            alternative: "T".to_string()
+                        })
+                    }
+                }
+            ),
+            "NA12345.1(TTN):m.100C>T".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                HgvsVariant::MtVariant {
+                    accession: Accession {
+                        value: "NA12345.1".to_string()
+                    },
+                    gene_symbol: None,
+                    loc_edit: MtLocEdit {
+                        loc: Mu::Certain(MtInterval {
+                            begin: Some(100),
+                            end: Some(100)
+                        }),
+                        edit: Mu::Certain(NaEdit::RefAlt {
+                            reference: "C".to_string(),
+                            alternative: "T".to_string()
+                        })
+                    }
+                }
+            ),
+            "NA12345.1:m.100C>T".to_string(),
+        );
+    }
+
+    #[test]
+    fn hgvs_variant_tx() {
+        assert_eq!(
+            format!(
+                "{}",
+                HgvsVariant::TxVariant {
+                    accession: Accession {
+                        value: "NA12345.1".to_string()
+                    },
+                    gene_symbol: Some(GeneSymbol {
+                        value: "TTN".to_string()
+                    }),
+                    loc_edit: TxLocEdit {
+                        loc: Mu::Certain(TxInterval {
+                            begin: TxPos {
+                                base: 100,
+                                offset: None
+                            },
+                            end: TxPos {
+                                base: 100,
+                                offset: None
+                            },
+                        }),
+                        edit: Mu::Certain(NaEdit::RefAlt {
+                            reference: "C".to_string(),
+                            alternative: "T".to_string()
+                        })
+                    }
+                }
+            ),
+            "NA12345.1(TTN):n.100C>T".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                HgvsVariant::TxVariant {
+                    accession: Accession {
+                        value: "NA12345.1".to_string()
+                    },
+                    gene_symbol: None,
+                    loc_edit: TxLocEdit {
+                        loc: Mu::Certain(TxInterval {
+                            begin: TxPos {
+                                base: 100,
+                                offset: None
+                            },
+                            end: TxPos {
+                                base: 100,
+                                offset: None
+                            },
+                        }),
+                        edit: Mu::Certain(NaEdit::RefAlt {
+                            reference: "C".to_string(),
+                            alternative: "T".to_string()
+                        })
+                    }
+                }
+            ),
+            "NA12345.1:n.100C>T".to_string(),
+        );
+    }
+
+    #[test]
+    fn hgvs_variant_rna() {
+        assert_eq!(
+            format!(
+                "{}",
+                HgvsVariant::RnaVariant {
+                    accession: Accession {
+                        value: "NA12345.1".to_string()
+                    },
+                    gene_symbol: Some(GeneSymbol {
+                        value: "TTN".to_string()
+                    }),
+                    loc_edit: RnaLocEdit {
+                        loc: Mu::Certain(RnaInterval {
+                            begin: RnaPos {
+                                base: 100,
+                                offset: None
+                            },
+                            end: RnaPos {
+                                base: 100,
+                                offset: None
+                            },
+                        }),
+                        edit: Mu::Certain(NaEdit::RefAlt {
+                            reference: "C".to_string(),
+                            alternative: "T".to_string()
+                        })
+                    }
+                }
+            ),
+            "NA12345.1(TTN):r.100C>T".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                HgvsVariant::RnaVariant {
+                    accession: Accession {
+                        value: "NA12345.1".to_string()
+                    },
+                    gene_symbol: None,
+                    loc_edit: RnaLocEdit {
+                        loc: Mu::Certain(RnaInterval {
+                            begin: RnaPos {
+                                base: 100,
+                                offset: None
+                            },
+                            end: RnaPos {
+                                base: 100,
+                                offset: None
+                            },
+                        }),
+                        edit: Mu::Certain(NaEdit::RefAlt {
+                            reference: "C".to_string(),
+                            alternative: "T".to_string()
+                        })
+                    }
+                }
+            ),
+            "NA12345.1:r.100C>T".to_string(),
+        );
+    }
+
+
+    #[test]
+    fn hgvs_variant_prot() {
+        assert_eq!(
+            format!(
+                "{}",
+                HgvsVariant::ProtVariant {
+                    accession: Accession {
+                        value: "NA12345.1".to_string()
+                    },
+                    gene_symbol: Some(GeneSymbol {
+                        value: "TTN".to_string()
+                    }),
+                    loc_edit: ProtLocEdit::NoChange
+                }
+            ),
+            "NA12345.1(TTN):p.=".to_string(),
         );
     }
 }
