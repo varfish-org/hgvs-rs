@@ -143,7 +143,11 @@ impl Display for CdsLocEdit {
 
 impl Display for CdsInterval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}_{}", self.begin, self.end)
+        write!(f, "{}", self.begin)?;
+        if self.begin != self.end {
+            write!(f, "_{}", self.end)?;
+        }
+        Ok(())
     }
 }
 
@@ -810,6 +814,25 @@ mod test {
                 }
             ),
             "42-10_42+10".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                CdsInterval {
+                    begin: CdsPos {
+                        base: 42,
+                        offset: Some(10),
+                        cds_from: CdsFrom::Start,
+                    },
+                    end: CdsPos {
+                        base: 42,
+                        offset: Some(10),
+                        cds_from: CdsFrom::Start,
+                    }
+                }
+            ),
+            "42+10".to_string(),
         );
     }
 
