@@ -345,18 +345,14 @@ pub mod na_edit {
     }
 
     pub fn del_ref(input: &str) -> IResult<&str, NaEdit> {
-        map(tuple((tag("del"), na0)), |(_, reference)| NaEdit::RefAlt {
+        map(tuple((tag("del"), na0)), |(_, reference)| NaEdit::DelRef {
             reference: reference.to_string(),
-            alternative: "".to_string(),
         })(input)
     }
 
     pub fn del_num(input: &str) -> IResult<&str, NaEdit> {
-        map(tuple((tag("del"), digit1)), |(_, reference)| {
-            NaEdit::NumAlt {
-                count: str::parse::<i32>(reference).unwrap(),
-                alternative: "".to_string(),
-            }
+        map(tuple((tag("del"), digit1)), |(_, count)| NaEdit::DelNum {
+            count: str::parse::<i32>(count).unwrap(),
         })(input)
     }
 
@@ -1435,9 +1431,8 @@ mod test {
             na_edit::del_ref("delT"),
             Ok((
                 "",
-                NaEdit::RefAlt {
+                NaEdit::DelRef {
                     reference: "T".to_owned(),
-                    alternative: "".to_owned(),
                 }
             ))
         );
@@ -1445,9 +1440,8 @@ mod test {
             na_edit::del_ref("del"),
             Ok((
                 "",
-                NaEdit::RefAlt {
+                NaEdit::DelRef {
                     reference: "".to_owned(),
-                    alternative: "".to_owned(),
                 }
             ))
         );
@@ -1457,13 +1451,7 @@ mod test {
     fn naedit_del_num() {
         assert_eq!(
             na_edit::del_num("del3"),
-            Ok((
-                "",
-                NaEdit::NumAlt {
-                    count: 3,
-                    alternative: "".to_owned(),
-                }
-            ))
+            Ok(("", NaEdit::DelNum { count: 3 }))
         );
     }
 

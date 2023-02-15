@@ -4,14 +4,16 @@
 //! The data structures also provide the `Display` trait for conversion to
 //! strings etc.
 
+mod display;
 mod ds;
 mod impl_parse;
 mod parse_funcs;
 
 use std::str::FromStr;
 
+pub use crate::parser::display::*;
 pub use crate::parser::ds::*;
-pub use crate::parser::impl_parse::*;
+use crate::parser::impl_parse::*;
 
 impl FromStr for HgvsVariant {
     type Err = anyhow::Error;
@@ -33,7 +35,7 @@ mod test {
 
     use crate::parser::{Accession, CdsFrom, CdsInterval, CdsLocEdit, CdsPos, Mu, NaEdit};
 
-    use super::{HgvsVariant, Parseable};
+    use super::HgvsVariant;
 
     #[test]
     fn from_str_basic() -> Result<(), anyhow::Error> {
@@ -69,10 +71,9 @@ mod test {
     }
 
     #[test]
-    fn x() -> Result<(), anyhow::Error> {
-        // HgvsVariant::from_str("AC_01234.5:c.76_78del")?;
-        // CdsLocEdit::parse("76_78del")?;
-        CdsInterval::parse("76_78")?;
+    fn not_ok() -> Result<(), anyhow::Error> {
+        assert!(HgvsVariant::from_str("x").is_err());
+
         Ok(())
     }
 
@@ -84,8 +85,9 @@ mod test {
         for line in reader.lines() {
             let line = line?;
             let line = line.trim();
-            if !line.starts_with("#") && !line.is_empty() {
-                assert!(HgvsVariant::from_str(line).is_ok(), "line = {}", line)
+            if !line.starts_with('#') && !line.is_empty() {
+                let result = HgvsVariant::from_str(line);
+                assert!(result.is_ok(), "line = {}; result = {:?}", &line, &result);
             }
         }
 
@@ -100,8 +102,8 @@ mod test {
         for line in reader.lines() {
             let line = line?;
             let line = line.trim();
-            if !line.starts_with("#") && !line.is_empty() {
-                assert!(!HgvsVariant::from_str(line).is_ok(), "line = {}", line)
+            if !line.starts_with('#') && !line.is_empty() {
+                assert!(HgvsVariant::from_str(line).is_err(), "line = {line}")
             }
         }
 

@@ -5,7 +5,7 @@ use nom::{
     bytes::complete::tag,
     character::complete::alphanumeric1,
     character::complete::char,
-    combinator::{map, opt, recognize},
+    combinator::{all_consuming, map, opt, recognize},
     sequence::{pair, tuple},
     IResult,
 };
@@ -14,7 +14,7 @@ use crate::parser::ds::*;
 use crate::parser::parse_funcs::*;
 
 impl HgvsVariant {
-    fn parse_cds_variant(input: &str) -> IResult<&str, Self> {
+    pub fn parse_cds_variant(input: &str) -> IResult<&str, Self> {
         map(
             tuple((
                 Accession::parse,
@@ -114,14 +114,14 @@ impl HgvsVariant {
 impl Parseable for HgvsVariant {
     /// Parse a `HgvsVariant` from the given `str`.
     fn parse(input: &str) -> IResult<&str, Self> {
-        alt((
+        all_consuming(alt((
             Self::parse_cds_variant,
             Self::parse_genome_variant,
             Self::parse_mt_variant,
             Self::parse_tx_variant,
             Self::parse_prot_variant,
             Self::parse_rna_variant,
-        ))(input)
+        )))(input)
     }
 }
 
@@ -141,9 +141,9 @@ impl Parseable for ProteinEdit {
             protein_edit::ident,
             protein_edit::subst_qm,
             protein_edit::subst_aa,
-            protein_edit::delins,
             protein_edit::del,
             protein_edit::ins,
+            protein_edit::delins,
             protein_edit::dup,
         ))(input)
     }
@@ -154,10 +154,10 @@ impl Parseable for NaEdit {
         alt((
             na_edit::ident,
             na_edit::subst,
-            na_edit::del_ref,
-            na_edit::del_num,
             na_edit::delins_ref_alt,
             na_edit::delins_num_alt,
+            na_edit::del_num,
+            na_edit::del_ref,
             na_edit::ins,
             na_edit::dup,
             na_edit::inv_num,
