@@ -141,9 +141,9 @@ impl Parseable for ProteinEdit {
             protein_edit::ident,
             protein_edit::subst_qm,
             protein_edit::subst_aa,
-            protein_edit::delins,
             protein_edit::del,
             protein_edit::ins,
+            protein_edit::delins,
             protein_edit::dup,
         ))(input)
     }
@@ -154,8 +154,8 @@ impl Parseable for NaEdit {
         alt((
             na_edit::ident,
             na_edit::subst,
-            na_edit::delins_num_alt,
             na_edit::delins_ref_alt,
+            na_edit::delins_num_alt,
             na_edit::del_num,
             na_edit::del_ref,
             na_edit::ins,

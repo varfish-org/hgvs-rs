@@ -32,16 +32,17 @@ impl Display for NaEdit {
                 (0, 0) => write!(f, "="),
                 (1, 1) => write!(f, "{reference}>{alternative}"),
                 (0, _) => write!(f, "delins{alternative}"),
-                (_, 0) => write!(f, "del{reference}"),
+                (_, 0) => write!(f, "del{reference}ins"),
                 (_, _) => write!(f, "del{reference}ins{alternative}"),
             },
             NaEdit::NumAlt { count, alternative } => match (count, alternative.len()) {
                 (0, 0) => write!(f, "="),
                 (0, _) => write!(f, "delins{alternative}"),
-                (_, 0) => write!(f, "del{count}"),
+                (_, 0) => write!(f, "del{count}ins"),
                 (_, _) => write!(f, "del{count}ins{alternative}"),
             },
-            NaEdit::Del { reference } => write!(f, "del{reference}"),
+            NaEdit::DelRef { reference } => write!(f, "del{reference}"),
+            NaEdit::DelNum { count } => write!(f, "del{count}"),
             NaEdit::Ins { alternative } => write!(f, "ins{alternative}"),
             NaEdit::Dup { reference } => write!(f, "dup{reference}"),
             NaEdit::InvRef { reference } => write!(f, "inv{reference}"),
@@ -456,7 +457,7 @@ mod test {
                     alternative: "".to_string()
                 }
             ),
-            "delC".to_string()
+            "delCins".to_string()
         );
 
         assert_eq!(
@@ -467,7 +468,7 @@ mod test {
                     alternative: "C".to_string()
                 }
             ),
-            "insC".to_string()
+            "delinsC".to_string()
         );
     }
 
@@ -492,7 +493,7 @@ mod test {
                     alternative: "T".to_string()
                 }
             ),
-            "insT".to_string()
+            "delinsT".to_string()
         );
         assert_eq!(
             format!(
@@ -502,7 +503,7 @@ mod test {
                     alternative: "".to_string()
                 }
             ),
-            "del3".to_string()
+            "del3ins".to_string()
         );
 
         assert_eq!(
@@ -518,15 +519,23 @@ mod test {
     }
 
     #[test]
-    fn na_edit_del() {
+    fn na_edit_del_ref() {
         assert_eq!(
             format!(
                 "{}",
-                NaEdit::Del {
+                NaEdit::DelRef {
                     reference: "T".to_string()
                 }
             ),
             "delT".to_string()
+        );
+    }
+
+    #[test]
+    fn na_edit_del_num() {
+        assert_eq!(
+            format!("{}", NaEdit::DelNum { count: 3 }),
+            "del3".to_string()
         );
     }
 
@@ -1847,8 +1856,8 @@ mod test {
                 let hgvs_str = format!("{}", &hgvs_variant);
                 assert_eq!(
                     hgvs_str, line,
-                    "round-trip failed for variant {:?}",
-                    &hgvs_variant
+                    "round-trip failed for variant {:?}; line= {}",
+                    &hgvs_variant, line
                 );
             }
         }
