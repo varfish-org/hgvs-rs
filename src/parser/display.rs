@@ -31,13 +31,13 @@ impl Display for NaEdit {
             } => match (reference.len(), alternative.len()) {
                 (0, 0) => write!(f, "="),
                 (1, 1) => write!(f, "{reference}>{alternative}"),
-                (0, _) => write!(f, "ins{alternative}"),
+                (0, _) => write!(f, "delins{alternative}"),
                 (_, 0) => write!(f, "del{reference}"),
                 (_, _) => write!(f, "del{reference}ins{alternative}"),
             },
             NaEdit::NumAlt { count, alternative } => match (count, alternative.len()) {
                 (0, 0) => write!(f, "="),
-                (0, _) => write!(f, "ins{alternative}"),
+                (0, _) => write!(f, "delins{alternative}"),
                 (_, 0) => write!(f, "del{count}"),
                 (_, _) => write!(f, "del{count}ins{alternative}"),
             },
@@ -379,7 +379,11 @@ impl Display for HgvsVariant {
 
 #[cfg(test)]
 mod test {
-    use std::{io::{BufReader, BufRead}, fs::File, str::FromStr};
+    use std::{
+        fs::File,
+        io::{BufRead, BufReader},
+        str::FromStr,
+    };
 
     use pretty_assertions::assert_eq;
 
@@ -1832,7 +1836,7 @@ mod test {
 
     // This test uses the "gauntlet" file from the hgvs package for round-tripping.
     #[test]
-    fn hgvs_gauntlet() -> Result<(), anyhow::Error> {
+    fn roundtrip_hgvs_gauntlet() -> Result<(), anyhow::Error> {
         let reader = BufReader::new(File::open("tests/data/gauntlet")?);
 
         for line in reader.lines() {
@@ -1842,8 +1846,7 @@ mod test {
                 let hgvs_variant = HgvsVariant::from_str(line)?;
                 let hgvs_str = format!("{}", &hgvs_variant);
                 assert_eq!(
-                    hgvs_str,
-                    line,
+                    hgvs_str, line,
                     "round-trip failed for variant {:?}",
                     &hgvs_variant
                 );
@@ -1852,5 +1855,4 @@ mod test {
 
         Ok(())
     }
-
 }

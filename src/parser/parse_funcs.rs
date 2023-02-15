@@ -352,11 +352,9 @@ pub mod na_edit {
     }
 
     pub fn del_num(input: &str) -> IResult<&str, NaEdit> {
-        map(tuple((tag("del"), digit1)), |(_, reference)| {
-            NaEdit::NumAlt {
-                count: str::parse::<i32>(reference).unwrap(),
-                alternative: "".to_string(),
-            }
+        map(tuple((tag("del"), digit1)), |(_, count)| NaEdit::NumAlt {
+            count: str::parse::<i32>(count).unwrap(),
+            alternative: "".to_string(),
         })(input)
     }
 
