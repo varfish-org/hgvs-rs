@@ -379,6 +379,8 @@ impl Display for HgvsVariant {
 
 #[cfg(test)]
 mod test {
+    use std::{io::{BufReader, BufRead}, fs::File, str::FromStr};
+
     use pretty_assertions::assert_eq;
 
     use crate::parser::{
@@ -1827,4 +1829,28 @@ mod test {
             "NA12345.1(TTN):p.=".to_string(),
         );
     }
+
+    // This test uses the "gauntlet" file from the hgvs package for round-tripping.
+    #[test]
+    fn hgvs_gauntlet() -> Result<(), anyhow::Error> {
+        let reader = BufReader::new(File::open("tests/data/gauntlet")?);
+
+        for line in reader.lines() {
+            let line = line?;
+            let line = line.trim();
+            if !line.starts_with('#') && !line.is_empty() {
+                let hgvs_variant = HgvsVariant::from_str(line)?;
+                let hgvs_str = format!("{}", &hgvs_variant);
+                assert_eq!(
+                    hgvs_str,
+                    line,
+                    "round-trip failed for variant {:?}",
+                    &hgvs_variant
+                );
+            }
+        }
+
+        Ok(())
+    }
+
 }
