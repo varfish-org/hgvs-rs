@@ -25,7 +25,7 @@ impl HgvsVariant {
             |(accession, opt_gs, _, pos_edit)| HgvsVariant::CdsVariant {
                 accession,
                 gene_symbol: opt_gs.map(|(_, gene_symbol, _)| gene_symbol),
-                pos_edit,
+                loc_edit: pos_edit,
             },
         )(input)
     }
@@ -41,7 +41,7 @@ impl HgvsVariant {
             |(accession, opt_gs, _, pos_edit)| HgvsVariant::GenomeVariant {
                 accession,
                 gene_symbol: opt_gs.map(|(_, gene_symbol, _)| gene_symbol),
-                pos_edit,
+                loc_edit: pos_edit,
             },
         )(input)
     }
@@ -57,7 +57,7 @@ impl HgvsVariant {
             |(accession, opt_gs, _, pos_edit)| HgvsVariant::MtVariant {
                 accession,
                 gene_symbol: opt_gs.map(|(_, gene_symbol, _)| gene_symbol),
-                pos_edit,
+                loc_edit: pos_edit,
             },
         )(input)
     }
@@ -73,7 +73,7 @@ impl HgvsVariant {
             |(accession, opt_gs, _, pos_edit)| HgvsVariant::TxVariant {
                 accession,
                 gene_symbol: opt_gs.map(|(_, gene_symbol, _)| gene_symbol),
-                pos_edit,
+                loc_edit: pos_edit,
             },
         )(input)
     }
@@ -89,7 +89,7 @@ impl HgvsVariant {
             |(accession, opt_gs, _, pos_edit)| HgvsVariant::ProtVariant {
                 accession,
                 gene_symbol: opt_gs.map(|(_, gene_symbol, _)| gene_symbol),
-                pos_edit,
+                loc_edit: pos_edit,
             },
         )(input)
     }
@@ -105,7 +105,7 @@ impl HgvsVariant {
             |(accession, opt_gs, _, pos_edit)| HgvsVariant::RnaVariant {
                 accession,
                 gene_symbol: opt_gs.map(|(_, gene_symbol, _)| gene_symbol),
-                pos_edit,
+                loc_edit: pos_edit,
             },
         )(input)
     }
@@ -224,7 +224,7 @@ where
 
 impl Parseable for CdsInterval {
     fn parse(input: &str) -> IResult<&str, Self> {
-        cds_pos::int(input)
+        cds_pos::loc(input)
     }
 }
 
@@ -239,7 +239,7 @@ impl Parseable for CdsLocEdit {
 
 impl Parseable for GenomeInterval {
     fn parse(input: &str) -> IResult<&str, Self> {
-        genome_pos::int(input)
+        genome_pos::loc(input)
     }
 }
 
@@ -254,7 +254,7 @@ impl Parseable for GenomeLocEdit {
 
 impl Parseable for MtInterval {
     fn parse(input: &str) -> IResult<&str, Self> {
-        mt_pos::int(input)
+        mt_pos::loc(input)
     }
 }
 
@@ -269,7 +269,7 @@ impl Parseable for MtLocEdit {
 
 impl Parseable for TxInterval {
     fn parse(input: &str) -> IResult<&str, Self> {
-        tx_pos::int(input)
+        tx_pos::loc(input)
     }
 }
 
@@ -284,7 +284,7 @@ impl Parseable for TxLocEdit {
 
 impl Parseable for RnaInterval {
     fn parse(input: &str) -> IResult<&str, Self> {
-        rna_pos::int(input)
+        rna_pos::loc(input)
     }
 }
 
@@ -299,7 +299,7 @@ impl Parseable for RnaLocEdit {
 
 impl Parseable for ProtInterval {
     fn parse(input: &str) -> IResult<&str, Self> {
-        prot_pos::int(input)
+        prot_pos::loc(input)
     }
 }
 
@@ -358,7 +358,7 @@ mod test {
                     gene_symbol: Some(GeneSymbol {
                         value: "XYZ".to_string()
                     }),
-                    pos_edit: CdsLocEdit {
+                    loc_edit: CdsLocEdit {
                         loc: Mu::Certain(CdsInterval {
                             begin: CdsPos {
                                 base: 123,
@@ -390,7 +390,7 @@ mod test {
                     gene_symbol: Some(GeneSymbol {
                         value: "XYZ".to_string()
                     }),
-                    pos_edit: GenomeLocEdit {
+                    loc_edit: GenomeLocEdit {
                         loc: Mu::Certain(GenomeInterval {
                             begin: Some(123),
                             end: Some(123),
@@ -414,7 +414,7 @@ mod test {
                     gene_symbol: Some(GeneSymbol {
                         value: "XYZ".to_string()
                     }),
-                    pos_edit: MtLocEdit {
+                    loc_edit: MtLocEdit {
                         loc: Mu::Certain(MtInterval {
                             begin: Some(123),
                             end: Some(123),
@@ -438,7 +438,7 @@ mod test {
                     gene_symbol: Some(GeneSymbol {
                         value: "XYZ".to_string()
                     }),
-                    pos_edit: TxLocEdit {
+                    loc_edit: TxLocEdit {
                         loc: Mu::Certain(TxInterval {
                             begin: TxPos {
                                 base: 123,
@@ -468,7 +468,7 @@ mod test {
                     gene_symbol: Some(GeneSymbol {
                         value: "XYZ".to_string()
                     }),
-                    pos_edit: RnaLocEdit {
+                    loc_edit: RnaLocEdit {
                         loc: Mu::Certain(RnaInterval {
                             begin: RnaPos {
                                 base: 123,
@@ -498,7 +498,7 @@ mod test {
                     gene_symbol: Some(GeneSymbol {
                         value: "XYZ".to_string()
                     }),
-                    pos_edit: ProtLocEdit::Ordinary {
+                    loc_edit: ProtLocEdit::Ordinary {
                         loc: Mu::Certain(ProtInterval {
                             begin: ProtPos {
                                 aa: "Leu".to_string(),

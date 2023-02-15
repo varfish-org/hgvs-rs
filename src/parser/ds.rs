@@ -92,37 +92,37 @@ pub enum HgvsVariant {
     CdsVariant {
         accession: Accession,
         gene_symbol: Option<GeneSymbol>,
-        pos_edit: CdsLocEdit,
+        loc_edit: CdsLocEdit,
     },
     /// Variant specification with `g.` location.
     GenomeVariant {
         accession: Accession,
         gene_symbol: Option<GeneSymbol>,
-        pos_edit: GenomeLocEdit,
+        loc_edit: GenomeLocEdit,
     },
     /// Variant specification with `m.` location.
     MtVariant {
         accession: Accession,
         gene_symbol: Option<GeneSymbol>,
-        pos_edit: MtLocEdit,
+        loc_edit: MtLocEdit,
     },
     /// Variant specification with `n.` location.
     TxVariant {
         accession: Accession,
         gene_symbol: Option<GeneSymbol>,
-        pos_edit: TxLocEdit,
+        loc_edit: TxLocEdit,
     },
     /// Variant specification with `p.` location.
     ProtVariant {
         accession: Accession,
         gene_symbol: Option<GeneSymbol>,
-        pos_edit: ProtLocEdit,
+        loc_edit: ProtLocEdit,
     },
     /// Variant specification with `r.` location.
     RnaVariant {
         accession: Accession,
         gene_symbol: Option<GeneSymbol>,
-        pos_edit: RnaLocEdit,
+        loc_edit: RnaLocEdit,
     },
 }
 

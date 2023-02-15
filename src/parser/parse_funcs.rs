@@ -459,11 +459,11 @@ pub mod cds_pos {
 
     pub fn loc(input: &str) -> IResult<&str, CdsInterval> {
         alt((
+            int,
             map(pos, |pos| CdsInterval {
                 begin: pos.clone(),
                 end: pos.clone(),
             }),
-            int,
         ))(input)
     }
 }
@@ -495,11 +495,11 @@ pub mod genome_pos {
 
     pub fn loc(input: &str) -> IResult<&str, GenomeInterval> {
         alt((
+            int,
             map(pos, |pos| GenomeInterval {
                 begin: pos.clone(),
                 end: pos.clone(),
             }),
-            int,
         ))(input)
     }
 }
@@ -532,11 +532,11 @@ pub mod mt_pos {
 
     pub fn loc(input: &str) -> IResult<&str, MtInterval> {
         alt((
+            int,
             map(pos, |pos| MtInterval {
                 begin: pos.clone(),
                 end: pos.clone(),
             }),
-            int,
         ))(input)
     }
 }
@@ -573,11 +573,11 @@ pub mod tx_pos {
 
     pub fn loc(input: &str) -> IResult<&str, TxInterval> {
         alt((
+            int,
             map(pos, |pos| TxInterval {
                 begin: pos.clone(),
                 end: pos.clone(),
             }),
-            int,
         ))(input)
     }
 }
@@ -614,11 +614,11 @@ pub mod rna_pos {
 
     pub fn loc(input: &str) -> IResult<&str, RnaInterval> {
         alt((
+            int,
             map(pos, |pos| RnaInterval {
                 begin: pos.clone(),
                 end: pos.clone(),
             }),
-            int,
         ))(input)
     }
 }
@@ -656,11 +656,11 @@ pub mod prot_pos {
 
     pub fn loc(input: &str) -> IResult<&str, ProtInterval> {
         alt((
+            int,
             map(pos, |pos| ProtInterval {
                 begin: pos.clone(),
                 end: pos.clone(),
             }),
-            int,
         ))(input)
     }
 }
