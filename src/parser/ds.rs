@@ -25,7 +25,7 @@ pub enum NaEdit {
         alternative: String,
     },
     /// A substitution where the reference is a number and alternative is a count.
-    NumAlt { count: u32, alternative: String },
+    NumAlt { count: i32, alternative: String },
     /// Insertion of one or more nucleic acid characters.
     Ins { alternative: String },
     /// Duplication of nucleic acid reference sequence.
@@ -33,7 +33,7 @@ pub enum NaEdit {
     /// Inversion of a (potentially empty) nucleic acid reference sequence.
     InvRef { reference: String },
     /// Inversion of a stretch given by its length.
-    InvNum { count: u32 },
+    InvNum { count: i32 },
 }
 
 /// Uncertain change through extension.
@@ -139,7 +139,7 @@ pub struct CdsPosEdit {
 #[derive(Clone, Debug, PartialEq)]
 pub struct CdsInterval {
     /// Start position
-    pub pos: CdsPos,
+    pub begin: CdsPos,
     /// End position
     pub end: CdsPos,
 }
@@ -176,9 +176,9 @@ pub struct GenomePosEdit {
 #[derive(Clone, Debug, PartialEq)]
 pub struct GenomeInterval {
     /// Start position
-    pub pos: Option<u32>,
+    pub begin: Option<i32>,
     /// End position
-    pub end: Option<u32>,
+    pub end: Option<i32>,
 }
 
 /// Mitochondrial sequence position with edit.
@@ -194,9 +194,9 @@ pub struct MtPosEdit {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MtInterval {
     /// Start position
-    pub pos: Option<u32>,
+    pub begin: Option<i32>,
     /// End position
-    pub end: Option<u32>,
+    pub end: Option<i32>,
 }
 
 /// Transcript sequence position with edit.
@@ -212,7 +212,7 @@ pub struct TxPosEdit {
 #[derive(Clone, Debug, PartialEq)]
 pub struct TxInterval {
     /// Start position
-    pub pos: TxPos,
+    pub begin: TxPos,
     /// End position
     pub end: TxPos,
 }
@@ -239,7 +239,7 @@ pub struct RnaPosEdit {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RnaInterval {
     /// Start position
-    pub pos: RnaPos,
+    pub begin: RnaPos,
     /// End position
     pub end: RnaPos,
 }
@@ -274,7 +274,7 @@ pub enum ProtPosEdit {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProtInterval {
     /// Start position
-    pub pos: ProtPos,
+    pub begin: ProtPos,
     /// End position
     pub end: ProtPos,
 }
@@ -285,5 +285,5 @@ pub struct ProtPos {
     /// Amino acid value.
     pub aa: String,
     /// Number of `aa`.
-    pub number: u32,
+    pub number: i32,
 }

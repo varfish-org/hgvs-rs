@@ -9,8 +9,8 @@ use nom::{
     IResult,
 };
 
-use crate::parser::parse_funcs::*;
 use crate::parser::ds::*;
+use crate::parser::parse_funcs::*;
 
 impl ProteinEdit {
     pub fn parse(input: &str) -> IResult<&str, Self> {
