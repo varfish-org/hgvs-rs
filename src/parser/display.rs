@@ -135,6 +135,34 @@ impl Display for ProteinEdit {
     }
 }
 
+impl Display for ProtPos {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.aa, self.number)
+    }
+}
+
+impl Display for ProtInterval {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.begin)?;
+        if self.begin != self.end {
+            write!(f, "_{}", self.end)?;
+        }
+        Ok(())
+    }
+}
+
+impl Display for ProtLocEdit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProtLocEdit::Ordinary { loc, edit } => write!(f, "{}{}", loc, edit),
+            ProtLocEdit::NoChange => write!(f, "="),
+            ProtLocEdit::NoChangeUncertain => write!(f, "(=)"),
+            ProtLocEdit::NoProtein => write!(f, "0"),
+            ProtLocEdit::NoProteinUncertain => write!(f, "0?"),
+        }
+    }
+}
+
 impl Display for CdsLocEdit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{}", self.loc, self.edit)
@@ -232,13 +260,132 @@ impl Display for RnaPos {
     }
 }
 
+impl Display for GenomeLocEdit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.loc, self.edit)
+    }
+}
+
+impl Display for GenomeInterval {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.begin {
+            Some(begin) => write!(f, "{}", begin)?,
+            None => write!(f, "?")?,
+        }
+        if self.begin != self.end {
+            match self.end {
+                Some(end) => write!(f, "_{}", end)?,
+                None => write!(f, "_?")?,
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Display for MtLocEdit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.loc, self.edit)
+    }
+}
+
+impl Display for MtInterval {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.begin {
+            Some(begin) => write!(f, "{}", begin)?,
+            None => write!(f, "?")?,
+        }
+        if self.begin != self.end {
+            match self.end {
+                Some(end) => write!(f, "_{}", end)?,
+                None => write!(f, "_?")?,
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Display for HgvsVariant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HgvsVariant::CdsVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            } => {
+                write!(f, "{}", accession)?;
+                if let Some(gene_symbol) = gene_symbol {
+                    write!(f, "{}", gene_symbol)?;
+                }
+                write!(f, "{}", loc_edit)
+            }
+            HgvsVariant::GenomeVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            } => {
+                write!(f, "{}", accession)?;
+                if let Some(gene_symbol) = gene_symbol {
+                    write!(f, "{}", gene_symbol)?;
+                }
+                write!(f, "{}", loc_edit)
+            }
+            HgvsVariant::MtVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            } => {
+                write!(f, "{}", accession)?;
+                if let Some(gene_symbol) = gene_symbol {
+                    write!(f, "{}", gene_symbol)?;
+                }
+                write!(f, "{}", loc_edit)
+            }
+            HgvsVariant::TxVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            } => {
+                write!(f, "{}", accession)?;
+                if let Some(gene_symbol) = gene_symbol {
+                    write!(f, "{}", gene_symbol)?;
+                }
+                write!(f, "{}", loc_edit)
+            }
+            HgvsVariant::ProtVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            } => {
+                write!(f, "{}", accession)?;
+                if let Some(gene_symbol) = gene_symbol {
+                    write!(f, "{}", gene_symbol)?;
+                }
+                write!(f, "{}", loc_edit)
+            }
+            HgvsVariant::RnaVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            } => {
+                write!(f, "{}", accession)?;
+                if let Some(gene_symbol) = gene_symbol {
+                    write!(f, "{}", gene_symbol)?;
+                }
+                write!(f, "{}", loc_edit)
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use pretty_assertions::assert_eq;
 
     use crate::parser::{
-        Accession, CdsFrom, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, Mu, NaEdit, ProteinEdit,
-        RnaInterval, RnaLocEdit, RnaPos, TxInterval, TxLocEdit, TxPos, UncertainLengthChange,
+        Accession, CdsFrom, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval,
+        GenomeLocEdit, MtInterval, MtLocEdit, Mu, NaEdit, ProtInterval, ProtLocEdit, ProtPos,
+        ProteinEdit, RnaInterval, RnaLocEdit, RnaPos, TxInterval, TxLocEdit, TxPos,
+        UncertainLengthChange,
     };
 
     #[test]
@@ -1120,6 +1267,250 @@ mod test {
                 }
             ),
             "42-10_42+10=".to_string(),
+        );
+    }
+
+    #[test]
+    fn genome_interval() {
+        assert_eq!(
+            format!(
+                "{}",
+                GenomeInterval {
+                    begin: None,
+                    end: None
+                }
+            ),
+            "?".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                GenomeInterval {
+                    begin: Some(10),
+                    end: None
+                }
+            ),
+            "10_?".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                GenomeInterval {
+                    begin: None,
+                    end: Some(10)
+                }
+            ),
+            "?_10".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                GenomeInterval {
+                    begin: Some(10),
+                    end: Some(20)
+                }
+            ),
+            "10_20".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                GenomeInterval {
+                    begin: Some(10),
+                    end: Some(10)
+                }
+            ),
+            "10".to_string(),
+        );
+    }
+
+    #[test]
+    fn genome_loc_edit() {
+        assert_eq!(
+            format!(
+                "{}",
+                GenomeLocEdit {
+                    loc: Mu::Certain(GenomeInterval {
+                        begin: Some(10),
+                        end: Some(20)
+                    }),
+                    edit: Mu::Certain(NaEdit::RefAlt {
+                        reference: "C".to_string(),
+                        alternative: "T".to_string()
+                    })
+                }
+            ),
+            "10_20C>T".to_string(),
+        );
+    }
+
+    #[test]
+    fn mt_interval() {
+        assert_eq!(
+            format!(
+                "{}",
+                MtInterval {
+                    begin: None,
+                    end: None
+                }
+            ),
+            "?".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                MtInterval {
+                    begin: Some(10),
+                    end: None
+                }
+            ),
+            "10_?".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                MtInterval {
+                    begin: None,
+                    end: Some(10)
+                }
+            ),
+            "?_10".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                MtInterval {
+                    begin: Some(10),
+                    end: Some(20)
+                }
+            ),
+            "10_20".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                MtInterval {
+                    begin: Some(10),
+                    end: Some(10)
+                }
+            ),
+            "10".to_string(),
+        );
+    }
+
+    #[test]
+    fn mt_loc_edit() {
+        assert_eq!(
+            format!(
+                "{}",
+                MtLocEdit {
+                    loc: Mu::Certain(MtInterval {
+                        begin: Some(10),
+                        end: Some(20)
+                    }),
+                    edit: Mu::Certain(NaEdit::RefAlt {
+                        reference: "C".to_string(),
+                        alternative: "T".to_string()
+                    })
+                }
+            ),
+            "10_20C>T".to_string(),
+        );
+    }
+
+    #[test]
+    fn prot_pos() {
+        assert_eq!(
+            format!(
+                "{}",
+                ProtPos {
+                    aa: "Leu".to_string(),
+                    number: 42
+                }
+            ),
+            "Leu42".to_string()
+        );
+    }
+
+    #[test]
+    fn prot_interval() {
+        assert_eq!(
+            format!(
+                "{}",
+                ProtInterval {
+                    begin: ProtPos {
+                        aa: "Leu".to_string(),
+                        number: 42
+                    },
+                    end: ProtPos {
+                        aa: "Thr".to_string(),
+                        number: 43
+                    },
+                }
+            ),
+            "Leu42_Thr43".to_string()
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                ProtInterval {
+                    begin: ProtPos {
+                        aa: "Leu".to_string(),
+                        number: 42
+                    },
+                    end: ProtPos {
+                        aa: "Leu".to_string(),
+                        number: 42
+                    },
+                }
+            ),
+            "Leu42".to_string()
+        );
+    }
+
+    #[test]
+    fn prot_loc_edit() {
+        assert_eq!(
+            format!(
+                "{}",
+                ProtLocEdit::Ordinary {
+                    loc: Mu::Certain(ProtInterval {
+                        begin: ProtPos {
+                            aa: "Leu".to_string(),
+                            number: 42
+                        },
+                        end: ProtPos {
+                            aa: "Thr".to_string(),
+                            number: 43
+                        },
+                    },),
+                    edit: Mu::Certain(ProteinEdit::Ident),
+                }
+            ),
+            "Leu42_Thr43=".to_string()
+        );
+
+        assert_eq!(format!("{}", ProtLocEdit::NoChange,), "=".to_string());
+
+        assert_eq!(
+            format!("{}", ProtLocEdit::NoChangeUncertain,),
+            "(=)".to_string()
+        );
+
+        assert_eq!(format!("{}", ProtLocEdit::NoProtein,), "0".to_string());
+
+        assert_eq!(
+            format!("{}", ProtLocEdit::NoProteinUncertain,),
+            "0?".to_string()
         );
     }
 }
