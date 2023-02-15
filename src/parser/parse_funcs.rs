@@ -462,7 +462,7 @@ pub mod cds_pos {
             int,
             map(pos, |pos| CdsInterval {
                 begin: pos.clone(),
-                end: pos.clone(),
+                end: pos,
             }),
         ))(input)
     }
@@ -497,8 +497,8 @@ pub mod genome_pos {
         alt((
             int,
             map(pos, |pos| GenomeInterval {
-                begin: pos.clone(),
-                end: pos.clone(),
+                begin: pos,
+                end: pos,
             }),
         ))(input)
     }
@@ -534,8 +534,8 @@ pub mod mt_pos {
         alt((
             int,
             map(pos, |pos| MtInterval {
-                begin: pos.clone(),
-                end: pos.clone(),
+                begin: pos,
+                end: pos,
             }),
         ))(input)
     }
@@ -576,7 +576,7 @@ pub mod tx_pos {
             int,
             map(pos, |pos| TxInterval {
                 begin: pos.clone(),
-                end: pos.clone(),
+                end: pos,
             }),
         ))(input)
     }
@@ -617,7 +617,7 @@ pub mod rna_pos {
             int,
             map(pos, |pos| RnaInterval {
                 begin: pos.clone(),
-                end: pos.clone(),
+                end: pos,
             }),
         ))(input)
     }
@@ -659,7 +659,7 @@ pub mod prot_pos {
             int,
             map(pos, |pos| ProtInterval {
                 begin: pos.clone(),
-                end: pos.clone(),
+                end: pos,
             }),
         ))(input)
     }
