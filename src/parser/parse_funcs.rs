@@ -613,8 +613,8 @@ pub mod prot_pos {
 mod test {
     use crate::parser::{
         ds::{ProteinEdit, UncertainLengthChange},
-        GenomeInterval, MtInterval, NaEdit, ProtInterval, ProtPos, RnaInterval, RnaPos, TxInterval,
-        TxPos, CdsFrom, CdsPos, CdsInterval,
+        CdsFrom, CdsInterval, CdsPos, GenomeInterval, MtInterval, NaEdit, ProtInterval, ProtPos,
+        RnaInterval, RnaPos, TxInterval, TxPos,
     };
 
     use super::*;
@@ -1546,7 +1546,6 @@ mod test {
         );
     }
 
-
     #[test]
     fn cdspos_int() {
         assert_eq!(
@@ -1722,7 +1721,7 @@ mod test {
                 CdsPos {
                     base: 123,
                     offset: None,
-                        cds_from: CdsFrom::Start,
+                    cds_from: CdsFrom::Start,
                 }
             ))
         );
@@ -1733,7 +1732,7 @@ mod test {
                 CdsPos {
                     base: 123,
                     offset: None,
-                        cds_from: CdsFrom::Start,
+                    cds_from: CdsFrom::Start,
                 }
             ))
         );
@@ -1744,7 +1743,7 @@ mod test {
                 CdsPos {
                     base: -123,
                     offset: None,
-                        cds_from: CdsFrom::Start,
+                    cds_from: CdsFrom::Start,
                 }
             ))
         );
@@ -1755,7 +1754,7 @@ mod test {
                 CdsPos {
                     base: 123,
                     offset: Some(42),
-                        cds_from: CdsFrom::Start,
+                    cds_from: CdsFrom::Start,
                 }
             ))
         );
@@ -1766,7 +1765,7 @@ mod test {
                 CdsPos {
                     base: 123,
                     offset: Some(42),
-                        cds_from: CdsFrom::Start,
+                    cds_from: CdsFrom::Start,
                 }
             ))
         );
@@ -1777,7 +1776,7 @@ mod test {
                 CdsPos {
                     base: -123,
                     offset: Some(42),
-                        cds_from: CdsFrom::Start,
+                    cds_from: CdsFrom::Start,
                 }
             ))
         );
@@ -1788,7 +1787,7 @@ mod test {
                 CdsPos {
                     base: 123,
                     offset: Some(-42),
-                        cds_from: CdsFrom::Start,
+                    cds_from: CdsFrom::Start,
                 }
             ))
         );
@@ -1799,7 +1798,7 @@ mod test {
                 CdsPos {
                     base: 123,
                     offset: Some(-42),
-                        cds_from: CdsFrom::Start,
+                    cds_from: CdsFrom::Start,
                 }
             ))
         );
@@ -1810,7 +1809,7 @@ mod test {
                 CdsPos {
                     base: -123,
                     offset: Some(-42),
-                        cds_from: CdsFrom::Start,
+                    cds_from: CdsFrom::Start,
                 }
             ))
         );
@@ -1821,7 +1820,7 @@ mod test {
                 CdsPos {
                     base: 123,
                     offset: None,
-                        cds_from: CdsFrom::End,
+                    cds_from: CdsFrom::End,
                 }
             ))
         );
@@ -1832,7 +1831,7 @@ mod test {
                 CdsPos {
                     base: 123,
                     offset: Some(42),
-                        cds_from: CdsFrom::End,
+                    cds_from: CdsFrom::End,
                 }
             ))
         );
@@ -1843,7 +1842,7 @@ mod test {
                 CdsPos {
                     base: 123,
                     offset: Some(-42),
-                        cds_from: CdsFrom::End,
+                    cds_from: CdsFrom::End,
                 }
             ))
         );
