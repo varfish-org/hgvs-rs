@@ -449,7 +449,7 @@ pub mod cds_pos {
     }
 
     pub fn pos(input: &str) -> IResult<&str, CdsPos> {
-        Ok(alt((pos_from_start, pos_from_end))(input)?)
+        alt((pos_from_start, pos_from_end))(input)
     }
 
     pub fn int(input: &str) -> IResult<&str, CdsInterval> {
