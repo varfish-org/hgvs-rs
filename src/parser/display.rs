@@ -170,13 +170,75 @@ impl Display for CdsPos {
     }
 }
 
+impl Display for TxLocEdit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.loc, self.edit)
+    }
+}
+
+impl Display for TxInterval {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.begin)?;
+        if self.begin != self.end {
+            write!(f, "_{}", self.end)?;
+        }
+        Ok(())
+    }
+}
+
+impl Display for TxPos {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.base)?;
+
+        if let Some(offset) = self.offset {
+            if offset > 0 {
+                write!(f, "+")?;
+            }
+            write!(f, "{}", offset)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Display for RnaLocEdit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.loc, self.edit)
+    }
+}
+
+impl Display for RnaInterval {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.begin)?;
+        if self.begin != self.end {
+            write!(f, "_{}", self.end)?;
+        }
+        Ok(())
+    }
+}
+
+impl Display for RnaPos {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.base)?;
+
+        if let Some(offset) = self.offset {
+            if offset > 0 {
+                write!(f, "+")?;
+            }
+            write!(f, "{}", offset)?;
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use pretty_assertions::assert_eq;
 
     use crate::parser::{
         Accession, CdsFrom, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, Mu, NaEdit, ProteinEdit,
-        UncertainLengthChange,
+        RnaInterval, RnaLocEdit, RnaPos, TxInterval, TxLocEdit, TxPos, UncertainLengthChange,
     };
 
     #[test]
@@ -852,6 +914,203 @@ mod test {
                             base: 42,
                             offset: Some(10),
                             cds_from: CdsFrom::Start,
+                        }
+                    }),
+                    edit: Mu::Certain(NaEdit::RefAlt {
+                        reference: "".to_string(),
+                        alternative: "".to_string()
+                    })
+                }
+            ),
+            "42-10_42+10=".to_string(),
+        );
+    }
+
+    #[test]
+    fn tx_pos() {
+        assert_eq!(
+            format!(
+                "{}",
+                TxPos {
+                    base: 42,
+                    offset: None,
+                }
+            ),
+            "42".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                TxPos {
+                    base: 42,
+                    offset: Some(10),
+                }
+            ),
+            "42+10".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                TxPos {
+                    base: 42,
+                    offset: Some(-10),
+                }
+            ),
+            "42-10".to_string(),
+        );
+    }
+
+    #[test]
+    fn tx_interval() {
+        assert_eq!(
+            format!(
+                "{}",
+                TxInterval {
+                    begin: TxPos {
+                        base: 42,
+                        offset: Some(-10),
+                    },
+                    end: TxPos {
+                        base: 42,
+                        offset: Some(10),
+                    }
+                }
+            ),
+            "42-10_42+10".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                TxInterval {
+                    begin: TxPos {
+                        base: 42,
+                        offset: Some(10),
+                    },
+                    end: TxPos {
+                        base: 42,
+                        offset: Some(10),
+                    }
+                }
+            ),
+            "42+10".to_string(),
+        );
+    }
+
+    #[test]
+    fn tx_loc_edit() {
+        assert_eq!(
+            format!(
+                "{}",
+                TxLocEdit {
+                    loc: Mu::Certain(TxInterval {
+                        begin: TxPos {
+                            base: 42,
+                            offset: Some(-10),
+                        },
+                        end: TxPos {
+                            base: 42,
+                            offset: Some(10),
+                        }
+                    }),
+                    edit: Mu::Certain(NaEdit::RefAlt {
+                        reference: "".to_string(),
+                        alternative: "".to_string()
+                    })
+                }
+            ),
+            "42-10_42+10=".to_string(),
+        );
+    }
+    #[test]
+    fn rna_pos() {
+        assert_eq!(
+            format!(
+                "{}",
+                RnaPos {
+                    base: 42,
+                    offset: None,
+                }
+            ),
+            "42".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                RnaPos {
+                    base: 42,
+                    offset: Some(10),
+                }
+            ),
+            "42+10".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                RnaPos {
+                    base: 42,
+                    offset: Some(-10),
+                }
+            ),
+            "42-10".to_string(),
+        );
+    }
+
+    #[test]
+    fn rna_interval() {
+        assert_eq!(
+            format!(
+                "{}",
+                RnaInterval {
+                    begin: RnaPos {
+                        base: 42,
+                        offset: Some(-10),
+                    },
+                    end: RnaPos {
+                        base: 42,
+                        offset: Some(10),
+                    }
+                }
+            ),
+            "42-10_42+10".to_string(),
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                RnaInterval {
+                    begin: RnaPos {
+                        base: 42,
+                        offset: Some(10),
+                    },
+                    end: RnaPos {
+                        base: 42,
+                        offset: Some(10),
+                    }
+                }
+            ),
+            "42+10".to_string(),
+        );
+    }
+
+    #[test]
+    fn rna_loc_edit() {
+        assert_eq!(
+            format!(
+                "{}",
+                RnaLocEdit {
+                    loc: Mu::Certain(RnaInterval {
+                        begin: RnaPos {
+                            base: 42,
+                            offset: Some(-10),
+                        },
+                        end: RnaPos {
+                            base: 42,
+                            offset: Some(10),
                         }
                     }),
                     edit: Mu::Certain(NaEdit::RefAlt {
