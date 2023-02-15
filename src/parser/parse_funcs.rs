@@ -412,13 +412,93 @@ pub mod na_edit {
 pub mod cds_pos {}
 
 /// Parsing of Genome position and interval.
-pub mod genome_pos {}
+pub mod genome_pos {
+    use nom::{
+        branch::alt, bytes::complete::tag, character::complete::digit1, sequence::tuple, IResult,
+    };
+
+    use crate::parser::GenomeInterval;
+
+    pub fn int(input: &str) -> IResult<&str, GenomeInterval> {
+        let (rest, (begin, _, end)) =
+            tuple((alt((digit1, tag("?"))), tag("_"), alt((digit1, tag("?")))))(input)?;
+        Ok((
+            rest,
+            GenomeInterval {
+                begin: if begin == "?" {
+                    None
+                } else {
+                    Some(str::parse::<i32>(begin).unwrap())
+                },
+                end: if end == "?" {
+                    None
+                } else {
+                    Some(str::parse::<i32>(end).unwrap())
+                },
+            },
+        ))
+    }
+}
 
 /// Parsing of mt position and interval.
-pub mod mt_pos {}
+pub mod mt_pos {
+    use nom::{
+        branch::alt, bytes::complete::tag, character::complete::digit1, sequence::tuple, IResult,
+    };
+
+    use crate::parser::MtInterval;
+
+    pub fn int(input: &str) -> IResult<&str, MtInterval> {
+        let (rest, (begin, _, end)) =
+            tuple((alt((digit1, tag("?"))), tag("_"), alt((digit1, tag("?")))))(input)?;
+        Ok((
+            rest,
+            MtInterval {
+                begin: if begin == "?" {
+                    None
+                } else {
+                    Some(str::parse::<i32>(begin).unwrap())
+                },
+                end: if end == "?" {
+                    None
+                } else {
+                    Some(str::parse::<i32>(end).unwrap())
+                },
+            },
+        ))
+    }
+}
 
 /// Parsing of transcript position and interval.
-pub mod tx_pos {}
+pub mod tx_pos {
+    use nom::{
+        branch::alt,
+        bytes::complete::tag,
+        character::complete::digit1,
+        combinator::{opt, recognize},
+        sequence::{pair, tuple},
+        IResult,
+    };
+
+    use crate::parser::{TxInterval, TxPos};
+
+    pub fn pos(input: &str) -> IResult<&str, TxPos> {
+        let (rest, base) = recognize(pair(opt(alt((tag("+"), tag("-")))), digit1))(input)?;
+        let (rest, offset) = opt(recognize(pair(alt((tag("+"), tag("-"))), digit1)))(rest)?;
+        Ok((
+            rest,
+            TxPos {
+                base: str::parse::<i32>(base).unwrap(),
+                offset: offset.map(|offset| str::parse::<i32>(offset).unwrap()),
+            },
+        ))
+    }
+
+    pub fn int(input: &str) -> IResult<&str, TxInterval> {
+        let (rest, (begin, _, end)) = tuple((pos, tag("_"), pos))(input)?;
+        Ok((rest, TxInterval { begin, end }))
+    }
+}
 
 /// Parsing of RNA position and interval.
 pub mod rna_pos {
@@ -431,9 +511,7 @@ pub mod rna_pos {
         IResult,
     };
 
-    use crate::parser::{ProtInterval, RnaInterval, RnaPos};
-
-    use super::protein::{aat1, aat3};
+    use crate::parser::{RnaInterval, RnaPos};
 
     pub fn pos(input: &str) -> IResult<&str, RnaPos> {
         let (rest, base) = recognize(pair(opt(alt((tag("+"), tag("-")))), digit1))(input)?;
@@ -488,7 +566,8 @@ pub mod prot_pos {
 mod test {
     use crate::parser::{
         ds::{ProteinEdit, UncertainLengthChange},
-        NaEdit, ProtInterval, ProtPos, RnaPos, RnaInterval,
+        GenomeInterval, MtInterval, NaEdit, ProtInterval, ProtPos, RnaInterval, RnaPos, TxInterval,
+        TxPos,
     };
 
     use super::*;
@@ -1377,7 +1456,337 @@ mod test {
     // ---
 
     #[test]
+    fn mtpos_int() {
+        assert_eq!(
+            mt_pos::int("42_100"),
+            Ok((
+                "",
+                MtInterval {
+                    begin: Some(42),
+                    end: Some(100),
+                }
+            ))
+        );
+        assert_eq!(
+            mt_pos::int("?_100"),
+            Ok((
+                "",
+                MtInterval {
+                    begin: None,
+                    end: Some(100),
+                }
+            ))
+        );
+        assert_eq!(
+            mt_pos::int("42_?"),
+            Ok((
+                "",
+                MtInterval {
+                    begin: Some(42),
+                    end: None,
+                }
+            ))
+        );
+        assert_eq!(
+            mt_pos::int("?_?"),
+            Ok((
+                "",
+                MtInterval {
+                    begin: None,
+                    end: None,
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn genomepos_int() {
+        assert_eq!(
+            genome_pos::int("42_100"),
+            Ok((
+                "",
+                GenomeInterval {
+                    begin: Some(42),
+                    end: Some(100),
+                }
+            ))
+        );
+        assert_eq!(
+            genome_pos::int("?_100"),
+            Ok((
+                "",
+                GenomeInterval {
+                    begin: None,
+                    end: Some(100),
+                }
+            ))
+        );
+        assert_eq!(
+            genome_pos::int("42_?"),
+            Ok((
+                "",
+                GenomeInterval {
+                    begin: Some(42),
+                    end: None,
+                }
+            ))
+        );
+        assert_eq!(
+            genome_pos::int("?_?"),
+            Ok((
+                "",
+                GenomeInterval {
+                    begin: None,
+                    end: None,
+                }
+            ))
+        );
+    }
+
+    #[test]
     fn rnapos_int() {
+        assert_eq!(
+            tx_pos::int("123_123"),
+            Ok((
+                "",
+                TxInterval {
+                    begin: TxPos {
+                        base: 123,
+                        offset: None,
+                    },
+                    end: TxPos {
+                        base: 123,
+                        offset: None,
+                    },
+                }
+            ))
+        );
+        assert_eq!(
+            tx_pos::int("+123_+123"),
+            Ok((
+                "",
+                TxInterval {
+                    begin: TxPos {
+                        base: 123,
+                        offset: None,
+                    },
+                    end: TxPos {
+                        base: 123,
+                        offset: None,
+                    },
+                }
+            ))
+        );
+        assert_eq!(
+            tx_pos::int("-123_-123"),
+            Ok((
+                "",
+                TxInterval {
+                    begin: TxPos {
+                        base: -123,
+                        offset: None,
+                    },
+                    end: TxPos {
+                        base: -123,
+                        offset: None,
+                    },
+                }
+            ))
+        );
+        assert_eq!(
+            tx_pos::int("123+42_123+42"),
+            Ok((
+                "",
+                TxInterval {
+                    begin: TxPos {
+                        base: 123,
+                        offset: Some(42),
+                    },
+                    end: TxPos {
+                        base: 123,
+                        offset: Some(42),
+                    },
+                }
+            ))
+        );
+        assert_eq!(
+            tx_pos::int("+123+42_+123+42"),
+            Ok((
+                "",
+                TxInterval {
+                    begin: TxPos {
+                        base: 123,
+                        offset: Some(42),
+                    },
+                    end: TxPos {
+                        base: 123,
+                        offset: Some(42),
+                    },
+                }
+            ))
+        );
+        assert_eq!(
+            tx_pos::int("-123+42_-123+42"),
+            Ok((
+                "",
+                TxInterval {
+                    begin: TxPos {
+                        base: -123,
+                        offset: Some(42),
+                    },
+                    end: TxPos {
+                        base: -123,
+                        offset: Some(42),
+                    },
+                }
+            ))
+        );
+        assert_eq!(
+            tx_pos::int("123-42_123-42"),
+            Ok((
+                "",
+                TxInterval {
+                    begin: TxPos {
+                        base: 123,
+                        offset: Some(-42),
+                    },
+                    end: TxPos {
+                        base: 123,
+                        offset: Some(-42),
+                    },
+                }
+            ))
+        );
+        assert_eq!(
+            tx_pos::int("+123-42_+123-42"),
+            Ok((
+                "",
+                TxInterval {
+                    begin: TxPos {
+                        base: 123,
+                        offset: Some(-42),
+                    },
+                    end: TxPos {
+                        base: 123,
+                        offset: Some(-42),
+                    },
+                }
+            ))
+        );
+        assert_eq!(
+            tx_pos::int("-123-42_-123-42"),
+            Ok((
+                "",
+                TxInterval {
+                    begin: TxPos {
+                        base: -123,
+                        offset: Some(-42),
+                    },
+                    end: TxPos {
+                        base: -123,
+                        offset: Some(-42),
+                    },
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn txpos_pos() {
+        assert_eq!(
+            tx_pos::pos("123"),
+            Ok((
+                "",
+                TxPos {
+                    base: 123,
+                    offset: None,
+                }
+            ))
+        );
+        assert_eq!(
+            tx_pos::pos("+123"),
+            Ok((
+                "",
+                TxPos {
+                    base: 123,
+                    offset: None,
+                }
+            ))
+        );
+        assert_eq!(
+            tx_pos::pos("-123"),
+            Ok((
+                "",
+                TxPos {
+                    base: -123,
+                    offset: None,
+                }
+            ))
+        );
+        assert_eq!(
+            tx_pos::pos("123+42"),
+            Ok((
+                "",
+                TxPos {
+                    base: 123,
+                    offset: Some(42),
+                }
+            ))
+        );
+        assert_eq!(
+            tx_pos::pos("+123+42"),
+            Ok((
+                "",
+                TxPos {
+                    base: 123,
+                    offset: Some(42),
+                }
+            ))
+        );
+        assert_eq!(
+            tx_pos::pos("-123+42"),
+            Ok((
+                "",
+                TxPos {
+                    base: -123,
+                    offset: Some(42),
+                }
+            ))
+        );
+        assert_eq!(
+            tx_pos::pos("123-42"),
+            Ok((
+                "",
+                TxPos {
+                    base: 123,
+                    offset: Some(-42),
+                }
+            ))
+        );
+        assert_eq!(
+            tx_pos::pos("+123-42"),
+            Ok((
+                "",
+                TxPos {
+                    base: 123,
+                    offset: Some(-42),
+                }
+            ))
+        );
+        assert_eq!(
+            tx_pos::pos("-123-42"),
+            Ok((
+                "",
+                TxPos {
+                    base: -123,
+                    offset: Some(-42),
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn txpos_int() {
         assert_eq!(
             rna_pos::int("123_123"),
             Ok((
