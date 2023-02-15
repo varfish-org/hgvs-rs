@@ -25,7 +25,11 @@ impl FromStr for HgvsVariant {
 
 #[cfg(test)]
 mod test {
-    use std::{str::FromStr, fs::File, io::{BufReader, BufRead}};
+    use std::{
+        fs::File,
+        io::{BufRead, BufReader},
+        str::FromStr,
+    };
 
     use crate::parser::{Accession, CdsFrom, CdsInterval, CdsLocEdit, CdsPos, Mu, NaEdit};
 
@@ -81,10 +85,7 @@ mod test {
             let line = line?;
             let line = line.trim();
             if !line.starts_with("#") && !line.is_empty() {
-                assert!(
-                    HgvsVariant::from_str(line).is_ok(),
-                    "line = {}", line
-                )
+                assert!(HgvsVariant::from_str(line).is_ok(), "line = {}", line)
             }
         }
 
@@ -100,10 +101,7 @@ mod test {
             let line = line?;
             let line = line.trim();
             if !line.starts_with("#") && !line.is_empty() {
-                assert!(
-                    !HgvsVariant::from_str(line).is_ok(),
-                    "line = {}", line
-                )
+                assert!(!HgvsVariant::from_str(line).is_ok(), "line = {}", line)
             }
         }
 
