@@ -125,7 +125,7 @@ pub mod protein_edit {
     use nom::{bytes::complete::tag, IResult};
 
     use super::protein::*;
-    use crate::parser::ds::{ProteinEdit, UncertainChange};
+    use crate::parser::ds::{ProteinEdit, UncertainLengthChange};
 
     pub fn subst_qm(input: &str) -> IResult<&str, ProteinEdit> {
         let (rest, _) = tag("?")(input)?;
@@ -192,9 +192,9 @@ pub mod protein_edit {
                         alternative: alternative.map(str::to_owned),
                         terminal: Some(terminal.to_string()),
                         length: if qm.is_some() {
-                            UncertainChange::Unknown
+                            UncertainLengthChange::Unknown
                         } else {
-                            UncertainChange::None
+                            UncertainLengthChange::None
                         },
                     },
                 ))
@@ -204,7 +204,7 @@ pub mod protein_edit {
                     ProteinEdit::Fs {
                         alternative: alternative.map(str::to_owned),
                         terminal: Some(terminal.to_string()),
-                        length: UncertainChange::Known(str::parse::<i32>(count).unwrap()),
+                        length: UncertainLengthChange::Known(str::parse::<i32>(count).unwrap()),
                     },
                 ))
             }
@@ -214,7 +214,7 @@ pub mod protein_edit {
                 ProteinEdit::Fs {
                     alternative: alternative.map(str::to_owned),
                     terminal: None,
-                    length: UncertainChange::None,
+                    length: UncertainLengthChange::None,
                 },
             ))
         }
@@ -231,7 +231,7 @@ pub mod protein_edit {
             ProteinEdit::Ext {
                 aa_ext: aa_ext.map(str::to_owned),
                 ext_aa: ext_aa.map(str::to_owned),
-                change: UncertainChange::Known(-str::parse::<i32>(offset).unwrap()),
+                change: UncertainLengthChange::Known(-str::parse::<i32>(offset).unwrap()),
             },
         ))
     }
@@ -249,9 +249,9 @@ pub mod protein_edit {
                     aa_ext: aa_ext.map(str::to_owned),
                     ext_aa: Some(ext_aa.to_string()),
                     change: if offset == "?" {
-                        UncertainChange::Unknown
+                        UncertainLengthChange::Unknown
                     } else {
-                        UncertainChange::Known(str::parse::<i32>(offset).unwrap())
+                        UncertainLengthChange::Known(str::parse::<i32>(offset).unwrap())
                     },
                 },
             ))
@@ -261,7 +261,7 @@ pub mod protein_edit {
                 ProteinEdit::Ext {
                     aa_ext: aa_ext.map(str::to_owned),
                     ext_aa: Some(ext_aa.to_string()),
-                    change: UncertainChange::None,
+                    change: UncertainLengthChange::None,
                 },
             ))
         }
@@ -276,7 +276,7 @@ pub mod protein_edit {
             ProteinEdit::Ext {
                 aa_ext: aa_ext.map(str::to_owned),
                 ext_aa: None,
-                change: UncertainChange::None,
+                change: UncertainLengthChange::None,
             },
         ))
     }
@@ -410,7 +410,7 @@ pub mod na_edit {
 #[cfg(test)]
 mod test {
     use crate::parser::{
-        ds::{ProteinEdit, UncertainChange},
+        ds::{ProteinEdit, UncertainLengthChange},
         NaEdit,
     };
 
@@ -682,7 +682,7 @@ mod test {
                 ProteinEdit::Fs {
                     alternative: Some("L".to_owned()),
                     terminal: None,
-                    length: UncertainChange::None,
+                    length: UncertainLengthChange::None,
                 }
             ))
         );
@@ -693,7 +693,7 @@ mod test {
                 ProteinEdit::Fs {
                     alternative: None,
                     terminal: None,
-                    length: UncertainChange::None
+                    length: UncertainLengthChange::None
                 }
             ))
         );
@@ -704,7 +704,7 @@ mod test {
                 ProteinEdit::Fs {
                     alternative: None,
                     terminal: Some("*".to_owned()),
-                    length: UncertainChange::None
+                    length: UncertainLengthChange::None
                 }
             ))
         );
@@ -715,7 +715,7 @@ mod test {
                 ProteinEdit::Fs {
                     alternative: None,
                     terminal: Some("X".to_owned()),
-                    length: UncertainChange::None
+                    length: UncertainLengthChange::None
                 }
             ))
         );
@@ -726,7 +726,7 @@ mod test {
                 ProteinEdit::Fs {
                     alternative: None,
                     terminal: Some("*".to_owned()),
-                    length: UncertainChange::Unknown
+                    length: UncertainLengthChange::Unknown
                 }
             ))
         );
@@ -737,7 +737,7 @@ mod test {
                 ProteinEdit::Fs {
                     alternative: None,
                     terminal: Some("X".to_owned()),
-                    length: UncertainChange::Unknown
+                    length: UncertainLengthChange::Unknown
                 }
             ))
         );
@@ -748,7 +748,7 @@ mod test {
                 ProteinEdit::Fs {
                     alternative: None,
                     terminal: Some("*".to_owned()),
-                    length: UncertainChange::Known(12)
+                    length: UncertainLengthChange::Known(12)
                 }
             ))
         );
@@ -759,7 +759,7 @@ mod test {
                 ProteinEdit::Fs {
                     alternative: None,
                     terminal: Some("X".to_owned()),
-                    length: UncertainChange::Known(12)
+                    length: UncertainLengthChange::Known(12)
                 }
             ))
         );
@@ -774,7 +774,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: None,
                     ext_aa: None,
-                    change: UncertainChange::Known(-1),
+                    change: UncertainLengthChange::Known(-1),
                 }
             ))
         );
@@ -785,7 +785,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: Some("L".to_owned()),
                     ext_aa: Some("M".to_string()),
-                    change: UncertainChange::Known(-1),
+                    change: UncertainLengthChange::Known(-1),
                 }
             ))
         );
@@ -796,7 +796,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: Some("Leu".to_owned()),
                     ext_aa: Some("Met".to_string()),
-                    change: UncertainChange::Known(-1),
+                    change: UncertainLengthChange::Known(-1),
                 }
             ))
         );
@@ -811,7 +811,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: Some("L".to_owned()),
                     ext_aa: Some("X".to_string()),
-                    change: UncertainChange::None,
+                    change: UncertainLengthChange::None,
                 }
             ))
         );
@@ -822,7 +822,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: Some("L".to_owned()),
                     ext_aa: Some("*".to_string()),
-                    change: UncertainChange::None,
+                    change: UncertainLengthChange::None,
                 }
             ))
         );
@@ -833,7 +833,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: Some("Leu".to_owned()),
                     ext_aa: Some("Ter".to_string()),
-                    change: UncertainChange::None,
+                    change: UncertainLengthChange::None,
                 }
             ))
         );
@@ -844,7 +844,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: None,
                     ext_aa: Some("X".to_string()),
-                    change: UncertainChange::None,
+                    change: UncertainLengthChange::None,
                 }
             ))
         );
@@ -855,7 +855,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: None,
                     ext_aa: Some("*".to_string()),
-                    change: UncertainChange::None,
+                    change: UncertainLengthChange::None,
                 }
             ))
         );
@@ -866,7 +866,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: None,
                     ext_aa: Some("Ter".to_string()),
-                    change: UncertainChange::None,
+                    change: UncertainLengthChange::None,
                 }
             ))
         );
@@ -878,7 +878,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: Some("L".to_owned()),
                     ext_aa: Some("X".to_string()),
-                    change: UncertainChange::Unknown,
+                    change: UncertainLengthChange::Unknown,
                 }
             ))
         );
@@ -889,7 +889,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: Some("L".to_owned()),
                     ext_aa: Some("*".to_string()),
-                    change: UncertainChange::Unknown,
+                    change: UncertainLengthChange::Unknown,
                 }
             ))
         );
@@ -900,7 +900,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: Some("Leu".to_owned()),
                     ext_aa: Some("Ter".to_string()),
-                    change: UncertainChange::Unknown,
+                    change: UncertainLengthChange::Unknown,
                 }
             ))
         );
@@ -911,7 +911,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: None,
                     ext_aa: Some("X".to_string()),
-                    change: UncertainChange::Unknown,
+                    change: UncertainLengthChange::Unknown,
                 }
             ))
         );
@@ -922,7 +922,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: None,
                     ext_aa: Some("*".to_string()),
-                    change: UncertainChange::Unknown,
+                    change: UncertainLengthChange::Unknown,
                 }
             ))
         );
@@ -933,7 +933,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: None,
                     ext_aa: Some("Ter".to_string()),
-                    change: UncertainChange::Unknown,
+                    change: UncertainLengthChange::Unknown,
                 }
             ))
         );
@@ -945,7 +945,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: Some("L".to_owned()),
                     ext_aa: Some("X".to_string()),
-                    change: UncertainChange::Known(10),
+                    change: UncertainLengthChange::Known(10),
                 }
             ))
         );
@@ -956,7 +956,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: Some("L".to_owned()),
                     ext_aa: Some("*".to_string()),
-                    change: UncertainChange::Known(10),
+                    change: UncertainLengthChange::Known(10),
                 }
             ))
         );
@@ -967,7 +967,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: Some("Leu".to_owned()),
                     ext_aa: Some("Ter".to_string()),
-                    change: UncertainChange::Known(10),
+                    change: UncertainLengthChange::Known(10),
                 }
             ))
         );
@@ -978,7 +978,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: None,
                     ext_aa: Some("X".to_string()),
-                    change: UncertainChange::Known(10),
+                    change: UncertainLengthChange::Known(10),
                 }
             ))
         );
@@ -989,7 +989,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: None,
                     ext_aa: Some("*".to_string()),
-                    change: UncertainChange::Known(10),
+                    change: UncertainLengthChange::Known(10),
                 }
             ))
         );
@@ -1000,7 +1000,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: None,
                     ext_aa: Some("Ter".to_string()),
-                    change: UncertainChange::Known(10),
+                    change: UncertainLengthChange::Known(10),
                 }
             ))
         );
@@ -1015,7 +1015,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: Some("L".to_owned()),
                     ext_aa: None,
-                    change: UncertainChange::None,
+                    change: UncertainLengthChange::None,
                 }
             ))
         );
@@ -1026,7 +1026,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: Some("Leu".to_owned()),
                     ext_aa: None,
-                    change: UncertainChange::None,
+                    change: UncertainLengthChange::None,
                 }
             ))
         );
@@ -1037,7 +1037,7 @@ mod test {
                 ProteinEdit::Ext {
                     aa_ext: None,
                     ext_aa: None,
-                    change: UncertainChange::None,
+                    change: UncertainLengthChange::None,
                 }
             ))
         );

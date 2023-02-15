@@ -5,8 +5,8 @@
 //! strings etc.
 
 mod ds;
-mod impls_parse;
-mod funcs;
+mod impl_parse;
+mod parse_funcs;
 
 pub use crate::parser::ds::*;
-pub use crate::parser::impls_parse::*;
+pub use crate::parser::impl_parse::*;
