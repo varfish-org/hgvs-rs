@@ -414,7 +414,7 @@ pub mod cds_pos {
         branch::alt,
         bytes::complete::tag,
         character::complete::digit1,
-        combinator::{opt, recognize},
+        combinator::{map, opt, recognize},
         sequence::{pair, tuple},
         IResult,
     };
@@ -456,63 +456,88 @@ pub mod cds_pos {
         let (rest, (begin, _, end)) = tuple((pos, tag("_"), pos))(input)?;
         Ok((rest, CdsInterval { begin, end }))
     }
+
+    pub fn loc(input: &str) -> IResult<&str, CdsInterval> {
+        alt((
+            map(pos, |pos| CdsInterval {
+                begin: pos.clone(),
+                end: pos.clone(),
+            }),
+            int,
+        ))(input)
+    }
 }
 
 /// Parsing of Genome position and interval.
 pub mod genome_pos {
     use nom::{
-        branch::alt, bytes::complete::tag, character::complete::digit1, sequence::tuple, IResult,
+        branch::alt, bytes::complete::tag, character::complete::digit1, combinator::map,
+        sequence::tuple, IResult,
     };
 
     use crate::parser::GenomeInterval;
 
+    pub fn pos(input: &str) -> IResult<&str, Option<i32>> {
+        map(alt((digit1, tag("?"))), |value| {
+            if value == "?" {
+                None
+            } else {
+                Some(str::parse::<i32>(value).unwrap())
+            }
+        })(input)
+    }
+
     pub fn int(input: &str) -> IResult<&str, GenomeInterval> {
-        let (rest, (begin, _, end)) =
-            tuple((alt((digit1, tag("?"))), tag("_"), alt((digit1, tag("?")))))(input)?;
-        Ok((
-            rest,
-            GenomeInterval {
-                begin: if begin == "?" {
-                    None
-                } else {
-                    Some(str::parse::<i32>(begin).unwrap())
-                },
-                end: if end == "?" {
-                    None
-                } else {
-                    Some(str::parse::<i32>(end).unwrap())
-                },
-            },
-        ))
+        map(tuple((pos, tag("_"), pos)), |(begin, _, end)| {
+            GenomeInterval { begin, end }
+        })(input)
+    }
+
+    pub fn loc(input: &str) -> IResult<&str, GenomeInterval> {
+        alt((
+            map(pos, |pos| GenomeInterval {
+                begin: pos.clone(),
+                end: pos.clone(),
+            }),
+            int,
+        ))(input)
     }
 }
 
 /// Parsing of mt position and interval.
 pub mod mt_pos {
     use nom::{
-        branch::alt, bytes::complete::tag, character::complete::digit1, sequence::tuple, IResult,
+        branch::alt, bytes::complete::tag, character::complete::digit1, combinator::map,
+        sequence::tuple, IResult,
     };
 
     use crate::parser::MtInterval;
 
+    pub fn pos(input: &str) -> IResult<&str, Option<i32>> {
+        map(alt((digit1, tag("?"))), |value| {
+            if value == "?" {
+                None
+            } else {
+                Some(str::parse::<i32>(value).unwrap())
+            }
+        })(input)
+    }
+
     pub fn int(input: &str) -> IResult<&str, MtInterval> {
-        let (rest, (begin, _, end)) =
-            tuple((alt((digit1, tag("?"))), tag("_"), alt((digit1, tag("?")))))(input)?;
-        Ok((
-            rest,
-            MtInterval {
-                begin: if begin == "?" {
-                    None
-                } else {
-                    Some(str::parse::<i32>(begin).unwrap())
-                },
-                end: if end == "?" {
-                    None
-                } else {
-                    Some(str::parse::<i32>(end).unwrap())
-                },
-            },
-        ))
+        map(tuple((pos, tag("_"), pos)), |(begin, _, end)| MtInterval {
+            begin,
+            end,
+        })(input)
+    }
+
+    pub fn loc(input: &str) -> IResult<&str, MtInterval> {
+        alt((
+            map(pos, |pos| MtInterval {
+                begin: pos.clone(),
+                end: pos.clone(),
+            }),
+            int,
+        ))(input)
     }
 }
 
@@ -522,7 +547,7 @@ pub mod tx_pos {
         branch::alt,
         bytes::complete::tag,
         character::complete::digit1,
-        combinator::{opt, recognize},
+        combinator::{map, opt, recognize},
         sequence::{pair, tuple},
         IResult,
     };
@@ -545,6 +570,16 @@ pub mod tx_pos {
         let (rest, (begin, _, end)) = tuple((pos, tag("_"), pos))(input)?;
         Ok((rest, TxInterval { begin, end }))
     }
+
+    pub fn loc(input: &str) -> IResult<&str, TxInterval> {
+        alt((
+            map(pos, |pos| TxInterval {
+                begin: pos.clone(),
+                end: pos.clone(),
+            }),
+            int,
+        ))(input)
+    }
 }
 
 /// Parsing of RNA position and interval.
@@ -553,7 +588,7 @@ pub mod rna_pos {
         branch::alt,
         bytes::complete::tag,
         character::complete::digit1,
-        combinator::{opt, recognize},
+        combinator::{map, opt, recognize},
         sequence::{pair, tuple},
         IResult,
     };
@@ -576,6 +611,16 @@ pub mod rna_pos {
         let (rest, (begin, _, end)) = tuple((pos, tag("_"), pos))(input)?;
         Ok((rest, RnaInterval { begin, end }))
     }
+
+    pub fn loc(input: &str) -> IResult<&str, RnaInterval> {
+        alt((
+            map(pos, |pos| RnaInterval {
+                begin: pos.clone(),
+                end: pos.clone(),
+            }),
+            int,
+        ))(input)
+    }
 }
 
 /// Parsing of protein position and interval
@@ -584,6 +629,7 @@ pub mod prot_pos {
         branch::alt,
         bytes::complete::tag,
         character::complete::digit1,
+        combinator::map,
         sequence::{pair, tuple},
         IResult,
     };
@@ -606,6 +652,16 @@ pub mod prot_pos {
     pub fn int(input: &str) -> IResult<&str, ProtInterval> {
         let (rest, (begin, _, end)) = tuple((pos, tag("_"), pos))(input)?;
         Ok((rest, ProtInterval { begin, end }))
+    }
+
+    pub fn loc(input: &str) -> IResult<&str, ProtInterval> {
+        alt((
+            map(pos, |pos| ProtInterval {
+                begin: pos.clone(),
+                end: pos.clone(),
+            }),
+            int,
+        ))(input)
     }
 }
 
@@ -1500,7 +1556,19 @@ mod test {
         );
     }
 
-    // ---
+    #[test]
+    fn mtpos_loc() {
+        assert_eq!(
+            mt_pos::loc("42"),
+            Ok((
+                "",
+                MtInterval {
+                    begin: Some(42),
+                    end: Some(42),
+                }
+            ))
+        );
+    }
 
     #[test]
     fn mtpos_int() {
@@ -1541,6 +1609,28 @@ mod test {
                 MtInterval {
                     begin: None,
                     end: None,
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn cdspos_loc() {
+        assert_eq!(
+            cds_pos::loc("123"),
+            Ok((
+                "",
+                CdsInterval {
+                    begin: CdsPos {
+                        base: 123,
+                        offset: None,
+                        cds_from: CdsFrom::Start,
+                    },
+                    end: CdsPos {
+                        base: 123,
+                        offset: None,
+                        cds_from: CdsFrom::Start,
+                    },
                 }
             ))
         );
@@ -1849,6 +1939,20 @@ mod test {
     }
 
     #[test]
+    fn genomepos_loc() {
+        assert_eq!(
+            genome_pos::loc("42"),
+            Ok((
+                "",
+                GenomeInterval {
+                    begin: Some(42),
+                    end: Some(42),
+                }
+            ))
+        );
+    }
+
+    #[test]
     fn genomepos_int() {
         assert_eq!(
             genome_pos::int("42_100"),
@@ -1887,6 +1991,26 @@ mod test {
                 GenomeInterval {
                     begin: None,
                     end: None,
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn rnapos_loc() {
+        assert_eq!(
+            tx_pos::loc("123"),
+            Ok((
+                "",
+                TxInterval {
+                    begin: TxPos {
+                        base: 123,
+                        offset: None,
+                    },
+                    end: TxPos {
+                        base: 123,
+                        offset: None,
+                    },
                 }
             ))
         );
@@ -2129,6 +2253,26 @@ mod test {
                 TxPos {
                     base: -123,
                     offset: Some(-42),
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn txpos_loc() {
+        assert_eq!(
+            rna_pos::loc("123"),
+            Ok((
+                "",
+                RnaInterval {
+                    begin: RnaPos {
+                        base: 123,
+                        offset: None,
+                    },
+                    end: RnaPos {
+                        base: 123,
+                        offset: None,
+                    },
                 }
             ))
         );
@@ -2426,6 +2570,26 @@ mod test {
                     aa: "X".to_string(),
                     number: 123
                 }
+            ))
+        );
+    }
+
+    #[test]
+    fn protpos_loc() {
+        assert_eq!(
+            prot_pos::loc("Leu10"),
+            Ok((
+                "",
+                ProtInterval {
+                    begin: ProtPos {
+                        aa: "Leu".to_string(),
+                        number: 10
+                    },
+                    end: ProtPos {
+                        aa: "Leu".to_string(),
+                        number: 10
+                    }
+                },
             ))
         );
     }

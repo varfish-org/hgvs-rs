@@ -20,7 +20,7 @@ impl HgvsVariant {
                 Accession::parse,
                 opt(tuple((tag("("), GeneSymbol::parse, tag(")")))),
                 tag(":c."),
-                CdsPosEdit::parse,
+                CdsLocEdit::parse,
             )),
             |(accession, opt_gs, _, pos_edit)| HgvsVariant::CdsVariant {
                 accession,
@@ -36,7 +36,7 @@ impl HgvsVariant {
                 Accession::parse,
                 opt(tuple((tag("("), GeneSymbol::parse, tag(")")))),
                 tag(":g."),
-                GenomePosEdit::parse,
+                GenomeLocEdit::parse,
             )),
             |(accession, opt_gs, _, pos_edit)| HgvsVariant::GenomeVariant {
                 accession,
@@ -52,7 +52,7 @@ impl HgvsVariant {
                 Accession::parse,
                 opt(tuple((tag("("), GeneSymbol::parse, tag(")")))),
                 tag(":m."),
-                MtPosEdit::parse,
+                MtLocEdit::parse,
             )),
             |(accession, opt_gs, _, pos_edit)| HgvsVariant::MtVariant {
                 accession,
@@ -68,7 +68,7 @@ impl HgvsVariant {
                 Accession::parse,
                 opt(tuple((tag("("), GeneSymbol::parse, tag(")")))),
                 tag(":n."),
-                TxPosEdit::parse,
+                TxLocEdit::parse,
             )),
             |(accession, opt_gs, _, pos_edit)| HgvsVariant::TxVariant {
                 accession,
@@ -84,7 +84,7 @@ impl HgvsVariant {
                 Accession::parse,
                 opt(tuple((tag("("), GeneSymbol::parse, tag(")")))),
                 tag(":p."),
-                ProtPosEdit::parse,
+                ProtLocEdit::parse,
             )),
             |(accession, opt_gs, _, pos_edit)| HgvsVariant::ProtVariant {
                 accession,
@@ -100,7 +100,7 @@ impl HgvsVariant {
                 Accession::parse,
                 opt(tuple((tag("("), GeneSymbol::parse, tag(")")))),
                 tag(":r."),
-                RnaPosEdit::parse,
+                RnaLocEdit::parse,
             )),
             |(accession, opt_gs, _, pos_edit)| HgvsVariant::RnaVariant {
                 accession,
@@ -228,11 +228,11 @@ impl Parseable for CdsInterval {
     }
 }
 
-impl Parseable for CdsPosEdit {
+impl Parseable for CdsLocEdit {
     fn parse(input: &str) -> IResult<&str, Self> {
         map(
             pair(Mu::<CdsInterval>::parse, Mu::<NaEdit>::parse),
-            |(pos, edit)| CdsPosEdit { pos, edit },
+            |(pos, edit)| CdsLocEdit { loc: pos, edit },
         )(input)
     }
 }
@@ -243,11 +243,11 @@ impl Parseable for GenomeInterval {
     }
 }
 
-impl Parseable for GenomePosEdit {
+impl Parseable for GenomeLocEdit {
     fn parse(input: &str) -> IResult<&str, Self> {
         map(
             pair(Mu::<GenomeInterval>::parse, Mu::<NaEdit>::parse),
-            |(pos, edit)| GenomePosEdit { pos, edit },
+            |(pos, edit)| GenomeLocEdit { loc: pos, edit },
         )(input)
     }
 }
@@ -258,11 +258,11 @@ impl Parseable for MtInterval {
     }
 }
 
-impl Parseable for MtPosEdit {
+impl Parseable for MtLocEdit {
     fn parse(input: &str) -> IResult<&str, Self> {
         map(
             pair(Mu::<MtInterval>::parse, Mu::<NaEdit>::parse),
-            |(pos, edit)| MtPosEdit { pos, edit },
+            |(pos, edit)| MtLocEdit { loc: pos, edit },
         )(input)
     }
 }
@@ -273,11 +273,11 @@ impl Parseable for TxInterval {
     }
 }
 
-impl Parseable for TxPosEdit {
+impl Parseable for TxLocEdit {
     fn parse(input: &str) -> IResult<&str, Self> {
         map(
             pair(Mu::<TxInterval>::parse, Mu::<NaEdit>::parse),
-            |(pos, edit)| TxPosEdit { pos, edit },
+            |(pos, edit)| TxLocEdit { loc: pos, edit },
         )(input)
     }
 }
@@ -288,11 +288,11 @@ impl Parseable for RnaInterval {
     }
 }
 
-impl Parseable for RnaPosEdit {
+impl Parseable for RnaLocEdit {
     fn parse(input: &str) -> IResult<&str, Self> {
         map(
             pair(Mu::<RnaInterval>::parse, Mu::<NaEdit>::parse),
-            |(pos, edit)| RnaPosEdit { pos, edit },
+            |(pos, edit)| RnaLocEdit { loc: pos, edit },
         )(input)
     }
 }
@@ -303,32 +303,32 @@ impl Parseable for ProtInterval {
     }
 }
 
-impl ProtPosEdit {
+impl ProtLocEdit {
     fn parse_no_change(input: &str) -> IResult<&str, Self> {
-        map(tag("="), |_| ProtPosEdit::NoChange)(input)
+        map(tag("="), |_| ProtLocEdit::NoChange)(input)
     }
 
     fn parse_no_change_uncertain(input: &str) -> IResult<&str, Self> {
-        map(tag("(=)"), |_| ProtPosEdit::NoChangeUncertain)(input)
+        map(tag("(=)"), |_| ProtLocEdit::NoChangeUncertain)(input)
     }
 
     fn parse_no_protein(input: &str) -> IResult<&str, Self> {
-        map(tag("0"), |_| ProtPosEdit::NoProtein)(input)
+        map(tag("0"), |_| ProtLocEdit::NoProtein)(input)
     }
 
     fn parse_no_protein_uncertain(input: &str) -> IResult<&str, Self> {
-        map(tag("0?"), |_| ProtPosEdit::NoProteinUncertain)(input)
+        map(tag("0?"), |_| ProtLocEdit::NoProteinUncertain)(input)
     }
 
     fn parse_ordinary(input: &str) -> IResult<&str, Self> {
         map(
             pair(Mu::<ProtInterval>::parse, Mu::<ProteinEdit>::parse),
-            |(pos, edit)| ProtPosEdit::Ordinary { pos, edit },
+            |(pos, edit)| ProtLocEdit::Ordinary { loc: pos, edit },
         )(input)
     }
 }
 
-impl Parseable for ProtPosEdit {
+impl Parseable for ProtLocEdit {
     fn parse(input: &str) -> IResult<&str, Self> {
         alt((
             Self::parse_ordinary,
@@ -358,10 +358,18 @@ mod test {
                     gene_symbol: Some(GeneSymbol {
                         value: "XYZ".to_string()
                     }),
-                    pos_edit: CdsPosEdit {
-                        pos: Mu::Certain(CdsInterval {
-                            begin: CdsPos { base: 123, offset: None, cds_from: CdsFrom::Start },
-                            end: CdsPos { base: 123, offset: None, cds_from: CdsFrom::Start },
+                    pos_edit: CdsLocEdit {
+                        loc: Mu::Certain(CdsInterval {
+                            begin: CdsPos {
+                                base: 123,
+                                offset: None,
+                                cds_from: CdsFrom::Start
+                            },
+                            end: CdsPos {
+                                base: 123,
+                                offset: None,
+                                cds_from: CdsFrom::Start
+                            },
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
                             reference: "C".to_string(),
@@ -382,8 +390,8 @@ mod test {
                     gene_symbol: Some(GeneSymbol {
                         value: "XYZ".to_string()
                     }),
-                    pos_edit: GenomePosEdit {
-                        pos: Mu::Certain(GenomeInterval {
+                    pos_edit: GenomeLocEdit {
+                        loc: Mu::Certain(GenomeInterval {
                             begin: Some(123),
                             end: Some(123),
                         }),
@@ -406,8 +414,8 @@ mod test {
                     gene_symbol: Some(GeneSymbol {
                         value: "XYZ".to_string()
                     }),
-                    pos_edit: MtPosEdit {
-                        pos: Mu::Certain(MtInterval {
+                    pos_edit: MtLocEdit {
+                        loc: Mu::Certain(MtInterval {
                             begin: Some(123),
                             end: Some(123),
                         }),
@@ -430,10 +438,16 @@ mod test {
                     gene_symbol: Some(GeneSymbol {
                         value: "XYZ".to_string()
                     }),
-                    pos_edit: TxPosEdit {
-                        pos: Mu::Certain(TxInterval {
-                            begin: TxPos { base: 123, offset: None },
-                            end: TxPos { base: 123, offset: None },
+                    pos_edit: TxLocEdit {
+                        loc: Mu::Certain(TxInterval {
+                            begin: TxPos {
+                                base: 123,
+                                offset: None
+                            },
+                            end: TxPos {
+                                base: 123,
+                                offset: None
+                            },
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
                             reference: "C".to_string(),
@@ -454,10 +468,16 @@ mod test {
                     gene_symbol: Some(GeneSymbol {
                         value: "XYZ".to_string()
                     }),
-                    pos_edit: RnaPosEdit {
-                        pos: Mu::Certain(RnaInterval {
-                            begin: RnaPos { base: 123, offset: None },
-                            end: RnaPos { base: 123, offset: None },
+                    pos_edit: RnaLocEdit {
+                        loc: Mu::Certain(RnaInterval {
+                            begin: RnaPos {
+                                base: 123,
+                                offset: None
+                            },
+                            end: RnaPos {
+                                base: 123,
+                                offset: None
+                            },
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
                             reference: "C".to_string(),
@@ -478,10 +498,16 @@ mod test {
                     gene_symbol: Some(GeneSymbol {
                         value: "XYZ".to_string()
                     }),
-                    pos_edit: ProtPosEdit::Ordinary {
-                        pos: Mu::Certain(ProtInterval {
-                            begin: ProtPos { aa: "Leu".to_string(), number: 3},
-                            end: ProtPos { aa: "Leu".to_string(), number: 3 },
+                    pos_edit: ProtLocEdit::Ordinary {
+                        loc: Mu::Certain(ProtInterval {
+                            begin: ProtPos {
+                                aa: "Leu".to_string(),
+                                number: 3
+                            },
+                            end: ProtPos {
+                                aa: "Leu".to_string(),
+                                number: 3
+                            },
                         }),
                         edit: Mu::Certain(ProteinEdit::Subst {
                             alternative: "Thr".to_string()
@@ -489,16 +515,17 @@ mod test {
                     }
                 }
             ))
-        );    }
+        );
+    }
 
     #[test]
     fn cdsposedit_parse() {
         assert_eq!(
-            CdsPosEdit::parse("(123_123)C>T"),
+            CdsLocEdit::parse("(123_123)C>T"),
             Ok((
                 "",
-                CdsPosEdit {
-                    pos: Mu::Uncertain(CdsInterval {
+                CdsLocEdit {
+                    loc: Mu::Uncertain(CdsInterval {
                         begin: CdsPos {
                             base: 123,
                             offset: None,
@@ -522,11 +549,11 @@ mod test {
     #[test]
     fn genomeposedit_parse() {
         assert_eq!(
-            GenomePosEdit::parse("(123_123)C>T"),
+            GenomeLocEdit::parse("(123_123)C>T"),
             Ok((
                 "",
-                GenomePosEdit {
-                    pos: Mu::Uncertain(GenomeInterval {
+                GenomeLocEdit {
+                    loc: Mu::Uncertain(GenomeInterval {
                         begin: Some(123),
                         end: Some(123),
                     }),
@@ -542,11 +569,11 @@ mod test {
     #[test]
     fn mtposedit_parse() {
         assert_eq!(
-            MtPosEdit::parse("(123_123)C>T"),
+            MtLocEdit::parse("(123_123)C>T"),
             Ok((
                 "",
-                MtPosEdit {
-                    pos: Mu::Uncertain(MtInterval {
+                MtLocEdit {
+                    loc: Mu::Uncertain(MtInterval {
                         begin: Some(123),
                         end: Some(123),
                     }),
@@ -562,11 +589,11 @@ mod test {
     #[test]
     fn txposedit_parse() {
         assert_eq!(
-            TxPosEdit::parse("(123_123)C>T"),
+            TxLocEdit::parse("(123_123)C>T"),
             Ok((
                 "",
-                TxPosEdit {
-                    pos: Mu::Uncertain(TxInterval {
+                TxLocEdit {
+                    loc: Mu::Uncertain(TxInterval {
                         begin: TxPos {
                             base: 123,
                             offset: None,
@@ -588,11 +615,11 @@ mod test {
     #[test]
     fn rnaposedit_parse() {
         assert_eq!(
-            RnaPosEdit::parse("(123_123)C>T"),
+            RnaLocEdit::parse("(123_123)C>T"),
             Ok((
                 "",
-                RnaPosEdit {
-                    pos: Mu::Uncertain(RnaInterval {
+                RnaLocEdit {
+                    loc: Mu::Uncertain(RnaInterval {
                         begin: RnaPos {
                             base: 123,
                             offset: None,
@@ -614,11 +641,11 @@ mod test {
     #[test]
     fn protposedit_parse() {
         assert_eq!(
-            ProtPosEdit::parse("(Leu123_Leu123)(Thr)"),
+            ProtLocEdit::parse("(Leu123_Leu123)(Thr)"),
             Ok((
                 "",
-                ProtPosEdit::Ordinary {
-                    pos: Mu::Uncertain(ProtInterval {
+                ProtLocEdit::Ordinary {
+                    loc: Mu::Uncertain(ProtInterval {
                         begin: ProtPos {
                             aa: "Leu".to_string(),
                             number: 123,
@@ -634,15 +661,15 @@ mod test {
                 }
             ))
         );
-        assert_eq!(ProtPosEdit::parse("="), Ok(("", ProtPosEdit::NoChange)));
+        assert_eq!(ProtLocEdit::parse("="), Ok(("", ProtLocEdit::NoChange)));
         assert_eq!(
-            ProtPosEdit::parse("(=)"),
-            Ok(("", ProtPosEdit::NoChangeUncertain))
+            ProtLocEdit::parse("(=)"),
+            Ok(("", ProtLocEdit::NoChangeUncertain))
         );
-        assert_eq!(ProtPosEdit::parse("0"), Ok(("", ProtPosEdit::NoProtein)));
+        assert_eq!(ProtLocEdit::parse("0"), Ok(("", ProtLocEdit::NoProtein)));
         assert_eq!(
-            ProtPosEdit::parse("0?"),
-            Ok(("", ProtPosEdit::NoProteinUncertain))
+            ProtLocEdit::parse("0?"),
+            Ok(("", ProtLocEdit::NoProteinUncertain))
         );
     }
 

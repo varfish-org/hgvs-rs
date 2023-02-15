@@ -88,49 +88,49 @@ pub enum ProteinEdit {
 /// A HGVS variant specification.
 #[derive(Clone, Debug, PartialEq)]
 pub enum HgvsVariant {
-    /// Variant specification with `c.` position.
+    /// Variant specification with `c.` location.
     CdsVariant {
         accession: Accession,
         gene_symbol: Option<GeneSymbol>,
-        pos_edit: CdsPosEdit,
+        pos_edit: CdsLocEdit,
     },
-    /// Variant specification with `g.` position.
+    /// Variant specification with `g.` location.
     GenomeVariant {
         accession: Accession,
         gene_symbol: Option<GeneSymbol>,
-        pos_edit: GenomePosEdit,
+        pos_edit: GenomeLocEdit,
     },
-    /// Variant specification with `m.` position.
+    /// Variant specification with `m.` location.
     MtVariant {
         accession: Accession,
         gene_symbol: Option<GeneSymbol>,
-        pos_edit: MtPosEdit,
+        pos_edit: MtLocEdit,
     },
-    /// Variant specification with `n.` position.
+    /// Variant specification with `n.` location.
     TxVariant {
         accession: Accession,
         gene_symbol: Option<GeneSymbol>,
-        pos_edit: TxPosEdit,
+        pos_edit: TxLocEdit,
     },
-    /// Variant specification with `p.` position.
+    /// Variant specification with `p.` location.
     ProtVariant {
         accession: Accession,
         gene_symbol: Option<GeneSymbol>,
-        pos_edit: ProtPosEdit,
+        pos_edit: ProtLocEdit,
     },
-    /// Variant specification with `r.` position.
+    /// Variant specification with `r.` location.
     RnaVariant {
         accession: Accession,
         gene_symbol: Option<GeneSymbol>,
-        pos_edit: RnaPosEdit,
+        pos_edit: RnaLocEdit,
     },
 }
 
-/// Coding sequence position with edit.
+/// Coding sequence location with edit.
 #[derive(Clone, Debug, PartialEq)]
-pub struct CdsPosEdit {
-    /// Interval on the CDS.
-    pub pos: Mu<CdsInterval>,
+pub struct CdsLocEdit {
+    /// Location on the CDS.
+    pub loc: Mu<CdsInterval>,
     /// DNA change description.
     pub edit: Mu<NaEdit>,
 }
@@ -163,11 +163,11 @@ pub struct CdsPos {
     pub cds_from: CdsFrom,
 }
 
-/// Genome sequence position with edit.
+/// Genome sequence location with edit.
 #[derive(Clone, Debug, PartialEq)]
-pub struct GenomePosEdit {
-    /// Interval on the genome.
-    pub pos: Mu<GenomeInterval>,
+pub struct GenomeLocEdit {
+    /// Location on the genome.
+    pub loc: Mu<GenomeInterval>,
     /// DNA change description.
     pub edit: Mu<NaEdit>,
 }
@@ -181,11 +181,11 @@ pub struct GenomeInterval {
     pub end: Option<i32>,
 }
 
-/// Mitochondrial sequence position with edit.
+/// Mitochondrial sequence location with edit.
 #[derive(Clone, Debug, PartialEq)]
-pub struct MtPosEdit {
-    /// Interval on the mitochondrium.
-    pub pos: Mu<MtInterval>,
+pub struct MtLocEdit {
+    /// Location on the mitochondrium.
+    pub loc: Mu<MtInterval>,
     /// DNA change description.
     pub edit: Mu<NaEdit>,
 }
@@ -199,11 +199,11 @@ pub struct MtInterval {
     pub end: Option<i32>,
 }
 
-/// Transcript sequence position with edit.
+/// Transcript sequence location with edit.
 #[derive(Clone, Debug, PartialEq)]
-pub struct TxPosEdit {
-    /// Interval on a transcript.
-    pub pos: Mu<TxInterval>,
+pub struct TxLocEdit {
+    /// Loction on a transcript.
+    pub loc: Mu<TxInterval>,
     /// DNA change description.
     pub edit: Mu<NaEdit>,
 }
@@ -226,11 +226,11 @@ pub struct TxPos {
     pub offset: Option<i32>,
 }
 
-/// RNA sequence position with edit.
+/// RNA sequence location with edit.
 #[derive(Clone, Debug, PartialEq)]
-pub struct RnaPosEdit {
-    /// Interval on a transcript.
-    pub pos: Mu<RnaInterval>,
+pub struct RnaLocEdit {
+    /// Location on a transcript.
+    pub loc: Mu<RnaInterval>,
     /// RNA change description.
     pub edit: Mu<NaEdit>,
 }
@@ -253,11 +253,11 @@ pub struct RnaPos {
     pub offset: Option<i32>,
 }
 
-/// Protein sequence position with edit or special.
+/// Protein sequence location with edit or special.
 #[derive(Clone, Debug, PartialEq)]
-pub enum ProtPosEdit {
+pub enum ProtLocEdit {
     Ordinary {
-        pos: Mu<ProtInterval>,
+        loc: Mu<ProtInterval>,
         edit: Mu<ProteinEdit>,
     },
     /// `=`
