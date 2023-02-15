@@ -72,7 +72,7 @@ mod test {
 
     #[test]
     fn not_ok() -> Result<(), anyhow::Error> {
-        assert!(!HgvsVariant::from_str("x").is_ok());
+        assert!(HgvsVariant::from_str("x").is_err());
 
         Ok(())
     }
@@ -85,8 +85,8 @@ mod test {
         for line in reader.lines() {
             let line = line?;
             let line = line.trim();
-            if !line.starts_with("#") && !line.is_empty() {
-                assert!(HgvsVariant::from_str(line).is_ok(), "line = {}", line)
+            if !line.starts_with('#') && !line.is_empty() {
+                assert!(HgvsVariant::from_str(line).is_ok(), "line = {line}")
             }
         }
 
@@ -101,8 +101,8 @@ mod test {
         for line in reader.lines() {
             let line = line?;
             let line = line.trim();
-            if !line.starts_with("#") && !line.is_empty() {
-                assert!(!HgvsVariant::from_str(line).is_ok(), "line = {}", line)
+            if !line.starts_with('#') && !line.is_empty() {
+                assert!(HgvsVariant::from_str(line).is_err(), "line = {line}")
             }
         }
 

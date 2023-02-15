@@ -10,8 +10,8 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Mu::Certain(value) => write!(f, "{}", value),
-            Mu::Uncertain(value) => write!(f, "({})", value),
+            Mu::Certain(value) => write!(f, "{value}"),
+            Mu::Uncertain(value) => write!(f, "({value})"),
         }
     }
 }
@@ -30,22 +30,22 @@ impl Display for NaEdit {
                 alternative,
             } => match (reference.len(), alternative.len()) {
                 (0, 0) => write!(f, "="),
-                (1, 1) => write!(f, "{}>{}", reference, alternative),
-                (0, _) => write!(f, "ins{}", alternative),
-                (_, 0) => write!(f, "del{}", reference),
-                (_, _) => write!(f, "del{}ins{}", reference, alternative),
+                (1, 1) => write!(f, "{reference}>{alternative}"),
+                (0, _) => write!(f, "ins{alternative}"),
+                (_, 0) => write!(f, "del{reference}"),
+                (_, _) => write!(f, "del{reference}ins{alternative}"),
             },
             NaEdit::NumAlt { count, alternative } => match (count, alternative.len()) {
                 (0, 0) => write!(f, "="),
-                (0, _) => write!(f, "ins{}", alternative),
-                (_, 0) => write!(f, "del{}", count),
-                (_, _) => write!(f, "del{}ins{}", count, alternative),
+                (0, _) => write!(f, "ins{alternative}"),
+                (_, 0) => write!(f, "del{count}"),
+                (_, _) => write!(f, "del{count}ins{alternative}"),
             },
-            NaEdit::Del { reference } => write!(f, "del{}", reference),
-            NaEdit::Ins { alternative } => write!(f, "ins{}", alternative),
-            NaEdit::Dup { reference } => write!(f, "dup{}", reference),
-            NaEdit::InvRef { reference } => write!(f, "inv{}", reference),
-            NaEdit::InvNum { count } => write!(f, "inv{}", count),
+            NaEdit::Del { reference } => write!(f, "del{reference}"),
+            NaEdit::Ins { alternative } => write!(f, "ins{alternative}"),
+            NaEdit::Dup { reference } => write!(f, "dup{reference}"),
+            NaEdit::InvRef { reference } => write!(f, "inv{reference}"),
+            NaEdit::InvNum { count } => write!(f, "inv{count}"),
         }
     }
 }
@@ -55,7 +55,7 @@ impl Display for UncertainLengthChange {
         match self {
             UncertainLengthChange::None => write!(f, ""),
             UncertainLengthChange::Unknown => write!(f, "?"),
-            UncertainLengthChange::Known(count) => write!(f, "{}", count),
+            UncertainLengthChange::Known(count) => write!(f, "{count}"),
         }
     }
 }
@@ -76,25 +76,25 @@ impl Display for ProteinEdit {
             } => match (alternative, terminal, length) {
                 (None, None, UncertainLengthChange::None) => write!(f, "fs"),
                 (None, None, UncertainLengthChange::Unknown) => write!(f, "fs?"),
-                (None, None, UncertainLengthChange::Known(count)) => write!(f, "fs{}", count),
-                (Some(alt), None, UncertainLengthChange::None) => write!(f, "{}fs", alt),
-                (Some(alt), None, UncertainLengthChange::Unknown) => write!(f, "{}fs?", alt),
+                (None, None, UncertainLengthChange::Known(count)) => write!(f, "fs{count}"),
+                (Some(alt), None, UncertainLengthChange::None) => write!(f, "{alt}fs"),
+                (Some(alt), None, UncertainLengthChange::Unknown) => write!(f, "{alt}fs?"),
                 (Some(alt), None, UncertainLengthChange::Known(count)) => {
-                    write!(f, "{}fs{}", alt, count)
+                    write!(f, "{alt}fs{count}")
                 }
-                (None, Some(ter), UncertainLengthChange::None) => write!(f, "fs{}", ter),
-                (None, Some(ter), UncertainLengthChange::Unknown) => write!(f, "fs{}?", ter),
+                (None, Some(ter), UncertainLengthChange::None) => write!(f, "fs{ter}"),
+                (None, Some(ter), UncertainLengthChange::Unknown) => write!(f, "fs{ter}?"),
                 (None, Some(ter), UncertainLengthChange::Known(count)) => {
-                    write!(f, "fs{}{}", ter, count)
+                    write!(f, "fs{ter}{count}")
                 }
                 (Some(alt), Some(ter), UncertainLengthChange::None) => {
-                    write!(f, "{}fs{}", alt, ter)
+                    write!(f, "{alt}fs{ter}")
                 }
                 (Some(alt), Some(ter), UncertainLengthChange::Unknown) => {
-                    write!(f, "{}fs{}?", alt, ter)
+                    write!(f, "{alt}fs{ter}?")
                 }
                 (Some(alt), Some(ter), UncertainLengthChange::Known(count)) => {
-                    write!(f, "{}fs{}{}", alt, ter, count)
+                    write!(f, "{alt}fs{ter}{count}")
                 }
             },
             ProteinEdit::Ext {
@@ -104,30 +104,30 @@ impl Display for ProteinEdit {
             } => match (aa_ext, ext_aa, change) {
                 (None, None, UncertainLengthChange::None) => write!(f, "ext"),
                 (None, None, UncertainLengthChange::Unknown) => write!(f, "ext?"),
-                (None, None, UncertainLengthChange::Known(count)) => write!(f, "ext{}", count),
-                (Some(alt), None, UncertainLengthChange::None) => write!(f, "{}ext", alt),
-                (Some(alt), None, UncertainLengthChange::Unknown) => write!(f, "{}ext?", alt),
+                (None, None, UncertainLengthChange::Known(count)) => write!(f, "ext{count}"),
+                (Some(alt), None, UncertainLengthChange::None) => write!(f, "{alt}ext"),
+                (Some(alt), None, UncertainLengthChange::Unknown) => write!(f, "{alt}ext?"),
                 (Some(alt), None, UncertainLengthChange::Known(count)) => {
-                    write!(f, "{}ext{}", alt, count)
+                    write!(f, "{alt}ext{count}")
                 }
-                (None, Some(ter), UncertainLengthChange::None) => write!(f, "ext{}", ter),
-                (None, Some(ter), UncertainLengthChange::Unknown) => write!(f, "ext{}?", ter),
+                (None, Some(ter), UncertainLengthChange::None) => write!(f, "ext{ter}"),
+                (None, Some(ter), UncertainLengthChange::Unknown) => write!(f, "ext{ter}?"),
                 (None, Some(ter), UncertainLengthChange::Known(count)) => {
-                    write!(f, "ext{}{}", ter, count)
+                    write!(f, "ext{ter}{count}")
                 }
                 (Some(alt), Some(ter), UncertainLengthChange::None) => {
-                    write!(f, "{}ext{}", alt, ter)
+                    write!(f, "{alt}ext{ter}")
                 }
                 (Some(alt), Some(ter), UncertainLengthChange::Unknown) => {
-                    write!(f, "{}ext{}?", alt, ter)
+                    write!(f, "{alt}ext{ter}?")
                 }
                 (Some(alt), Some(ter), UncertainLengthChange::Known(count)) => {
-                    write!(f, "{}ext{}{}", alt, ter, count)
+                    write!(f, "{alt}ext{ter}{count}")
                 }
             },
-            ProteinEdit::Subst { alternative } => write!(f, "{}", alternative),
-            ProteinEdit::DelIns { alternative } => write!(f, "delins{}", alternative),
-            ProteinEdit::Ins { alternative } => write!(f, "ins{}", alternative),
+            ProteinEdit::Subst { alternative } => write!(f, "{alternative}"),
+            ProteinEdit::DelIns { alternative } => write!(f, "delins{alternative}"),
+            ProteinEdit::Ins { alternative } => write!(f, "ins{alternative}"),
             ProteinEdit::Del => write!(f, "del"),
             ProteinEdit::Dup => write!(f, "dup"),
             ProteinEdit::Ident => write!(f, "="),
@@ -154,7 +154,7 @@ impl Display for ProtInterval {
 impl Display for ProtLocEdit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ProtLocEdit::Ordinary { loc, edit } => write!(f, "{}{}", loc, edit),
+            ProtLocEdit::Ordinary { loc, edit } => write!(f, "{loc}{edit}"),
             ProtLocEdit::NoChange => write!(f, "="),
             ProtLocEdit::NoChangeUncertain => write!(f, "(=)"),
             ProtLocEdit::NoProtein => write!(f, "0"),
@@ -191,7 +191,7 @@ impl Display for CdsPos {
             if offset > 0 {
                 write!(f, "+")?;
             }
-            write!(f, "{}", offset)?;
+            write!(f, "{offset}")?;
         }
 
         Ok(())
@@ -222,7 +222,7 @@ impl Display for TxPos {
             if offset > 0 {
                 write!(f, "+")?;
             }
-            write!(f, "{}", offset)?;
+            write!(f, "{offset}")?;
         }
 
         Ok(())
@@ -253,7 +253,7 @@ impl Display for RnaPos {
             if offset > 0 {
                 write!(f, "+")?;
             }
-            write!(f, "{}", offset)?;
+            write!(f, "{offset}")?;
         }
 
         Ok(())
@@ -269,12 +269,12 @@ impl Display for GenomeLocEdit {
 impl Display for GenomeInterval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.begin {
-            Some(begin) => write!(f, "{}", begin)?,
+            Some(begin) => write!(f, "{begin}")?,
             None => write!(f, "?")?,
         }
         if self.begin != self.end {
             match self.end {
-                Some(end) => write!(f, "_{}", end)?,
+                Some(end) => write!(f, "_{end}")?,
                 None => write!(f, "_?")?,
             }
         }
@@ -291,12 +291,12 @@ impl Display for MtLocEdit {
 impl Display for MtInterval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.begin {
-            Some(begin) => write!(f, "{}", begin)?,
+            Some(begin) => write!(f, "{begin}")?,
             None => write!(f, "?")?,
         }
         if self.begin != self.end {
             match self.end {
-                Some(end) => write!(f, "_{}", end)?,
+                Some(end) => write!(f, "_{end}")?,
                 None => write!(f, "_?")?,
             }
         }
@@ -312,66 +312,66 @@ impl Display for HgvsVariant {
                 gene_symbol,
                 loc_edit,
             } => {
-                write!(f, "{}", accession)?;
+                write!(f, "{accession}")?;
                 if let Some(gene_symbol) = gene_symbol {
-                    write!(f, "({})", gene_symbol)?;
+                    write!(f, "({gene_symbol})")?;
                 }
-                write!(f, ":c.{}", loc_edit)
+                write!(f, ":c.{loc_edit}")
             }
             HgvsVariant::GenomeVariant {
                 accession,
                 gene_symbol,
                 loc_edit,
             } => {
-                write!(f, "{}", accession)?;
+                write!(f, "{accession}")?;
                 if let Some(gene_symbol) = gene_symbol {
-                    write!(f, "({})", gene_symbol)?;
+                    write!(f, "({gene_symbol})")?;
                 }
-                write!(f, ":g.{}", loc_edit)
+                write!(f, ":g.{loc_edit}")
             }
             HgvsVariant::MtVariant {
                 accession,
                 gene_symbol,
                 loc_edit,
             } => {
-                write!(f, "{}", accession)?;
+                write!(f, "{accession}")?;
                 if let Some(gene_symbol) = gene_symbol {
-                    write!(f, "({})", gene_symbol)?;
+                    write!(f, "({gene_symbol})")?;
                 }
-                write!(f, ":m.{}", loc_edit)
+                write!(f, ":m.{loc_edit}")
             }
             HgvsVariant::TxVariant {
                 accession,
                 gene_symbol,
                 loc_edit,
             } => {
-                write!(f, "{}", accession)?;
+                write!(f, "{accession}")?;
                 if let Some(gene_symbol) = gene_symbol {
-                    write!(f, "({})", gene_symbol)?;
+                    write!(f, "({gene_symbol})")?;
                 }
-                write!(f, ":n.{}", loc_edit)
+                write!(f, ":n.{loc_edit}")
             }
             HgvsVariant::ProtVariant {
                 accession,
                 gene_symbol,
                 loc_edit,
             } => {
-                write!(f, "{}", accession)?;
+                write!(f, "{accession}")?;
                 if let Some(gene_symbol) = gene_symbol {
-                    write!(f, "({})", gene_symbol)?;
+                    write!(f, "({gene_symbol})")?;
                 }
-                write!(f, ":p.{}", loc_edit)
+                write!(f, ":p.{loc_edit}")
             }
             HgvsVariant::RnaVariant {
                 accession,
                 gene_symbol,
                 loc_edit,
             } => {
-                write!(f, "{}", accession)?;
+                write!(f, "{accession}")?;
                 if let Some(gene_symbol) = gene_symbol {
-                    write!(f, "({})", gene_symbol)?;
+                    write!(f, "({gene_symbol})")?;
                 }
-                write!(f, ":r.{}", loc_edit)
+                write!(f, ":r.{loc_edit}")
             }
         }
     }
