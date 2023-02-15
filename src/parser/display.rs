@@ -1809,7 +1809,6 @@ mod test {
         );
     }
 
-
     #[test]
     fn hgvs_variant_prot() {
         assert_eq!(
