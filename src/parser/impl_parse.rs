@@ -13,19 +13,117 @@ use nom::{
 use crate::parser::ds::*;
 use crate::parser::parse_funcs::*;
 
-/// Parsers for constructing `HgvsVariant` records.
-mod hgvs_variant {}
+impl HgvsVariant {
+    fn parse_cds_variant(input: &str) -> IResult<&str, Self> {
+        map(
+            tuple((
+                Accession::parse,
+                opt(tuple((tag("("), GeneSymbol::parse, tag(")")))),
+                tag(":c."),
+                CdsPosEdit::parse,
+            )),
+            |(accession, opt_gs, _, pos_edit)| HgvsVariant::CdsVariant {
+                accession,
+                gene_symbol: opt_gs.map(|(_, gene_symbol, _)| gene_symbol),
+                pos_edit,
+            },
+        )(input)
+    }
 
-// impl HgvsVariant {
-//     fn parse_cds_variant(input: &str) -> IResult<&str, Self> {
-//         let xs = tuple((Accession::parse, opt(GeneSymbol::parse), CdsPosEdit::parse))(input)?;
-//     }
+    fn parse_genome_variant(input: &str) -> IResult<&str, Self> {
+        map(
+            tuple((
+                Accession::parse,
+                opt(tuple((tag("("), GeneSymbol::parse, tag(")")))),
+                tag(":g."),
+                GenomePosEdit::parse,
+            )),
+            |(accession, opt_gs, _, pos_edit)| HgvsVariant::GenomeVariant {
+                accession,
+                gene_symbol: opt_gs.map(|(_, gene_symbol, _)| gene_symbol),
+                pos_edit,
+            },
+        )(input)
+    }
 
-//     /// Parse a `HgvsVariant` from the given `str`.
-//     pub fn parse(input: &str) -> IResult<&str, Self> {
+    fn parse_mt_variant(input: &str) -> IResult<&str, Self> {
+        map(
+            tuple((
+                Accession::parse,
+                opt(tuple((tag("("), GeneSymbol::parse, tag(")")))),
+                tag(":m."),
+                MtPosEdit::parse,
+            )),
+            |(accession, opt_gs, _, pos_edit)| HgvsVariant::MtVariant {
+                accession,
+                gene_symbol: opt_gs.map(|(_, gene_symbol, _)| gene_symbol),
+                pos_edit,
+            },
+        )(input)
+    }
 
-//     }
-// }
+    fn parse_tx_variant(input: &str) -> IResult<&str, Self> {
+        map(
+            tuple((
+                Accession::parse,
+                opt(tuple((tag("("), GeneSymbol::parse, tag(")")))),
+                tag(":n."),
+                TxPosEdit::parse,
+            )),
+            |(accession, opt_gs, _, pos_edit)| HgvsVariant::TxVariant {
+                accession,
+                gene_symbol: opt_gs.map(|(_, gene_symbol, _)| gene_symbol),
+                pos_edit,
+            },
+        )(input)
+    }
+
+    fn parse_prot_variant(input: &str) -> IResult<&str, Self> {
+        map(
+            tuple((
+                Accession::parse,
+                opt(tuple((tag("("), GeneSymbol::parse, tag(")")))),
+                tag(":p."),
+                ProtPosEdit::parse,
+            )),
+            |(accession, opt_gs, _, pos_edit)| HgvsVariant::ProtVariant {
+                accession,
+                gene_symbol: opt_gs.map(|(_, gene_symbol, _)| gene_symbol),
+                pos_edit,
+            },
+        )(input)
+    }
+
+    fn parse_rna_variant(input: &str) -> IResult<&str, Self> {
+        map(
+            tuple((
+                Accession::parse,
+                opt(tuple((tag("("), GeneSymbol::parse, tag(")")))),
+                tag(":r."),
+                RnaPosEdit::parse,
+            )),
+            |(accession, opt_gs, _, pos_edit)| HgvsVariant::RnaVariant {
+                accession,
+                gene_symbol: opt_gs.map(|(_, gene_symbol, _)| gene_symbol),
+                pos_edit,
+            },
+        )(input)
+    }
+}
+
+impl Parseable for HgvsVariant {
+    /// Parse a `HgvsVariant` from the given `str`.
+    fn parse(input: &str) -> IResult<&str, Self> {
+        alt((
+            Self::parse_cds_variant,
+            Self::parse_genome_variant,
+            Self::parse_mt_variant,
+            Self::parse_tx_variant,
+            Self::parse_prot_variant,
+            Self::parse_rna_variant,
+        ))(input)
+    }
+}
 
 pub trait Parseable {
     fn parse(input: &str) -> IResult<&str, Self>
@@ -246,6 +344,152 @@ impl Parseable for ProtPosEdit {
 mod test {
     use super::*;
     use pretty_assertions::assert_eq;
+
+    #[test]
+    fn hgvsvariant_parse() {
+        assert_eq!(
+            HgvsVariant::parse("NR_01234.1(XYZ):c.123_123C>T"),
+            Ok((
+                "",
+                HgvsVariant::CdsVariant {
+                    accession: Accession {
+                        value: "NR_01234.1".to_string()
+                    },
+                    gene_symbol: Some(GeneSymbol {
+                        value: "XYZ".to_string()
+                    }),
+                    pos_edit: CdsPosEdit {
+                        pos: Mu::Certain(CdsInterval {
+                            begin: CdsPos { base: 123, offset: None, cds_from: CdsFrom::Start },
+                            end: CdsPos { base: 123, offset: None, cds_from: CdsFrom::Start },
+                        }),
+                        edit: Mu::Certain(NaEdit::RefAlt {
+                            reference: "C".to_string(),
+                            alternative: "T".to_string()
+                        })
+                    }
+                }
+            ))
+        );
+        assert_eq!(
+            HgvsVariant::parse("NR_01234.1(XYZ):g.123_123C>T"),
+            Ok((
+                "",
+                HgvsVariant::GenomeVariant {
+                    accession: Accession {
+                        value: "NR_01234.1".to_string()
+                    },
+                    gene_symbol: Some(GeneSymbol {
+                        value: "XYZ".to_string()
+                    }),
+                    pos_edit: GenomePosEdit {
+                        pos: Mu::Certain(GenomeInterval {
+                            begin: Some(123),
+                            end: Some(123),
+                        }),
+                        edit: Mu::Certain(NaEdit::RefAlt {
+                            reference: "C".to_string(),
+                            alternative: "T".to_string()
+                        })
+                    }
+                }
+            ))
+        );
+        assert_eq!(
+            HgvsVariant::parse("NR_01234.1(XYZ):m.123_123C>T"),
+            Ok((
+                "",
+                HgvsVariant::MtVariant {
+                    accession: Accession {
+                        value: "NR_01234.1".to_string()
+                    },
+                    gene_symbol: Some(GeneSymbol {
+                        value: "XYZ".to_string()
+                    }),
+                    pos_edit: MtPosEdit {
+                        pos: Mu::Certain(MtInterval {
+                            begin: Some(123),
+                            end: Some(123),
+                        }),
+                        edit: Mu::Certain(NaEdit::RefAlt {
+                            reference: "C".to_string(),
+                            alternative: "T".to_string()
+                        })
+                    }
+                }
+            ))
+        );
+        assert_eq!(
+            HgvsVariant::parse("NR_01234.1(XYZ):n.123_123C>T"),
+            Ok((
+                "",
+                HgvsVariant::TxVariant {
+                    accession: Accession {
+                        value: "NR_01234.1".to_string()
+                    },
+                    gene_symbol: Some(GeneSymbol {
+                        value: "XYZ".to_string()
+                    }),
+                    pos_edit: TxPosEdit {
+                        pos: Mu::Certain(TxInterval {
+                            begin: TxPos { base: 123, offset: None },
+                            end: TxPos { base: 123, offset: None },
+                        }),
+                        edit: Mu::Certain(NaEdit::RefAlt {
+                            reference: "C".to_string(),
+                            alternative: "T".to_string()
+                        })
+                    }
+                }
+            ))
+        );
+        assert_eq!(
+            HgvsVariant::parse("NR_01234.1(XYZ):r.123_123C>T"),
+            Ok((
+                "",
+                HgvsVariant::RnaVariant {
+                    accession: Accession {
+                        value: "NR_01234.1".to_string()
+                    },
+                    gene_symbol: Some(GeneSymbol {
+                        value: "XYZ".to_string()
+                    }),
+                    pos_edit: RnaPosEdit {
+                        pos: Mu::Certain(RnaInterval {
+                            begin: RnaPos { base: 123, offset: None },
+                            end: RnaPos { base: 123, offset: None },
+                        }),
+                        edit: Mu::Certain(NaEdit::RefAlt {
+                            reference: "C".to_string(),
+                            alternative: "T".to_string()
+                        })
+                    }
+                }
+            ))
+        );
+        assert_eq!(
+            HgvsVariant::parse("NR_01234.1(XYZ):p.Leu3_Leu3Thr"),
+            Ok((
+                "",
+                HgvsVariant::ProtVariant {
+                    accession: Accession {
+                        value: "NR_01234.1".to_string()
+                    },
+                    gene_symbol: Some(GeneSymbol {
+                        value: "XYZ".to_string()
+                    }),
+                    pos_edit: ProtPosEdit::Ordinary {
+                        pos: Mu::Certain(ProtInterval {
+                            begin: ProtPos { aa: "Leu".to_string(), number: 3},
+                            end: ProtPos { aa: "Leu".to_string(), number: 3 },
+                        }),
+                        edit: Mu::Certain(ProteinEdit::Subst {
+                            alternative: "Thr".to_string()
+                        })
+                    }
+                }
+            ))
+        );    }
 
     #[test]
     fn cdsposedit_parse() {
