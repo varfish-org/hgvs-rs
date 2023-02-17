@@ -87,7 +87,7 @@ pub struct TxExonsRecord {
     pub tx_ac: String,
     pub alt_ac: String,
     pub alt_aln_method: String,
-    pub alt_strand: i32,
+    pub alt_strand: i16,
     pub ord: i32,
     pub tx_start_i: i32,
     pub tx_end_i: i32,
