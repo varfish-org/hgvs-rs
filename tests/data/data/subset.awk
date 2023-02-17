@@ -19,7 +19,7 @@ BEGIN {
 }
 
 {
-    if ($0 ~ anonymous) {
+    if ($0 ~ /anonymous/) {
         next;  # skip for testing
     }
 
