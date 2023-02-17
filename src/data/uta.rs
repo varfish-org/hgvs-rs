@@ -176,7 +176,7 @@ impl Debug for Provider {
 impl Provider {
     pub fn with_config(config: &Config) -> Result<Self, anyhow::Error> {
         let config = config.clone();
-        let mut conn = Mutex::new(Client::connect(&config.db_url, NoTls)?);
+        let conn = Mutex::new(Client::connect(&config.db_url, NoTls)?);
         let schema_version =
             Self::fetch_schema_version(&mut conn.lock().unwrap(), &config.db_schema)?;
         Ok(Self {
@@ -477,7 +477,7 @@ mod test {
 
     #[test]
     fn get_gene_info() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         assert_eq!(
             format!("{:?}", provider.get_gene_info("OMA1")?),
@@ -492,7 +492,7 @@ mod test {
 
     #[test]
     fn get_pro_ac_for_tx_ac() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         assert_eq!(
             provider.get_pro_ac_for_tx_ac("NM_130831.2")?,
@@ -505,7 +505,7 @@ mod test {
 
     #[test]
     fn get_seq() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         assert_eq!(provider.get_seq("NM_001354664.1")?.len(), 6386);
 
@@ -514,7 +514,7 @@ mod test {
 
     #[test]
     fn get_seq_part() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         assert_eq!(
             provider
@@ -528,7 +528,7 @@ mod test {
 
     #[test]
     fn get_similar_transcripts() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         let records = provider.get_similar_transcripts("NM_001354664.1")?;
 
@@ -545,7 +545,7 @@ mod test {
 
     #[test]
     fn get_tx_exons() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         let records = provider.get_tx_exons("NM_001354664.1", "NC_000003.11", "splign")?;
 
@@ -565,7 +565,7 @@ mod test {
 
     #[test]
     fn get_tx_for_gene() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         let records = provider.get_tx_for_gene("OMA1")?;
 
@@ -582,7 +582,7 @@ mod test {
 
     #[test]
     fn get_tx_for_region() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         let records = provider.get_tx_for_region("NC_000001.10", "splign", 58946391, 59012446)?;
 
@@ -599,7 +599,7 @@ mod test {
 
     #[test]
     fn get_tx_identity_info() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         let record = provider.get_tx_identity_info("ENST00000421528")?;
 
@@ -615,7 +615,7 @@ mod test {
 
     #[test]
     fn get_tx_info() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         let record = provider.get_tx_info("ENST00000421528", "NC_000001.10", "genebuild")?;
 
@@ -631,7 +631,7 @@ mod test {
 
     #[test]
     fn get_tx_mapping_options() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         let records = provider.get_tx_mapping_options("ENST00000421528")?;
 

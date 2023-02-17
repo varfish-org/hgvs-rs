@@ -1,6 +1,6 @@
 //! Code for variant mapping.
 
-use std::{rc::Rc, sync::Mutex};
+use std::{rc::Rc};
 
 use crate::{
     data::interface::Provider,
@@ -62,13 +62,13 @@ impl Mapper {
     fn g_to_t(
         &self,
         var_g: HgvsVariant,
-        tx_ac: &str,
-        alt_aln_method: &String,
+        _tx_ac: &str,
+        _alt_aln_method: &str,
     ) -> Result<(), anyhow::Error> {
         if let HgvsVariant::GenomeVariant {
-            accession,
-            gene_symbol,
-            loc_edit,
+            accession: _,
+            gene_symbol: _,
+            loc_edit: _,
         } = &var_g
         {
             // self.validator.validate(&var_g)?;
