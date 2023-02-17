@@ -3,12 +3,12 @@
 //! C.f. https://github.com/biocommons/uta
 
 use linked_hash_map::LinkedHashMap;
-use postgres::{Client, NoTls};
+use postgres::{Client, NoTls, Row};
 use std::fmt::Debug;
 
 use crate::static_data::{Assembly, ASSEMBLY_INFOS};
 
-use super::Interface;
+use super::{GeneInfo, Interface};
 
 /// Configurationf or the `data::uta::Provider`.
 #[derive(Debug, PartialEq, Clone)]
@@ -29,6 +29,23 @@ impl Default for Config {
                 .to_string(),
             db_schema: "uta_20210129".to_string(),
         }
+    }
+}
+
+impl TryFrom<Row> for GeneInfo {
+    type Error = anyhow::Error;
+
+    fn try_from(row: Row) -> Result<Self, Self::Error> {
+        let aliases: String = row.try_get("aliases")?;
+        let aliases = aliases.split(",").map(|s| s.to_owned()).collect::<Vec<_>>();
+        Ok(Self {
+            hgnc: row.try_get("hgnc")?,
+            maploc: row.try_get("maploc")?,
+            descr: row.try_get("descr")?,
+            summary: row.try_get("summary")?,
+            aliases,
+            added: row.try_get("added")?,
+        })
     }
 }
 
@@ -90,20 +107,24 @@ impl Interface for Provider {
         )
     }
 
-    fn get_gene_info(&self, gene: &str) -> Result<super::GeneInfo, anyhow::Error> {
+    fn get_gene_info(&mut self, hgnc: &str) -> Result<GeneInfo, anyhow::Error> {
+        let sql = format!(
+            "SELECT * FROM {}.gene WHERE hgnc = $1;",
+            self.config.db_schema
+        );
+        self.conn.query_one(&sql, &[&hgnc])?.try_into()
+    }
+
+    fn get_pro_ac_for_tx_ac(&mut self, tx_ac: &str) -> Result<Option<String>, anyhow::Error> {
         todo!()
     }
 
-    fn get_pro_ac_for_tx_ac(&self, tx_ac: &str) -> Result<Option<String>, anyhow::Error> {
-        todo!()
-    }
-
-    fn get_seq(&self, ac: &str) -> String {
+    fn get_seq(&mut self, ac: &str) -> String {
         todo!()
     }
 
     fn get_seq_part(
-        &self,
+        &mut self,
         ac: &str,
         begin: Option<usize>,
         end: Option<usize>,
@@ -112,14 +133,14 @@ impl Interface for Provider {
     }
 
     fn get_similar_transcripts(
-        &self,
+        &mut self,
         tx_ac: &str,
     ) -> Result<Vec<super::TxSimilarityRecord>, anyhow::Error> {
         todo!()
     }
 
     fn get_tx_exons(
-        &self,
+        &mut self,
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
@@ -127,12 +148,15 @@ impl Interface for Provider {
         todo!()
     }
 
-    fn get_tx_for_gene(&self, gene: &str) -> Result<Vec<super::TxForGeneRecord>, anyhow::Error> {
+    fn get_tx_for_gene(
+        &mut self,
+        gene: &str,
+    ) -> Result<Vec<super::TxForGeneRecord>, anyhow::Error> {
         todo!()
     }
 
     fn get_tx_for_region(
-        &self,
+        &mut self,
         alt_ac: &str,
         alt_aln_method: &str,
         start_i: i32,
@@ -141,12 +165,15 @@ impl Interface for Provider {
         todo!()
     }
 
-    fn get_tx_identity_info(&self, tx_ac: &str) -> Result<super::TxIdentityInfo, anyhow::Error> {
+    fn get_tx_identity_info(
+        &mut self,
+        tx_ac: &str,
+    ) -> Result<super::TxIdentityInfo, anyhow::Error> {
         todo!()
     }
 
     fn get_tx_info(
-        &self,
+        &mut self,
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
@@ -155,7 +182,7 @@ impl Interface for Provider {
     }
 
     fn get_tx_mapping_options(
-        &self,
+        &mut self,
         tax_ac: &str,
     ) -> Result<Vec<super::TxMappingOptionsRecord>, anyhow::Error> {
         todo!()
@@ -199,6 +226,21 @@ mod test {
         let am38 = provider.get_assembly_map(Assembly::Grch38);
         assert_eq!(am38.len(), 455);
         assert_eq!(am38.get("NC_000001.11"), Some(&"1".to_string()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_gene_info() -> Result<(), anyhow::Error> {
+        let mut provider = Provider::with_config(&get_config())?;
+
+        assert_eq!(
+            format!("{:?}", provider.get_gene_info(&"OMA1")?),
+            "GeneInfo { hgnc: \"OMA1\", maploc: \"1p32.2-p32.1\", \
+            descr: \"OMA1 zinc metallopeptidase\", summary: \"OMA1 zinc metallopeptidase\", \
+            aliases: [\"{2010001O09Rik\", \"DAB1\", \"MPRP-1\", \"MPRP1\", \"YKR087C\", \
+            \"ZMPOMA1\", \"peptidase}\"], added: 2014-02-10T22:59:21.153414 }"
+        );
 
         Ok(())
     }

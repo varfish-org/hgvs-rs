@@ -217,8 +217,8 @@ pub trait Interface {
     ///
     /// # Arguments
     ///
-    /// * `gene` - HGNC gene name
-    fn get_gene_info(&self, gene: &str) -> Result<GeneInfo, anyhow::Error>;
+    /// * `hgnc` - HGNC gene name
+    fn get_gene_info(&mut self, hgnc: &str) -> Result<GeneInfo, anyhow::Error>;
 
     /// Return the (single) associated protein accession for a given transcript accession,
     /// or None if not found.
@@ -226,14 +226,14 @@ pub trait Interface {
     /// # Arguments
     ///
     /// * `tx_ac` -- transcript accession with version (e.g., 'NM_000051.3')
-    fn get_pro_ac_for_tx_ac(&self, tx_ac: &str) -> Result<Option<String>, anyhow::Error>;
+    fn get_pro_ac_for_tx_ac(&mut self, tx_ac: &str) -> Result<Option<String>, anyhow::Error>;
 
     /// Return full sequence for the given accession.
     ///
     /// # Arguments
     ///
     /// * `ac` -- accession
-    fn get_seq(&self, ac: &str) -> String;
+    fn get_seq(&mut self, ac: &str) -> String;
 
     /// Return sequence part for the given accession.
     ///
@@ -243,7 +243,7 @@ pub trait Interface {
     /// * `start` -- start position (0-based, start of sequence if missing)
     /// * `end` -- end position (0-based, end of sequence if missing)
     fn get_seq_part(
-        &self,
+        &mut self,
         ac: &str,
         begin: Option<usize>,
         end: Option<usize>,
@@ -256,7 +256,7 @@ pub trait Interface {
     ///
     /// * `tx_ac` -- transcript accession with version (e.g., 'NM_000051.3')
     fn get_similar_transcripts(
-        &self,
+        &mut self,
         tx_ac: &str,
     ) -> Result<Vec<TxSimilarityRecord>, anyhow::Error>;
 
@@ -269,7 +269,7 @@ pub trait Interface {
     /// * `alt_ac` -- specific genomic sequence (e.g., NC_000011.4)
     /// * `alt_aln_method` -- sequence alignment method (e.g., splign, blat)
     fn get_tx_exons(
-        &self,
+        &mut self,
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
@@ -280,7 +280,7 @@ pub trait Interface {
     /// # Arguments
     ///
     /// * `gene` - HGNC gene name
-    fn get_tx_for_gene(&self, gene: &str) -> Result<Vec<TxForGeneRecord>, anyhow::Error>;
+    fn get_tx_for_gene(&mut self, gene: &str) -> Result<Vec<TxForGeneRecord>, anyhow::Error>;
 
     /// Return transcripts that overlap given region.
     ///
@@ -291,7 +291,7 @@ pub trait Interface {
     // * `start_i` -- 5' bound of region
     // * `end_i` -- 3' bound of region
     fn get_tx_for_region(
-        &self,
+        &mut self,
         alt_ac: &str,
         alt_aln_method: &str,
         start_i: i32,
@@ -303,7 +303,7 @@ pub trait Interface {
     /// # Arguments
     ///
     /// * `tx_ac` -- transcript accession with version (e.g., 'NM_199425.2')
-    fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, anyhow::Error>;
+    fn get_tx_identity_info(&mut self, tx_ac: &str) -> Result<TxIdentityInfo, anyhow::Error>;
 
     /// Return a single transcript info for supplied accession (tx_ac, alt_ac, alt_aln_method), or None if not found.
     ///
@@ -313,7 +313,7 @@ pub trait Interface {
     /// * `alt_ac -- specific genomic sequence (e.g., NC_000011.4)
     /// * `alt_aln_method` -- sequence alignment method (e.g., splign, blat)
     fn get_tx_info(
-        &self,
+        &mut self,
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
@@ -328,7 +328,7 @@ pub trait Interface {
     ///
     /// * `tx_ac` -- transcript accession with version (e.g., 'NM_000051.3')
     fn get_tx_mapping_options(
-        &self,
+        &mut self,
         tax_ac: &str,
     ) -> Result<Vec<TxMappingOptionsRecord>, anyhow::Error>;
 }
