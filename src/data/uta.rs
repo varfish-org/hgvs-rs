@@ -8,7 +8,10 @@ use std::fmt::Debug;
 
 use crate::static_data::{Assembly, ASSEMBLY_INFOS};
 
-use super::{GeneInfoRecord, Interface, TxExonsRecord, TxSimilarityRecord, TxForGeneRecord};
+use super::{
+    GeneInfoRecord, Interface, TxExonsRecord, TxForRegionRecord, TxIdentityInfo, TxInfoRecord,
+    TxMappingOptionsRecord, TxSimilarityRecord,
+};
 
 /// Configurationf or the `data::uta::Provider`.
 #[derive(Debug, PartialEq, Clone)]
@@ -92,20 +95,61 @@ impl TryFrom<Row> for TxExonsRecord {
     }
 }
 
-impl TryFrom<Row> for TxForGeneRecord {
+impl TryFrom<Row> for TxForRegionRecord {
     type Error = anyhow::Error;
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
-        Ok(
-            Self {
-                hgnc: row.try_get("hgnc")?,
-                cds_start_i: row.try_get("cds_start_i")?,
-                cds_end_i: row.try_get("cds_end_i")?,
-                tx_ac: row.try_get("tx_ac")?,
-                alt_ac: row.try_get("alt_ac")?,
-                alt_aln_method: row.try_get("alt_aln_method")?,
-            }
-        )
+        Ok(Self {
+            tx_ac: row.try_get("tx_ac")?,
+            alt_ac: row.try_get("alt_ac")?,
+            alt_strand: row.try_get("alt_strand")?,
+            alt_aln_method: row.try_get("alt_aln_method")?,
+            start_i: row.try_get("start_i")?,
+            end_i: row.try_get("end_i")?,
+        })
+    }
+}
+
+impl TryFrom<Row> for TxIdentityInfo {
+    type Error = anyhow::Error;
+
+    fn try_from(row: Row) -> Result<Self, Self::Error> {
+        Ok(Self {
+            tx_ac: row.try_get("tx_ac")?,
+            alt_ac: row.try_get("alt_ac")?,
+            alt_aln_method: row.try_get("alt_aln_method")?,
+            cds_start_i: row.try_get("cds_start_i")?,
+            cds_end_i: row.try_get("cds_end_i")?,
+            lengths: row.try_get("lengths")?,
+            hgnc: row.try_get("hgnc")?,
+        })
+    }
+}
+
+impl TryFrom<Row> for TxInfoRecord {
+    type Error = anyhow::Error;
+
+    fn try_from(row: Row) -> Result<Self, Self::Error> {
+        Ok(Self {
+            hgnc: row.try_get("hgnc")?,
+            cds_start_i: row.try_get("cds_start_i")?,
+            cds_end_i: row.try_get("cds_end_i")?,
+            tx_ac: row.try_get("tx_ac")?,
+            alt_ac: row.try_get("alt_ac")?,
+            alt_aln_method: row.try_get("alt_aln_method")?,
+        })
+    }
+}
+
+impl TryFrom<Row> for TxMappingOptionsRecord {
+    type Error = anyhow::Error;
+
+    fn try_from(row: Row) -> Result<Self, Self::Error> {
+        Ok(Self {
+            tx_ac: row.try_get("tx_ac")?,
+            alt_ac: row.try_get("alt_ac")?,
+            alt_aln_method: row.try_get("alt_aln_method")?,
+        })
     }
 }
 
@@ -236,7 +280,9 @@ impl Interface for Provider {
     ) -> Result<Vec<super::TxExonsRecord>, anyhow::Error> {
         let sql = format!(
             "SELECT * FROM {}.tx_exon_aln_v \
-            WHERE tx_ac = $1 AND alt_ac = $2 and alt_aln_method = $3",
+            WHERE tx_ac = $1 AND alt_ac = $2 and alt_aln_method = $3 \
+            ORDER BY tx_start_i, tx_end_i, alt_start_i, alt_end_i, \
+                     tx_exon_set_id, alt_exon_set_id",
             self.config.db_schema
         );
         let mut result = Vec::new();
@@ -255,17 +301,14 @@ impl Interface for Provider {
         }
     }
 
-    fn get_tx_for_gene(
-        &mut self,
-        gene: &str,
-    ) -> Result<Vec<super::TxForGeneRecord>, anyhow::Error> {
+    fn get_tx_for_gene(&mut self, gene: &str) -> Result<Vec<TxInfoRecord>, anyhow::Error> {
         let sql = format!(
             "SELECT hgnc, cds_start_i, cds_end_i, tx_ac, alt_ac, alt_aln_method \
             FROM {}.transcript T \
             JOIN {}.exon_set es ON T.ac=ES.tx_ac WHERE alt_aln_method != 'transcript' \
-            AND hgnc = $1",
-            self.config.db_schema,
-            self.config.db_schema,
+            AND hgnc = $1
+            ORDER BY hgnc, cds_start_i, cds_end_i, tx_ac, alt_ac, alt_aln_method",
+            self.config.db_schema, self.config.db_schema,
         );
         let mut result = Vec::new();
         for row in self.conn.query(&sql, &[&gene])? {
@@ -276,35 +319,80 @@ impl Interface for Provider {
 
     fn get_tx_for_region(
         &mut self,
-        _alt_ac: &str,
-        _alt_aln_method: &str,
-        _start_i: i32,
-        _end_i: i32,
-    ) -> Result<Vec<super::TxForRegionRecord>, anyhow::Error> {
-        todo!()
+        alt_ac: &str,
+        alt_aln_method: &str,
+        start_i: i32,
+        end_i: i32,
+    ) -> Result<Vec<TxForRegionRecord>, anyhow::Error> {
+        let sql = format!(
+            "SELECT tx_ac, alt_ac, alt_strand, alt_aln_method, \
+                    min(start_i) AS start_i, max(end_i) AS end_i \
+            FROM {}.exon_set es \
+            JOIN {}.exon e ON es.exon_set_id = e.exon_set_id \
+            WHERE alt_ac = $1
+            GROUP BY tx_ac, alt_ac, alt_strand, alt_aln_method
+            HAVING MIN(start_i) < $2 AND $3 <= MAX(end_i)
+            ORDER BY tx_ac, alt_ac, alt_strand, alt_aln_method, start_i, end_i",
+            self.config.db_schema, self.config.db_schema,
+        );
+        let mut result = Vec::new();
+        for row in self.conn.query(&sql, &[&alt_ac, &start_i, &end_i])? {
+            let record: TxForRegionRecord = row.try_into()?;
+            // NB: The original Python code did not use alt_aln_method in the query either.
+            if record.alt_aln_method == alt_aln_method {
+                result.push(record);
+            }
+        }
+        Ok(result)
     }
 
-    fn get_tx_identity_info(
-        &mut self,
-        _tx_ac: &str,
-    ) -> Result<super::TxIdentityInfo, anyhow::Error> {
-        todo!()
+    fn get_tx_identity_info(&mut self, tx_ac: &str) -> Result<TxIdentityInfo, anyhow::Error> {
+        let sql = format!(
+            "SELECT DISTINCT(tx_ac), alt_ac, alt_aln_method, cds_start_i, \
+                    cds_end_i, lengths, hgnc \
+            FROM {}.tx_def_summary_v \
+            WHERE tx_ac = $1 \
+            ORDER BY tx_ac, alt_ac, alt_aln_method, cds_start_i, cds_end_i, lengths, hgnc",
+            self.config.db_schema
+        );
+        self.conn.query_one(&sql, &[&tx_ac])?.try_into()
     }
 
     fn get_tx_info(
         &mut self,
-        _tx_ac: &str,
-        _alt_ac: &str,
-        _alt_aln_method: &str,
-    ) -> Result<super::TxInfoRecord, anyhow::Error> {
-        todo!()
+        tx_ac: &str,
+        alt_ac: &str,
+        alt_aln_method: &str,
+    ) -> Result<TxInfoRecord, anyhow::Error> {
+        let sql = format!(
+            "SELECT hgnc, cds_start_i, cds_end_i, tx_ac, alt_ac, alt_aln_method
+            FROM {}.transcript t \
+            JOIN {}.exon_set es ON t.ac=es.tx_ac \
+            WHERE tx_ac = $1 AND alt_ac = $2 AND alt_aln_method = $3 \
+            ORDER BY hgnc, cds_start_i, cds_end_i, tx_ac, alt_ac, alt_aln_method",
+            self.config.db_schema, self.config.db_schema,
+        );
+        self.conn
+            .query_one(&sql, &[&tx_ac, &alt_ac, &alt_aln_method])?
+            .try_into()
     }
 
     fn get_tx_mapping_options(
         &mut self,
-        _tax_ac: &str,
-    ) -> Result<Vec<super::TxMappingOptionsRecord>, anyhow::Error> {
-        todo!()
+        tx_ac: &str,
+    ) -> Result<Vec<TxMappingOptionsRecord>, anyhow::Error> {
+        let sql = format!(
+            "SELECT DISTINCT tx_ac, alt_ac, alt_aln_method \
+            FROM {}.tx_exon_aln_v \
+            WHERE tx_ac = $1 AND exon_aln_id IS NOT NULL \
+            ORDER BY tx_ac, alt_ac, alt_aln_method",
+            self.config.db_schema
+        );
+        let mut result = Vec::new();
+        for row in self.conn.query(&sql, &[&tx_ac])? {
+            result.push(row.try_into()?);
+        }
+        Ok(result)
     }
 }
 
@@ -446,9 +534,74 @@ mod test {
         assert_eq!(records.len(), 21,);
         assert_eq!(
             format!("{:?}", &records[0]),
-            "TxForGeneRecord { hgnc: \"OMA1\", cds_start_i: Some(113), cds_end_i: \
-            Some(1688), tx_ac: \"NM_145243.4\", alt_ac: \"NC_000001.10\", \
-            alt_aln_method: \"blat\" }",
+            "TxInfoRecord { hgnc: \"OMA1\", cds_start_i: Some(0), cds_end_i: \
+            Some(985), tx_ac: \"ENST00000421528\", alt_ac: \"NC_000001.10\", \
+            alt_aln_method: \"genebuild\" }",
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_tx_for_region() -> Result<(), anyhow::Error> {
+        let mut provider = Provider::with_config(&get_config())?;
+
+        let records = provider.get_tx_for_region("NC_000001.10", "splign", 58946391, 59012446)?;
+
+        assert_eq!(records.len(), 2,);
+        assert_eq!(
+            format!("{:?}", &records[0]),
+            "TxForRegionRecord { tx_ac: \"NM_145243.3\", alt_ac: \"NC_000001.10\", \
+            alt_strand: -1, alt_aln_method: \"splign\", start_i: 58946390, \
+            end_i: 59012446 }",
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_tx_identity_info() -> Result<(), anyhow::Error> {
+        let mut provider = Provider::with_config(&get_config())?;
+
+        let record = provider.get_tx_identity_info("ENST00000421528")?;
+
+        assert_eq!(
+            format!("{:?}", &record),
+            "TxIdentityInfo { tx_ac: \"ENST00000421528\", alt_ac: \"ENST00000421528\", \
+            alt_aln_method: \"transcript\", cds_start_i: 0, cds_end_i: 985, lengths: \
+            [24, 229, 174, 108, 129, 75, 150, 143, 1073], hgnc: \"OMA1\" }",
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_tx_info() -> Result<(), anyhow::Error> {
+        let mut provider = Provider::with_config(&get_config())?;
+
+        let record = provider.get_tx_info("ENST00000421528", "NC_000001.10", "genebuild")?;
+
+        assert_eq!(
+            format!("{:?}", &record),
+            "TxInfoRecord { hgnc: \"OMA1\", cds_start_i: Some(0), cds_end_i: \
+            Some(985), tx_ac: \"ENST00000421528\", alt_ac: \"NC_000001.10\", \
+            alt_aln_method: \"genebuild\" }",
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_tx_mapping_options() -> Result<(), anyhow::Error> {
+        let mut provider = Provider::with_config(&get_config())?;
+
+        let records = provider.get_tx_mapping_options("ENST00000421528")?;
+
+        assert_eq!(records.len(), 1);
+        assert_eq!(
+            format!("{:?}", &records[0]),
+            "TxMappingOptionsRecord { tx_ac: \"ENST00000421528\", alt_ac: \"NC_000001.10\", \
+            alt_aln_method: \"genebuild\" }",
         );
 
         Ok(())

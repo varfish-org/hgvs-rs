@@ -103,24 +103,6 @@ pub struct TxExonsRecord {
     pub exon_aln_id: i32,
 }
 
-///```text
-///hgnc           | TGDS
-///cds_start_i    | 188
-///cds_end_i      | 1145
-///tx_ac          | NM_001304430.2
-///alt_ac         | NC_000013.11
-///alt_aln_method | splign
-///```
-#[derive(Debug, PartialEq)]
-pub struct TxForGeneRecord {
-    pub hgnc: String,
-    pub cds_start_i: Option<i32>,
-    pub cds_end_i: Option<i32>,
-    pub tx_ac: String,
-    pub alt_ac: String,
-    pub alt_aln_method: String,
-}
-
 /// ```text
 /// tx_ac          | NM_001304430.2
 /// alt_ac         | NC_000013.10
@@ -133,7 +115,7 @@ pub struct TxForGeneRecord {
 pub struct TxForRegionRecord {
     pub tx_ac: String,
     pub alt_ac: String,
-    pub alt_strand: i32,
+    pub alt_strand: i16,
     pub alt_aln_method: String,
     pub start_i: i32,
     pub end_i: i32,
@@ -170,31 +152,29 @@ pub struct TxIdentityInfo {
 #[derive(Debug, PartialEq)]
 pub struct TxInfoRecord {
     pub hgnc: String,
-    pub cds_start_i: i32,
-    pub cds_end_i: i32,
+    pub cds_start_i: Option<i32>,
+    pub cds_end_i: Option<i32>,
     pub tx_ac: String,
     pub alt_ac: String,
     pub alt_aln_method: String,
 }
 
 /// ```text
-/// -[ RECORD 1 ]--+------------
-/// hgnc           | ATM
-/// cds_start_i    | 385
-/// cds_end_i      | 9556
-/// tx_ac          | NM_000051.3
-/// alt_ac         | AC_000143.1
-/// alt_aln_method | splign
-/// -[ RECORD 2 ]--+------------
-/// hgnc           | ATM
-/// cds_start_i    | 385
-/// cds_end_i      | 9556
-/// tx_ac          | NM_000051.3
-/// alt_ac         | NC_000011.9
-/// alt_aln_method | blat
+/// -[ RECORD 1 ]--+----------------
+/// tx_ac          | ENST00000000233
+/// alt_ac         | NC_000007.13
+/// alt_aln_method | genebuild
+/// -[ RECORD 2 ]--+----------------
+/// tx_ac          | ENST00000000412
+/// alt_ac         | NC_000012.11
+/// alt_aln_method | genebuild
 /// ```
 #[derive(Debug, PartialEq)]
-pub struct TxMappingOptionsRecord {}
+pub struct TxMappingOptionsRecord {
+    pub tx_ac: String,
+    pub alt_ac: String,
+    pub alt_aln_method: String,
+}
 
 pub trait Interface {
     /// Return the data version, e.g., `uta_20180821`.
@@ -280,7 +260,7 @@ pub trait Interface {
     /// # Arguments
     ///
     /// * `gene` - HGNC gene name
-    fn get_tx_for_gene(&mut self, gene: &str) -> Result<Vec<TxForGeneRecord>, anyhow::Error>;
+    fn get_tx_for_gene(&mut self, gene: &str) -> Result<Vec<TxInfoRecord>, anyhow::Error>;
 
     /// Return transcripts that overlap given region.
     ///
