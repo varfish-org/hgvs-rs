@@ -80,7 +80,7 @@ mod test {
     // This test uses the "gauntlet" file from the hgvs package.
     #[test]
     fn hgvs_gauntlet() -> Result<(), anyhow::Error> {
-        let reader = BufReader::new(File::open("tests/data/gauntlet")?);
+        let reader = BufReader::new(File::open("tests/data/parser/gauntlet")?);
 
         for line in reader.lines() {
             let line = line?;
@@ -97,7 +97,7 @@ mod test {
     // This test uses the "reject" file from the hgvs package.
     #[test]
     fn hgvs_reject() -> Result<(), anyhow::Error> {
-        let reader = BufReader::new(File::open("tests/data/reject")?);
+        let reader = BufReader::new(File::open("tests/data/parser/reject")?);
 
         for line in reader.lines() {
             let line = line?;

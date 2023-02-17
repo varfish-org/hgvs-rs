@@ -55,8 +55,8 @@ pub struct AssemblyInfo {
 lazy_static::lazy_static! {
     /// Provide information about the assemblies.
     pub static ref ASSEMBLY_INFOS: EnumMap<Assembly, AssemblyInfo> = enum_map! {
-        Grch37 => Assembly::Grch37.load_assembly_info(),
-        Grch38 => Assembly::Grch38.load_assembly_info(),
+        Assembly::Grch37 => Assembly::Grch37.load_assembly_info(),
+        Assembly::Grch38 => Assembly::Grch38.load_assembly_info(),
     };
 }
 
@@ -69,6 +69,6 @@ mod test {
     #[test]
     fn smoke() {
         assert_eq!(ASSEMBLY_INFOS[Assembly::Grch37].sequences.len(), 92);
-        assert_eq!(ASSEMBLY_INFOS[Assembly::Grch38].sequences.len(), 92);
+        assert_eq!(ASSEMBLY_INFOS[Assembly::Grch38].sequences.len(), 455);
     }
 }
