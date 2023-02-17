@@ -50,7 +50,7 @@ fn hgvs_to_zbc(i: i32) -> i32 {
 }
 
 lazy_static::lazy_static! {
-    static ref RE_CIGAR_ELEM: Regex = Regex::new(r"\d+[=DIMNX]").unwrap();
+    static ref RE_CIGAR_ELEM: Regex = Regex::new(r"(?P<len>\d+)?(?P<op>[=DIMNX])").unwrap();
 }
 
 /// Builds a single CIGAR string representing an alignment of the transcript sequence to a
@@ -60,23 +60,34 @@ lazy_static::lazy_static! {
 /// in transcript order.
 pub fn build_tx_cigar(exons: &Vec<TxExonsRecord>, strand: i16) -> Result<String, anyhow::Error> {
     fn reverse_cigar(cigar: &str) -> String {
-        let mut v = RE_CIGAR_ELEM.find_iter(cigar).map(|m| m.as_str()).collect::<Vec<_>>();
+        let mut v = RE_CIGAR_ELEM
+            .find_iter(cigar)
+            .map(|m| m.as_str())
+            .collect::<Vec<_>>();
         v.reverse();
         v.join("")
     }
 
     if exons.is_empty() {
-        return Err(anyhow::anyhow!("Cannot build CIGAR string from empty exons"));
+        return Err(anyhow::anyhow!(
+            "Cannot build CIGAR string from empty exons"
+        ));
     }
 
     // Flip orientation of all CIGARs if on reverse strand.
     let exon_cigars = if strand == -1 {
-        exons.iter().map(|record| reverse_cigar(&record.cigar)).collect::<Vec<_>>()
+        exons
+            .iter()
+            .map(|record| reverse_cigar(&record.cigar))
+            .collect::<Vec<_>>()
     } else {
-        exons.iter().map(|record| record.cigar.clone()).collect::<Vec<_>>()
+        exons
+            .iter()
+            .map(|record| record.cigar.clone())
+            .collect::<Vec<_>>()
     };
 
-    let mut tx_cigar = vec![exon_cigars[0].clone()];  // exon 1
+    let mut tx_cigar = vec![exon_cigars[0].clone()]; // exon 1
     for i in 1..exon_cigars.len() {
         let intron = format!("{}N", exons[i].alt_start_i - exons[i - 1].alt_end_i);
         tx_cigar.push(intron);
@@ -86,11 +97,7 @@ pub fn build_tx_cigar(exons: &Vec<TxExonsRecord>, strand: i16) -> Result<String,
     Ok(tx_cigar.join(""))
 }
 
-#[derive(Default)]
-struct CigarMapper {
-    cigar: String,
-}
-
+/// Helper function that wraps a value into `Option` but returns `None` for the default value.
 pub fn none_if_default<T>(value: T) -> Option<T>
 where
     T: Default + PartialEq,
@@ -102,19 +109,84 @@ where
     }
 }
 
+/// Provide coordinate mapping between two sequences whose alignment is given by a CIGAR string.
+///
+/// CIGAR is about alignments between positions in two sequences.  It is base-centric.
+///
+/// Unfortunately, base-centric coordinate systems require additional complexity to refer to
+/// zero-width positions.
+///
+/// This code uses interbase intervals.  Interbase positions are zero-width boundaries between
+/// bases.  They often look similar to zero-based, right open coordinates. (But don't call them
+/// that.  It upsets me deeply.)  The most important difference is that zero width intervals
+/// neatly represent insertions between bases (or before or after the sequence).
+#[derive(Default)]
+struct CigarMapper {
+    pub cigar: String,
+    pub ref_pos: Vec<i32>,
+    pub tgt_pos: Vec<i32>,
+    pub cigar_op: Vec<char>,
+    pub ref_len: i32,
+    pub tgt_len: i32,
+}
+
+#[derive(Debug)]
 struct CigarMapperResult {
     pub pos: i32,
     pub offset: i32,
     pub cigar_op: char,
 }
 
-impl CigarMapper {
-    fn new(cigar: String) -> Self {
-        Self { cigar }
+impl<'a> CigarMapper {
+    fn new(cigar: &str) -> Self {
+        let (ref_pos, tgt_pos, cigar_op) = Self::parse_cigar(cigar);
+
+        Self {
+            cigar: cigar.to_string(),
+            ref_len: *ref_pos.last().unwrap(),
+            tgt_len: *tgt_pos.last().unwrap(),
+            ref_pos,
+            tgt_pos,
+            cigar_op,
+        }
     }
 
-    pub fn tgt_len(&self) -> i32 {
-        todo!()
+    /// For a given CIGAR string, return the start positions of each aligned segment in ref
+    /// and tgt, and a list of CIGAR operators.
+    fn parse_cigar(cigar: &str) -> (Vec<i32>, Vec<i32>, Vec<char>) {
+        let advance_ref_ops = "=MXIN";
+        let advance_tgt_ops = "=MXD";
+
+        let elems = RE_CIGAR_ELEM
+            .captures_iter(cigar)
+            .map(|cap| {
+                let len = str::parse::<i32>(cap.name("len").unwrap().as_str()).unwrap_or(1);
+                let op = cap.name("op").unwrap().as_str().chars().nth(0).unwrap();
+                (len, op)
+            })
+            .collect::<Vec<_>>();
+        let cigar_len = elems.len();
+
+        let mut ref_pos = vec![-1; cigar_len];
+        let mut tgt_pos = vec![-1; cigar_len];
+        let mut cigar_op = vec![' '; cigar_len];
+        let mut ref_cur = 0;
+        let mut tgt_cur = 0;
+        for (i, (len, op)) in elems.iter().enumerate() {
+            ref_pos[i] = ref_cur;
+            tgt_pos[i] = tgt_cur;
+            cigar_op[i] = *op;
+            if "=MXIN".contains(*op) {
+                ref_cur += *len;
+            }
+            if "=MXD".contains(*op) {
+                tgt_cur += *len;
+            }
+        }
+        ref_pos.push(ref_cur);
+        tgt_pos.push(tgt_cur);
+
+        (ref_pos, tgt_pos, cigar_op)
     }
 
     pub fn map_ref_to_tgt(
@@ -123,7 +195,83 @@ impl CigarMapper {
         end: &str,
         strict_bounds: bool,
     ) -> Result<CigarMapperResult, anyhow::Error> {
-        todo!()
+        self.map(&self.ref_pos, &self.tgt_pos, pos, end, strict_bounds)
+    }
+
+    pub fn map_tgt_to_ref(
+        &self,
+        pos: i32,
+        end: &str,
+        strict_bounds: bool,
+    ) -> Result<CigarMapperResult, anyhow::Error> {
+        self.map(&self.tgt_pos, &self.ref_pos, pos, end, strict_bounds)
+    }
+
+    /// Map position between aligned segments.
+    ///
+    /// Positions in this function are 0-based, base-counting.
+    fn map(
+        &self,
+        from_pos: &[i32],
+        to_pos: &[i32],
+        pos: i32,
+        end: &str,
+        strict_bounds: bool,
+    ) -> Result<CigarMapperResult, anyhow::Error> {
+        if strict_bounds && (pos < 0 || pos > *from_pos.last().unwrap()) {
+            return Err(anyhow::anyhow!(
+                "Position is beyond the bounds of transcript record"
+            ));
+        }
+
+        // Find aligned segment to use as basis for mapping.  It is okay for pos to be
+        // before first element or after last.
+        let pos_i = {
+            let mut pos_i = 0;
+            while pos_i < self.cigar_op.len() {
+                if pos < from_pos[pos_i + 1] {
+                    break;
+                }
+                pos_i += 1;
+            }
+            pos_i
+        };
+
+        let cigar_op = self.cigar_op[pos_i];
+
+        if "=MX".contains(cigar_op) {
+            Ok(CigarMapperResult {
+                pos: to_pos[pos_i] + (pos - from_pos[pos_i]),
+                offset: 0,
+                cigar_op,
+            })
+        } else if "DI".contains(cigar_op) {
+            Ok(CigarMapperResult {
+                pos: if end == "start" {
+                    to_pos[pos_i] - 1
+                } else {
+                    to_pos[pos_i]
+                },
+                offset: 0,
+                cigar_op,
+            })
+        } else if cigar_op == 'N' {
+            if pos - from_pos[pos_i] + 1 <= from_pos[pos_i + 1] - pos {
+                Ok(CigarMapperResult {
+                    pos: to_pos[pos_i] - 1,
+                    offset: pos - from_pos[pos_i] + 1,
+                    cigar_op,
+                })
+            } else {
+                Ok(CigarMapperResult {
+                    pos: to_pos[pos_i],
+                    offset: -(from_pos[pos_i + 1] - pos),
+                    cigar_op,
+                })
+            }
+        } else {
+            Err(anyhow::anyhow!("Algorithm error in CIGAR mapper"))
+        }
     }
 }
 
@@ -213,8 +361,8 @@ impl AlignmentMapper {
                 let cds_start_i = tx_info.cds_start_i;
                 let cds_end_i = tx_info.cds_end_i;
 
-                let cigar_mapper = CigarMapper::new(build_tx_cigar(&tx_exons, strand)?);
-                let tgt_len = cigar_mapper.tgt_len();
+                let cigar_mapper = CigarMapper::new(&build_tx_cigar(&tx_exons, strand)?);
+                let tgt_len = cigar_mapper.tgt_len;
 
                 (
                     strand,
@@ -328,7 +476,9 @@ impl AlignmentMapper {
 mod test {
     use pretty_assertions::assert_eq;
 
-    use super::{none_if_default, build_tx_cigar};
+    use crate::data::interface::TxExonsRecord;
+
+    use super::{build_tx_cigar, none_if_default, CigarMapper};
 
     #[test]
     fn build_tx_cigar_empty() {
@@ -336,8 +486,73 @@ mod test {
     }
 
     #[test]
+    fn build_tx_cigar_forward() -> Result<(), anyhow::Error> {
+        let exons = vec![
+            TxExonsRecord {
+                tx_start_i: 0,
+                tx_end_i: 10,
+                alt_start_i: 100,
+                alt_end_i: 110,
+                cigar: "5M1I4M".to_string(),
+                ..Default::default()
+            },
+            TxExonsRecord {
+                tx_start_i: 10,
+                tx_end_i: 21,
+                alt_start_i: 120,
+                alt_end_i: 131,
+                cigar: "7M1I2M".to_string(),
+                ..Default::default()
+            },
+        ];
+
+        assert_eq!(
+            format!("{}", &build_tx_cigar(&exons, 1)?),
+            "5M1I4M10N7M1I2M"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn build_tx_cigar_reverse() -> Result<(), anyhow::Error> {
+        let exons = vec![
+            TxExonsRecord {
+                tx_start_i: 0,
+                tx_end_i: 10,
+                alt_start_i: 100,
+                alt_end_i: 110,
+                cigar: "5M1I4M".to_string(),
+                ..Default::default()
+            },
+            TxExonsRecord {
+                tx_start_i: 10,
+                tx_end_i: 21,
+                alt_start_i: 120,
+                alt_end_i: 131,
+                cigar: "7M1I2M".to_string(),
+                ..Default::default()
+            },
+        ];
+
+        assert_eq!(
+            format!("{}", &build_tx_cigar(&exons, -1)?),
+            "4M1I5M10N2M1I7M"
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn run_none_if_default() {
         assert_eq!(none_if_default(0u32), None);
         assert_eq!(none_if_default(1u32), Some(1u32));
+    }
+
+    #[test]
+    fn cigar_mapper() {
+        let cigar_str = "3=2N=X=3N=I=D=".to_string();
+        let cigar_mapper = CigarMapper::new(&cigar_str);
+        assert!(false); // continue here
     }
 }
