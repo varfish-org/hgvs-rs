@@ -92,7 +92,7 @@ jobs:
           version: 0.16.0
           args: "-- --test-threads 1"
         env:
-          TEST_UTA_DATABASE_URL: postgres://uta_admin:uta_admin@postgres/uta
+          TEST_UTA_DATABASE_URL: postgres://uta_admin:uta_admin@0.0.0.0/uta
           TEST_UTA_DATABASE_SCHEMA: uta_20210129
 
       - name: Codecov
