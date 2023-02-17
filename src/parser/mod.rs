@@ -6,6 +6,7 @@
 
 mod display;
 mod ds;
+mod impl_ops;
 mod impl_parse;
 mod parse_funcs;
 
