@@ -10,7 +10,7 @@ impl HgvsVariant {
     /// # Args
     ///
     /// * `provider` -- The `Provider` to use for fetching reference bases.
-    pub fn fill_ref(&self, _provider: &dyn Provider) -> Self {
+    pub fn fill_ref(&self, _provider: &dyn Provider) -> Result<Self, anyhow::Error> {
         todo!()
     }
 }

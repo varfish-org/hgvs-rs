@@ -1,6 +1,6 @@
 //! Code for variant mapping.
 
-use std::{rc::Rc};
+use std::rc::Rc;
 
 use crate::{
     data::interface::Provider,
@@ -71,8 +71,8 @@ impl Mapper {
             loc_edit: _,
         } = &var_g
         {
-            // self.validator.validate(&var_g)?;
-            // let var_g = var_g.fill_ref(&self.provider.as_ref())?;
+            self.validator.validate(&var_g)?;
+            let var_g = var_g.fill_ref(self.provider.as_ref())?;
 
             Ok(())
         } else {

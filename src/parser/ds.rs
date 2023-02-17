@@ -9,6 +9,16 @@ pub enum Mu<T> {
     Uncertain(T),
 }
 
+impl<T> Mu<T> {
+    pub fn from(value: T, is_certain: bool) -> Self {
+        if is_certain {
+            Mu::Certain(value)
+        } else {
+            Mu::Uncertain(value)
+        }
+    }
+}
+
 /// Representation of gene symbol, e.g., `TTN` or `Ttn`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GeneSymbol {

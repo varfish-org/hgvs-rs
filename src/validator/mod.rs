@@ -24,7 +24,7 @@ impl ValidationLevel {
 pub trait Validator {
     fn is_strict(&self) -> bool;
 
-    fn validate(&mut self, var: &HgvsVariant) -> Result<(), anyhow::Error>;
+    fn validate(&self, var: &HgvsVariant) -> Result<(), anyhow::Error>;
 }
 
 pub struct NullValidator {
@@ -42,7 +42,7 @@ impl Validator for NullValidator {
         self.strict
     }
 
-    fn validate(&mut self, _var: &HgvsVariant) -> Result<(), anyhow::Error> {
+    fn validate(&self, _var: &HgvsVariant) -> Result<(), anyhow::Error> {
         todo!()
     }
 }
@@ -62,7 +62,7 @@ impl Validator for IntrinsicValidator {
         self.strict
     }
 
-    fn validate(&mut self, _var: &HgvsVariant) -> Result<(), anyhow::Error> {
+    fn validate(&self, _var: &HgvsVariant) -> Result<(), anyhow::Error> {
         todo!()
     }
 }
@@ -83,7 +83,7 @@ impl Validator for ExtrinsicValidator {
         self.strict
     }
 
-    fn validate(&mut self, _var: &HgvsVariant) -> Result<(), anyhow::Error> {
+    fn validate(&self, _var: &HgvsVariant) -> Result<(), anyhow::Error> {
         todo!()
     }
 }
