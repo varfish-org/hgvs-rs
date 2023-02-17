@@ -54,7 +54,9 @@ jobs:
       postgres:
         image: postgres
         env:
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: uta
+          POSTGRES_USER: uta_admin
+          POSTGRES_PASSWORD: uta_admin
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -72,10 +74,9 @@ jobs:
       - name: Import test database.
         run: |
           zcat tests/data/data/uta_20210129-subset.pgd.gz \
-          | psql -U postgres -h 0.0.0.0
+          | pg_restore -U uta_admin -h 0.0.0.0 -d uta
         env:
-          PGPASSWORD: postgres
-
+          PGPASSWORD: uta_admin
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
