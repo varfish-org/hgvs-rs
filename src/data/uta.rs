@@ -109,18 +109,36 @@ impl Interface for Provider {
 
     fn get_gene_info(&mut self, hgnc: &str) -> Result<GeneInfo, anyhow::Error> {
         let sql = format!(
-            "SELECT * FROM {}.gene WHERE hgnc = $1;",
+            "SELECT * FROM {}.gene WHERE hgnc = $1",
             self.config.db_schema
         );
         self.conn.query_one(&sql, &[&hgnc])?.try_into()
     }
 
     fn get_pro_ac_for_tx_ac(&mut self, tx_ac: &str) -> Result<Option<String>, anyhow::Error> {
-        todo!()
+        let sql = format!(
+            "SELECT pro_ac FROM {}.associated_accessions \
+            WHERE tx_ac = $1 ORDER BY pro_ac DESC",
+            self.config.db_schema
+        );
+        for row in self.conn.query(&sql, &[&tx_ac])? {
+            return Ok(Some(row.try_get("pro_ac")?));
+        }
+        Ok(None)
+
+        // let mut result:Vec<String> = Vec::new();
+        // for row in self.conn.query(&sql, &[&tx_ac])? {
+        //     result.push(row.try_get("pro_ac")?);
+        // }
+        // if result.is_empty() {
+        //     Ok(None)
+        // } else {
+        //     Ok(Some(result))
+        // }
     }
 
-    fn get_seq(&mut self, ac: &str) -> String {
-        todo!()
+    fn get_seq(&mut self, ac: &str) -> Result<String, anyhow::Error> {
+        self.get_seq_part(ac, None, None)
     }
 
     fn get_seq_part(
@@ -129,7 +147,27 @@ impl Interface for Provider {
         begin: Option<usize>,
         end: Option<usize>,
     ) -> Result<String, anyhow::Error> {
-        todo!()
+        let sql = format!(
+            "SELECT seq_id FROM {}.seq_anno WHERE ac = $1",
+            self.config.db_schema
+        );
+        let seq_id: String = self.conn.query_one(&sql, &[&ac])?.try_get("seq_id")?;
+
+        println!("seq_id = {}", &seq_id);
+
+        let sql = format!(
+            "SELECT seq FROM {}.seq WHERE seq_id = $1",
+            self.config.db_schema
+        );
+        let seq: String = self.conn.query_one(&sql, &[&seq_id])?.try_get("seq")?;
+
+        println!("seq = {}", &seq);
+
+        let begin = begin.unwrap_or_default();
+        let end = end
+            .map(|end| std::cmp::min(end, seq.len()))
+            .unwrap_or(seq.len());
+        Ok(seq[begin..end].into())
     }
 
     fn get_similar_transcripts(
@@ -240,6 +278,43 @@ mod test {
             descr: \"OMA1 zinc metallopeptidase\", summary: \"OMA1 zinc metallopeptidase\", \
             aliases: [\"{2010001O09Rik\", \"DAB1\", \"MPRP-1\", \"MPRP1\", \"YKR087C\", \
             \"ZMPOMA1\", \"peptidase}\"], added: 2014-02-10T22:59:21.153414 }"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_pro_ac_for_tx_ac() -> Result<(), anyhow::Error> {
+        let mut provider = Provider::with_config(&get_config())?;
+
+        assert_eq!(
+            provider.get_pro_ac_for_tx_ac(&"NM_130831.2")?,
+            Some("NP_570844.1".to_string())
+        );
+        assert_eq!(provider.get_pro_ac_for_tx_ac(&"NM_130831.x")?, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_get_seq() -> Result<(), anyhow::Error> {
+        let mut provider = Provider::with_config(&get_config())?;
+
+        assert_eq!(
+            provider.get_seq(&"NM_001354664.1")?.len(),
+            6386
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_get_seq_part() -> Result<(), anyhow::Error> {
+        let mut provider = Provider::with_config(&get_config())?;
+
+        assert_eq!(
+            provider.get_seq_part(&"NM_001354664.1", Some(10), Some(100))?.len(),
+            90
         );
 
         Ok(())

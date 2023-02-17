@@ -233,7 +233,7 @@ pub trait Interface {
     /// # Arguments
     ///
     /// * `ac` -- accession
-    fn get_seq(&mut self, ac: &str) -> String;
+    fn get_seq(&mut self, ac: &str) -> Result<String, anyhow::Error>;
 
     /// Return sequence part for the given accession.
     ///
