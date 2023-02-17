@@ -22,7 +22,9 @@ BEGIN {
     if ($0 ~ /^COPY/) {
         table_name = $2;
         gsub(/.*?\./, "", table_name);
-        print $0;
+        if (table_name != "meta" && table_name != "origin") {
+            print $0;  # do not print twice ;-)
+        }
     } else if ($0 ~ /^\\./) {
         table_name = "";
     }
