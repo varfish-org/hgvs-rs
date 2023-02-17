@@ -20,8 +20,8 @@ BEGIN {
 
 {
     if ($0 ~ /^COPY/) {
-        gsub(/.*?\./, "", $2);
         table_name = $2;
+        gsub(/.*?\./, "", table_name);
         print $0;
     } else if ($0 ~ /^\\./) {
         table_name = "";
