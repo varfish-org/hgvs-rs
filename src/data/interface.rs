@@ -3,6 +3,8 @@
 use chrono::NaiveDateTime;
 use linked_hash_map::LinkedHashMap;
 
+use crate::static_data::Assembly;
+
 /// Information about a gene.
 ///
 /// ```text
@@ -208,11 +210,8 @@ pub trait Interface {
     ///
     /// # Arguments
     ///
-    /// * `assembly_name` - Name of the assembly.
-    fn get_assembly_map(
-        &self,
-        assembly_name: &str,
-    ) -> Result<LinkedHashMap<String, String>, anyhow::Error>;
+    /// * `assembly` - The assembly to build the map for.
+    fn get_assembly_map(&self, assembly: Assembly) -> LinkedHashMap<String, String>;
 
     /// Returns the basic information about the gene.
     ///

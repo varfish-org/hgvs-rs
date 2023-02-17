@@ -2,8 +2,11 @@
 //!
 //! C.f. https://github.com/biocommons/uta
 
-use postgres::{Client, Config as ClientConfig, NoTls};
-use std::{any, fmt::Debug};
+use linked_hash_map::LinkedHashMap;
+use postgres::{Client, NoTls};
+use std::fmt::Debug;
+
+use crate::static_data::{Assembly, ASSEMBLY_INFOS};
 
 use super::Interface;
 
@@ -78,11 +81,13 @@ impl Interface for Provider {
         &self.schema_version
     }
 
-    fn get_assembly_map(
-        &self,
-        assembly_name: &str,
-    ) -> Result<linked_hash_map::LinkedHashMap<String, String>, anyhow::Error> {
-        todo!()
+    fn get_assembly_map(&self, assembly: Assembly) -> LinkedHashMap<String, String> {
+        LinkedHashMap::from_iter(
+            ASSEMBLY_INFOS[assembly]
+                .sequences
+                .iter()
+                .map(|record| (record.refseq_ac.clone(), record.name.clone())),
+        )
     }
 
     fn get_gene_info(&self, gene: &str) -> Result<super::GeneInfo, anyhow::Error> {
@@ -159,7 +164,7 @@ impl Interface for Provider {
 
 #[cfg(test)]
 mod test {
-    use crate::data::Interface;
+    use crate::{data::Interface, static_data::Assembly};
 
     use super::{Config, Provider};
 
@@ -179,6 +184,21 @@ mod test {
 
         assert_eq!(provider.data_version(), config.db_schema);
         assert_eq!(provider.schema_version(), "1.1");
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_assembly_map() -> Result<(), anyhow::Error> {
+        let provider = Provider::with_config(&get_config())?;
+
+        let am37 = provider.get_assembly_map(Assembly::Grch37);
+        assert_eq!(am37.len(), 92);
+        assert_eq!(am37.get("NC_000001.10"), Some(&"1".to_string()));
+
+        let am38 = provider.get_assembly_map(Assembly::Grch38);
+        assert_eq!(am38.len(), 455);
+        assert_eq!(am38.get("NC_000001.11"), Some(&"1".to_string()));
 
         Ok(())
     }
