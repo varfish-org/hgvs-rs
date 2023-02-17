@@ -114,8 +114,8 @@ pub struct TxExonsRecord {
 #[derive(Debug, PartialEq)]
 pub struct TxForGeneRecord {
     pub hgnc: String,
-    pub cds_start_i: i32,
-    pub cds_end_i: i32,
+    pub cds_start_i: Option<i32>,
+    pub cds_end_i: Option<i32>,
     pub tx_ac: String,
     pub alt_ac: String,
     pub alt_aln_method: String,

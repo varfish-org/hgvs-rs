@@ -8,7 +8,7 @@ use std::fmt::Debug;
 
 use crate::static_data::{Assembly, ASSEMBLY_INFOS};
 
-use super::{GeneInfoRecord, Interface, TxExonsRecord, TxSimilarityRecord};
+use super::{GeneInfoRecord, Interface, TxExonsRecord, TxSimilarityRecord, TxForGeneRecord};
 
 /// Configurationf or the `data::uta::Provider`.
 #[derive(Debug, PartialEq, Clone)]
@@ -89,6 +89,23 @@ impl TryFrom<Row> for TxExonsRecord {
             alt_exon_id: row.try_get("alt_exon_id")?,
             exon_aln_id: row.try_get("exon_aln_id")?,
         })
+    }
+}
+
+impl TryFrom<Row> for TxForGeneRecord {
+    type Error = anyhow::Error;
+
+    fn try_from(row: Row) -> Result<Self, Self::Error> {
+        Ok(
+            Self {
+                hgnc: row.try_get("hgnc")?,
+                cds_start_i: row.try_get("cds_start_i")?,
+                cds_end_i: row.try_get("cds_end_i")?,
+                tx_ac: row.try_get("tx_ac")?,
+                alt_ac: row.try_get("alt_ac")?,
+                alt_aln_method: row.try_get("alt_aln_method")?,
+            }
+        )
     }
 }
 
@@ -240,9 +257,21 @@ impl Interface for Provider {
 
     fn get_tx_for_gene(
         &mut self,
-        _gene: &str,
+        gene: &str,
     ) -> Result<Vec<super::TxForGeneRecord>, anyhow::Error> {
-        todo!()
+        let sql = format!(
+            "SELECT hgnc, cds_start_i, cds_end_i, tx_ac, alt_ac, alt_aln_method \
+            FROM {}.transcript T \
+            JOIN {}.exon_set es ON T.ac=ES.tx_ac WHERE alt_aln_method != 'transcript' \
+            AND hgnc = $1",
+            self.config.db_schema,
+            self.config.db_schema,
+        );
+        let mut result = Vec::new();
+        for row in self.conn.query(&sql, &[&gene])? {
+            result.push(row.try_into()?);
+        }
+        Ok(result)
     }
 
     fn get_tx_for_region(
@@ -403,6 +432,23 @@ mod test {
             193311198, cigar: \"266=\", tx_aseq: None, alt_aseq: None, \
             tx_exon_set_id: 837345, alt_exon_set_id: 840099, tx_exon_id: 7236723, \
             alt_exon_id: 7270903, exon_aln_id: 4626713 }",
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_tx_for_gene() -> Result<(), anyhow::Error> {
+        let mut provider = Provider::with_config(&get_config())?;
+
+        let records = provider.get_tx_for_gene("OMA1")?;
+
+        assert_eq!(records.len(), 21,);
+        assert_eq!(
+            format!("{:?}", &records[0]),
+            "TxForGeneRecord { hgnc: \"OMA1\", cds_start_i: Some(113), cds_end_i: \
+            Some(1688), tx_ac: \"NM_145243.4\", alt_ac: \"NC_000001.10\", \
+            alt_aln_method: \"blat\" }",
         );
 
         Ok(())
