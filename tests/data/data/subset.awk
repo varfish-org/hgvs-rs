@@ -19,6 +19,10 @@ BEGIN {
 }
 
 {
+    if ($0 ~ anonymous) {
+        next;  # skip for testing
+    }
+
     if ($0 ~ /^COPY/) {
         table_name = $2;
         gsub(/.*?\./, "", table_name);
