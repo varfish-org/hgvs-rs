@@ -163,9 +163,16 @@ mod test {
 
     use super::{Config, Provider};
 
+    fn get_config() -> Config {
+        Config {
+            db_url: std::env::var("TEST_UTA_DATABASE_URL").unwrap(),
+            db_schema: std::env::var("TEST_UTA_DATABASE_SCHEMA").unwrap(),
+        }
+    }
+
     #[test]
     fn construction() -> Result<(), anyhow::Error> {
-        let config = Config::default();
+        let config = get_config();
         let provider = Provider::with_config(&config)?;
 
         assert_eq!(provider.data_version(), config.db_schema);

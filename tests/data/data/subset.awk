@@ -4,7 +4,7 @@ BEGIN {
 
     # define list of known tables
     a = "gene|transcript|seq_anno|seq|associated_accessions|" \
-        "exon-set|exon|exon_aln";
+        "exon_set|exon|exon_aln";
     split(a, names, "|")
 
     # read known ids
@@ -27,7 +27,8 @@ BEGIN {
         table_name = "";
     }
 
-    if (table_name == "" || known[table_name, $1] == 1) {
+    if (table_name == "" || table_name == "meta" || \
+        table_name == "origin" || known[table_name, $1] == 1) {
         print $0;
     }
 }
