@@ -3,7 +3,7 @@ BEGIN {
     copy_table = "";
 
     # define list of known tables
-    a = "gene|transcript|seq_anno|seq|associated_accession|" \
+    a = "gene|transcript|seq_anno|seq|associated_accessions|" \
         "exon-set|exon|exon_aln";
     split(a, names, "|")
 

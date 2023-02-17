@@ -78,23 +78,23 @@ cd $DST
 
 # download database dumps
 
-# mkdir -p download
-# cd download
-# for f in $VERSION.pgd.gz{,.sha1}; do
-#     test -e $f || wget $DL_URL/$f
-# done
-# cd ..
+mkdir -p download
+cd download
+for f in $VERSION.pgd.gz{,.sha1}; do
+    test -e $f || wget $DL_URL/$f
+done
+cd ..
 
 # extract identifiers
 
-# psql-uta "select hgnc from gene g where g.hgnc in $PG_GENES;" >download/gene.tsv
-# psql-uta "select ac from transcript where hgnc in $PG_GENES;" >download/transcript.tsv
-# psql-uta "select seq_anno_id from seq_anno where ac in (select ac from transcript where hgnc in $PG_GENES);" >download/seq_anno.tsv
-# psql-uta "select seq_id from seq where seq_id in (select seq_id from seq_anno where ac in (select ac from transcript where hgnc in $PG_GENES));" >download/seq.tsv
-# psql-uta "select associated_accession_id from associated_accessions where tx_ac in (select ac from transcript where hgnc in $PG_GENES);" >download/associated_accession.tsv
-# psql-uta "select exon_set_id from exon_set where tx_ac in (select ac from transcript where hgnc in $PG_GENES);" >download/exon_set.tsv
-# psql-uta "select exon_id from exon where exon_set_id in (select exon_set_id from exon_set where tx_ac in (select ac from transcript where hgnc in $PG_GENES));" >download/exon.tsv
-# psql-uta "select exon_aln_id from exon_aln where tx_exon_id in (select exon_id from exon where exon_set_id in (select exon_set_id from exon_set where tx_ac in (select ac from transcript where hgnc in $PG_GENES)));" >download/exon_aln.tsv
+psql-uta "select hgnc from gene g where g.hgnc in $PG_GENES;" >download/gene.tsv
+psql-uta "select ac from transcript where hgnc in $PG_GENES;" >download/transcript.tsv
+psql-uta "select seq_anno_id from seq_anno where ac in (select ac from transcript where hgnc in $PG_GENES);" >download/seq_anno.tsv
+psql-uta "select seq_id from seq where seq_id in (select seq_id from seq_anno where ac in (select ac from transcript where hgnc in $PG_GENES));" >download/seq.tsv
+psql-uta "select associated_accession_id from associated_accessions where tx_ac in (select ac from transcript where hgnc in $PG_GENES);" >download/associated_accessions.tsv
+psql-uta "select exon_set_id from exon_set where tx_ac in (select ac from transcript where hgnc in $PG_GENES);" >download/exon_set.tsv
+psql-uta "select exon_id from exon where exon_set_id in (select exon_set_id from exon_set where tx_ac in (select ac from transcript where hgnc in $PG_GENES));" >download/exon.tsv
+psql-uta "select exon_aln_id from exon_aln where tx_exon_id in (select exon_id from exon where exon_set_id in (select exon_set_id from exon_set where tx_ac in (select ac from transcript where hgnc in $PG_GENES)));" >download/exon_aln.tsv
 
 # build sql subset
 
