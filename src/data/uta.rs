@@ -8,7 +8,7 @@ use std::fmt::Debug;
 
 use crate::static_data::{Assembly, ASSEMBLY_INFOS};
 
-use super::{GeneInfo, Interface};
+use super::{GeneInfoRecord, Interface, TxSimilarityRecord};
 
 /// Configurationf or the `data::uta::Provider`.
 #[derive(Debug, PartialEq, Clone)]
@@ -32,7 +32,7 @@ impl Default for Config {
     }
 }
 
-impl TryFrom<Row> for GeneInfo {
+impl TryFrom<Row> for GeneInfoRecord {
     type Error = anyhow::Error;
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
@@ -45,6 +45,22 @@ impl TryFrom<Row> for GeneInfo {
             summary: row.try_get("summary")?,
             aliases,
             added: row.try_get("added")?,
+        })
+    }
+}
+
+impl TryFrom<Row> for TxSimilarityRecord {
+    type Error = anyhow::Error;
+
+    fn try_from(row: Row) -> Result<Self, Self::Error> {
+        Ok(Self {
+            tx_ac1: row.try_get("tx_ac1")?,
+            tx_ac2: row.try_get("tx_ac2")?,
+            hgnc_eq: row.try_get("hgnc_eq").unwrap_or(false),
+            cds_eq: row.try_get("cds_eq").unwrap_or(false),
+            es_fp_eq: row.try_get("es_fp_eq").unwrap_or(false),
+            cds_es_fp_eq: row.try_get("cds_es_fp_eq").unwrap_or(false),
+            cds_exon_lengths_fp_eq: row.try_get("cds_exon_lengths_fp_eq").unwrap_or(false),
         })
     }
 }
@@ -107,7 +123,7 @@ impl Interface for Provider {
         )
     }
 
-    fn get_gene_info(&mut self, hgnc: &str) -> Result<GeneInfo, anyhow::Error> {
+    fn get_gene_info(&mut self, hgnc: &str) -> Result<GeneInfoRecord, anyhow::Error> {
         let sql = format!(
             "SELECT * FROM {}.gene WHERE hgnc = $1",
             self.config.db_schema
@@ -153,15 +169,11 @@ impl Interface for Provider {
         );
         let seq_id: String = self.conn.query_one(&sql, &[&ac])?.try_get("seq_id")?;
 
-        println!("seq_id = {}", &seq_id);
-
         let sql = format!(
             "SELECT seq FROM {}.seq WHERE seq_id = $1",
             self.config.db_schema
         );
         let seq: String = self.conn.query_one(&sql, &[&seq_id])?.try_get("seq")?;
-
-        println!("seq = {}", &seq);
 
         let begin = begin.unwrap_or_default();
         let end = end
@@ -174,7 +186,15 @@ impl Interface for Provider {
         &mut self,
         tx_ac: &str,
     ) -> Result<Vec<super::TxSimilarityRecord>, anyhow::Error> {
-        todo!()
+        let sql = format!(
+            "SELECT * FROM {}.tx_similarity_v WHERE tx_ac1 = $1",
+            self.config.db_schema
+        );
+        let mut result = Vec::new();
+        for row in self.conn.query(&sql, &[&tx_ac])? {
+            result.push(row.try_into()?);
+        }
+        Ok(result)
     }
 
     fn get_tx_exons(
@@ -274,7 +294,7 @@ mod test {
 
         assert_eq!(
             format!("{:?}", provider.get_gene_info(&"OMA1")?),
-            "GeneInfo { hgnc: \"OMA1\", maploc: \"1p32.2-p32.1\", \
+            "GeneInfoRecord { hgnc: \"OMA1\", maploc: \"1p32.2-p32.1\", \
             descr: \"OMA1 zinc metallopeptidase\", summary: \"OMA1 zinc metallopeptidase\", \
             aliases: [\"{2010001O09Rik\", \"DAB1\", \"MPRP-1\", \"MPRP1\", \"YKR087C\", \
             \"ZMPOMA1\", \"peptidase}\"], added: 2014-02-10T22:59:21.153414 }"
@@ -297,26 +317,46 @@ mod test {
     }
 
     #[test]
-    fn get_get_seq() -> Result<(), anyhow::Error> {
+    fn get_seq() -> Result<(), anyhow::Error> {
+        let mut provider = Provider::with_config(&get_config())?;
+
+        assert_eq!(provider.get_seq(&"NM_001354664.1")?.len(), 6386);
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_seq_part() -> Result<(), anyhow::Error> {
         let mut provider = Provider::with_config(&get_config())?;
 
         assert_eq!(
-            provider.get_seq(&"NM_001354664.1")?.len(),
-            6386
+            provider
+                .get_seq_part(&"NM_001354664.1", Some(10), Some(100))?
+                .len(),
+            90
         );
 
         Ok(())
     }
 
     #[test]
-    fn get_get_seq_part() -> Result<(), anyhow::Error> {
+    fn get_similar_transcripts() -> Result<(), anyhow::Error> {
         let mut provider = Provider::with_config(&get_config())?;
 
+        let records = provider.get_similar_transcripts(&"NM_001354664.1")?;
+
         assert_eq!(
-            provider.get_seq_part(&"NM_001354664.1", Some(10), Some(100))?.len(),
-            90
+            records.len(),
+            38,
+        );
+        assert_eq!(
+            format!("{:?}", &records[0]),
+            "TxSimilarityRecord { tx_ac1: \"NM_001354664.1\", tx_ac2: \
+            \"ENST00000361150\", hgnc_eq: true, cds_eq: false, es_fp_eq: \
+            false, cds_es_fp_eq: false, cds_exon_lengths_fp_eq: false }",
         );
 
         Ok(())
     }
+
 }

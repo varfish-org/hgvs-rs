@@ -16,7 +16,7 @@ use crate::static_data::Assembly;
 /// added   | 2014-02-04 21:39:32.57125
 /// ```
 #[derive(Debug, PartialEq)]
-pub struct GeneInfo {
+pub struct GeneInfoRecord {
     pub hgnc: String,
     pub maploc: String,
     pub descr: String,
@@ -218,7 +218,7 @@ pub trait Interface {
     /// # Arguments
     ///
     /// * `hgnc` - HGNC gene name
-    fn get_gene_info(&mut self, hgnc: &str) -> Result<GeneInfo, anyhow::Error>;
+    fn get_gene_info(&mut self, hgnc: &str) -> Result<GeneInfoRecord, anyhow::Error>;
 
     /// Return the (single) associated protein accession for a given transcript accession,
     /// or None if not found.
