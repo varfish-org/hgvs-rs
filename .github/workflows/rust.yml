@@ -74,7 +74,7 @@ jobs:
       - name: Import test database.
         run: |
           zcat tests/data/data/uta_20210129-subset.pgd.gz \
-          | pg_restore -U uta_admin -h 0.0.0.0 -d uta
+          | psql -v ON_ERROR_STOP=1 -U uta_admin -h 0.0.0.0 -d uta
         env:
           PGPASSWORD: uta_admin
 
