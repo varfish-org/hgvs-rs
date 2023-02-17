@@ -165,8 +165,10 @@ mod test {
 
     fn get_config() -> Config {
         Config {
-            db_url: std::env::var("TEST_UTA_DATABASE_URL").unwrap(),
-            db_schema: std::env::var("TEST_UTA_DATABASE_SCHEMA").unwrap(),
+            db_url: std::env::var("TEST_UTA_DATABASE_URL")
+                .expect("Environment variable TEST_UTA_DATABASE_URL undefined!"),
+            db_schema: std::env::var("TEST_UTA_DATABASE_SCHEMA")
+                .expect("Environment variable TEST_UTA_DATABASE_SCHEMA undefined!"),
         }
     }
 
