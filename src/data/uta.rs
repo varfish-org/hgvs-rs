@@ -37,7 +37,7 @@ impl TryFrom<Row> for GeneInfoRecord {
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
         let aliases: String = row.try_get("aliases")?;
-        let aliases = aliases.split(",").map(|s| s.to_owned()).collect::<Vec<_>>();
+        let aliases = aliases.split(',').map(|s| s.to_owned()).collect::<Vec<_>>();
         Ok(Self {
             hgnc: row.try_get("hgnc")?,
             maploc: row.try_get("maploc")?,
@@ -97,8 +97,7 @@ impl Provider {
 
     fn fetch_schema_version(conn: &mut Client, db_schema: &str) -> Result<String, anyhow::Error> {
         let sql = format!(
-            "select key, value from {}.meta where key = 'schema_version'",
-            db_schema
+            "select key, value from {db_schema}.meta where key = 'schema_version'"
         );
         let row = conn.query_one(&sql, &[])?;
         Ok(row.get("value"))
@@ -137,7 +136,7 @@ impl Interface for Provider {
             WHERE tx_ac = $1 ORDER BY pro_ac DESC",
             self.config.db_schema
         );
-        for row in self.conn.query(&sql, &[&tx_ac])? {
+        if let Some(row) = (self.conn.query(&sql, &[&tx_ac])?).into_iter().next() {
             return Ok(Some(row.try_get("pro_ac")?));
         }
         Ok(None)
@@ -199,49 +198,49 @@ impl Interface for Provider {
 
     fn get_tx_exons(
         &mut self,
-        tx_ac: &str,
-        alt_ac: &str,
-        alt_aln_method: &str,
+        _tx_ac: &str,
+        _alt_ac: &str,
+        _alt_aln_method: &str,
     ) -> Result<Vec<super::TxExonsRecord>, anyhow::Error> {
         todo!()
     }
 
     fn get_tx_for_gene(
         &mut self,
-        gene: &str,
+        _gene: &str,
     ) -> Result<Vec<super::TxForGeneRecord>, anyhow::Error> {
         todo!()
     }
 
     fn get_tx_for_region(
         &mut self,
-        alt_ac: &str,
-        alt_aln_method: &str,
-        start_i: i32,
-        end_i: i32,
+        _alt_ac: &str,
+        _alt_aln_method: &str,
+        _start_i: i32,
+        _end_i: i32,
     ) -> Result<Vec<super::TxForRegionRecord>, anyhow::Error> {
         todo!()
     }
 
     fn get_tx_identity_info(
         &mut self,
-        tx_ac: &str,
+        _tx_ac: &str,
     ) -> Result<super::TxIdentityInfo, anyhow::Error> {
         todo!()
     }
 
     fn get_tx_info(
         &mut self,
-        tx_ac: &str,
-        alt_ac: &str,
-        alt_aln_method: &str,
+        _tx_ac: &str,
+        _alt_ac: &str,
+        _alt_aln_method: &str,
     ) -> Result<super::TxInfoRecord, anyhow::Error> {
         todo!()
     }
 
     fn get_tx_mapping_options(
         &mut self,
-        tax_ac: &str,
+        _tax_ac: &str,
     ) -> Result<Vec<super::TxMappingOptionsRecord>, anyhow::Error> {
         todo!()
     }
@@ -293,7 +292,7 @@ mod test {
         let mut provider = Provider::with_config(&get_config())?;
 
         assert_eq!(
-            format!("{:?}", provider.get_gene_info(&"OMA1")?),
+            format!("{:?}", provider.get_gene_info("OMA1")?),
             "GeneInfoRecord { hgnc: \"OMA1\", maploc: \"1p32.2-p32.1\", \
             descr: \"OMA1 zinc metallopeptidase\", summary: \"OMA1 zinc metallopeptidase\", \
             aliases: [\"{2010001O09Rik\", \"DAB1\", \"MPRP-1\", \"MPRP1\", \"YKR087C\", \
@@ -308,10 +307,10 @@ mod test {
         let mut provider = Provider::with_config(&get_config())?;
 
         assert_eq!(
-            provider.get_pro_ac_for_tx_ac(&"NM_130831.2")?,
+            provider.get_pro_ac_for_tx_ac("NM_130831.2")?,
             Some("NP_570844.1".to_string())
         );
-        assert_eq!(provider.get_pro_ac_for_tx_ac(&"NM_130831.x")?, None);
+        assert_eq!(provider.get_pro_ac_for_tx_ac("NM_130831.x")?, None);
 
         Ok(())
     }
@@ -320,7 +319,7 @@ mod test {
     fn get_seq() -> Result<(), anyhow::Error> {
         let mut provider = Provider::with_config(&get_config())?;
 
-        assert_eq!(provider.get_seq(&"NM_001354664.1")?.len(), 6386);
+        assert_eq!(provider.get_seq("NM_001354664.1")?.len(), 6386);
 
         Ok(())
     }
@@ -331,7 +330,7 @@ mod test {
 
         assert_eq!(
             provider
-                .get_seq_part(&"NM_001354664.1", Some(10), Some(100))?
+                .get_seq_part("NM_001354664.1", Some(10), Some(100))?
                 .len(),
             90
         );
@@ -343,7 +342,7 @@ mod test {
     fn get_similar_transcripts() -> Result<(), anyhow::Error> {
         let mut provider = Provider::with_config(&get_config())?;
 
-        let records = provider.get_similar_transcripts(&"NM_001354664.1")?;
+        let records = provider.get_similar_transcripts("NM_001354664.1")?;
 
         assert_eq!(
             records.len(),
