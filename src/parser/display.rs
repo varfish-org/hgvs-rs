@@ -1846,7 +1846,7 @@ mod test {
     // This test uses the "gauntlet" file from the hgvs package for round-tripping.
     #[test]
     fn roundtrip_hgvs_gauntlet() -> Result<(), anyhow::Error> {
-        let reader = BufReader::new(File::open("tests/data/gauntlet")?);
+        let reader = BufReader::new(File::open("tests/data/parser/gauntlet")?);
 
         for line in reader.lines() {
             let line = line?;
