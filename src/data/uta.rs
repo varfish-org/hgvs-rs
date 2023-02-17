@@ -262,7 +262,9 @@ impl Interface for Provider {
         tx_ac: &str,
     ) -> Result<Vec<super::TxSimilarityRecord>, anyhow::Error> {
         let sql = format!(
-            "SELECT * FROM {}.tx_similarity_v WHERE tx_ac1 = $1",
+            "SELECT * FROM {}.tx_similarity_v \
+            WHERE tx_ac1 = $1 \
+            ORDER BY tx_ac1, tx_ac2",
             self.config.db_schema
         );
         let mut result = Vec::new();
