@@ -70,7 +70,7 @@ jobs:
       - name: Import test database.
         run: |
           zcat tests/data/data/uta_20210129-subset.pgd.gz \
-          | psql -U postgres -h postgres
+          | psql -U postgres -h 0.0.0.0
         env:
           PGPASSWORD: postgres
 
