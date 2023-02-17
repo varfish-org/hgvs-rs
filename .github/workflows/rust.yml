@@ -45,13 +45,35 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   Testing:
-    needs: Formatting
+    # needs: Formatting
     runs-on: ubuntu-latest
+
+    services:
+      # The tests need a postgres server;  the data will be loaded later
+      # after checkout.
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
         with:
           lfs: true
+
+      - name: Import test database.
+        run: |
+          zcat tests/data/data/uta_20210129-subset.pgd.gz \
+          | psql -U postgres -h postgres
+        env:
+          PGPASSWORD: postgres
+
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
