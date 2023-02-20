@@ -68,11 +68,17 @@ pub enum CigarOp {
 
 impl CigarOp {
     pub fn is_advance_ref(&self) -> bool {
-        matches!(self, CigarOp::Eq | CigarOp::Match | CigarOp::Mismatch | CigarOp::Ins | CigarOp::Skip)
+        matches!(
+            self,
+            CigarOp::Eq | CigarOp::Match | CigarOp::Mismatch | CigarOp::Ins | CigarOp::Skip
+        )
     }
 
     pub fn is_advance_tgt(&self) -> bool {
-        matches!(self, CigarOp::Eq | CigarOp::Match | CigarOp::Mismatch | CigarOp::Del)
+        matches!(
+            self,
+            CigarOp::Eq | CigarOp::Match | CigarOp::Mismatch | CigarOp::Del
+        )
     }
 }
 
@@ -141,7 +147,7 @@ impl CigarElement {
 }
 
 #[derive(Debug, PartialEq, PartialOrd, Default, Clone)]
-pub struct CigarString{
+pub struct CigarString {
     pub elems: Vec<CigarElement>,
 }
 
@@ -161,16 +167,14 @@ impl std::ops::DerefMut for CigarString {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.elems
     }
-
 }
 
 impl Display for CigarString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for item in &self.elems {
             write!(f, "{}", &item)?
-        };
-        Ok(()
-        )
+        }
+        Ok(())
     }
 }
 
@@ -202,9 +206,11 @@ pub mod parse {
 
 /// Parse a CIGAR `str` into a real one.
 pub fn parse_cigar_string(input: &str) -> Result<CigarString, anyhow::Error> {
-    Ok(CigarString::from(all_consuming(many0(parse::cigar_element))(input)
-        .map_err(|e| anyhow::anyhow!("Problem with parsing: {:?}", e))?
-        .1))
+    Ok(CigarString::from(
+        all_consuming(many0(parse::cigar_element))(input)
+            .map_err(|e| anyhow::anyhow!("Problem with parsing: {:?}", e))?
+            .1,
+    ))
 }
 
 /// Builds a single CIGAR string representing an alignment of the transcript sequence to a
@@ -718,10 +724,7 @@ mod test {
             },
         ];
 
-        assert_eq!(
-            format!("{}", &build_tx_cigar(&exons, 1)?),
-            "5MI4M10N7MI2M"
-        );
+        assert_eq!(format!("{}", &build_tx_cigar(&exons, 1)?), "5MI4M10N7MI2M");
 
         Ok(())
     }
@@ -747,10 +750,7 @@ mod test {
             },
         ];
 
-        assert_eq!(
-            format!("{}", &build_tx_cigar(&exons, -1)?),
-            "4MI5M10N2MI7M"
-        );
+        assert_eq!(format!("{}", &build_tx_cigar(&exons, -1)?), "4MI5M10N2MI7M");
 
         Ok(())
     }
@@ -824,8 +824,8 @@ mod test {
                         offset,
                         cigar_op
                     },
-                    "case = {:?}", (arg_pos, arg_end, pos, offset, cigar_op)
-
+                    "case = {:?}",
+                    (arg_pos, arg_end, pos, offset, cigar_op)
                 );
             }
         }
@@ -862,7 +862,8 @@ mod test {
                         offset,
                         cigar_op
                     },
-                    "case = {:?}", (arg_pos, arg_end, pos, offset, cigar_op)
+                    "case = {:?}",
+                    (arg_pos, arg_end, pos, offset, cigar_op)
                 );
             }
         }
