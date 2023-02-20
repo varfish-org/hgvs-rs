@@ -303,8 +303,7 @@ impl ProviderInterface for Provider {
         let sql = format!(
             "SELECT * FROM {}.tx_exon_aln_v \
             WHERE tx_ac = $1 AND alt_ac = $2 and alt_aln_method = $3 \
-            ORDER BY tx_start_i, tx_end_i, alt_start_i, alt_end_i, \
-                     tx_exon_set_id, alt_exon_set_id",
+            ORDER BY alt_start_i",
             self.config.db_schema
         );
         let mut result = Vec::new();

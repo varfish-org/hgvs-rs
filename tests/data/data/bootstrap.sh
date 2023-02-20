@@ -64,7 +64,7 @@ VERSION=$2
 DST=$SCRIPT_DIR
 
 # The HGNC symbols of the genes to fetc.
-GENES="OMA1 OPA1 LCE3C HIST3H2A LCE2B PTH2"
+GENES="OMA1 OPA1 LCE3C H2AW LCE2B PTH2 SRD5A2"
 
 # Transform gene list for postgres query.
 PG_GENES=$(pg-list $GENES)
@@ -78,12 +78,12 @@ cd $DST
 
 # download database dumps
 
-mkdir -p download
-cd download
-for f in $VERSION.pgd.gz{,.sha1}; do
-    test -e $f || wget $DL_URL/$f
-done
-cd ..
+#mkdir -p download
+#cd download
+#for f in $VERSION.pgd.gz{,.sha1}; do
+#    test -e $f || wget $DL_URL/$f
+#done
+#cd ..
 
 # extract identifiers
 

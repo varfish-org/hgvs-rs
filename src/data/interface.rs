@@ -15,7 +15,7 @@ use crate::static_data::Assembly;
 /// aliases | AT1,ATA,ATC,ATD,ATE,ATDC,TEL1,TELO1
 /// added   | 2014-02-04 21:39:32.57125
 /// ```
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct GeneInfoRecord {
     pub hgnc: String,
     pub maploc: String,
@@ -44,7 +44,7 @@ pub struct GeneInfoRecord {
 /// structure means that the transcripts are defined on the same
 /// reference sequence and have the same exon spans on that
 /// sequence.
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct TxSimilarityRecord {
     /// Accession of first transcript.
     pub tx_ac1: String,
@@ -81,7 +81,7 @@ pub struct TxSimilarityRecord {
 /// alt_exon_id     | 6063334
 /// exon_aln_id     | 3461425
 ///```
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct TxExonsRecord {
     pub hgnc: String,
     pub tx_ac: String,
@@ -111,7 +111,7 @@ pub struct TxExonsRecord {
 /// start_i        | 95226307
 /// end_i          | 95248406
 /// ```
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct TxForRegionRecord {
     pub tx_ac: String,
     pub alt_ac: String,
@@ -130,7 +130,7 @@ pub struct TxForRegionRecord {
 /// lengths        | {707,79,410}
 /// hgnc           | VSX1
 /// ```
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct TxIdentityInfo {
     pub tx_ac: String,
     pub alt_ac: String,
@@ -149,7 +149,7 @@ pub struct TxIdentityInfo {
 /// alt_ac         | AC_000143.1
 /// alt_aln_method | splign
 /// ```
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct TxInfoRecord {
     pub hgnc: String,
     pub cds_start_i: Option<i32>,
@@ -169,7 +169,7 @@ pub struct TxInfoRecord {
 /// alt_ac         | NC_000012.11
 /// alt_aln_method | genebuild
 /// ```
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct TxMappingOptionsRecord {
     pub tx_ac: String,
     pub alt_ac: String,

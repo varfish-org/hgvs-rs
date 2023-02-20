@@ -149,7 +149,7 @@ impl AlignmentMapper {
             if alt_aln_method != "transcript" {
                 let tx_info = provider.get_tx_info(tx_ac, alt_ac, alt_aln_method)?;
                 let tx_exons = {
-                    let mut tx_exons = provider.get_tx_exons(tx_ac, alt_ac, alt_aln_method)?;
+                    let tx_exons = provider.get_tx_exons(tx_ac, alt_ac, alt_aln_method)?;
                     if tx_exons.is_empty() {
                         return Err(anyhow::anyhow!(
                             "Found no exons for tx_ac={}, alt_ac={}, alt_aln_method={}",
@@ -161,8 +161,9 @@ impl AlignmentMapper {
 
                     // Issue biocommons/hgvs#386: An assumption when building the CIGAR string is that
                     // exons are adjacent. Assert that here.
-                    tx_exons.sort_by(|a, b| a.ord.partial_cmp(&b.ord).unwrap());
-                    let offenders = tx_exons
+                    let mut sorted_exons = tx_exons.clone();
+                    sorted_exons.sort_by(|a, b| a.ord.partial_cmp(&b.ord).unwrap());
+                    let offenders = sorted_exons
                         .windows(2)
                         .filter(|pair| {
                             let lhs = &pair[0];
@@ -810,9 +811,9 @@ mod test {
         Ok(())
     }
 
-    /// NM_033445.2: LCE3C single exon, strand = -1, all coordinate input/output are in HGVS
+    /// NM_033445.2: H2AW single exon, strand = -1, all coordinate input/output are in HGVS
     #[test]
-    fn test_hist3h2a() -> Result<(), anyhow::Error> {
+    fn test_h2a2() -> Result<(), anyhow::Error> {
         let tx_ac = "NM_033445.2";
         let alt_ac = "NC_000001.10";
         let test_cases = vec![
