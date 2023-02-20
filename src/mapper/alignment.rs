@@ -22,8 +22,9 @@
 //    n.        -2    -1  !  1     2     3     4     5     6     7     8     9
 //    g.   ... 123   124   125   126   127   128   129   130   131   132   133 ...
 
-use std::rc::Rc;
+use std::{fmt::Display, rc::Rc};
 
+use nom::{combinator::all_consuming, multi::many0};
 use regex::Regex;
 
 use crate::{
@@ -47,6 +48,116 @@ fn hgvs_to_zbc(i: i32) -> i32 {
     } else {
         i
     }
+}
+
+/// CIGAR operation as parsed from UTA.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum CigarOp {
+    Eq,
+    Del,
+    Ins,
+    Match,
+    Skip,
+    Mismatch,
+}
+
+impl TryFrom<char> for CigarOp {
+    type Error = anyhow::Error;
+
+    fn try_from(value: char) -> Result<Self, anyhow::Error> {
+        Ok(match value {
+            '=' => Self::Eq,
+            'D' => Self::Del,
+            'I' => Self::Ins,
+            'M' => Self::Match,
+            'N' => Self::Skip,
+            'X' => Self::Mismatch,
+            _ => return Err(anyhow::anyhow!("Invalid CIGAR character {}", value)),
+        })
+    }
+}
+
+impl Into<char> for CigarOp {
+    fn into(self) -> char {
+        match self {
+            CigarOp::Eq => '=',
+            CigarOp::Del => 'D',
+            CigarOp::Ins => 'I',
+            CigarOp::Match => 'M',
+            CigarOp::Skip => 'S',
+            CigarOp::Mismatch => 'X',
+        }
+    }
+}
+
+impl Display for CigarOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", std::convert::Into::<char>::into(self.clone()))
+    }
+}
+
+/// CIGAR element consisting of count and CIGAR operation.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct CigarElement {
+    pub count: u32,
+    pub op: CigarOp,
+}
+
+impl Display for CigarElement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.count > 1 {
+            write!(f, "{}", self.count)?;
+        }
+        write!(f, "{}", self.op)
+    }
+}
+
+impl CigarElement {
+    fn from_strs(count: &str, op: &str) -> CigarElement {
+        CigarElement {
+            count: if count.len() == 0 {
+                1
+            } else {
+                str::parse(count).unwrap()
+            },
+            op: op.chars().nth(0).unwrap().try_into().unwrap(),
+        }
+    }
+}
+
+/// Alias `Vec<CigarElement>` to CigarString.
+type CigarString = Vec<CigarElement>;
+
+pub mod parse {
+    use nom::{
+        character::complete::digit0,
+        error::{context, VerboseError},
+        sequence::pair,
+        IResult, bytes::complete::take_while_m_n,
+    };
+
+    type Res<T, U> = IResult<T, U, VerboseError<T>>;
+
+    use super::CigarElement;
+
+    pub fn is_cigar_op_char(c: char) -> bool {
+        "=DIMSX".contains(c)
+    }
+
+    pub fn cigar_element(input: &str) -> Res<&str, CigarElement> {
+        context(
+            "cigar_element",
+            pair(digit0, take_while_m_n(1, 1, is_cigar_op_char)),
+        )(input)
+        .map(|(rest, (count, op))| (rest, CigarElement::from_strs(count, op)))
+    }
+}
+
+/// Parse a CIGAR `str` into a real one.
+pub fn parse_cigar_string(input: &str) -> Result<CigarString, anyhow::Error> {
+    Ok(all_consuming(many0(parse::cigar_element))(input)
+        .map_err(|e| anyhow::anyhow!("Problem with parsing: {:?}", e))?
+        .1)
 }
 
 lazy_static::lazy_static! {
@@ -130,7 +241,7 @@ struct CigarMapper {
     pub tgt_len: i32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct CigarMapperResult {
     pub pos: i32,
     pub offset: i32,
@@ -154,9 +265,6 @@ impl<'a> CigarMapper {
     /// For a given CIGAR string, return the start positions of each aligned segment in ref
     /// and tgt, and a list of CIGAR operators.
     fn parse_cigar(cigar: &str) -> (Vec<i32>, Vec<i32>, Vec<char>) {
-        let advance_ref_ops = "=MXIN";
-        let advance_tgt_ops = "=MXD";
-
         let elems = RE_CIGAR_ELEM
             .captures_iter(cigar)
             .map(|cap| {
@@ -476,9 +584,80 @@ impl AlignmentMapper {
 mod test {
     use pretty_assertions::assert_eq;
 
-    use crate::data::interface::TxExonsRecord;
+    use crate::{
+        data::interface::TxExonsRecord,
+        mapper::alignment::{parse_cigar_string, CigarElement, CigarMapperResult, CigarOp},
+    };
 
     use super::{build_tx_cigar, none_if_default, CigarMapper};
+
+    #[test]
+    fn parse_cigar_string_simple() -> Result<(), anyhow::Error> {
+        // assert_eq!(parse_cigar_string("")?, vec![]);
+        assert_eq!(
+            parse_cigar_string("M")?,
+            vec![CigarElement {
+                count: 1,
+                op: CigarOp::Match
+            }]
+        );
+        assert_eq!(
+            parse_cigar_string("MM")?,
+            vec![
+                CigarElement {
+                    count: 1,
+                    op: CigarOp::Match
+                },
+                CigarElement {
+                    count: 1,
+                    op: CigarOp::Match
+                }
+            ]
+        );
+        assert_eq!(
+            parse_cigar_string("1M")?,
+            vec![CigarElement {
+                count: 1,
+                op: CigarOp::Match,
+            },]
+        );
+        assert_eq!(
+            parse_cigar_string("1M2I3X")?,
+            vec![
+                CigarElement {
+                    count: 1,
+                    op: CigarOp::Match,
+                },
+                CigarElement {
+                    count: 2,
+                    op: CigarOp::Ins,
+                },
+                CigarElement {
+                    count: 3,
+                    op: CigarOp::Mismatch,
+                },
+            ]
+        );
+        assert_eq!(
+            parse_cigar_string("1MI3X")?,
+            vec![
+                CigarElement {
+                    count: 1,
+                    op: CigarOp::Match,
+                },
+                CigarElement {
+                    count: 1,
+                    op: CigarOp::Ins,
+                },
+                CigarElement {
+                    count: 3,
+                    op: CigarOp::Mismatch,
+                },
+            ]
+        );
+
+        Ok(())
+    }
 
     #[test]
     fn build_tx_cigar_empty() {
@@ -550,9 +729,159 @@ mod test {
     }
 
     #[test]
-    fn cigar_mapper() {
+    fn cigar_mapper_simple() -> Result<(), anyhow::Error> {
+        // 0   1   2           3   4   5               6       7   8   9  tgt
+        // =   =   =   N   N   =   X   =   N   N   N   =   I   =   D   =
+        // 0   1   2   3   4   5   6   7   8   9  10  11  12  13      14  ref
         let cigar_str = "3=2N=X=3N=I=D=".to_string();
         let cigar_mapper = CigarMapper::new(&cigar_str);
-        assert!(false); // continue here
+
+        assert_eq!(cigar_mapper.ref_len, 15);
+        assert_eq!(cigar_mapper.tgt_len, 10);
+        assert_eq!(cigar_mapper.ref_pos.len(), cigar_mapper.tgt_pos.len());
+        assert_eq!(
+            cigar_mapper.ref_pos,
+            vec![0, 3, 5, 6, 7, 8, 11, 12, 13, 14, 14, 15]
+        );
+        assert_eq!(
+            cigar_mapper.tgt_pos,
+            vec![0, 3, 3, 4, 5, 6, 6, 7, 7, 8, 9, 10]
+        );
+
+        // ref to tgt
+        {
+            let cases = vec![
+                (0, "start", 0, 0, '='),
+                (0, "end", 0, 0, '='),
+                (1, "start", 1, 0, '='),
+                (1, "end", 1, 0, '='),
+                (2, "start", 2, 0, '='),
+                (2, "end", 2, 0, '='),
+                (3, "start", 2, 1, 'N'),
+                (3, "end", 2, 1, 'N'),
+                (4, "start", 3, -1, 'N'),
+                (4, "end", 3, -1, 'N'),
+                (5, "start", 3, 0, '='),
+                (5, "end", 3, 0, '='),
+                (6, "start", 4, 0, 'X'),
+                (6, "end", 4, 0, 'X'),
+                (7, "start", 5, 0, '='),
+                (7, "end", 5, 0, '='),
+                (8, "start", 5, 1, 'N'),
+                (8, "end", 5, 1, 'N'),
+                (9, "start", 5, 2, 'N'),
+                (9, "end", 5, 2, 'N'),
+                (10, "start", 6, -1, 'N'),
+                (10, "end", 6, -1, 'N'),
+                (11, "start", 6, 0, '='),
+                (11, "end", 6, 0, '='),
+                (12, "start", 6, 0, 'I'),
+                (12, "end", 7, 0, 'I'),
+                (13, "start", 7, 0, '='),
+                (13, "end", 7, 0, '='),
+                (14, "start", 9, 0, '='),
+                (14, "end", 9, 0, '='),
+            ];
+            for (arg_pos, arg_end, pos, offset, cigar_op) in cases {
+                assert_eq!(
+                    cigar_mapper.map_ref_to_tgt(arg_pos, arg_end, true)?,
+                    CigarMapperResult {
+                        pos,
+                        offset,
+                        cigar_op
+                    }
+                );
+            }
+        }
+
+        // tgt to ref
+        {
+            let cases = vec![
+                (0, "start", 0, 0, '='),
+                (0, "end", 0, 0, '='),
+                (1, "start", 1, 0, '='),
+                (1, "end", 1, 0, '='),
+                (2, "start", 2, 0, '='),
+                (2, "end", 2, 0, '='),
+                (3, "start", 5, 0, '='),
+                (3, "end", 5, 0, '='),
+                (4, "start", 6, 0, 'X'),
+                (4, "end", 6, 0, 'X'),
+                (5, "start", 7, 0, '='),
+                (5, "end", 7, 0, '='),
+                (6, "start", 11, 0, '='),
+                (6, "end", 11, 0, '='),
+                (7, "start", 13, 0, '='),
+                (7, "end", 13, 0, '='),
+                (8, "start", 13, 0, 'D'),
+                (8, "end", 14, 0, 'D'),
+                (9, "start", 14, 0, '='),
+                (9, "end", 14, 0, '='),
+            ];
+            for (arg_pos, arg_end, pos, offset, cigar_op) in cases {
+                assert_eq!(
+                    cigar_mapper.map_ref_to_tgt(arg_pos, arg_end, true)?,
+                    CigarMapperResult {
+                        pos,
+                        offset,
+                        cigar_op
+                    }
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn cigar_mapper_strict_bounds() -> Result<(), anyhow::Error> {
+        // 0   1   2           3   4   5               6       7   8   9  tgt
+        // =   =   =   N   N   =   X   =   N   N   N   =   I   =   D   =
+        // 0   1   2   3   4   5   6   7   8   9  10  11  12  13      14  ref
+        let cigar_str = "3=2N=X=3N=I=D=".to_string();
+        let cigar_mapper = CigarMapper::new(&cigar_str);
+
+        // error for out of bounds on left?
+        assert!(cigar_mapper.map_ref_to_tgt(-1, "start", true).is_err());
+        // ... and right?
+        assert!(cigar_mapper
+            .map_ref_to_tgt(cigar_mapper.ref_len + 1, "start", true)
+            .is_err());
+
+        // test whether 1 base outside bounds results in correct position
+        assert_eq!(
+            cigar_mapper.map_ref_to_tgt(0, "start", true)?,
+            CigarMapperResult {
+                pos: 0,
+                offset: 0,
+                cigar_op: '=',
+            }
+        );
+        assert_eq!(
+            cigar_mapper.map_ref_to_tgt(0, "start", false)?,
+            CigarMapperResult {
+                pos: -1,
+                offset: 0,
+                cigar_op: '=',
+            }
+        );
+        assert_eq!(
+            cigar_mapper.map_ref_to_tgt(cigar_mapper.ref_len, "start", true)?,
+            CigarMapperResult {
+                pos: cigar_mapper.tgt_len,
+                offset: 0,
+                cigar_op: '=',
+            }
+        );
+        assert_eq!(
+            cigar_mapper.map_ref_to_tgt(cigar_mapper.ref_len - 1, "start", true)?,
+            CigarMapperResult {
+                pos: cigar_mapper.tgt_len - 1,
+                offset: 0,
+                cigar_op: '=',
+            }
+        );
+
+        Ok(())
     }
 }
