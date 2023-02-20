@@ -98,9 +98,9 @@ impl TryFrom<char> for CigarOp {
     }
 }
 
-impl Into<char> for CigarOp {
-    fn into(self) -> char {
-        match self {
+impl From<CigarOp> for char {
+    fn from(val: CigarOp) -> Self {
+        match val {
             CigarOp::Eq => '=',
             CigarOp::Del => 'D',
             CigarOp::Ins => 'I',
@@ -113,7 +113,7 @@ impl Into<char> for CigarOp {
 
 impl Display for CigarOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", std::convert::Into::<char>::into(self.clone()))
+        write!(f, "{}", std::convert::Into::<char>::into(*self))
     }
 }
 
@@ -136,12 +136,12 @@ impl Display for CigarElement {
 impl CigarElement {
     fn from_strs(count: &str, op: &str) -> CigarElement {
         CigarElement {
-            count: if count.len() == 0 {
+            count: if count.is_empty() {
                 1
             } else {
                 str::parse(count).unwrap()
             },
-            op: op.chars().nth(0).unwrap().try_into().unwrap(),
+            op: op.chars().next().unwrap().try_into().unwrap(),
         }
     }
 }
@@ -172,9 +172,10 @@ impl std::ops::DerefMut for CigarString {
 
 impl Display for CigarString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Ok(for item in &self.elems {
-                write!(f, "{}", &item)?
-            }
+        for item in &self.elems {
+            write!(f, "{}", &item)?
+        };
+        Ok(()
         )
     }
 }
@@ -399,7 +400,7 @@ impl CigarMapper {
                 cigar_op,
             })
         } else if cigar_op == CigarOp::Skip {
-            if pos - from_pos[pos_i] + 1 <= from_pos[pos_i + 1] - pos {
+            if pos - from_pos[pos_i] < from_pos[pos_i + 1] - pos {
                 Ok(CigarMapperResult {
                     pos: to_pos[pos_i] - 1,
                     offset: pos - from_pos[pos_i] + 1,
@@ -541,7 +542,7 @@ impl AlignmentMapper {
 
         Ok(AlignmentMapper {
             config: Default::default(),
-            provider: provider,
+            provider,
             tx_ac: tx_ac.to_string(),
             alt_ac: alt_ac.to_string(),
             alt_aln_method: alt_aln_method.to_string(),
@@ -549,8 +550,8 @@ impl AlignmentMapper {
             cds_end_i,
             tgt_len,
             cigar_mapper,
-            strand: strand,
-            gc_offset: gc_offset,
+            strand,
+            gc_offset,
         })
     }
 
@@ -699,7 +700,7 @@ mod test {
 
     #[test]
     fn build_tx_cigar_empty() {
-        assert!(!build_tx_cigar(&Vec::new(), 1).is_ok());
+        assert!(build_tx_cigar(&Vec::new(), 1).is_err());
     }
 
     #[test]

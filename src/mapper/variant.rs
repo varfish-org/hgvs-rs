@@ -72,7 +72,7 @@ impl Mapper {
         } = &var_g
         {
             self.validator.validate(&var_g)?;
-            let var_g = var_g.fill_ref(self.provider.as_ref())?;
+            let _var_g = var_g.fill_ref(self.provider.as_ref())?;
 
             Ok(())
         } else {
