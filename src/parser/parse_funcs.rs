@@ -467,14 +467,14 @@ pub mod cds_pos {
 
     pub fn int(input: &str) -> IResult<&str, CdsInterval> {
         let (rest, (begin, _, end)) = tuple((pos, tag("_"), pos))(input)?;
-        Ok((rest, CdsInterval { begin, end }))
+        Ok((rest, CdsInterval { start: begin, end }))
     }
 
     pub fn loc(input: &str) -> IResult<&str, CdsInterval> {
         alt((
             int,
             map(pos, |pos| CdsInterval {
-                begin: pos.clone(),
+                start: pos.clone(),
                 end: pos,
             }),
         ))(input)
@@ -502,7 +502,7 @@ pub mod genome_pos {
 
     pub fn int(input: &str) -> IResult<&str, GenomeInterval> {
         map(tuple((pos, tag("_"), pos)), |(begin, _, end)| {
-            GenomeInterval { begin, end }
+            GenomeInterval { start: begin, end }
         })(input)
     }
 
@@ -510,7 +510,7 @@ pub mod genome_pos {
         alt((
             int,
             map(pos, |pos| GenomeInterval {
-                begin: pos,
+                start: pos,
                 end: pos,
             }),
         ))(input)
@@ -538,7 +538,7 @@ pub mod mt_pos {
 
     pub fn int(input: &str) -> IResult<&str, MtInterval> {
         map(tuple((pos, tag("_"), pos)), |(begin, _, end)| MtInterval {
-            begin,
+            start: begin,
             end,
         })(input)
     }
@@ -547,7 +547,7 @@ pub mod mt_pos {
         alt((
             int,
             map(pos, |pos| MtInterval {
-                begin: pos,
+                start: pos,
                 end: pos,
             }),
         ))(input)
@@ -581,14 +581,14 @@ pub mod tx_pos {
 
     pub fn int(input: &str) -> IResult<&str, TxInterval> {
         let (rest, (begin, _, end)) = tuple((pos, tag("_"), pos))(input)?;
-        Ok((rest, TxInterval { begin, end }))
+        Ok((rest, TxInterval { start: begin, end }))
     }
 
     pub fn loc(input: &str) -> IResult<&str, TxInterval> {
         alt((
             int,
             map(pos, |pos| TxInterval {
-                begin: pos.clone(),
+                start: pos.clone(),
                 end: pos,
             }),
         ))(input)
@@ -622,14 +622,14 @@ pub mod rna_pos {
 
     pub fn int(input: &str) -> IResult<&str, RnaInterval> {
         let (rest, (begin, _, end)) = tuple((pos, tag("_"), pos))(input)?;
-        Ok((rest, RnaInterval { begin, end }))
+        Ok((rest, RnaInterval { start: begin, end }))
     }
 
     pub fn loc(input: &str) -> IResult<&str, RnaInterval> {
         alt((
             int,
             map(pos, |pos| RnaInterval {
-                begin: pos.clone(),
+                start: pos.clone(),
                 end: pos,
             }),
         ))(input)
@@ -664,14 +664,14 @@ pub mod prot_pos {
 
     pub fn int(input: &str) -> IResult<&str, ProtInterval> {
         let (rest, (begin, _, end)) = tuple((pos, tag("_"), pos))(input)?;
-        Ok((rest, ProtInterval { begin, end }))
+        Ok((rest, ProtInterval { start: begin, end }))
     }
 
     pub fn loc(input: &str) -> IResult<&str, ProtInterval> {
         alt((
             int,
             map(pos, |pos| ProtInterval {
-                begin: pos.clone(),
+                start: pos.clone(),
                 end: pos,
             }),
         ))(input)
@@ -1606,7 +1606,7 @@ mod test {
             Ok((
                 "",
                 MtInterval {
-                    begin: Some(42),
+                    start: Some(42),
                     end: Some(42),
                 }
             ))
@@ -1620,7 +1620,7 @@ mod test {
             Ok((
                 "",
                 MtInterval {
-                    begin: Some(42),
+                    start: Some(42),
                     end: Some(100),
                 }
             ))
@@ -1630,7 +1630,7 @@ mod test {
             Ok((
                 "",
                 MtInterval {
-                    begin: None,
+                    start: None,
                     end: Some(100),
                 }
             ))
@@ -1640,7 +1640,7 @@ mod test {
             Ok((
                 "",
                 MtInterval {
-                    begin: Some(42),
+                    start: Some(42),
                     end: None,
                 }
             ))
@@ -1650,7 +1650,7 @@ mod test {
             Ok((
                 "",
                 MtInterval {
-                    begin: None,
+                    start: None,
                     end: None,
                 }
             ))
@@ -1664,7 +1664,7 @@ mod test {
             Ok((
                 "",
                 CdsInterval {
-                    begin: CdsPos {
+                    start: CdsPos {
                         base: 123,
                         offset: None,
                         cds_from: CdsFrom::Start,
@@ -1686,7 +1686,7 @@ mod test {
             Ok((
                 "",
                 CdsInterval {
-                    begin: CdsPos {
+                    start: CdsPos {
                         base: 123,
                         offset: None,
                         cds_from: CdsFrom::Start,
@@ -1704,7 +1704,7 @@ mod test {
             Ok((
                 "",
                 CdsInterval {
-                    begin: CdsPos {
+                    start: CdsPos {
                         base: 123,
                         offset: None,
                         cds_from: CdsFrom::Start,
@@ -1722,7 +1722,7 @@ mod test {
             Ok((
                 "",
                 CdsInterval {
-                    begin: CdsPos {
+                    start: CdsPos {
                         base: -123,
                         offset: None,
                         cds_from: CdsFrom::Start,
@@ -1740,7 +1740,7 @@ mod test {
             Ok((
                 "",
                 CdsInterval {
-                    begin: CdsPos {
+                    start: CdsPos {
                         base: 123,
                         offset: Some(42),
                         cds_from: CdsFrom::Start,
@@ -1758,7 +1758,7 @@ mod test {
             Ok((
                 "",
                 CdsInterval {
-                    begin: CdsPos {
+                    start: CdsPos {
                         base: 123,
                         offset: Some(42),
                         cds_from: CdsFrom::Start,
@@ -1776,7 +1776,7 @@ mod test {
             Ok((
                 "",
                 CdsInterval {
-                    begin: CdsPos {
+                    start: CdsPos {
                         base: -123,
                         offset: Some(42),
                         cds_from: CdsFrom::Start,
@@ -1794,7 +1794,7 @@ mod test {
             Ok((
                 "",
                 CdsInterval {
-                    begin: CdsPos {
+                    start: CdsPos {
                         base: 123,
                         offset: Some(-42),
                         cds_from: CdsFrom::Start,
@@ -1812,7 +1812,7 @@ mod test {
             Ok((
                 "",
                 CdsInterval {
-                    begin: CdsPos {
+                    start: CdsPos {
                         base: 123,
                         offset: Some(-42),
                         cds_from: CdsFrom::Start,
@@ -1830,7 +1830,7 @@ mod test {
             Ok((
                 "",
                 CdsInterval {
-                    begin: CdsPos {
+                    start: CdsPos {
                         base: -123,
                         offset: Some(-42),
                         cds_from: CdsFrom::Start,
@@ -1988,7 +1988,7 @@ mod test {
             Ok((
                 "",
                 GenomeInterval {
-                    begin: Some(42),
+                    start: Some(42),
                     end: Some(42),
                 }
             ))
@@ -2002,7 +2002,7 @@ mod test {
             Ok((
                 "",
                 GenomeInterval {
-                    begin: Some(42),
+                    start: Some(42),
                     end: Some(100),
                 }
             ))
@@ -2012,7 +2012,7 @@ mod test {
             Ok((
                 "",
                 GenomeInterval {
-                    begin: None,
+                    start: None,
                     end: Some(100),
                 }
             ))
@@ -2022,7 +2022,7 @@ mod test {
             Ok((
                 "",
                 GenomeInterval {
-                    begin: Some(42),
+                    start: Some(42),
                     end: None,
                 }
             ))
@@ -2032,7 +2032,7 @@ mod test {
             Ok((
                 "",
                 GenomeInterval {
-                    begin: None,
+                    start: None,
                     end: None,
                 }
             ))
@@ -2046,7 +2046,7 @@ mod test {
             Ok((
                 "",
                 TxInterval {
-                    begin: TxPos {
+                    start: TxPos {
                         base: 123,
                         offset: None,
                     },
@@ -2066,7 +2066,7 @@ mod test {
             Ok((
                 "",
                 TxInterval {
-                    begin: TxPos {
+                    start: TxPos {
                         base: 123,
                         offset: None,
                     },
@@ -2082,7 +2082,7 @@ mod test {
             Ok((
                 "",
                 TxInterval {
-                    begin: TxPos {
+                    start: TxPos {
                         base: 123,
                         offset: None,
                     },
@@ -2098,7 +2098,7 @@ mod test {
             Ok((
                 "",
                 TxInterval {
-                    begin: TxPos {
+                    start: TxPos {
                         base: -123,
                         offset: None,
                     },
@@ -2114,7 +2114,7 @@ mod test {
             Ok((
                 "",
                 TxInterval {
-                    begin: TxPos {
+                    start: TxPos {
                         base: 123,
                         offset: Some(42),
                     },
@@ -2130,7 +2130,7 @@ mod test {
             Ok((
                 "",
                 TxInterval {
-                    begin: TxPos {
+                    start: TxPos {
                         base: 123,
                         offset: Some(42),
                     },
@@ -2146,7 +2146,7 @@ mod test {
             Ok((
                 "",
                 TxInterval {
-                    begin: TxPos {
+                    start: TxPos {
                         base: -123,
                         offset: Some(42),
                     },
@@ -2162,7 +2162,7 @@ mod test {
             Ok((
                 "",
                 TxInterval {
-                    begin: TxPos {
+                    start: TxPos {
                         base: 123,
                         offset: Some(-42),
                     },
@@ -2178,7 +2178,7 @@ mod test {
             Ok((
                 "",
                 TxInterval {
-                    begin: TxPos {
+                    start: TxPos {
                         base: 123,
                         offset: Some(-42),
                     },
@@ -2194,7 +2194,7 @@ mod test {
             Ok((
                 "",
                 TxInterval {
-                    begin: TxPos {
+                    start: TxPos {
                         base: -123,
                         offset: Some(-42),
                     },
@@ -2308,7 +2308,7 @@ mod test {
             Ok((
                 "",
                 RnaInterval {
-                    begin: RnaPos {
+                    start: RnaPos {
                         base: 123,
                         offset: None,
                     },
@@ -2328,7 +2328,7 @@ mod test {
             Ok((
                 "",
                 RnaInterval {
-                    begin: RnaPos {
+                    start: RnaPos {
                         base: 123,
                         offset: None,
                     },
@@ -2344,7 +2344,7 @@ mod test {
             Ok((
                 "",
                 RnaInterval {
-                    begin: RnaPos {
+                    start: RnaPos {
                         base: 123,
                         offset: None,
                     },
@@ -2360,7 +2360,7 @@ mod test {
             Ok((
                 "",
                 RnaInterval {
-                    begin: RnaPos {
+                    start: RnaPos {
                         base: -123,
                         offset: None,
                     },
@@ -2376,7 +2376,7 @@ mod test {
             Ok((
                 "",
                 RnaInterval {
-                    begin: RnaPos {
+                    start: RnaPos {
                         base: 123,
                         offset: Some(42),
                     },
@@ -2392,7 +2392,7 @@ mod test {
             Ok((
                 "",
                 RnaInterval {
-                    begin: RnaPos {
+                    start: RnaPos {
                         base: 123,
                         offset: Some(42),
                     },
@@ -2408,7 +2408,7 @@ mod test {
             Ok((
                 "",
                 RnaInterval {
-                    begin: RnaPos {
+                    start: RnaPos {
                         base: -123,
                         offset: Some(42),
                     },
@@ -2424,7 +2424,7 @@ mod test {
             Ok((
                 "",
                 RnaInterval {
-                    begin: RnaPos {
+                    start: RnaPos {
                         base: 123,
                         offset: Some(-42),
                     },
@@ -2440,7 +2440,7 @@ mod test {
             Ok((
                 "",
                 RnaInterval {
-                    begin: RnaPos {
+                    start: RnaPos {
                         base: 123,
                         offset: Some(-42),
                     },
@@ -2456,7 +2456,7 @@ mod test {
             Ok((
                 "",
                 RnaInterval {
-                    begin: RnaPos {
+                    start: RnaPos {
                         base: -123,
                         offset: Some(-42),
                     },
@@ -2624,7 +2624,7 @@ mod test {
             Ok((
                 "",
                 ProtInterval {
-                    begin: ProtPos {
+                    start: ProtPos {
                         aa: "Leu".to_string(),
                         number: 10
                     },
@@ -2644,7 +2644,7 @@ mod test {
             Ok((
                 "",
                 ProtInterval {
-                    begin: ProtPos {
+                    start: ProtPos {
                         aa: "Leu".to_string(),
                         number: 10
                     },
@@ -2660,7 +2660,7 @@ mod test {
             Ok((
                 "",
                 ProtInterval {
-                    begin: ProtPos {
+                    start: ProtPos {
                         aa: "L".to_string(),
                         number: 10
                     },
@@ -2676,7 +2676,7 @@ mod test {
             Ok((
                 "",
                 ProtInterval {
-                    begin: ProtPos {
+                    start: ProtPos {
                         aa: "Leu".to_string(),
                         number: 10
                     },
@@ -2692,7 +2692,7 @@ mod test {
             Ok((
                 "",
                 ProtInterval {
-                    begin: ProtPos {
+                    start: ProtPos {
                         aa: "L".to_string(),
                         number: 10
                     },
@@ -2708,7 +2708,7 @@ mod test {
             Ok((
                 "",
                 ProtInterval {
-                    begin: ProtPos {
+                    start: ProtPos {
                         aa: "L".to_string(),
                         number: 10
                     },

@@ -1,7 +1,5 @@
 //! Data structures for representing HGVS variant descriptions.
 
-use pretty_assertions::private::CreateComparison;
-
 /// Expression of "maybe uncertain".
 #[derive(Clone, Debug, PartialEq)]
 pub enum Mu<T> {
@@ -17,6 +15,20 @@ impl<T> Mu<T> {
             Mu::Certain(value)
         } else {
             Mu::Uncertain(value)
+        }
+    }
+
+    pub fn unwrap(self) -> T {
+        match self {
+            Mu::Certain(value) => value,
+            Mu::Uncertain(value) => value,
+        }
+    }
+
+    pub fn inner(&self) -> &T {
+        match self {
+            Mu::Certain(value) => value,
+            Mu::Uncertain(value) => value,
         }
     }
 }
@@ -155,7 +167,7 @@ pub struct CdsLocEdit {
 #[derive(Clone, Debug, PartialEq)]
 pub struct CdsInterval {
     /// Start position
-    pub begin: CdsPos,
+    pub start: CdsPos,
     /// End position
     pub end: CdsPos,
 }
@@ -192,7 +204,7 @@ pub struct GenomeLocEdit {
 #[derive(Clone, Debug, PartialEq)]
 pub struct GenomeInterval {
     /// Start position
-    pub begin: Option<i32>,
+    pub start: Option<i32>,
     /// End position
     pub end: Option<i32>,
 }
@@ -210,7 +222,7 @@ pub struct MtLocEdit {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MtInterval {
     /// Start position
-    pub begin: Option<i32>,
+    pub start: Option<i32>,
     /// End position
     pub end: Option<i32>,
 }
@@ -228,7 +240,7 @@ pub struct TxLocEdit {
 #[derive(Clone, Debug, PartialEq)]
 pub struct TxInterval {
     /// Start position
-    pub begin: TxPos,
+    pub start: TxPos,
     /// End position
     pub end: TxPos,
 }
@@ -255,7 +267,7 @@ pub struct RnaLocEdit {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RnaInterval {
     /// Start position
-    pub begin: RnaPos,
+    pub start: RnaPos,
     /// End position
     pub end: RnaPos,
 }
@@ -290,7 +302,7 @@ pub enum ProtLocEdit {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProtInterval {
     /// Start position
-    pub begin: ProtPos,
+    pub start: ProtPos,
     /// End position
     pub end: ProtPos,
 }

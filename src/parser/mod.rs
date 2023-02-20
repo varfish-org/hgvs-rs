@@ -26,6 +26,36 @@ impl FromStr for HgvsVariant {
     }
 }
 
+impl FromStr for GenomeInterval {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse(s)
+            .map_err(|e| anyhow::anyhow!("problem with parsing HGVS genome interval: {:?}", &e))
+            .map(|(_rest, g_interval)| g_interval)
+    }
+}
+
+impl FromStr for TxInterval {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse(s)
+            .map_err(|e| anyhow::anyhow!("problem with parsing HGVS transcript interval: {:?}", &e))
+            .map(|(_rest, g_interval)| g_interval)
+    }
+}
+
+impl FromStr for CdsInterval {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse(s)
+            .map_err(|e| anyhow::anyhow!("problem with parsing HGVS CDS interval: {:?}", &e))
+            .map(|(_rest, g_interval)| g_interval)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::{
@@ -34,7 +64,10 @@ mod test {
         str::FromStr,
     };
 
-    use crate::parser::{Accession, CdsFrom, CdsInterval, CdsLocEdit, CdsPos, Mu, NaEdit};
+    use crate::parser::{
+        Accession, CdsFrom, CdsInterval, CdsLocEdit, CdsPos, GenomeInterval, Mu, NaEdit,
+        TxInterval, TxPos,
+    };
 
     use super::HgvsVariant;
 
@@ -49,7 +82,7 @@ mod test {
                 gene_symbol: None,
                 loc_edit: CdsLocEdit {
                     loc: Mu::Certain(CdsInterval {
-                        begin: CdsPos {
+                        start: CdsPos {
                             base: 22,
                             offset: Some(1),
                             cds_from: CdsFrom::Start
@@ -107,6 +140,49 @@ mod test {
                 assert!(HgvsVariant::from_str(line).is_err(), "line = {line}")
             }
         }
+
+        Ok(())
+    }
+
+    // Test genome interval parsing.
+    #[test]
+    fn genome_interval_from_str() -> Result<(), anyhow::Error> {
+        assert!(GenomeInterval::from_str("x").is_err());
+        assert_eq!(
+            GenomeInterval::from_str("1")?,
+            GenomeInterval {
+                start: Some(1),
+                end: Some(1)
+            }
+        );
+        assert_eq!(
+            GenomeInterval::from_str("1_1")?,
+            GenomeInterval {
+                start: Some(1),
+                end: Some(1)
+            }
+        );
+        assert_eq!(
+            GenomeInterval::from_str("?_1")?,
+            GenomeInterval {
+                start: None,
+                end: Some(1)
+            }
+        );
+        assert_eq!(
+            GenomeInterval::from_str("1_?")?,
+            GenomeInterval {
+                start: Some(1),
+                end: None
+            }
+        );
+        assert_eq!(
+            GenomeInterval::from_str("?_?")?,
+            GenomeInterval {
+                start: None,
+                end: None
+            }
+        );
 
         Ok(())
     }

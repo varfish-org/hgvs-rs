@@ -26,7 +26,7 @@ use std::rc::Rc;
 
 use crate::{
     data::interface::{Provider, TxExonsRecord},
-    parser::{CdsFrom, CdsInterval, CdsPos, GenomeInterval, Mu, TxInterval, TxPos},
+    parser::{CdsInterval, CdsPos, GenomeInterval, Mu, TxInterval, TxPos},
 };
 
 use super::cigar::{
@@ -251,7 +251,7 @@ impl AlignmentMapper {
         strict_bounds: bool,
     ) -> Result<Mu<TxInterval>, anyhow::Error> {
         if let GenomeInterval {
-            begin: Some(begin),
+            start: Some(begin),
             end: Some(end),
         } = g_interval
         {
@@ -289,7 +289,7 @@ impl AlignmentMapper {
             // The position is uncertain if the alignment ends in a gap.
             Ok(Mu::from(
                 TxInterval {
-                    begin: TxPos {
+                    start: TxPos {
                         base: zbc_to_hgvs(frs.pos),
                         offset: none_if_default(frs.offset),
                     },
@@ -317,7 +317,67 @@ impl AlignmentMapper {
         n_interval: &TxInterval,
         strict_bounds: bool,
     ) -> Result<Mu<GenomeInterval>, anyhow::Error> {
-        todo!()
+        let frs = hgvs_to_zbc(n_interval.start.base);
+        let start_offset = n_interval.start.offset.unwrap_or(0);
+        let fre = hgvs_to_zbc(n_interval.end.base);
+        let end_offset = n_interval.end.offset.unwrap_or(0);
+
+        let (fre, frs, start_offset, end_offset) = if self.strand == -1 {
+            (
+                self.tgt_len - 1 - frs,
+                self.tgt_len - 1 - fre,
+                -end_offset,
+                -start_offset,
+            )
+        } else {
+            (fre, frs, start_offset, end_offset)
+        };
+
+        // Obtain the genomic range start (grs) and end (gre).
+        let grs = self
+            .cigar_mapper
+            .map_tgt_to_ref(frs, "start", strict_bounds)?;
+        let gre = self
+            .cigar_mapper
+            .map_tgt_to_ref(frs, "start", strict_bounds)?;
+        let (grs_pos, gre_pos) = (grs.pos + 1, gre.pos + self.gc_offset + 1);
+        let (gs, ge) = (grs_pos + start_offset, gre_pos + end_offset);
+
+        // The returned interval would be uncertain when locating at alignment gaps.
+        Ok(Mu::from(
+            GenomeInterval {
+                start: Some(gs),
+                end: Some(ge),
+            },
+            grs.cigar_op != CigarOp::Del
+                && grs.cigar_op != CigarOp::Ins
+                && gre.cigar_op != CigarOp::Del
+                && gre.cigar_op != CigarOp::Ins,
+        ))
+    }
+
+    fn pos_n_to_c(&self, pos: &TxPos) -> CdsPos {
+        let cds_start_i = self.cds_start_i.unwrap();
+        let cds_end_i = self.cds_end_i.unwrap();
+        if pos.base <= cds_start_i {
+            CdsPos {
+                base: pos.base - cds_start_i - (if pos.base > 0 { 1 } else { 0 }),
+                offset: pos.offset,
+                cds_from: crate::parser::CdsFrom::Start,
+            }
+        } else if pos.base > cds_start_i && pos.base <= cds_end_i {
+            CdsPos {
+                base: pos.base - cds_start_i,
+                offset: pos.offset,
+                cds_from: crate::parser::CdsFrom::Start,
+            }
+        } else {
+            CdsPos {
+                base: pos.base - cds_end_i,
+                offset: pos.offset,
+                cds_from: crate::parser::CdsFrom::End,
+            }
+        }
     }
 
     /// Convert a transcript (n.) interval to a CDS (c.) interval.
@@ -325,20 +385,58 @@ impl AlignmentMapper {
         &self,
         n_interval: &TxInterval,
         strict_bounds: bool,
-    ) -> Result<Mu<CdsInterval>, anyhow::Error> {
-        todo!()
-        // Ok(Mu::Certain(CdsInterval {
-        //     begin: CdsPos {
-        //         base: 0,
-        //         offset: None,
-        //         cds_from: CdsFrom::Start,
-        //     },
-        //     end: CdsPos {
-        //         base: 0,
-        //         offset: None,
-        //         cds_from: CdsFrom::Start,
-        //     },
-        // }))
+    ) -> Result<CdsInterval, anyhow::Error> {
+        if self.cds_start_i.is_none() {
+            return Err(anyhow::anyhow!(
+                "CDS is undefined for {}; cannot map to c. coordinate (non-coding transcript?)",
+                self.tx_ac
+            ));
+        }
+
+        if strict_bounds && (n_interval.start.base <= 0 || n_interval.end.base > self.tgt_len) {
+            return Err(anyhow::anyhow!(
+                "The given coordinate is outside the bounds of the reference sequence."
+            ));
+        }
+
+        Ok(CdsInterval {
+            start: self.pos_n_to_c(&n_interval.start),
+            end: self.pos_n_to_c(&n_interval.start),
+        })
+    }
+
+    fn pos_c_to_n(&self, pos: &CdsPos, strict_bounds: bool) -> Result<TxPos, anyhow::Error> {
+        let cds_start_i = self.cds_start_i.unwrap();
+        let cds_end_i = self.cds_end_i.unwrap();
+
+        let n = match pos.cds_from {
+            crate::parser::CdsFrom::Start => {
+                let n = pos.base + cds_start_i;
+                if n < 0 {
+                    // correct for lack of c.0 coordinate
+                    n + 1
+                } else {
+                    n
+                }
+            }
+            crate::parser::CdsFrom::End => pos.base + cds_end_i,
+        };
+
+        let n = if n <= 0 {
+            // correct for lack of n.0 coordinate
+            n - 1
+        } else {
+            n
+        };
+
+        if (n <= 0 || n > self.tgt_len) && strict_bounds {
+            Err(anyhow::anyhow!("c.{:?} coordinate is out of boounds", pos))
+        } else {
+            Ok(TxPos {
+                base: n,
+                offset: pos.offset,
+            })
+        }
     }
 
     /// Convert a a CDS (c.) interval to a transcript (n.) interval.
@@ -346,18 +444,20 @@ impl AlignmentMapper {
         &self,
         c_interval: &CdsInterval,
         strict_bounds: bool,
-    ) -> Result<Mu<TxInterval>, anyhow::Error> {
-        todo!()
-        // Ok(Mu::Certain(TxInterval {
-        //     begin: TxPos {
-        //         base: 0,
-        //         offset: None,
-        //     },
-        //     end: TxPos {
-        //         base: 0,
-        //         offset: None,
-        //     },
-        // }))
+    ) -> Result<TxInterval, anyhow::Error> {
+        if self.cds_start_i.is_none() {
+            return Err(anyhow::anyhow!(
+                "CDS is undefined for {}; cannot map to c. coordinate (non-coding transcript?)",
+                self.tx_ac
+            ));
+        }
+
+        let n_start = self.pos_c_to_n(&c_interval.start, strict_bounds);
+        let n_end = self.pos_c_to_n(&c_interval.end, strict_bounds);
+        Ok(TxInterval {
+            start: n_start?,
+            end: n_end?,
+        })
     }
 
     /// Convert a genomic (g.) interval to a CDS (c.) interval.
@@ -368,21 +468,8 @@ impl AlignmentMapper {
     ) -> Result<Mu<CdsInterval>, anyhow::Error> {
         let n_interval = self.g_to_n(g_interval, strict_bounds)?;
         Ok(match n_interval {
-            Mu::Certain(n_interval) => {
-                let c_interval = self.n_to_c(&n_interval, strict_bounds)?;
-                match c_interval {
-                    Mu::Certain(c_interval) => Mu::Certain(c_interval),
-                    Mu::Uncertain(c_interval) => Mu::Uncertain(c_interval),
-                }
-            }
-            Mu::Uncertain(n_interval) => {
-                let c_interval = self.n_to_c(&n_interval, strict_bounds)?;
-                match c_interval {
-                    Mu::Certain(c_interval) | Mu::Uncertain(c_interval) => {
-                        Mu::Uncertain(c_interval)
-                    }
-                }
-            }
+            Mu::Certain(n_interval) => Mu::Certain(self.n_to_c(&n_interval, strict_bounds)?),
+            Mu::Uncertain(n_interval) => Mu::Uncertain(self.n_to_c(&n_interval, strict_bounds)?),
         })
     }
 
@@ -393,23 +480,7 @@ impl AlignmentMapper {
         strict_bounds: bool,
     ) -> Result<Mu<GenomeInterval>, anyhow::Error> {
         let n_interval = self.c_to_n(c_interval, strict_bounds)?;
-        Ok(match n_interval {
-            Mu::Certain(n_interval) => {
-                let g_interval = self.n_to_g(&n_interval, strict_bounds)?;
-                match g_interval {
-                    Mu::Certain(g_interval) => Mu::Certain(g_interval),
-                    Mu::Uncertain(g_interval) => Mu::Uncertain(g_interval),
-                }
-            }
-            Mu::Uncertain(n_interval) => {
-                let g_interval = self.n_to_g(&n_interval, strict_bounds)?;
-                match g_interval {
-                    Mu::Certain(g_interval) | Mu::Uncertain(g_interval) => {
-                        Mu::Uncertain(g_interval)
-                    }
-                }
-            }
-        })
+        self.n_to_g(&n_interval, strict_bounds)
     }
 
     /// Return the transcript is coding.
@@ -419,7 +490,7 @@ impl AlignmentMapper {
 
     /// Return whether the given genome interval is in bounds.
     fn is_g_interval_in_bounds(&self, g_interval: GenomeInterval) -> bool {
-        let grs = g_interval.begin.unwrap() - 1 - self.gc_offset;
+        let grs = g_interval.start.unwrap() - 1 - self.gc_offset;
         let gre = g_interval.end.unwrap() - 1 - self.gc_offset;
         grs >= 0 && gre <= self.cigar_mapper.ref_len
     }
@@ -427,7 +498,7 @@ impl AlignmentMapper {
 
 #[cfg(test)]
 mod test {
-    use std::rc::Rc;
+    use std::{rc::Rc, str::FromStr};
 
     use pretty_assertions::assert_eq;
 
@@ -436,7 +507,7 @@ mod test {
             interface::{Provider as Interface, TxExonsRecord},
             uta::{Config, Provider},
         },
-        parser::{CdsFrom, CdsInterval, CdsPos, TxInterval, TxPos},
+        parser::{CdsFrom, CdsInterval, CdsPos, GenomeInterval, TxInterval, TxPos},
     };
 
     use super::{build_tx_cigar, none_if_default, AlignmentMapper};
@@ -548,12 +619,12 @@ mod test {
             assert!(am
                 .n_to_c(
                     &TxInterval {
-                        begin: TxPos {
-                            base: 0,
+                        start: TxPos {
+                            base: -1,
                             offset: None
                         },
                         end: TxPos {
-                            base: 0,
+                            base: -1,
                             offset: None
                         },
                     },
@@ -568,13 +639,13 @@ mod test {
             assert!(am
                 .c_to_n(
                     &CdsInterval {
-                        begin: CdsPos {
-                            base: 0,
+                        start: CdsPos {
+                            base: 99999,
                             offset: None,
                             cds_from: CdsFrom::Start
                         },
                         end: CdsPos {
-                            base: 0,
+                            base: 99999,
                             offset: None,
                             cds_from: CdsFrom::Start
                         },
@@ -583,6 +654,53 @@ mod test {
                 )
                 .is_err());
         }
+
+        Ok(())
+    }
+
+    /// Helper for running multiple projection cases.
+    fn run_test_cases(
+        tx_ac: &str,
+        alt_ac: &str,
+        cases: &Vec<(GenomeInterval, TxInterval, CdsInterval)>,
+    ) -> Result<(), anyhow::Error> {
+        let config = get_config();
+        let provider = Rc::new(Provider::with_config(&config)?);
+        let mapper = AlignmentMapper::new(provider, tx_ac, alt_ac, "splign")?;
+
+        for (g_interval, n_interval, c_interval) in cases {
+            assert_eq!(
+                c_interval,
+                mapper.g_to_c(g_interval, true)?.inner(),
+                "{}~{} {} mapper.g_to_c",
+                tx_ac,
+                alt_ac,
+                &g_interval
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Use NM_178434.2 tests to test mapping with uncertain positions
+    #[test]
+    fn test_LCE3C_uncertain() -> Result<(), anyhow::Error> {
+        let tx_ac = "NM_178434.2";
+        let alt_ac = "NC_000001.10";
+        let test_cases = vec![
+            (
+                GenomeInterval::from_str("?_152573139")?,
+                TxInterval::from_str("?_2")?,
+                CdsInterval::from_str("?_-69")?,
+            ),
+            (
+                GenomeInterval::from_str("152573138_?")?,
+                TxInterval::from_str("1_?")?,
+                CdsInterval::from_str("-70_?")?,
+            ),
+        ];
+
+        run_test_cases(&tx_ac, &alt_ac, &test_cases)?;
 
         Ok(())
     }
