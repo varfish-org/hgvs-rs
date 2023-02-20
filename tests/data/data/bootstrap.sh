@@ -64,7 +64,7 @@ VERSION=$2
 DST=$SCRIPT_DIR
 
 # The HGNC symbols of the genes to fetc.
-GENES="OMA1 OPA1"
+GENES="OMA1 OPA1 LCE3C HIST3H2A LCE2B PTH2"
 
 # Transform gene list for postgres query.
 PG_GENES=$(pg-list $GENES)

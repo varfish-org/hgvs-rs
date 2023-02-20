@@ -26,7 +26,7 @@ use std::rc::Rc;
 
 use crate::{
     data::interface::{Provider, TxExonsRecord},
-    parser::{GenomeInterval, Mu, TxInterval, TxPos},
+    parser::{CdsFrom, CdsInterval, CdsPos, GenomeInterval, Mu, TxInterval, TxPos},
 };
 
 use super::cigar::{
@@ -188,6 +188,12 @@ impl AlignmentMapper {
                 let cds_start_i = tx_info.cds_start_i;
                 let cds_end_i = tx_info.cds_end_i;
 
+                if cds_start_i.is_none() != cds_end_i.is_none() {
+                    return Err(anyhow::anyhow!(
+                        "CDS start and end must both be defined or undefined"
+                    ));
+                }
+
                 let cigar_mapper = CigarMapper::new(&build_tx_cigar(&tx_exons, strand)?);
                 let tgt_len = cigar_mapper.tgt_len;
 
@@ -238,8 +244,12 @@ impl AlignmentMapper {
         })
     }
 
-    /// Convert a genomic (g.) interval to a transcript cDNA (n.) interval.
-    fn g_to_n(&self, g_interval: &GenomeInterval) -> Result<Mu<TxInterval>, anyhow::Error> {
+    /// Convert a genomic (g.) interval to a transcript (n.) interval.
+    fn g_to_n(
+        &self,
+        g_interval: &GenomeInterval,
+        strict_bounds: bool,
+    ) -> Result<Mu<TxInterval>, anyhow::Error> {
         if let GenomeInterval {
             begin: Some(begin),
             end: Some(end),
@@ -300,15 +310,136 @@ impl AlignmentMapper {
             ))
         }
     }
+
+    /// Convert a transcript (n.) interval to a genomic (g.) interval.
+    fn n_to_g(
+        &self,
+        n_interval: &TxInterval,
+        strict_bounds: bool,
+    ) -> Result<Mu<GenomeInterval>, anyhow::Error> {
+        todo!()
+    }
+
+    /// Convert a transcript (n.) interval to a CDS (c.) interval.
+    fn n_to_c(
+        &self,
+        n_interval: &TxInterval,
+        strict_bounds: bool,
+    ) -> Result<Mu<CdsInterval>, anyhow::Error> {
+        todo!()
+        // Ok(Mu::Certain(CdsInterval {
+        //     begin: CdsPos {
+        //         base: 0,
+        //         offset: None,
+        //         cds_from: CdsFrom::Start,
+        //     },
+        //     end: CdsPos {
+        //         base: 0,
+        //         offset: None,
+        //         cds_from: CdsFrom::Start,
+        //     },
+        // }))
+    }
+
+    /// Convert a a CDS (c.) interval to a transcript (n.) interval.
+    fn c_to_n(
+        &self,
+        c_interval: &CdsInterval,
+        strict_bounds: bool,
+    ) -> Result<Mu<TxInterval>, anyhow::Error> {
+        todo!()
+        // Ok(Mu::Certain(TxInterval {
+        //     begin: TxPos {
+        //         base: 0,
+        //         offset: None,
+        //     },
+        //     end: TxPos {
+        //         base: 0,
+        //         offset: None,
+        //     },
+        // }))
+    }
+
+    /// Convert a genomic (g.) interval to a CDS (c.) interval.
+    fn g_to_c(
+        &self,
+        g_interval: &GenomeInterval,
+        strict_bounds: bool,
+    ) -> Result<Mu<CdsInterval>, anyhow::Error> {
+        let n_interval = self.g_to_n(g_interval, strict_bounds)?;
+        Ok(match n_interval {
+            Mu::Certain(n_interval) => {
+                let c_interval = self.n_to_c(&n_interval, strict_bounds)?;
+                match c_interval {
+                    Mu::Certain(c_interval) => Mu::Certain(c_interval),
+                    Mu::Uncertain(c_interval) => Mu::Uncertain(c_interval),
+                }
+            }
+            Mu::Uncertain(n_interval) => {
+                let c_interval = self.n_to_c(&n_interval, strict_bounds)?;
+                match c_interval {
+                    Mu::Certain(c_interval) | Mu::Uncertain(c_interval) => {
+                        Mu::Uncertain(c_interval)
+                    }
+                }
+            }
+        })
+    }
+
+    /// Convert a CDS (c.) interval to a genomic (g.) interval.
+    fn c_to_g(
+        &self,
+        c_interval: &CdsInterval,
+        strict_bounds: bool,
+    ) -> Result<Mu<GenomeInterval>, anyhow::Error> {
+        let n_interval = self.c_to_n(c_interval, strict_bounds)?;
+        Ok(match n_interval {
+            Mu::Certain(n_interval) => {
+                let g_interval = self.n_to_g(&n_interval, strict_bounds)?;
+                match g_interval {
+                    Mu::Certain(g_interval) => Mu::Certain(g_interval),
+                    Mu::Uncertain(g_interval) => Mu::Uncertain(g_interval),
+                }
+            }
+            Mu::Uncertain(n_interval) => {
+                let g_interval = self.n_to_g(&n_interval, strict_bounds)?;
+                match g_interval {
+                    Mu::Certain(g_interval) | Mu::Uncertain(g_interval) => {
+                        Mu::Uncertain(g_interval)
+                    }
+                }
+            }
+        })
+    }
+
+    /// Return the transcript is coding.
+    fn is_coding_transcript(&self) -> bool {
+        self.cds_start_i.is_some()
+    }
+
+    /// Return whether the given genome interval is in bounds.
+    fn is_g_interval_in_bounds(&self, g_interval: GenomeInterval) -> bool {
+        let grs = g_interval.begin.unwrap() - 1 - self.gc_offset;
+        let gre = g_interval.end.unwrap() - 1 - self.gc_offset;
+        grs >= 0 && gre <= self.cigar_mapper.ref_len
+    }
 }
 
 #[cfg(test)]
 mod test {
+    use std::rc::Rc;
+
     use pretty_assertions::assert_eq;
 
-    use crate::data::interface::TxExonsRecord;
+    use crate::{
+        data::{
+            interface::{Provider as Interface, TxExonsRecord},
+            uta::{Config, Provider},
+        },
+        parser::{CdsFrom, CdsInterval, CdsPos, TxInterval, TxPos},
+    };
 
-    use super::{build_tx_cigar, none_if_default};
+    use super::{build_tx_cigar, none_if_default, AlignmentMapper};
 
     #[test]
     fn build_tx_cigar_empty() {
@@ -371,5 +502,88 @@ mod test {
     fn run_none_if_default() {
         assert_eq!(none_if_default(0u32), None);
         assert_eq!(none_if_default(1u32), Some(1u32));
+    }
+
+    fn get_config() -> Config {
+        Config {
+            db_url: std::env::var("TEST_UTA_DATABASE_URL")
+                .expect("Environment variable TEST_UTA_DATABASE_URL undefined!"),
+            db_schema: std::env::var("TEST_UTA_DATABASE_SCHEMA")
+                .expect("Environment variable TEST_UTA_DATABASE_SCHEMA undefined!"),
+        }
+    }
+
+    #[test]
+    fn construction() -> Result<(), anyhow::Error> {
+        let config = get_config();
+        let provider = Provider::with_config(&config)?;
+
+        assert_eq!(provider.data_version(), config.db_schema);
+        assert_eq!(provider.schema_version(), "1.1");
+
+        Ok(())
+    }
+
+    #[test]
+    fn failures() -> Result<(), anyhow::Error> {
+        let config = get_config();
+        let provider = Rc::new(Provider::with_config(&config)?);
+
+        // unknown sequences
+
+        assert!(AlignmentMapper::new(provider.clone(), "bogus", "NM_033089.6", "splign").is_err());
+        assert!(
+            AlignmentMapper::new(provider.clone(), "bogus", "NM_033089.6", "transcript").is_err()
+        );
+        assert!(AlignmentMapper::new(provider.clone(), "NM_033089.6", "bogus", "splign").is_err());
+        assert!(
+            AlignmentMapper::new(provider.clone(), "NM_000051.3", "NC_000011.9", "bogus").is_err()
+        );
+
+        // invalid intervals
+
+        {
+            let am =
+                AlignmentMapper::new(provider.clone(), "NM_000348.3", "NC_000002.11", "splign")?;
+            assert!(am
+                .n_to_c(
+                    &TxInterval {
+                        begin: TxPos {
+                            base: 0,
+                            offset: None
+                        },
+                        end: TxPos {
+                            base: 0,
+                            offset: None
+                        },
+                    },
+                    true
+                )
+                .is_err());
+        }
+
+        {
+            let am =
+                AlignmentMapper::new(provider.clone(), "NM_000348.3", "NC_000002.11", "splign")?;
+            assert!(am
+                .c_to_n(
+                    &CdsInterval {
+                        begin: CdsPos {
+                            base: 0,
+                            offset: None,
+                            cds_from: CdsFrom::Start
+                        },
+                        end: CdsPos {
+                            base: 0,
+                            offset: None,
+                            cds_from: CdsFrom::Start
+                        },
+                    },
+                    true
+                )
+                .is_err());
+        }
+
+        Ok(())
     }
 }

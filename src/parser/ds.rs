@@ -1,5 +1,7 @@
 //! Data structures for representing HGVS variant descriptions.
 
+use pretty_assertions::private::CreateComparison;
+
 /// Expression of "maybe uncertain".
 #[derive(Clone, Debug, PartialEq)]
 pub enum Mu<T> {
