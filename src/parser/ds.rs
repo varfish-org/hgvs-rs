@@ -315,3 +315,110 @@ pub struct ProtPos {
     /// Number of `aa`.
     pub number: i32,
 }
+
+#[cfg(test)]
+mod test {
+    use pretty_assertions::assert_eq;
+
+    use super::{TxInterval, TxPos};
+    use crate::parser::Mu;
+
+    #[test]
+    fn mu_construct() {
+        assert_eq!(format!("{:?}", Mu::Certain(1)), "Certain(1)");
+        assert_eq!(format!("{:?}", Mu::Certain(Some(1))), "Certain(Some(1))");
+        assert_eq!(format!("{:?}", Mu::Uncertain(1)), "Uncertain(1)");
+        assert_eq!(
+            format!("{:?}", Mu::Uncertain(Some(1))),
+            "Uncertain(Some(1))"
+        );
+    }
+
+    #[test]
+    fn mu_unwrap() {
+        assert_eq!(Mu::Certain(1).unwrap(), 1);
+        assert_eq!(Mu::Uncertain(1).unwrap(), 1);
+    }
+
+    #[test]
+    fn mu_inner() {
+        assert_eq!(Mu::Certain(1).inner(), &1);
+        assert_eq!(Mu::Uncertain(1).inner(), &1);
+    }
+
+    #[test]
+    fn mu_from() {
+        assert_eq!(Mu::from(1, true), Mu::Certain(1));
+        assert_eq!(Mu::from(1, false), Mu::Uncertain(1));
+        assert_eq!(Mu::from(Some(1), true), Mu::Certain(Some(1)));
+        assert_eq!(Mu::from(Some(1), false), Mu::Uncertain(Some(1)));
+    }
+
+    #[derive(Clone, Debug, PartialEq)]
+    pub struct TestInterval {
+        pub start: TestPos,
+        pub end: TestPos,
+    }
+
+    #[derive(Clone, Debug, PartialEq)]
+    pub struct TestPos {
+        pub base: i32,
+        pub offset: Option<i32>,
+    }
+
+    #[test]
+    fn mu_from_problematic() {
+        let test_itv = TestInterval {
+            start: TestPos {
+                base: 34,
+                offset: Some(1),
+            },
+            end: TestPos {
+                base: 35,
+                offset: Some(-1),
+            },
+        };
+
+        assert_eq!(
+            Mu::from(test_itv, true),
+            Mu::Certain(TestInterval {
+                start: TestPos {
+                    base: 34,
+                    offset: Some(1),
+                },
+                end: TestPos {
+                    base: 35,
+                    offset: Some(-1),
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn mu_from_tx_interval() {
+        let test_itv = TxInterval {
+            start: TxPos {
+                base: 34,
+                offset: Some(1),
+            },
+            end: TxPos {
+                base: 35,
+                offset: Some(-1),
+            },
+        };
+
+        assert_eq!(
+            Mu::from(test_itv, true),
+            Mu::Certain(TxInterval {
+                start: TxPos {
+                    base: 34,
+                    offset: Some(1),
+                },
+                end: TxPos {
+                    base: 35,
+                    offset: Some(-1),
+                }
+            })
+        );
+    }
+}

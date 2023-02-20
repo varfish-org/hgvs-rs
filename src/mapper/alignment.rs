@@ -103,7 +103,7 @@ where
 }
 
 /// Configuration for mapping.
-struct Config {
+pub struct Config {
     /// Require transcript variants to be within transcript sequence bounds.
     pub strict_bounds: bool,
 }
@@ -118,7 +118,7 @@ impl Default for Config {
 
 /// Map HGVS location objects between genomic (g), non-coding (n) and cds (c)
 /// coordinates according to a CIGAR string.
-struct AlignmentMapper {
+pub struct AlignmentMapper {
     /// Configuration for alignment mapping.
     pub config: Config,
     /// Data provider to use for the mapping.
@@ -245,10 +245,10 @@ impl AlignmentMapper {
     }
 
     /// Convert a genomic (g.) interval to a transcript (n.) interval.
-    fn g_to_n(
+    pub fn g_to_n(
         &self,
         g_interval: &GenomeInterval,
-        strict_bounds: bool,
+        _strict_bounds: bool,
     ) -> Result<Mu<TxInterval>, anyhow::Error> {
         if let GenomeInterval {
             start: Some(begin),
@@ -287,22 +287,26 @@ impl AlignmentMapper {
             };
 
             // The position is uncertain if the alignment ends in a gap.
-            Ok(Mu::from(
-                TxInterval {
-                    start: TxPos {
-                        base: zbc_to_hgvs(frs.pos),
-                        offset: none_if_default(frs.offset),
-                    },
-                    end: TxPos {
-                        base: zbc_to_hgvs(fre.pos),
-                        offset: none_if_default(fre.offset),
-                    },
+            let n_interval = TxInterval {
+                start: TxPos {
+                    base: zbc_to_hgvs(frs.pos),
+                    offset: none_if_default(frs.offset),
                 },
-                frs.cigar_op != CigarOp::Del
-                    && frs.cigar_op != CigarOp::Ins
-                    && fre.cigar_op != CigarOp::Del
-                    && fre.cigar_op != CigarOp::Ins,
-            ))
+                end: TxPos {
+                    base: zbc_to_hgvs(fre.pos),
+                    offset: none_if_default(fre.offset),
+                },
+            };
+            let result = if frs.cigar_op != CigarOp::Del
+                && frs.cigar_op != CigarOp::Ins
+                && fre.cigar_op != CigarOp::Del
+                && fre.cigar_op != CigarOp::Ins
+            {
+                Mu::Certain(n_interval)
+            } else {
+                Mu::Uncertain(n_interval)
+            };
+            Ok(result)
         } else {
             Err(anyhow::anyhow!(
                 "Cannot project genome interval with missing start or end position: {}",
@@ -312,7 +316,7 @@ impl AlignmentMapper {
     }
 
     /// Convert a transcript (n.) interval to a genomic (g.) interval.
-    fn n_to_g(
+    pub fn n_to_g(
         &self,
         n_interval: &TxInterval,
         strict_bounds: bool,
@@ -339,8 +343,8 @@ impl AlignmentMapper {
             .map_tgt_to_ref(frs, "start", strict_bounds)?;
         let gre = self
             .cigar_mapper
-            .map_tgt_to_ref(frs, "start", strict_bounds)?;
-        let (grs_pos, gre_pos) = (grs.pos + 1, gre.pos + self.gc_offset + 1);
+            .map_tgt_to_ref(fre, "start", strict_bounds)?;
+        let (grs_pos, gre_pos) = (grs.pos + self.gc_offset + 1, gre.pos + self.gc_offset + 1);
         let (gs, ge) = (grs_pos + start_offset, gre_pos + end_offset);
 
         // The returned interval would be uncertain when locating at alignment gaps.
@@ -381,7 +385,7 @@ impl AlignmentMapper {
     }
 
     /// Convert a transcript (n.) interval to a CDS (c.) interval.
-    fn n_to_c(
+    pub fn n_to_c(
         &self,
         n_interval: &TxInterval,
         strict_bounds: bool,
@@ -401,18 +405,18 @@ impl AlignmentMapper {
 
         Ok(CdsInterval {
             start: self.pos_n_to_c(&n_interval.start),
-            end: self.pos_n_to_c(&n_interval.start),
+            end: self.pos_n_to_c(&n_interval.end),
         })
     }
 
-    fn pos_c_to_n(&self, pos: &CdsPos, strict_bounds: bool) -> Result<TxPos, anyhow::Error> {
+    pub fn pos_c_to_n(&self, pos: &CdsPos, strict_bounds: bool) -> Result<TxPos, anyhow::Error> {
         let cds_start_i = self.cds_start_i.unwrap();
         let cds_end_i = self.cds_end_i.unwrap();
 
         let n = match pos.cds_from {
             crate::parser::CdsFrom::Start => {
                 let n = pos.base + cds_start_i;
-                if n < 0 {
+                if pos.base < 0 {
                     // correct for lack of c.0 coordinate
                     n + 1
                 } else {
@@ -440,7 +444,7 @@ impl AlignmentMapper {
     }
 
     /// Convert a a CDS (c.) interval to a transcript (n.) interval.
-    fn c_to_n(
+    pub fn c_to_n(
         &self,
         c_interval: &CdsInterval,
         strict_bounds: bool,
@@ -461,35 +465,36 @@ impl AlignmentMapper {
     }
 
     /// Convert a genomic (g.) interval to a CDS (c.) interval.
-    fn g_to_c(
+    pub fn g_to_c(
         &self,
         g_interval: &GenomeInterval,
         strict_bounds: bool,
     ) -> Result<Mu<CdsInterval>, anyhow::Error> {
         let n_interval = self.g_to_n(g_interval, strict_bounds)?;
-        Ok(match n_interval {
+        Ok(match &n_interval {
             Mu::Certain(n_interval) => Mu::Certain(self.n_to_c(&n_interval, strict_bounds)?),
             Mu::Uncertain(n_interval) => Mu::Uncertain(self.n_to_c(&n_interval, strict_bounds)?),
         })
     }
 
     /// Convert a CDS (c.) interval to a genomic (g.) interval.
-    fn c_to_g(
+    pub fn c_to_g(
         &self,
         c_interval: &CdsInterval,
         strict_bounds: bool,
     ) -> Result<Mu<GenomeInterval>, anyhow::Error> {
         let n_interval = self.c_to_n(c_interval, strict_bounds)?;
-        self.n_to_g(&n_interval, strict_bounds)
+        let g_interval = self.n_to_g(&n_interval, strict_bounds)?;
+        Ok(g_interval)
     }
 
     /// Return the transcript is coding.
-    fn is_coding_transcript(&self) -> bool {
+    pub fn is_coding_transcript(&self) -> bool {
         self.cds_start_i.is_some()
     }
 
     /// Return whether the given genome interval is in bounds.
-    fn is_g_interval_in_bounds(&self, g_interval: GenomeInterval) -> bool {
+    pub fn is_g_interval_in_bounds(&self, g_interval: GenomeInterval) -> bool {
         let grs = g_interval.start.unwrap() - 1 - self.gc_offset;
         let gre = g_interval.end.unwrap() - 1 - self.gc_offset;
         grs >= 0 && gre <= self.cigar_mapper.ref_len
@@ -507,7 +512,7 @@ mod test {
             interface::{Provider as Interface, TxExonsRecord},
             uta::{Config, Provider},
         },
-        parser::{CdsFrom, CdsInterval, CdsPos, GenomeInterval, TxInterval, TxPos, Mu},
+        parser::{CdsFrom, CdsInterval, CdsPos, GenomeInterval, Mu, TxInterval, TxPos},
     };
 
     use super::{build_tx_cigar, none_if_default, AlignmentMapper};
@@ -573,6 +578,8 @@ mod test {
     fn run_none_if_default() {
         assert_eq!(none_if_default(0u32), None);
         assert_eq!(none_if_default(1u32), Some(1u32));
+        assert_eq!(none_if_default(1i32), Some(1i32));
+        assert_eq!(none_if_default(-1i32), Some(-1i32));
     }
 
     fn get_config() -> Config {
@@ -726,7 +733,7 @@ mod test {
 
     /// Use NM_178434.2 tests to test mapping with uncertain positions
     // #[test]  // not yet supported (same as Python package)
-    fn test_lce3c_uncertain() -> Result<(), anyhow::Error> {
+    fn _test_lce3c_uncertain() -> Result<(), anyhow::Error> {
         let tx_ac = "NM_178434.2";
         let alt_ac = "NC_000001.10";
         let test_cases = vec![
@@ -840,7 +847,7 @@ mod test {
             (
                 GenomeInterval::from_str("228645125")?,
                 TxInterval::from_str("436")?,
-                CdsInterval::from_str("1")?,
+                CdsInterval::from_str("*1")?,
             ),
             (
                 GenomeInterval::from_str("228645124")?,
@@ -918,7 +925,7 @@ mod test {
             // around end of exon 2
             (
                 GenomeInterval::from_str("152659652")?,
-                TxInterval::from_str("397")?,
+                TxInterval::from_str("387")?,
                 CdsInterval::from_str("333")?,
             ),
             (
