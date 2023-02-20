@@ -5,12 +5,14 @@
 use linked_hash_map::LinkedHashMap;
 use postgres::{Client, NoTls, Row};
 use std::fmt::Debug;
+use std::sync::Mutex;
 
 use crate::static_data::{Assembly, ASSEMBLY_INFOS};
 
-use super::{
-    GeneInfoRecord, Interface, TxExonsRecord, TxForRegionRecord, TxIdentityInfo, TxInfoRecord,
-    TxMappingOptionsRecord, TxSimilarityRecord,
+use crate::data::{
+    interface::GeneInfoRecord, interface::Provider as ProviderInterface, interface::TxExonsRecord,
+    interface::TxForRegionRecord, interface::TxIdentityInfo, interface::TxInfoRecord,
+    interface::TxMappingOptionsRecord, interface::TxSimilarityRecord,
 };
 
 /// Configurationf or the `data::uta::Provider`.
@@ -157,7 +159,7 @@ pub struct Provider {
     /// Configuration for the access.
     config: Config,
     /// Connection to the postgres database.
-    conn: Client,
+    conn: Mutex<Client>,
     /// The schema version, set on creation.
     schema_version: String,
 }
@@ -174,8 +176,9 @@ impl Debug for Provider {
 impl Provider {
     pub fn with_config(config: &Config) -> Result<Self, anyhow::Error> {
         let config = config.clone();
-        let mut conn = Client::connect(&config.db_url, NoTls)?;
-        let schema_version = Self::fetch_schema_version(&mut conn, &config.db_schema)?;
+        let conn = Mutex::new(Client::connect(&config.db_url, NoTls)?);
+        let schema_version =
+            Self::fetch_schema_version(&mut conn.lock().unwrap(), &config.db_schema)?;
         Ok(Self {
             config,
             conn,
@@ -190,7 +193,7 @@ impl Provider {
     }
 }
 
-impl Interface for Provider {
+impl ProviderInterface for Provider {
     fn data_version(&self) -> &str {
         &self.config.db_schema
     }
@@ -208,32 +211,39 @@ impl Interface for Provider {
         )
     }
 
-    fn get_gene_info(&mut self, hgnc: &str) -> Result<GeneInfoRecord, anyhow::Error> {
+    fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, anyhow::Error> {
         let sql = format!(
             "SELECT * FROM {}.gene WHERE hgnc = $1",
             self.config.db_schema
         );
-        self.conn.query_one(&sql, &[&hgnc])?.try_into()
+        self.conn
+            .lock()
+            .unwrap()
+            .query_one(&sql, &[&hgnc])?
+            .try_into()
     }
 
-    fn get_pro_ac_for_tx_ac(&mut self, tx_ac: &str) -> Result<Option<String>, anyhow::Error> {
+    fn get_pro_ac_for_tx_ac(&self, tx_ac: &str) -> Result<Option<String>, anyhow::Error> {
         let sql = format!(
             "SELECT pro_ac FROM {}.associated_accessions \
             WHERE tx_ac = $1 ORDER BY pro_ac DESC",
             self.config.db_schema
         );
-        if let Some(row) = (self.conn.query(&sql, &[&tx_ac])?).into_iter().next() {
+        if let Some(row) = (self.conn.lock().unwrap().query(&sql, &[&tx_ac])?)
+            .into_iter()
+            .next()
+        {
             return Ok(Some(row.try_get("pro_ac")?));
         }
         Ok(None)
     }
 
-    fn get_seq(&mut self, ac: &str) -> Result<String, anyhow::Error> {
+    fn get_seq(&self, ac: &str) -> Result<String, anyhow::Error> {
         self.get_seq_part(ac, None, None)
     }
 
     fn get_seq_part(
-        &mut self,
+        &self,
         ac: &str,
         begin: Option<usize>,
         end: Option<usize>,
@@ -242,13 +252,23 @@ impl Interface for Provider {
             "SELECT seq_id FROM {}.seq_anno WHERE ac = $1",
             self.config.db_schema
         );
-        let seq_id: String = self.conn.query_one(&sql, &[&ac])?.try_get("seq_id")?;
+        let seq_id: String = self
+            .conn
+            .lock()
+            .unwrap()
+            .query_one(&sql, &[&ac])?
+            .try_get("seq_id")?;
 
         let sql = format!(
             "SELECT seq FROM {}.seq WHERE seq_id = $1",
             self.config.db_schema
         );
-        let seq: String = self.conn.query_one(&sql, &[&seq_id])?.try_get("seq")?;
+        let seq: String = self
+            .conn
+            .lock()
+            .unwrap()
+            .query_one(&sql, &[&seq_id])?
+            .try_get("seq")?;
 
         let begin = begin.unwrap_or_default();
         let end = end
@@ -258,9 +278,9 @@ impl Interface for Provider {
     }
 
     fn get_similar_transcripts(
-        &mut self,
+        &self,
         tx_ac: &str,
-    ) -> Result<Vec<super::TxSimilarityRecord>, anyhow::Error> {
+    ) -> Result<Vec<TxSimilarityRecord>, anyhow::Error> {
         let sql = format!(
             "SELECT * FROM {}.tx_similarity_v \
             WHERE tx_ac1 = $1 \
@@ -268,27 +288,31 @@ impl Interface for Provider {
             self.config.db_schema
         );
         let mut result = Vec::new();
-        for row in self.conn.query(&sql, &[&tx_ac])? {
+        for row in self.conn.lock().unwrap().query(&sql, &[&tx_ac])? {
             result.push(row.try_into()?);
         }
         Ok(result)
     }
 
     fn get_tx_exons(
-        &mut self,
+        &self,
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<Vec<super::TxExonsRecord>, anyhow::Error> {
+    ) -> Result<Vec<TxExonsRecord>, anyhow::Error> {
         let sql = format!(
             "SELECT * FROM {}.tx_exon_aln_v \
             WHERE tx_ac = $1 AND alt_ac = $2 and alt_aln_method = $3 \
-            ORDER BY tx_start_i, tx_end_i, alt_start_i, alt_end_i, \
-                     tx_exon_set_id, alt_exon_set_id",
+            ORDER BY alt_start_i",
             self.config.db_schema
         );
         let mut result = Vec::new();
-        for row in self.conn.query(&sql, &[&tx_ac, &alt_ac, &alt_aln_method])? {
+        for row in self
+            .conn
+            .lock()
+            .unwrap()
+            .query(&sql, &[&tx_ac, &alt_ac, &alt_aln_method])?
+        {
             result.push(row.try_into()?);
         }
         if result.is_empty() {
@@ -303,7 +327,7 @@ impl Interface for Provider {
         }
     }
 
-    fn get_tx_for_gene(&mut self, gene: &str) -> Result<Vec<TxInfoRecord>, anyhow::Error> {
+    fn get_tx_for_gene(&self, gene: &str) -> Result<Vec<TxInfoRecord>, anyhow::Error> {
         let sql = format!(
             "SELECT hgnc, cds_start_i, cds_end_i, tx_ac, alt_ac, alt_aln_method \
             FROM {}.transcript T \
@@ -313,14 +337,14 @@ impl Interface for Provider {
             self.config.db_schema, self.config.db_schema,
         );
         let mut result = Vec::new();
-        for row in self.conn.query(&sql, &[&gene])? {
+        for row in self.conn.lock().unwrap().query(&sql, &[&gene])? {
             result.push(row.try_into()?);
         }
         Ok(result)
     }
 
     fn get_tx_for_region(
-        &mut self,
+        &self,
         alt_ac: &str,
         alt_aln_method: &str,
         start_i: i32,
@@ -338,7 +362,12 @@ impl Interface for Provider {
             self.config.db_schema, self.config.db_schema,
         );
         let mut result = Vec::new();
-        for row in self.conn.query(&sql, &[&alt_ac, &start_i, &end_i])? {
+        for row in self
+            .conn
+            .lock()
+            .unwrap()
+            .query(&sql, &[&alt_ac, &start_i, &end_i])?
+        {
             let record: TxForRegionRecord = row.try_into()?;
             // NB: The original Python code did not use alt_aln_method in the query either.
             if record.alt_aln_method == alt_aln_method {
@@ -348,7 +377,7 @@ impl Interface for Provider {
         Ok(result)
     }
 
-    fn get_tx_identity_info(&mut self, tx_ac: &str) -> Result<TxIdentityInfo, anyhow::Error> {
+    fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, anyhow::Error> {
         let sql = format!(
             "SELECT DISTINCT(tx_ac), alt_ac, alt_aln_method, cds_start_i, \
                     cds_end_i, lengths, hgnc \
@@ -357,11 +386,15 @@ impl Interface for Provider {
             ORDER BY tx_ac, alt_ac, alt_aln_method, cds_start_i, cds_end_i, lengths, hgnc",
             self.config.db_schema
         );
-        self.conn.query_one(&sql, &[&tx_ac])?.try_into()
+        self.conn
+            .lock()
+            .unwrap()
+            .query_one(&sql, &[&tx_ac])?
+            .try_into()
     }
 
     fn get_tx_info(
-        &mut self,
+        &self,
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
@@ -375,12 +408,14 @@ impl Interface for Provider {
             self.config.db_schema, self.config.db_schema,
         );
         self.conn
+            .lock()
+            .unwrap()
             .query_one(&sql, &[&tx_ac, &alt_ac, &alt_aln_method])?
             .try_into()
     }
 
     fn get_tx_mapping_options(
-        &mut self,
+        &self,
         tx_ac: &str,
     ) -> Result<Vec<TxMappingOptionsRecord>, anyhow::Error> {
         let sql = format!(
@@ -391,7 +426,7 @@ impl Interface for Provider {
             self.config.db_schema
         );
         let mut result = Vec::new();
-        for row in self.conn.query(&sql, &[&tx_ac])? {
+        for row in self.conn.lock().unwrap().query(&sql, &[&tx_ac])? {
             result.push(row.try_into()?);
         }
         Ok(result)
@@ -400,7 +435,7 @@ impl Interface for Provider {
 
 #[cfg(test)]
 mod test {
-    use crate::{data::Interface, static_data::Assembly};
+    use crate::{data::interface::Provider as ProviderInterface, static_data::Assembly};
 
     use super::{Config, Provider};
 
@@ -441,7 +476,7 @@ mod test {
 
     #[test]
     fn get_gene_info() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         assert_eq!(
             format!("{:?}", provider.get_gene_info("OMA1")?),
@@ -456,7 +491,7 @@ mod test {
 
     #[test]
     fn get_pro_ac_for_tx_ac() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         assert_eq!(
             provider.get_pro_ac_for_tx_ac("NM_130831.2")?,
@@ -469,7 +504,7 @@ mod test {
 
     #[test]
     fn get_seq() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         assert_eq!(provider.get_seq("NM_001354664.1")?.len(), 6386);
 
@@ -478,7 +513,7 @@ mod test {
 
     #[test]
     fn get_seq_part() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         assert_eq!(
             provider
@@ -492,7 +527,7 @@ mod test {
 
     #[test]
     fn get_similar_transcripts() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         let records = provider.get_similar_transcripts("NM_001354664.1")?;
 
@@ -509,7 +544,7 @@ mod test {
 
     #[test]
     fn get_tx_exons() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         let records = provider.get_tx_exons("NM_001354664.1", "NC_000003.11", "splign")?;
 
@@ -529,7 +564,7 @@ mod test {
 
     #[test]
     fn get_tx_for_gene() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         let records = provider.get_tx_for_gene("OMA1")?;
 
@@ -546,7 +581,7 @@ mod test {
 
     #[test]
     fn get_tx_for_region() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         let records = provider.get_tx_for_region("NC_000001.10", "splign", 58946391, 59012446)?;
 
@@ -563,7 +598,7 @@ mod test {
 
     #[test]
     fn get_tx_identity_info() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         let record = provider.get_tx_identity_info("ENST00000421528")?;
 
@@ -579,7 +614,7 @@ mod test {
 
     #[test]
     fn get_tx_info() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         let record = provider.get_tx_info("ENST00000421528", "NC_000001.10", "genebuild")?;
 
@@ -595,7 +630,7 @@ mod test {
 
     #[test]
     fn get_tx_mapping_options() -> Result<(), anyhow::Error> {
-        let mut provider = Provider::with_config(&get_config())?;
+        let provider = Provider::with_config(&get_config())?;
 
         let records = provider.get_tx_mapping_options("ENST00000421528")?;
 

@@ -15,7 +15,7 @@ use crate::static_data::Assembly;
 /// aliases | AT1,ATA,ATC,ATD,ATE,ATDC,TEL1,TELO1
 /// added   | 2014-02-04 21:39:32.57125
 /// ```
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct GeneInfoRecord {
     pub hgnc: String,
     pub maploc: String,
@@ -44,7 +44,7 @@ pub struct GeneInfoRecord {
 /// structure means that the transcripts are defined on the same
 /// reference sequence and have the same exon spans on that
 /// sequence.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct TxSimilarityRecord {
     /// Accession of first transcript.
     pub tx_ac1: String,
@@ -81,7 +81,7 @@ pub struct TxSimilarityRecord {
 /// alt_exon_id     | 6063334
 /// exon_aln_id     | 3461425
 ///```
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct TxExonsRecord {
     pub hgnc: String,
     pub tx_ac: String,
@@ -111,7 +111,7 @@ pub struct TxExonsRecord {
 /// start_i        | 95226307
 /// end_i          | 95248406
 /// ```
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct TxForRegionRecord {
     pub tx_ac: String,
     pub alt_ac: String,
@@ -130,7 +130,7 @@ pub struct TxForRegionRecord {
 /// lengths        | {707,79,410}
 /// hgnc           | VSX1
 /// ```
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct TxIdentityInfo {
     pub tx_ac: String,
     pub alt_ac: String,
@@ -149,7 +149,7 @@ pub struct TxIdentityInfo {
 /// alt_ac         | AC_000143.1
 /// alt_aln_method | splign
 /// ```
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct TxInfoRecord {
     pub hgnc: String,
     pub cds_start_i: Option<i32>,
@@ -169,14 +169,15 @@ pub struct TxInfoRecord {
 /// alt_ac         | NC_000012.11
 /// alt_aln_method | genebuild
 /// ```
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct TxMappingOptionsRecord {
     pub tx_ac: String,
     pub alt_ac: String,
     pub alt_aln_method: String,
 }
 
-pub trait Interface {
+/// Interface for data providers.
+pub trait Provider {
     /// Return the data version, e.g., `uta_20180821`.
     fn data_version(&self) -> &str;
 
@@ -198,7 +199,7 @@ pub trait Interface {
     /// # Arguments
     ///
     /// * `hgnc` - HGNC gene name
-    fn get_gene_info(&mut self, hgnc: &str) -> Result<GeneInfoRecord, anyhow::Error>;
+    fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, anyhow::Error>;
 
     /// Return the (single) associated protein accession for a given transcript accession,
     /// or None if not found.
@@ -206,14 +207,14 @@ pub trait Interface {
     /// # Arguments
     ///
     /// * `tx_ac` -- transcript accession with version (e.g., 'NM_000051.3')
-    fn get_pro_ac_for_tx_ac(&mut self, tx_ac: &str) -> Result<Option<String>, anyhow::Error>;
+    fn get_pro_ac_for_tx_ac(&self, tx_ac: &str) -> Result<Option<String>, anyhow::Error>;
 
     /// Return full sequence for the given accession.
     ///
     /// # Arguments
     ///
     /// * `ac` -- accession
-    fn get_seq(&mut self, ac: &str) -> Result<String, anyhow::Error>;
+    fn get_seq(&self, ac: &str) -> Result<String, anyhow::Error>;
 
     /// Return sequence part for the given accession.
     ///
@@ -223,7 +224,7 @@ pub trait Interface {
     /// * `start` -- start position (0-based, start of sequence if missing)
     /// * `end` -- end position (0-based, end of sequence if missing)
     fn get_seq_part(
-        &mut self,
+        &self,
         ac: &str,
         begin: Option<usize>,
         end: Option<usize>,
@@ -236,7 +237,7 @@ pub trait Interface {
     ///
     /// * `tx_ac` -- transcript accession with version (e.g., 'NM_000051.3')
     fn get_similar_transcripts(
-        &mut self,
+        &self,
         tx_ac: &str,
     ) -> Result<Vec<TxSimilarityRecord>, anyhow::Error>;
 
@@ -249,7 +250,7 @@ pub trait Interface {
     /// * `alt_ac` -- specific genomic sequence (e.g., NC_000011.4)
     /// * `alt_aln_method` -- sequence alignment method (e.g., splign, blat)
     fn get_tx_exons(
-        &mut self,
+        &self,
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
@@ -260,7 +261,7 @@ pub trait Interface {
     /// # Arguments
     ///
     /// * `gene` - HGNC gene name
-    fn get_tx_for_gene(&mut self, gene: &str) -> Result<Vec<TxInfoRecord>, anyhow::Error>;
+    fn get_tx_for_gene(&self, gene: &str) -> Result<Vec<TxInfoRecord>, anyhow::Error>;
 
     /// Return transcripts that overlap given region.
     ///
@@ -271,7 +272,7 @@ pub trait Interface {
     // * `start_i` -- 5' bound of region
     // * `end_i` -- 3' bound of region
     fn get_tx_for_region(
-        &mut self,
+        &self,
         alt_ac: &str,
         alt_aln_method: &str,
         start_i: i32,
@@ -283,7 +284,7 @@ pub trait Interface {
     /// # Arguments
     ///
     /// * `tx_ac` -- transcript accession with version (e.g., 'NM_199425.2')
-    fn get_tx_identity_info(&mut self, tx_ac: &str) -> Result<TxIdentityInfo, anyhow::Error>;
+    fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, anyhow::Error>;
 
     /// Return a single transcript info for supplied accession (tx_ac, alt_ac, alt_aln_method), or None if not found.
     ///
@@ -293,7 +294,7 @@ pub trait Interface {
     /// * `alt_ac -- specific genomic sequence (e.g., NC_000011.4)
     /// * `alt_aln_method` -- sequence alignment method (e.g., splign, blat)
     fn get_tx_info(
-        &mut self,
+        &self,
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
@@ -308,7 +309,7 @@ pub trait Interface {
     ///
     /// * `tx_ac` -- transcript accession with version (e.g., 'NM_000051.3')
     fn get_tx_mapping_options(
-        &mut self,
+        &self,
         tax_ac: &str,
     ) -> Result<Vec<TxMappingOptionsRecord>, anyhow::Error>;
 }

@@ -14,7 +14,7 @@ use crate::parser::ds::*;
 use crate::parser::parse_funcs::*;
 
 impl HgvsVariant {
-    pub fn parse_cds_variant(input: &str) -> IResult<&str, Self> {
+    fn parse_cds_variant(input: &str) -> IResult<&str, Self> {
         map(
             tuple((
                 Accession::parse,
@@ -362,7 +362,7 @@ mod test {
                     }),
                     loc_edit: CdsLocEdit {
                         loc: Mu::Certain(CdsInterval {
-                            begin: CdsPos {
+                            start: CdsPos {
                                 base: 123,
                                 offset: None,
                                 cds_from: CdsFrom::Start
@@ -394,7 +394,7 @@ mod test {
                     }),
                     loc_edit: GenomeLocEdit {
                         loc: Mu::Certain(GenomeInterval {
-                            begin: Some(123),
+                            start: Some(123),
                             end: Some(123),
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
@@ -418,7 +418,7 @@ mod test {
                     }),
                     loc_edit: MtLocEdit {
                         loc: Mu::Certain(MtInterval {
-                            begin: Some(123),
+                            start: Some(123),
                             end: Some(123),
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
@@ -442,7 +442,7 @@ mod test {
                     }),
                     loc_edit: TxLocEdit {
                         loc: Mu::Certain(TxInterval {
-                            begin: TxPos {
+                            start: TxPos {
                                 base: 123,
                                 offset: None
                             },
@@ -472,7 +472,7 @@ mod test {
                     }),
                     loc_edit: RnaLocEdit {
                         loc: Mu::Certain(RnaInterval {
-                            begin: RnaPos {
+                            start: RnaPos {
                                 base: 123,
                                 offset: None
                             },
@@ -502,7 +502,7 @@ mod test {
                     }),
                     loc_edit: ProtLocEdit::Ordinary {
                         loc: Mu::Certain(ProtInterval {
-                            begin: ProtPos {
+                            start: ProtPos {
                                 aa: "Leu".to_string(),
                                 number: 3
                             },
@@ -528,7 +528,7 @@ mod test {
                 "",
                 CdsLocEdit {
                     loc: Mu::Uncertain(CdsInterval {
-                        begin: CdsPos {
+                        start: CdsPos {
                             base: 123,
                             offset: None,
                             cds_from: CdsFrom::Start
@@ -556,7 +556,7 @@ mod test {
                 "",
                 GenomeLocEdit {
                     loc: Mu::Uncertain(GenomeInterval {
-                        begin: Some(123),
+                        start: Some(123),
                         end: Some(123),
                     }),
                     edit: Mu::Certain(NaEdit::RefAlt {
@@ -576,7 +576,7 @@ mod test {
                 "",
                 MtLocEdit {
                     loc: Mu::Uncertain(MtInterval {
-                        begin: Some(123),
+                        start: Some(123),
                         end: Some(123),
                     }),
                     edit: Mu::Certain(NaEdit::RefAlt {
@@ -596,7 +596,7 @@ mod test {
                 "",
                 TxLocEdit {
                     loc: Mu::Uncertain(TxInterval {
-                        begin: TxPos {
+                        start: TxPos {
                             base: 123,
                             offset: None,
                         },
@@ -622,7 +622,7 @@ mod test {
                 "",
                 RnaLocEdit {
                     loc: Mu::Uncertain(RnaInterval {
-                        begin: RnaPos {
+                        start: RnaPos {
                             base: 123,
                             offset: None,
                         },
@@ -648,7 +648,7 @@ mod test {
                 "",
                 ProtLocEdit::Ordinary {
                     loc: Mu::Uncertain(ProtInterval {
-                        begin: ProtPos {
+                        start: ProtPos {
                             aa: "Leu".to_string(),
                             number: 123,
                         },
@@ -682,7 +682,7 @@ mod test {
             Ok((
                 "",
                 CdsInterval {
-                    begin: CdsPos {
+                    start: CdsPos {
                         base: 123,
                         offset: None,
                         cds_from: CdsFrom::Start,
@@ -704,7 +704,7 @@ mod test {
             Ok((
                 "",
                 GenomeInterval {
-                    begin: Some(123),
+                    start: Some(123),
                     end: Some(123),
                 }
             ))
@@ -718,7 +718,7 @@ mod test {
             Ok((
                 "",
                 MtInterval {
-                    begin: Some(123),
+                    start: Some(123),
                     end: Some(123),
                 }
             ))
@@ -732,7 +732,7 @@ mod test {
             Ok((
                 "",
                 TxInterval {
-                    begin: TxPos {
+                    start: TxPos {
                         base: 123,
                         offset: None
                     },
@@ -752,7 +752,7 @@ mod test {
             Ok((
                 "",
                 RnaInterval {
-                    begin: RnaPos {
+                    start: RnaPos {
                         base: 123,
                         offset: None
                     },
@@ -772,7 +772,7 @@ mod test {
             Ok((
                 "",
                 ProtInterval {
-                    begin: ProtPos {
+                    start: ProtPos {
                         aa: "Leu".to_string(),
                         number: 123
                     },

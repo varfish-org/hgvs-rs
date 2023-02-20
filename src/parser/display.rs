@@ -144,8 +144,8 @@ impl Display for ProtPos {
 
 impl Display for ProtInterval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.begin)?;
-        if self.begin != self.end {
+        write!(f, "{}", self.start)?;
+        if self.start != self.end {
             write!(f, "_{}", self.end)?;
         }
         Ok(())
@@ -172,8 +172,8 @@ impl Display for CdsLocEdit {
 
 impl Display for CdsInterval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.begin)?;
-        if self.begin != self.end {
+        write!(f, "{}", self.start)?;
+        if self.start != self.end {
             write!(f, "_{}", self.end)?;
         }
         Ok(())
@@ -207,8 +207,8 @@ impl Display for TxLocEdit {
 
 impl Display for TxInterval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.begin)?;
-        if self.begin != self.end {
+        write!(f, "{}", self.start)?;
+        if self.start != self.end {
             write!(f, "_{}", self.end)?;
         }
         Ok(())
@@ -238,8 +238,8 @@ impl Display for RnaLocEdit {
 
 impl Display for RnaInterval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.begin)?;
-        if self.begin != self.end {
+        write!(f, "{}", self.start)?;
+        if self.start != self.end {
             write!(f, "_{}", self.end)?;
         }
         Ok(())
@@ -269,11 +269,11 @@ impl Display for GenomeLocEdit {
 
 impl Display for GenomeInterval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.begin {
+        match self.start {
             Some(begin) => write!(f, "{begin}")?,
             None => write!(f, "?")?,
         }
-        if self.begin != self.end {
+        if self.start != self.end {
             match self.end {
                 Some(end) => write!(f, "_{end}")?,
                 None => write!(f, "_?")?,
@@ -291,11 +291,11 @@ impl Display for MtLocEdit {
 
 impl Display for MtInterval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.begin {
+        match self.start {
             Some(begin) => write!(f, "{begin}")?,
             None => write!(f, "?")?,
         }
-        if self.begin != self.end {
+        if self.start != self.end {
             match self.end {
                 Some(end) => write!(f, "_{end}")?,
                 None => write!(f, "_?")?,
@@ -1025,7 +1025,7 @@ mod test {
             format!(
                 "{}",
                 CdsInterval {
-                    begin: CdsPos {
+                    start: CdsPos {
                         base: 42,
                         offset: Some(-10),
                         cds_from: CdsFrom::Start,
@@ -1044,7 +1044,7 @@ mod test {
             format!(
                 "{}",
                 CdsInterval {
-                    begin: CdsPos {
+                    start: CdsPos {
                         base: 42,
                         offset: Some(10),
                         cds_from: CdsFrom::Start,
@@ -1067,7 +1067,7 @@ mod test {
                 "{}",
                 CdsLocEdit {
                     loc: Mu::Certain(CdsInterval {
-                        begin: CdsPos {
+                        start: CdsPos {
                             base: 42,
                             offset: Some(-10),
                             cds_from: CdsFrom::Start,
@@ -1130,7 +1130,7 @@ mod test {
             format!(
                 "{}",
                 TxInterval {
-                    begin: TxPos {
+                    start: TxPos {
                         base: 42,
                         offset: Some(-10),
                     },
@@ -1147,7 +1147,7 @@ mod test {
             format!(
                 "{}",
                 TxInterval {
-                    begin: TxPos {
+                    start: TxPos {
                         base: 42,
                         offset: Some(10),
                     },
@@ -1168,7 +1168,7 @@ mod test {
                 "{}",
                 TxLocEdit {
                     loc: Mu::Certain(TxInterval {
-                        begin: TxPos {
+                        start: TxPos {
                             base: 42,
                             offset: Some(-10),
                         },
@@ -1228,7 +1228,7 @@ mod test {
             format!(
                 "{}",
                 RnaInterval {
-                    begin: RnaPos {
+                    start: RnaPos {
                         base: 42,
                         offset: Some(-10),
                     },
@@ -1245,7 +1245,7 @@ mod test {
             format!(
                 "{}",
                 RnaInterval {
-                    begin: RnaPos {
+                    start: RnaPos {
                         base: 42,
                         offset: Some(10),
                     },
@@ -1266,7 +1266,7 @@ mod test {
                 "{}",
                 RnaLocEdit {
                     loc: Mu::Certain(RnaInterval {
-                        begin: RnaPos {
+                        start: RnaPos {
                             base: 42,
                             offset: Some(-10),
                         },
@@ -1291,7 +1291,7 @@ mod test {
             format!(
                 "{}",
                 GenomeInterval {
-                    begin: None,
+                    start: None,
                     end: None
                 }
             ),
@@ -1302,7 +1302,7 @@ mod test {
             format!(
                 "{}",
                 GenomeInterval {
-                    begin: Some(10),
+                    start: Some(10),
                     end: None
                 }
             ),
@@ -1313,7 +1313,7 @@ mod test {
             format!(
                 "{}",
                 GenomeInterval {
-                    begin: None,
+                    start: None,
                     end: Some(10)
                 }
             ),
@@ -1324,7 +1324,7 @@ mod test {
             format!(
                 "{}",
                 GenomeInterval {
-                    begin: Some(10),
+                    start: Some(10),
                     end: Some(20)
                 }
             ),
@@ -1335,7 +1335,7 @@ mod test {
             format!(
                 "{}",
                 GenomeInterval {
-                    begin: Some(10),
+                    start: Some(10),
                     end: Some(10)
                 }
             ),
@@ -1350,7 +1350,7 @@ mod test {
                 "{}",
                 GenomeLocEdit {
                     loc: Mu::Certain(GenomeInterval {
-                        begin: Some(10),
+                        start: Some(10),
                         end: Some(20)
                     }),
                     edit: Mu::Certain(NaEdit::RefAlt {
@@ -1369,7 +1369,7 @@ mod test {
             format!(
                 "{}",
                 MtInterval {
-                    begin: None,
+                    start: None,
                     end: None
                 }
             ),
@@ -1380,7 +1380,7 @@ mod test {
             format!(
                 "{}",
                 MtInterval {
-                    begin: Some(10),
+                    start: Some(10),
                     end: None
                 }
             ),
@@ -1391,7 +1391,7 @@ mod test {
             format!(
                 "{}",
                 MtInterval {
-                    begin: None,
+                    start: None,
                     end: Some(10)
                 }
             ),
@@ -1402,7 +1402,7 @@ mod test {
             format!(
                 "{}",
                 MtInterval {
-                    begin: Some(10),
+                    start: Some(10),
                     end: Some(20)
                 }
             ),
@@ -1413,7 +1413,7 @@ mod test {
             format!(
                 "{}",
                 MtInterval {
-                    begin: Some(10),
+                    start: Some(10),
                     end: Some(10)
                 }
             ),
@@ -1428,7 +1428,7 @@ mod test {
                 "{}",
                 MtLocEdit {
                     loc: Mu::Certain(MtInterval {
-                        begin: Some(10),
+                        start: Some(10),
                         end: Some(20)
                     }),
                     edit: Mu::Certain(NaEdit::RefAlt {
@@ -1461,7 +1461,7 @@ mod test {
             format!(
                 "{}",
                 ProtInterval {
-                    begin: ProtPos {
+                    start: ProtPos {
                         aa: "Leu".to_string(),
                         number: 42
                     },
@@ -1478,7 +1478,7 @@ mod test {
             format!(
                 "{}",
                 ProtInterval {
-                    begin: ProtPos {
+                    start: ProtPos {
                         aa: "Leu".to_string(),
                         number: 42
                     },
@@ -1499,7 +1499,7 @@ mod test {
                 "{}",
                 ProtLocEdit::Ordinary {
                     loc: Mu::Certain(ProtInterval {
-                        begin: ProtPos {
+                        start: ProtPos {
                             aa: "Leu".to_string(),
                             number: 42
                         },
@@ -1543,7 +1543,7 @@ mod test {
                     }),
                     loc_edit: CdsLocEdit {
                         loc: Mu::Certain(CdsInterval {
-                            begin: CdsPos {
+                            start: CdsPos {
                                 base: 100,
                                 offset: None,
                                 cds_from: CdsFrom::Start,
@@ -1574,7 +1574,7 @@ mod test {
                     gene_symbol: None,
                     loc_edit: CdsLocEdit {
                         loc: Mu::Certain(CdsInterval {
-                            begin: CdsPos {
+                            start: CdsPos {
                                 base: 100,
                                 offset: None,
                                 cds_from: CdsFrom::Start,
@@ -1610,7 +1610,7 @@ mod test {
                     }),
                     loc_edit: GenomeLocEdit {
                         loc: Mu::Certain(GenomeInterval {
-                            begin: Some(100),
+                            start: Some(100),
                             end: Some(100)
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
@@ -1633,7 +1633,7 @@ mod test {
                     gene_symbol: None,
                     loc_edit: GenomeLocEdit {
                         loc: Mu::Certain(GenomeInterval {
-                            begin: Some(100),
+                            start: Some(100),
                             end: Some(100)
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
@@ -1661,7 +1661,7 @@ mod test {
                     }),
                     loc_edit: MtLocEdit {
                         loc: Mu::Certain(MtInterval {
-                            begin: Some(100),
+                            start: Some(100),
                             end: Some(100)
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
@@ -1684,7 +1684,7 @@ mod test {
                     gene_symbol: None,
                     loc_edit: MtLocEdit {
                         loc: Mu::Certain(MtInterval {
-                            begin: Some(100),
+                            start: Some(100),
                             end: Some(100)
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
@@ -1712,7 +1712,7 @@ mod test {
                     }),
                     loc_edit: TxLocEdit {
                         loc: Mu::Certain(TxInterval {
-                            begin: TxPos {
+                            start: TxPos {
                                 base: 100,
                                 offset: None
                             },
@@ -1741,7 +1741,7 @@ mod test {
                     gene_symbol: None,
                     loc_edit: TxLocEdit {
                         loc: Mu::Certain(TxInterval {
-                            begin: TxPos {
+                            start: TxPos {
                                 base: 100,
                                 offset: None
                             },
@@ -1775,7 +1775,7 @@ mod test {
                     }),
                     loc_edit: RnaLocEdit {
                         loc: Mu::Certain(RnaInterval {
-                            begin: RnaPos {
+                            start: RnaPos {
                                 base: 100,
                                 offset: None
                             },
@@ -1804,7 +1804,7 @@ mod test {
                     gene_symbol: None,
                     loc_edit: RnaLocEdit {
                         loc: Mu::Certain(RnaInterval {
-                            begin: RnaPos {
+                            start: RnaPos {
                                 base: 100,
                                 offset: None
                             },
