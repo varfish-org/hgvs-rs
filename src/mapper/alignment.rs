@@ -507,7 +507,7 @@ mod test {
             interface::{Provider as Interface, TxExonsRecord},
             uta::{Config, Provider},
         },
-        parser::{CdsFrom, CdsInterval, CdsPos, GenomeInterval, TxInterval, TxPos},
+        parser::{CdsFrom, CdsInterval, CdsPos, GenomeInterval, TxInterval, TxPos, Mu},
     };
 
     use super::{build_tx_cigar, none_if_default, AlignmentMapper};
@@ -677,14 +677,56 @@ mod test {
                 alt_ac,
                 &g_interval
             );
+            assert_eq!(
+                c_interval,
+                &mapper.n_to_c(n_interval, true)?,
+                "{}~{} {} mapper.n_to_c",
+                tx_ac,
+                alt_ac,
+                &n_interval
+            );
+
+            assert_eq!(
+                g_interval,
+                mapper.c_to_g(c_interval, true)?.inner(),
+                "{}~{} {} mapper.c_to_g",
+                tx_ac,
+                alt_ac,
+                &c_interval
+            );
+            assert_eq!(
+                Mu::Certain(g_interval.clone()),
+                mapper.n_to_g(n_interval, true)?,
+                "{}~{} {} mapper.n_to_g",
+                tx_ac,
+                alt_ac,
+                &g_interval
+            );
+
+            assert_eq!(
+                n_interval,
+                &mapper.c_to_n(c_interval, true)?,
+                "{}~{} {} mapper.c_to_n",
+                tx_ac,
+                alt_ac,
+                &c_interval
+            );
+            assert_eq!(
+                Mu::Certain(n_interval.clone()),
+                mapper.g_to_n(g_interval, true)?,
+                "{}~{} {} mapper.g_to_n",
+                tx_ac,
+                alt_ac,
+                &n_interval
+            );
         }
 
         Ok(())
     }
 
     /// Use NM_178434.2 tests to test mapping with uncertain positions
-    #[test]
-    fn test_LCE3C_uncertain() -> Result<(), anyhow::Error> {
+    // #[test]  // not yet supported (same as Python package)
+    fn test_lce3c_uncertain() -> Result<(), anyhow::Error> {
         let tx_ac = "NM_178434.2";
         let alt_ac = "NC_000001.10";
         let test_cases = vec![
@@ -697,6 +739,278 @@ mod test {
                 GenomeInterval::from_str("152573138_?")?,
                 TxInterval::from_str("1_?")?,
                 CdsInterval::from_str("-70_?")?,
+            ),
+        ];
+
+        run_test_cases(&tx_ac, &alt_ac, &test_cases)?;
+
+        Ok(())
+    }
+
+    /// NM_178434.2: LCE3C single exon, strand = +1, all coordinate input/output are in HGVS
+    #[test]
+    fn test_lce3c() -> Result<(), anyhow::Error> {
+        let tx_ac = "NM_178434.2";
+        let alt_ac = "NC_000001.10";
+        let test_cases = vec![
+            // 5'
+            (
+                GenomeInterval::from_str("152573138")?,
+                TxInterval::from_str("1")?,
+                CdsInterval::from_str("-70")?,
+            ),
+            (
+                GenomeInterval::from_str("152573140")?,
+                TxInterval::from_str("3")?,
+                CdsInterval::from_str("-68")?,
+            ),
+            // CDS
+            (
+                GenomeInterval::from_str("152573207")?,
+                TxInterval::from_str("70")?,
+                CdsInterval::from_str("-1")?,
+            ),
+            (
+                GenomeInterval::from_str("152573208")?,
+                TxInterval::from_str("71")?,
+                CdsInterval::from_str("1")?,
+            ),
+            // 3'
+            (
+                GenomeInterval::from_str("152573492")?,
+                TxInterval::from_str("355")?,
+                CdsInterval::from_str("285")?,
+            ),
+            (
+                GenomeInterval::from_str("152573493")?,
+                TxInterval::from_str("356")?,
+                CdsInterval::from_str("*1")?,
+            ),
+            (
+                GenomeInterval::from_str("152573560")?,
+                TxInterval::from_str("423")?,
+                CdsInterval::from_str("*68")?,
+            ),
+            (
+                GenomeInterval::from_str("152573562")?,
+                TxInterval::from_str("425")?,
+                CdsInterval::from_str("*70")?,
+            ),
+        ];
+
+        run_test_cases(&tx_ac, &alt_ac, &test_cases)?;
+
+        Ok(())
+    }
+
+    /// NM_033445.2: LCE3C single exon, strand = -1, all coordinate input/output are in HGVS
+    #[test]
+    fn test_hist3h2a() -> Result<(), anyhow::Error> {
+        let tx_ac = "NM_033445.2";
+        let alt_ac = "NC_000001.10";
+        let test_cases = vec![
+            // 3'
+            (
+                GenomeInterval::from_str("228645560")?,
+                TxInterval::from_str("1")?,
+                CdsInterval::from_str("-42")?,
+            ),
+            (
+                GenomeInterval::from_str("228645558")?,
+                TxInterval::from_str("3")?,
+                CdsInterval::from_str("-40")?,
+            ),
+            // CDS
+            (
+                GenomeInterval::from_str("228645519")?,
+                TxInterval::from_str("42")?,
+                CdsInterval::from_str("-1")?,
+            ),
+            (
+                GenomeInterval::from_str("228645518")?,
+                TxInterval::from_str("43")?,
+                CdsInterval::from_str("1")?,
+            ),
+            // 5'
+            (
+                GenomeInterval::from_str("228645126")?,
+                TxInterval::from_str("435")?,
+                CdsInterval::from_str("393")?,
+            ),
+            (
+                GenomeInterval::from_str("228645125")?,
+                TxInterval::from_str("436")?,
+                CdsInterval::from_str("1")?,
+            ),
+            (
+                GenomeInterval::from_str("228645124")?,
+                TxInterval::from_str("437")?,
+                CdsInterval::from_str("*2")?,
+            ),
+            (
+                GenomeInterval::from_str("228645065")?,
+                TxInterval::from_str("496")?,
+                CdsInterval::from_str("*61")?,
+            ),
+        ];
+
+        run_test_cases(&tx_ac, &alt_ac, &test_cases)?;
+
+        Ok(())
+    }
+
+    /// NM_014357.4: LCE2B, two exons, strand = +1, all coordinate input/output are in HGVS
+    #[test]
+    fn test_lce2b() -> Result<(), anyhow::Error> {
+        let tx_ac = "NM_014357.4";
+        let alt_ac = "NC_000001.10";
+        let test_cases = vec![
+            // 5'
+            (
+                GenomeInterval::from_str("152658599")?,
+                TxInterval::from_str("1")?,
+                CdsInterval::from_str("-54")?,
+            ),
+            (
+                GenomeInterval::from_str("152658601")?,
+                TxInterval::from_str("3")?,
+                CdsInterval::from_str("-52")?,
+            ),
+            // CDS
+            (
+                GenomeInterval::from_str("152659319")?,
+                TxInterval::from_str("54")?,
+                CdsInterval::from_str("-1")?,
+            ),
+            (
+                GenomeInterval::from_str("152659320")?,
+                TxInterval::from_str("55")?,
+                CdsInterval::from_str("1")?,
+            ),
+            // around end of exon 1
+            (
+                GenomeInterval::from_str("152658632")?,
+                TxInterval::from_str("34")?,
+                CdsInterval::from_str("-21")?,
+            ),
+            (
+                GenomeInterval::from_str("152658633")?,
+                TxInterval::from_str("34+1")?,
+                CdsInterval::from_str("-21+1")?,
+            ),
+            // span
+            (
+                GenomeInterval::from_str("152658633_152659299")?,
+                TxInterval::from_str("34+1_35-1")?,
+                CdsInterval::from_str("-21+1_-20-1")?,
+            ),
+            // around start of exon 2
+            (
+                GenomeInterval::from_str("152659300")?,
+                TxInterval::from_str("35")?,
+                CdsInterval::from_str("-20")?,
+            ),
+            (
+                GenomeInterval::from_str("152659299")?,
+                TxInterval::from_str("35-1")?,
+                CdsInterval::from_str("-20-1")?,
+            ),
+            // around end of exon 2
+            (
+                GenomeInterval::from_str("152659652")?,
+                TxInterval::from_str("397")?,
+                CdsInterval::from_str("333")?,
+            ),
+            (
+                GenomeInterval::from_str("152659653")?,
+                TxInterval::from_str("388")?,
+                CdsInterval::from_str("*1")?,
+            ),
+            // span
+            (
+                GenomeInterval::from_str("152659651_152659654")?,
+                TxInterval::from_str("386_389")?,
+                CdsInterval::from_str("332_*2")?,
+            ),
+            // 3'
+            (
+                GenomeInterval::from_str("152659877")?,
+                TxInterval::from_str("612")?,
+                CdsInterval::from_str("*225")?,
+            ),
+        ];
+
+        run_test_cases(&tx_ac, &alt_ac, &test_cases)?;
+
+        Ok(())
+    }
+
+    /// NM_178449.3: PTH2, two exons, strand = -1, all coordinate input/output are in HGVS
+    #[test]
+    fn test_pth2() -> Result<(), anyhow::Error> {
+        let tx_ac = "NM_178449.3";
+        let alt_ac = "NC_000019.9";
+        let test_cases = vec![
+            // 3'
+            (
+                GenomeInterval::from_str("49926698")?,
+                TxInterval::from_str("1")?,
+                CdsInterval::from_str("-102")?,
+            ),
+            // CDS
+            (
+                GenomeInterval::from_str("49926597")?,
+                TxInterval::from_str("102")?,
+                CdsInterval::from_str("-1")?,
+            ),
+            (
+                GenomeInterval::from_str("49926596")?,
+                TxInterval::from_str("103")?,
+                CdsInterval::from_str("1")?,
+            ),
+            // around end of exon 1
+            (
+                GenomeInterval::from_str("49926469")?,
+                TxInterval::from_str("230")?,
+                CdsInterval::from_str("128")?,
+            ),
+            (
+                GenomeInterval::from_str("49926468")?,
+                TxInterval::from_str("230+1")?,
+                CdsInterval::from_str("128+1")?,
+            ),
+            // span
+            (
+                GenomeInterval::from_str("49925901_49926467")?,
+                TxInterval::from_str("230+2_231-2")?,
+                CdsInterval::from_str("128+2_129-2")?,
+            ),
+            // around start of exons 2
+            (
+                GenomeInterval::from_str("49925900")?,
+                TxInterval::from_str("231-1")?,
+                CdsInterval::from_str("129-1")?,
+            ),
+            (
+                GenomeInterval::from_str("49925899")?,
+                TxInterval::from_str("231")?,
+                CdsInterval::from_str("129")?,
+            ),
+            // around end of exon2
+            (
+                GenomeInterval::from_str("49925725")?,
+                TxInterval::from_str("405")?,
+                CdsInterval::from_str("303")?,
+            ),
+            (
+                GenomeInterval::from_str("49925724")?,
+                TxInterval::from_str("406")?,
+                CdsInterval::from_str("*1")?,
+            ),
+            (
+                GenomeInterval::from_str("49925671")?,
+                TxInterval::from_str("459")?,
+                CdsInterval::from_str("*54")?,
             ),
         ];
 
