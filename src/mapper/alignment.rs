@@ -473,8 +473,8 @@ impl AlignmentMapper {
     ) -> Result<Mu<CdsInterval>, anyhow::Error> {
         let n_interval = self.g_to_n(g_interval, strict_bounds)?;
         Ok(match &n_interval {
-            Mu::Certain(n_interval) => Mu::Certain(self.n_to_c(&n_interval, strict_bounds)?),
-            Mu::Uncertain(n_interval) => Mu::Uncertain(self.n_to_c(&n_interval, strict_bounds)?),
+            Mu::Certain(n_interval) => Mu::Certain(self.n_to_c(n_interval, strict_bounds)?),
+            Mu::Uncertain(n_interval) => Mu::Uncertain(self.n_to_c(n_interval, strict_bounds)?),
         })
     }
 
@@ -643,7 +643,7 @@ mod test {
 
         {
             let am =
-                AlignmentMapper::new(provider.clone(), "NM_000348.3", "NC_000002.11", "splign")?;
+                AlignmentMapper::new(provider, "NM_000348.3", "NC_000002.11", "splign")?;
             assert!(am
                 .c_to_n(
                     &CdsInterval {
@@ -750,7 +750,7 @@ mod test {
             ),
         ];
 
-        run_test_cases(&tx_ac, &alt_ac, &test_cases)?;
+        run_test_cases(tx_ac, alt_ac, &test_cases)?;
 
         Ok(())
     }
@@ -806,7 +806,7 @@ mod test {
             ),
         ];
 
-        run_test_cases(&tx_ac, &alt_ac, &test_cases)?;
+        run_test_cases(tx_ac, alt_ac, &test_cases)?;
 
         Ok(())
     }
@@ -862,7 +862,7 @@ mod test {
             ),
         ];
 
-        run_test_cases(&tx_ac, &alt_ac, &test_cases)?;
+        run_test_cases(tx_ac, alt_ac, &test_cases)?;
 
         Ok(())
     }
@@ -948,7 +948,7 @@ mod test {
             ),
         ];
 
-        run_test_cases(&tx_ac, &alt_ac, &test_cases)?;
+        run_test_cases(tx_ac, alt_ac, &test_cases)?;
 
         Ok(())
     }
@@ -1022,7 +1022,7 @@ mod test {
             ),
         ];
 
-        run_test_cases(&tx_ac, &alt_ac, &test_cases)?;
+        run_test_cases(tx_ac, alt_ac, &test_cases)?;
 
         Ok(())
     }

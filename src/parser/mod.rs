@@ -66,7 +66,6 @@ mod test {
 
     use crate::parser::{
         Accession, CdsFrom, CdsInterval, CdsLocEdit, CdsPos, GenomeInterval, Mu, NaEdit,
-        TxInterval, TxPos,
     };
 
     use super::HgvsVariant;
