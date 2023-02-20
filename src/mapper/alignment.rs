@@ -276,7 +276,7 @@ where
 /// neatly represent insertions between bases (or before or after the sequence).
 #[derive(Default)]
 struct CigarMapper {
-    pub cigar: CigarString,
+    pub cigar_string: CigarString,
     pub ref_pos: Vec<i32>,
     pub tgt_pos: Vec<i32>,
     pub cigar_op: Vec<CigarOp>,
@@ -296,7 +296,7 @@ impl CigarMapper {
         let (ref_pos, tgt_pos, cigar_op) = Self::init(cigar_string);
 
         Self {
-            cigar: cigar_string.clone(),
+            cigar_string: cigar_string.clone(),
             ref_len: *ref_pos.last().unwrap(),
             tgt_len: *tgt_pos.last().unwrap(),
             ref_pos,
@@ -377,7 +377,7 @@ impl CigarMapper {
                 }
                 pos_i += 1;
             }
-            pos_i
+            std::cmp::min(pos_i, self.cigar_op.len().saturating_sub(1))
         };
 
         let cigar_op = self.cigar_op[pos_i];
@@ -828,7 +828,9 @@ mod test {
                         pos,
                         offset,
                         cigar_op
-                    }
+                    },
+                    "case = {:?}", (arg_pos, arg_end, pos, offset, cigar_op)
+
                 );
             }
         }
@@ -859,12 +861,13 @@ mod test {
             ];
             for (arg_pos, arg_end, pos, offset, cigar_op) in cases {
                 assert_eq!(
-                    cigar_mapper.map_ref_to_tgt(arg_pos, arg_end, true)?,
+                    cigar_mapper.map_tgt_to_ref(arg_pos, arg_end, true)?,
                     CigarMapperResult {
                         pos,
                         offset,
                         cigar_op
-                    }
+                    },
+                    "case = {:?}", (arg_pos, arg_end, pos, offset, cigar_op)
                 );
             }
         }
@@ -898,7 +901,7 @@ mod test {
             }
         );
         assert_eq!(
-            cigar_mapper.map_ref_to_tgt(0, "start", false)?,
+            cigar_mapper.map_ref_to_tgt(-1, "start", false)?,
             CigarMapperResult {
                 pos: -1,
                 offset: 0,
@@ -914,7 +917,7 @@ mod test {
             }
         );
         assert_eq!(
-            cigar_mapper.map_ref_to_tgt(cigar_mapper.ref_len - 1, "start", true)?,
+            cigar_mapper.map_ref_to_tgt(cigar_mapper.ref_len - 1, "start", false)?,
             CigarMapperResult {
                 pos: cigar_mapper.tgt_len - 1,
                 offset: 0,
