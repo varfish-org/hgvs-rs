@@ -68,17 +68,11 @@ pub enum CigarOp {
 
 impl CigarOp {
     pub fn is_advance_ref(&self) -> bool {
-        match self {
-            CigarOp::Eq | CigarOp::Match | CigarOp::Mismatch | CigarOp::Ins | CigarOp::Skip => true,
-            _ => false,
-        }
+        matches!(self, CigarOp::Eq | CigarOp::Match | CigarOp::Mismatch | CigarOp::Ins | CigarOp::Skip)
     }
 
     pub fn is_advance_tgt(&self) -> bool {
-        match self {
-            CigarOp::Eq | CigarOp::Match | CigarOp::Mismatch | CigarOp::Del => true,
-            _ => false,
-        }
+        matches!(self, CigarOp::Eq | CigarOp::Match | CigarOp::Mismatch | CigarOp::Del)
     }
 }
 
