@@ -642,8 +642,7 @@ mod test {
         }
 
         {
-            let am =
-                AlignmentMapper::new(provider, "NM_000348.3", "NC_000002.11", "splign")?;
+            let am = AlignmentMapper::new(provider, "NM_000348.3", "NC_000002.11", "splign")?;
             assert!(am
                 .c_to_n(
                     &CdsInterval {
