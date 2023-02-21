@@ -94,6 +94,8 @@ jobs:
         env:
           TEST_UTA_DATABASE_URL: postgres://uta_admin:uta_admin@0.0.0.0/uta
           TEST_UTA_DATABASE_SCHEMA: uta_20210129
+          TEST_SEQREPO_CACHE_MODE: read
+          TEST_SEQREPO_CACHE_PATH: tests/data/seqrepo_cache.fasta
 
       - name: Codecov
         uses: codecov/codecov-action@v3

@@ -214,7 +214,9 @@ pub trait Provider {
     /// # Arguments
     ///
     /// * `ac` -- accession
-    fn get_seq(&self, ac: &str) -> Result<String, anyhow::Error>;
+    fn get_seq(&self, ac: &str) -> Result<String, anyhow::Error> {
+        self.get_seq_part(ac, None, None)
+    }
 
     /// Return sequence part for the given accession.
     ///

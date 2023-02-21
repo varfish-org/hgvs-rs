@@ -21,8 +21,7 @@ pub struct Config {
     /// URL with the connection string, e.g.
     /// `"postgresql://anonymous:anonymous@uta.biocommons.org/uta'"`.
     pub db_url: String,
-    /// The databaser schema to use, corresponds to the data version, e.g.,
-    /// `uta_20210129`.
+    /// The databaser schema to use, corresponds to the data version, e.g., `uta_20210129`.
     pub db_schema: String,
 }
 
@@ -155,6 +154,10 @@ impl TryFrom<Row> for TxMappingOptionsRecord {
     }
 }
 
+/// This provider provides information from a UTA Postgres database only.
+///
+/// The sequences are also read from the database which implies that no genome contig information
+/// is available.  Use `uta_sr::Provider` for a variant that is enabled to use a SeqRepo.
 pub struct Provider {
     /// Configuration for the access.
     config: Config,
@@ -236,10 +239,6 @@ impl ProviderInterface for Provider {
             return Ok(Some(row.try_get("pro_ac")?));
         }
         Ok(None)
-    }
-
-    fn get_seq(&self, ac: &str) -> Result<String, anyhow::Error> {
-        self.get_seq_part(ac, None, None)
     }
 
     fn get_seq_part(
