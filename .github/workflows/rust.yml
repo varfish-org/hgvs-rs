@@ -72,6 +72,11 @@ jobs:
         uses: actions/checkout@v2
         with:
           lfs: 'true'
+          submodules: 'recursive'
+          ssh-key: ${{ secrets.git_ssh_key }}
+        env:
+          GIT_CURL_VERBOSE: '1'
+          GIT_TRACE: '1'
 
       - name: Import test database.
         run: |
