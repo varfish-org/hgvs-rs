@@ -581,7 +581,7 @@ impl<'a> Normalizer<'a> {
             let reference = self.fetch_bounded_seq(&var, 0, 1, 0, &boundary)?;
             let alternative = format!("{}{}", alternative, &reference);
 
-            let res = (
+            (
                 1,
                 1,
                 NaEdit::RefAlt {
@@ -590,9 +590,7 @@ impl<'a> Normalizer<'a> {
                 },
                 reference,
                 alternative,
-            );
-
-            res
+            )
         } else {
             (ref_start, ref_end, edit, reference, alternative)
         };

@@ -251,7 +251,7 @@ pub mod test_helpers {
             .to_string();
         let seqrepo: Rc<dyn SeqRepoInterface> = Rc::new(CacheWritingSeqRepo::new(
             SeqRepo::new(path, &instance)?,
-            &sr_cache_path,
+            sr_cache_path,
         )?);
         Ok((seqrepo, seqrepo_path))
     }
