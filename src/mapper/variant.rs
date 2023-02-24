@@ -1010,7 +1010,6 @@ mod test {
         Ok(())
     }
 
-    #[ignore]
     #[test]
     fn fail_on_undefined_cds() -> Result<(), anyhow::Error> {
         let mapper = build_mapper()?;
@@ -1036,7 +1035,6 @@ mod test {
         Ok(())
     }
 
-    #[ignore]
     #[test]
     fn map_var_of_unsupported_validation() -> Result<(), anyhow::Error> {
         let mapper = build_mapper()?;
@@ -1049,7 +1047,6 @@ mod test {
         Ok(())
     }
 
-    #[ignore]
     #[test]
     fn map_to_unknown_p_effect() -> Result<(), anyhow::Error> {
         let mapper = build_mapper()?;
@@ -1061,7 +1058,6 @@ mod test {
         Ok(())
     }
 
-    #[ignore]
     #[test]
     fn map_of_c_out_of_cds_bound() -> Result<(), anyhow::Error> {
         let mapper = build_mapper()?;
@@ -1072,7 +1068,6 @@ mod test {
         Ok(())
     }
 
-    #[ignore]
     #[test]
     fn map_of_dup_at_cds_end() -> Result<(), anyhow::Error> {
         let mapper = build_mapper()?;
@@ -1084,7 +1079,6 @@ mod test {
         Ok(())
     }
 
-    #[ignore]
     #[test]
     fn map_of_c_out_of_reference_bound() -> Result<(), anyhow::Error> {
         let mapper = build_mapper()?;
