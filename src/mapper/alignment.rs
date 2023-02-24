@@ -484,15 +484,12 @@ impl Mapper {
 
 #[cfg(test)]
 mod test {
-    use std::{rc::Rc, str::FromStr};
+    use std::str::FromStr;
 
     use pretty_assertions::assert_eq;
 
     use crate::{
-        data::{
-            interface::{Provider as Interface, TxExonsRecord},
-            uta::{Config, Provider},
-        },
+        data::{interface::TxExonsRecord, uta_sr::test_helpers::build_provider},
         parser::{CdsFrom, CdsInterval, CdsPos, GenomeInterval, Mu, TxInterval, TxPos},
     };
 
@@ -563,21 +560,11 @@ mod test {
         assert_eq!(none_if_default(-1i32), Some(-1i32));
     }
 
-    fn get_config() -> Config {
-        Config {
-            db_url: std::env::var("TEST_UTA_DATABASE_URL")
-                .expect("Environment variable TEST_UTA_DATABASE_URL undefined!"),
-            db_schema: std::env::var("TEST_UTA_DATABASE_SCHEMA")
-                .expect("Environment variable TEST_UTA_DATABASE_SCHEMA undefined!"),
-        }
-    }
-
     #[test]
     fn construction() -> Result<(), anyhow::Error> {
-        let config = get_config();
-        let provider = Provider::with_config(&config)?;
+        let provider = build_provider()?;
 
-        assert_eq!(provider.data_version(), config.db_schema);
+        assert_eq!(provider.data_version(), "uta_20210129");
         assert_eq!(provider.schema_version(), "1.1");
 
         Ok(())
@@ -585,8 +572,7 @@ mod test {
 
     #[test]
     fn failures() -> Result<(), anyhow::Error> {
-        let config = get_config();
-        let provider = Rc::new(Provider::with_config(&config)?);
+        let provider = build_provider()?;
 
         // unknown sequences
 
@@ -640,8 +626,7 @@ mod test {
         alt_ac: &str,
         cases: &Vec<(GenomeInterval, TxInterval, CdsInterval)>,
     ) -> Result<(), anyhow::Error> {
-        let config = get_config();
-        let provider = Rc::new(Provider::with_config(&config)?);
+        let provider = build_provider()?;
         let mapper = Mapper::new(provider, tx_ac, alt_ac, "splign")?;
 
         for (g_interval, n_interval, c_interval) in cases {
