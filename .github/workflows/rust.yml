@@ -47,7 +47,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   Testing:
-    # needs: Formatting
+    needs: Formatting
     runs-on: ubuntu-latest
 
     services:
