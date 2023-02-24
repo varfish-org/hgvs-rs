@@ -47,7 +47,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   Testing:
-    # needs: Formatting
+    needs: Formatting
     runs-on: ubuntu-latest
 
     services:
@@ -72,18 +72,9 @@ jobs:
         uses: actions/checkout@v2
         with:
           lfs: 'true'
-          submodules: 'recursive'
-          ssh-key: ${{ secrets.git_ssh_key }}
-        env:
-          GIT_CURL_VERBOSE: '1'
-          GIT_TRACE: '1'
 
       - name: Import test database.
         run: |
-          ls -lhR tests/data
-          file tests/data/data/uta_20210129-subset.pgd.gz
-          md5sum tests/data/data/uta_20210129-subset.pgd.gz
-
           set -euo pipefail
           zcat tests/data/data/uta_20210129-subset.pgd.gz \
           | psql -v ON_ERROR_STOP=1 -U uta_admin -h 0.0.0.0 -d uta
