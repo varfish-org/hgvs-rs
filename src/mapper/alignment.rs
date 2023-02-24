@@ -118,7 +118,7 @@ impl Default for Config {
 
 /// Map HGVS location objects between genomic (g), non-coding (n) and cds (c)
 /// coordinates according to a CIGAR string.
-pub struct AlignmentMapper {
+pub struct Mapper {
     /// Configuration for alignment mapping.
     pub config: Config,
     /// Data provider to use for the mapping.
@@ -138,13 +138,13 @@ pub struct AlignmentMapper {
     pub cigar_mapper: CigarMapper,
 }
 
-impl AlignmentMapper {
+impl Mapper {
     pub fn new(
         provider: Rc<dyn Provider>,
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<AlignmentMapper, anyhow::Error> {
+    ) -> Result<Mapper, anyhow::Error> {
         let (strand, gc_offset, cds_start_i, cds_end_i, tgt_len, cigar_mapper) =
             if alt_aln_method != "transcript" {
                 let tx_info = provider.get_tx_info(tx_ac, alt_ac, alt_aln_method)?;
@@ -230,7 +230,7 @@ impl AlignmentMapper {
             ));
         }
 
-        Ok(AlignmentMapper {
+        Ok(Mapper {
             config: Default::default(),
             provider,
             tx_ac: tx_ac.to_string(),
@@ -246,11 +246,7 @@ impl AlignmentMapper {
     }
 
     /// Convert a genomic (g.) interval to a transcript (n.) interval.
-    pub fn g_to_n(
-        &self,
-        g_interval: &GenomeInterval,
-        _strict_bounds: bool,
-    ) -> Result<Mu<TxInterval>, anyhow::Error> {
+    pub fn g_to_n(&self, g_interval: &GenomeInterval) -> Result<Mu<TxInterval>, anyhow::Error> {
         if let GenomeInterval {
             start: Some(begin),
             end: Some(end),
@@ -317,11 +313,7 @@ impl AlignmentMapper {
     }
 
     /// Convert a transcript (n.) interval to a genomic (g.) interval.
-    pub fn n_to_g(
-        &self,
-        n_interval: &TxInterval,
-        strict_bounds: bool,
-    ) -> Result<Mu<GenomeInterval>, anyhow::Error> {
+    pub fn n_to_g(&self, n_interval: &TxInterval) -> Result<Mu<GenomeInterval>, anyhow::Error> {
         let frs = hgvs_to_zbc(n_interval.start.base);
         let start_offset = n_interval.start.offset.unwrap_or(0);
         let fre = hgvs_to_zbc(n_interval.end.base);
@@ -341,10 +333,10 @@ impl AlignmentMapper {
         // Obtain the genomic range start (grs) and end (gre).
         let grs = self
             .cigar_mapper
-            .map_tgt_to_ref(frs, "start", strict_bounds)?;
+            .map_tgt_to_ref(frs, "start", self.config.strict_bounds)?;
         let gre = self
             .cigar_mapper
-            .map_tgt_to_ref(fre, "start", strict_bounds)?;
+            .map_tgt_to_ref(fre, "start", self.config.strict_bounds)?;
         let (grs_pos, gre_pos) = (grs.pos + self.gc_offset + 1, gre.pos + self.gc_offset + 1);
         let (gs, ge) = (grs_pos + start_offset, gre_pos + end_offset);
 
@@ -386,11 +378,7 @@ impl AlignmentMapper {
     }
 
     /// Convert a transcript (n.) interval to a CDS (c.) interval.
-    pub fn n_to_c(
-        &self,
-        n_interval: &TxInterval,
-        strict_bounds: bool,
-    ) -> Result<CdsInterval, anyhow::Error> {
+    pub fn n_to_c(&self, n_interval: &TxInterval) -> Result<CdsInterval, anyhow::Error> {
         if self.cds_start_i.is_none() {
             return Err(anyhow::anyhow!(
                 "CDS is undefined for {}; cannot map to c. coordinate (non-coding transcript?)",
@@ -398,7 +386,9 @@ impl AlignmentMapper {
             ));
         }
 
-        if strict_bounds && (n_interval.start.base <= 0 || n_interval.end.base > self.tgt_len) {
+        if self.config.strict_bounds
+            && (n_interval.start.base <= 0 || n_interval.end.base > self.tgt_len)
+        {
             return Err(anyhow::anyhow!(
                 "The given coordinate is outside the bounds of the reference sequence."
             ));
@@ -410,7 +400,7 @@ impl AlignmentMapper {
         })
     }
 
-    pub fn pos_c_to_n(&self, pos: &CdsPos, strict_bounds: bool) -> Result<TxPos, anyhow::Error> {
+    pub fn pos_c_to_n(&self, pos: &CdsPos) -> Result<TxPos, anyhow::Error> {
         let cds_start_i = self.cds_start_i.unwrap();
         let cds_end_i = self.cds_end_i.unwrap();
 
@@ -434,7 +424,7 @@ impl AlignmentMapper {
             n
         };
 
-        if (n <= 0 || n > self.tgt_len) && strict_bounds {
+        if (n <= 0 || n > self.tgt_len) && self.config.strict_bounds {
             Err(anyhow::anyhow!("c.{:?} coordinate is out of boounds", pos))
         } else {
             Ok(TxPos {
@@ -445,11 +435,7 @@ impl AlignmentMapper {
     }
 
     /// Convert a a CDS (c.) interval to a transcript (n.) interval.
-    pub fn c_to_n(
-        &self,
-        c_interval: &CdsInterval,
-        strict_bounds: bool,
-    ) -> Result<TxInterval, anyhow::Error> {
+    pub fn c_to_n(&self, c_interval: &CdsInterval) -> Result<TxInterval, anyhow::Error> {
         if self.cds_start_i.is_none() {
             return Err(anyhow::anyhow!(
                 "CDS is undefined for {}; cannot map to c. coordinate (non-coding transcript?)",
@@ -457,35 +443,29 @@ impl AlignmentMapper {
             ));
         }
 
-        let n_start = self.pos_c_to_n(&c_interval.start, strict_bounds);
-        let n_end = self.pos_c_to_n(&c_interval.end, strict_bounds);
-        Ok(TxInterval {
+        let n_start = self.pos_c_to_n(&c_interval.start);
+        let n_end = self.pos_c_to_n(&c_interval.end);
+        let result = TxInterval {
             start: n_start?,
             end: n_end?,
-        })
+        };
+        log::debug!("c_to_n({}) = {}", c_interval, &result);
+        Ok(result)
     }
 
     /// Convert a genomic (g.) interval to a CDS (c.) interval.
-    pub fn g_to_c(
-        &self,
-        g_interval: &GenomeInterval,
-        strict_bounds: bool,
-    ) -> Result<Mu<CdsInterval>, anyhow::Error> {
-        let n_interval = self.g_to_n(g_interval, strict_bounds)?;
+    pub fn g_to_c(&self, g_interval: &GenomeInterval) -> Result<Mu<CdsInterval>, anyhow::Error> {
+        let n_interval = self.g_to_n(g_interval)?;
         Ok(match &n_interval {
-            Mu::Certain(n_interval) => Mu::Certain(self.n_to_c(n_interval, strict_bounds)?),
-            Mu::Uncertain(n_interval) => Mu::Uncertain(self.n_to_c(n_interval, strict_bounds)?),
+            Mu::Certain(n_interval) => Mu::Certain(self.n_to_c(n_interval)?),
+            Mu::Uncertain(n_interval) => Mu::Uncertain(self.n_to_c(n_interval)?),
         })
     }
 
     /// Convert a CDS (c.) interval to a genomic (g.) interval.
-    pub fn c_to_g(
-        &self,
-        c_interval: &CdsInterval,
-        strict_bounds: bool,
-    ) -> Result<Mu<GenomeInterval>, anyhow::Error> {
-        let n_interval = self.c_to_n(c_interval, strict_bounds)?;
-        let g_interval = self.n_to_g(&n_interval, strict_bounds)?;
+    pub fn c_to_g(&self, c_interval: &CdsInterval) -> Result<Mu<GenomeInterval>, anyhow::Error> {
+        let n_interval = self.c_to_n(c_interval)?;
+        let g_interval = self.n_to_g(&n_interval)?;
         Ok(g_interval)
     }
 
@@ -495,7 +475,7 @@ impl AlignmentMapper {
     }
 
     /// Return whether the given genome interval is in bounds.
-    pub fn is_g_interval_in_bounds(&self, g_interval: GenomeInterval) -> bool {
+    pub fn is_g_interval_in_bounds(&self, g_interval: &GenomeInterval) -> bool {
         let grs = g_interval.start.unwrap() - 1 - self.gc_offset;
         let gre = g_interval.end.unwrap() - 1 - self.gc_offset;
         grs >= 0 && gre <= self.cigar_mapper.ref_len
@@ -516,7 +496,7 @@ mod test {
         parser::{CdsFrom, CdsInterval, CdsPos, GenomeInterval, Mu, TxInterval, TxPos},
     };
 
-    use super::{build_tx_cigar, none_if_default, AlignmentMapper};
+    use super::{build_tx_cigar, none_if_default, Mapper};
 
     #[test]
     fn build_tx_cigar_empty() {
@@ -610,55 +590,44 @@ mod test {
 
         // unknown sequences
 
-        assert!(AlignmentMapper::new(provider.clone(), "bogus", "NM_033089.6", "splign").is_err());
-        assert!(
-            AlignmentMapper::new(provider.clone(), "bogus", "NM_033089.6", "transcript").is_err()
-        );
-        assert!(AlignmentMapper::new(provider.clone(), "NM_033089.6", "bogus", "splign").is_err());
-        assert!(
-            AlignmentMapper::new(provider.clone(), "NM_000051.3", "NC_000011.9", "bogus").is_err()
-        );
+        assert!(Mapper::new(provider.clone(), "bogus", "NM_033089.6", "splign").is_err());
+        assert!(Mapper::new(provider.clone(), "bogus", "NM_033089.6", "transcript").is_err());
+        assert!(Mapper::new(provider.clone(), "NM_033089.6", "bogus", "splign").is_err());
+        assert!(Mapper::new(provider.clone(), "NM_000051.3", "NC_000011.9", "bogus").is_err());
 
         // invalid intervals
 
         {
-            let am =
-                AlignmentMapper::new(provider.clone(), "NM_000348.3", "NC_000002.11", "splign")?;
+            let am = Mapper::new(provider.clone(), "NM_000348.3", "NC_000002.11", "splign")?;
             assert!(am
-                .n_to_c(
-                    &TxInterval {
-                        start: TxPos {
-                            base: -1,
-                            offset: None
-                        },
-                        end: TxPos {
-                            base: -1,
-                            offset: None
-                        },
+                .n_to_c(&TxInterval {
+                    start: TxPos {
+                        base: -1,
+                        offset: None
                     },
-                    true
-                )
+                    end: TxPos {
+                        base: -1,
+                        offset: None
+                    },
+                },)
                 .is_err());
         }
 
         {
-            let am = AlignmentMapper::new(provider, "NM_000348.3", "NC_000002.11", "splign")?;
+            let am = Mapper::new(provider, "NM_000348.3", "NC_000002.11", "splign")?;
             assert!(am
-                .c_to_n(
-                    &CdsInterval {
-                        start: CdsPos {
-                            base: 99999,
-                            offset: None,
-                            cds_from: CdsFrom::Start
-                        },
-                        end: CdsPos {
-                            base: 99999,
-                            offset: None,
-                            cds_from: CdsFrom::Start
-                        },
+                .c_to_n(&CdsInterval {
+                    start: CdsPos {
+                        base: 99999,
+                        offset: None,
+                        cds_from: CdsFrom::Start
                     },
-                    true
-                )
+                    end: CdsPos {
+                        base: 99999,
+                        offset: None,
+                        cds_from: CdsFrom::Start
+                    },
+                },)
                 .is_err());
         }
 
@@ -673,12 +642,12 @@ mod test {
     ) -> Result<(), anyhow::Error> {
         let config = get_config();
         let provider = Rc::new(Provider::with_config(&config)?);
-        let mapper = AlignmentMapper::new(provider, tx_ac, alt_ac, "splign")?;
+        let mapper = Mapper::new(provider, tx_ac, alt_ac, "splign")?;
 
         for (g_interval, n_interval, c_interval) in cases {
             assert_eq!(
                 c_interval,
-                mapper.g_to_c(g_interval, true)?.inner(),
+                mapper.g_to_c(g_interval)?.inner(),
                 "{}~{} {} mapper.g_to_c",
                 tx_ac,
                 alt_ac,
@@ -686,7 +655,7 @@ mod test {
             );
             assert_eq!(
                 c_interval,
-                &mapper.n_to_c(n_interval, true)?,
+                &mapper.n_to_c(n_interval)?,
                 "{}~{} {} mapper.n_to_c",
                 tx_ac,
                 alt_ac,
@@ -695,7 +664,7 @@ mod test {
 
             assert_eq!(
                 g_interval,
-                mapper.c_to_g(c_interval, true)?.inner(),
+                mapper.c_to_g(c_interval)?.inner(),
                 "{}~{} {} mapper.c_to_g",
                 tx_ac,
                 alt_ac,
@@ -703,7 +672,7 @@ mod test {
             );
             assert_eq!(
                 Mu::Certain(g_interval.clone()),
-                mapper.n_to_g(n_interval, true)?,
+                mapper.n_to_g(n_interval)?,
                 "{}~{} {} mapper.n_to_g",
                 tx_ac,
                 alt_ac,
@@ -712,7 +681,7 @@ mod test {
 
             assert_eq!(
                 n_interval,
-                &mapper.c_to_n(c_interval, true)?,
+                &mapper.c_to_n(c_interval)?,
                 "{}~{} {} mapper.c_to_n",
                 tx_ac,
                 alt_ac,
@@ -720,7 +689,7 @@ mod test {
             );
             assert_eq!(
                 Mu::Certain(n_interval.clone()),
-                mapper.g_to_n(g_interval, true)?,
+                mapper.g_to_n(g_interval)?,
                 "{}~{} {} mapper.g_to_n",
                 tx_ac,
                 alt_ac,

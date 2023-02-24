@@ -1,8 +1,28 @@
 //! Implementation of Display trait.
+//!
+//! Also, we implement a `NoRef` newtype that can be used for suppressing
+//! output of the reference alleles.  This is mainly useful for running the
+//! tests with the same data as the Python hgvs module.
 
 use std::fmt::Display;
 
 use crate::parser::ds::*;
+
+/// Newtype that allows to suppress printing of reference bases.
+pub struct NoRef<'a, T>(pub &'a T)
+where
+    T: Display;
+
+impl<T> NoRef<'_, T>
+where
+    T: Display,
+{
+    pub fn inner(&self) -> &T {
+        match self {
+            NoRef(value) => value,
+        }
+    }
+}
 
 impl<T> Display for Mu<T>
 where
@@ -12,6 +32,19 @@ where
         match self {
             Mu::Certain(value) => write!(f, "{value}"),
             Mu::Uncertain(value) => write!(f, "({value})"),
+        }
+    }
+}
+
+impl<'a, T> Display for NoRef<'a, Mu<T>>
+where
+    T: Display,
+    NoRef<'a, T>: std::fmt::Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NoRef(Mu::Certain(value)) => write!(f, "{}", NoRef(value)),
+            NoRef(Mu::Uncertain(value)) => write!(f, "({})", NoRef(value)),
         }
     }
 }
@@ -47,6 +80,31 @@ impl Display for NaEdit {
             NaEdit::Dup { reference } => write!(f, "dup{reference}"),
             NaEdit::InvRef { reference } => write!(f, "inv{reference}"),
             NaEdit::InvNum { count } => write!(f, "inv{count}"),
+        }
+    }
+}
+
+impl<'a> Display for NoRef<'a, NaEdit> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NoRef(NaEdit::RefAlt {
+                reference,
+                alternative,
+            }) => match (reference.len(), alternative.len()) {
+                (0, 0) => write!(f, "="),
+                (1, 1) => write!(f, "{reference}>{alternative}"),
+                (_, 0) => write!(f, "delins"),
+                (_, _) => write!(f, "delins{alternative}"),
+            },
+            NoRef(NaEdit::NumAlt { count, alternative }) => match (count, alternative.len()) {
+                (0, 0) => write!(f, "="),
+                (_, 0) => write!(f, "delins"),
+                (_, _) => write!(f, "delins{alternative}"),
+            },
+            NoRef(NaEdit::DelRef { .. }) | NoRef(NaEdit::DelNum { .. }) => write!(f, "del"),
+            NoRef(NaEdit::Ins { alternative }) => write!(f, "ins{alternative}"),
+            NoRef(NaEdit::Dup { .. }) => write!(f, "dup"),
+            NoRef(NaEdit::InvRef { .. }) | NoRef(NaEdit::InvNum { .. }) => write!(f, "inv"),
         }
     }
 }
@@ -164,9 +222,21 @@ impl Display for ProtLocEdit {
     }
 }
 
+impl<'a> Display for NoRef<'a, ProtLocEdit> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.inner().fmt(f)
+    }
+}
+
 impl Display for CdsLocEdit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{}", self.loc, self.edit)
+    }
+}
+
+impl<'a> Display for NoRef<'a, CdsLocEdit> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.inner().loc, NoRef(&self.inner().edit))
     }
 }
 
@@ -205,6 +275,12 @@ impl Display for TxLocEdit {
     }
 }
 
+impl<'a> Display for NoRef<'a, TxLocEdit> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.inner().loc, NoRef(&self.inner().edit))
+    }
+}
+
 impl Display for TxInterval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.start)?;
@@ -233,6 +309,12 @@ impl Display for TxPos {
 impl Display for RnaLocEdit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{}", self.loc, self.edit)
+    }
+}
+
+impl<'a> Display for NoRef<'a, RnaLocEdit> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.inner().loc, NoRef(&self.inner().edit))
     }
 }
 
@@ -267,6 +349,12 @@ impl Display for GenomeLocEdit {
     }
 }
 
+impl<'a> Display for NoRef<'a, GenomeLocEdit> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.inner().loc, NoRef(&self.inner().edit))
+    }
+}
+
 impl Display for GenomeInterval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.start {
@@ -286,6 +374,12 @@ impl Display for GenomeInterval {
 impl Display for MtLocEdit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{}", self.loc, self.edit)
+    }
+}
+
+impl<'a> Display for NoRef<'a, MtLocEdit> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.inner().loc, NoRef(&self.inner().edit))
     }
 }
 
@@ -373,6 +467,79 @@ impl Display for HgvsVariant {
                     write!(f, "({gene_symbol})")?;
                 }
                 write!(f, ":r.{loc_edit}")
+            }
+        }
+    }
+}
+
+impl<'a> Display for NoRef<'a, HgvsVariant> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NoRef(HgvsVariant::CdsVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            }) => {
+                write!(f, "{accession}")?;
+                if let Some(gene_symbol) = gene_symbol {
+                    write!(f, "({gene_symbol})")?;
+                }
+                write!(f, ":c.{}", NoRef(loc_edit))
+            }
+            NoRef(HgvsVariant::GenomeVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            }) => {
+                write!(f, "{accession}")?;
+                if let Some(gene_symbol) = gene_symbol {
+                    write!(f, "({gene_symbol})")?;
+                }
+                write!(f, ":g.{}", NoRef(loc_edit))
+            }
+            NoRef(HgvsVariant::MtVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            }) => {
+                write!(f, "{accession}")?;
+                if let Some(gene_symbol) = gene_symbol {
+                    write!(f, "({gene_symbol})")?;
+                }
+                write!(f, ":m.{}", NoRef(loc_edit))
+            }
+            NoRef(HgvsVariant::TxVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            }) => {
+                write!(f, "{accession}")?;
+                if let Some(gene_symbol) = gene_symbol {
+                    write!(f, "({gene_symbol})")?;
+                }
+                write!(f, ":n.{}", NoRef(loc_edit))
+            }
+            NoRef(HgvsVariant::ProtVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            }) => {
+                write!(f, "{accession}")?;
+                if let Some(gene_symbol) = gene_symbol {
+                    write!(f, "({gene_symbol})")?;
+                }
+                write!(f, ":p.{}", NoRef(loc_edit))
+            }
+            NoRef(HgvsVariant::RnaVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            }) => {
+                write!(f, "{accession}")?;
+                if let Some(gene_symbol) = gene_symbol {
+                    write!(f, "({gene_symbol})")?;
+                }
+                write!(f, ":r.{}", NoRef(loc_edit))
             }
         }
     }
