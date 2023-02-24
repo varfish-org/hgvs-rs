@@ -178,7 +178,7 @@ impl ProviderInterface for Provider {
 
 /// Code for helping setup of UTA providers, e.g., for setting up caching of SeqRepo results.
 pub mod test_helpers {
-    use std::{fs::File, path::PathBuf, rc::Rc};
+    use std::{path::PathBuf, rc::Rc};
 
     use seqrepo::{
         CacheReadingSeqRepo, CacheWritingSeqRepo, Interface as SeqRepoInterface, SeqRepo,
@@ -246,8 +246,8 @@ pub mod test_helpers {
             .to_string();
         let seqrepo: Rc<dyn SeqRepoInterface> = Rc::new(CacheWritingSeqRepo::new(
             SeqRepo::new(path, &instance)?,
-            File::create(sr_cache_path)?,
-        ));
+            &sr_cache_path,
+        )?);
         Ok((seqrepo, seqrepo_path))
     }
 }
