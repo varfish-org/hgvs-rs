@@ -75,8 +75,6 @@ jobs:
 
       - name: Import test database.
         run: |
-          ls -lh tests/data/seqrepo_cache.fasta
-          file tests/data/seqrepo_cache.fasta
           set -euo pipefail
           zcat tests/data/data/uta_20210129-subset.pgd.gz \
           | psql -v ON_ERROR_STOP=1 -U uta_admin -h 0.0.0.0 -d uta
@@ -92,26 +90,16 @@ jobs:
 
       - uses: Swatinem/rust-cache@v1.3.0
 
-      - uses: actions-rs/cargo@v1
+      - name: Run cargo-tarpaulin
+        uses: actions-rs/tarpaulin@v0.1
         with:
-          command: test
+          version: 0.21.0
+          args: "-- --test-threads 1"
         env:
-          RUST_LOG: trace
           TEST_UTA_DATABASE_URL: postgres://uta_admin:uta_admin@0.0.0.0/uta
           TEST_UTA_DATABASE_SCHEMA: uta_20210129
           TEST_SEQREPO_CACHE_MODE: read
           TEST_SEQREPO_CACHE_PATH: tests/data/seqrepo_cache.fasta
-
-      # - name: Run cargo-tarpaulin
-      #   uses: actions-rs/tarpaulin@v0.1
-      #   with:
-      #     version: 0.21.0
-      #     args: "-- --test-threads 1"
-      #   env:
-      #     TEST_UTA_DATABASE_URL: postgres://uta_admin:uta_admin@0.0.0.0/uta
-      #     TEST_UTA_DATABASE_SCHEMA: uta_20210129
-      #     TEST_SEQREPO_CACHE_MODE: read
-      #     TEST_SEQREPO_CACHE_PATH: tests/data/seqrepo_cache.fasta
 
       - name: Codecov
         uses: codecov/codecov-action@v3
