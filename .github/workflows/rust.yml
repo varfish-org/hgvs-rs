@@ -90,16 +90,26 @@ jobs:
 
       - uses: Swatinem/rust-cache@v1.3.0
 
-      - name: Run cargo-tarpaulin
-        uses: actions-rs/tarpaulin@v0.1
+      - uses: actions-rs/cargo@v1
         with:
-          version: 0.21.0
-          args: "-- --test-threads 1"
+          command: test
         env:
+          RUST_LOG: trace
           TEST_UTA_DATABASE_URL: postgres://uta_admin:uta_admin@0.0.0.0/uta
           TEST_UTA_DATABASE_SCHEMA: uta_20210129
           TEST_SEQREPO_CACHE_MODE: read
           TEST_SEQREPO_CACHE_PATH: tests/data/seqrepo_cache.fasta
+
+      # - name: Run cargo-tarpaulin
+      #   uses: actions-rs/tarpaulin@v0.1
+      #   with:
+      #     version: 0.21.0
+      #     args: "-- --test-threads 1"
+      #   env:
+      #     TEST_UTA_DATABASE_URL: postgres://uta_admin:uta_admin@0.0.0.0/uta
+      #     TEST_UTA_DATABASE_SCHEMA: uta_20210129
+      #     TEST_SEQREPO_CACHE_MODE: read
+      #     TEST_SEQREPO_CACHE_PATH: tests/data/seqrepo_cache.fasta
 
       - name: Codecov
         uses: codecov/codecov-action@v3

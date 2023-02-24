@@ -190,6 +190,7 @@ pub mod test_helpers {
     ///
     /// See README.md for information on environment variable setup.
     pub fn build_provider() -> Result<Rc<dyn ProviderInterface>, anyhow::Error> {
+        log::debug!("building provider...");
         let db_url = std::env::var("TEST_UTA_DATABASE_URL")
             .expect("Environment variable TEST_UTA_DATABASE_URL undefined!");
         let db_schema = std::env::var("TEST_UTA_DATABASE_SCHEMA")
@@ -200,14 +201,18 @@ pub mod test_helpers {
             .expect("Environment variable TEST_SEQREPO_CACHE_PATH undefined!");
 
         let (seqrepo, seqrepo_path) = if sr_cache_mode == "read" {
+            log::debug!("reading provider...");
             let seqrepo: Rc<dyn SeqRepoInterface> =
                 Rc::new(CacheReadingSeqRepo::new(sr_cache_path)?);
+            log::debug!("construction done...");
             (seqrepo, "".to_string())
         } else if sr_cache_mode == "write" {
+            log::debug!("writing provider...");
             build_writing_sr(sr_cache_path)?
         } else {
             panic!("Invalid cache mode {}", &sr_cache_mode);
         };
+        log::debug!("now returning provider...");
 
         Ok(Rc::new(Provider::with_seqrepo(
             Config {
