@@ -494,8 +494,9 @@ pub struct AltSeqToHgvsp {
     pub alt_data: AltTranscriptData,
 }
 
+#[derive(Debug)]
 struct AdHocRecord {
-    start: Option<i32>,
+    start: i32,
     ins: String,
     del: String,
     is_frameshift: bool,
@@ -504,7 +505,7 @@ struct AdHocRecord {
 impl Default for AdHocRecord {
     fn default() -> Self {
         Self {
-            start: None,
+            start: -1,
             ins: "".to_owned(),
             del: "".to_owned(),
             is_frameshift: false,
@@ -521,7 +522,7 @@ impl AltSeqToHgvsp {
     pub fn build_hgvsp(&self) -> Result<HgvsVariant, anyhow::Error> {
         let mut records = Vec::new();
 
-        if !self.is_ambiguous() && !self.alt_seq().is_empty() {
+        if !self.alt_data.is_ambiguous && !self.alt_seq().is_empty() {
             let mut do_delins = true;
             if self.ref_seq() == self.alt_seq() {
                 // Silent p. variant.
@@ -530,7 +531,7 @@ impl AltSeqToHgvsp {
                     if start - 1 < self.ref_seq().len() as i32 {
                         let del = &self.ref_seq()[(start as usize - 1)..(start as usize - 1)];
                         AdHocRecord {
-                            start: Some(start),
+                            start,
                             ins: del.to_owned(),
                             del: del.to_owned(),
                             is_frameshift: self.alt_data.is_frameshift,
@@ -550,7 +551,7 @@ impl AltSeqToHgvsp {
                 let mut diff_records = e
                     .filter(|(_i, (r, a))| r != a)
                     .map(|(i, (r, a))| AdHocRecord {
-                        start: Some(i as i32 + 1),
+                        start: i as i32 + 1,
                         del: r.to_string(),
                         ins: a.to_string(),
                         is_frameshift: self.alt_data.is_frameshift,
@@ -572,7 +573,7 @@ impl AltSeqToHgvsp {
                     let deletion = &self.ref_seq()[start..];
                     let insertion = &self.alt_seq()[start..];
                     records.push(AdHocRecord {
-                        start: Some(start as i32 + 1),
+                        start: start as i32 + 1,
                         ins: insertion.to_owned(),
                         del: deletion.to_owned(),
                         is_frameshift: self.alt_data.is_frameshift,
@@ -637,7 +638,7 @@ impl AltSeqToHgvsp {
                     };
 
                     records.push(AdHocRecord {
-                        start: Some(start as i32),
+                        start: start as i32,
                         ins: insertion,
                         del: deletion,
                         is_frameshift: self.alt_data.is_frameshift,
@@ -646,16 +647,16 @@ impl AltSeqToHgvsp {
             }
         }
 
-        if self.is_ambiguous() {
+        if self.alt_data.is_ambiguous {
             Ok(self.create_variant(
                 None,
                 None,
                 "",
                 "",
-                -1,
+                UncertainLengthChange::None,
                 false,
                 self.protein_accession(),
-                self.is_ambiguous(),
+                self.alt_data.is_ambiguous,
                 false,
                 false,
                 false,
@@ -668,10 +669,10 @@ impl AltSeqToHgvsp {
                 None,
                 "",
                 "",
-                -1,
+                UncertainLengthChange::None,
                 false,
                 self.protein_accession(),
-                self.is_ambiguous(),
+                self.alt_data.is_ambiguous,
                 false,
                 false,
                 true,
@@ -705,20 +706,127 @@ impl AltSeqToHgvsp {
         self.alt_data.is_substitution
     }
 
-    fn is_ambiguous(&self) -> bool {
-        self.alt_data.is_ambiguous
-    }
-
     fn is_init_met(&self) -> bool {
         false
     }
 
     fn convert_to_hgvs_variant(
         &self,
-        _record: AdHocRecord,
-        _protein_accession: &str,
+        record: AdHocRecord,
+        protein_accession: &str,
     ) -> Result<HgvsVariant, anyhow::Error> {
-        todo!()
+        let AdHocRecord {
+            start,
+            ins: insertion,
+            del: deletion,
+            is_frameshift,
+        } = &record;
+
+        // defaults
+        let mut is_dup = false; // assume no dup
+        let mut fsext_len = UncertainLengthChange::default(); // fs or ext length
+        let mut is_sub = false;
+        let mut is_ext = false;
+        let mut is_init_met = false;
+        let mut is_ambiguous = self.alt_data.is_ambiguous;
+        let mut aa_start = Default::default();
+        let mut aa_end = Default::default();
+        let mut reference = String::new();
+        let mut alternative = String::new();
+
+        if *start == 1 {
+            // initial methionine is modified
+            aa_start = ProtPos {
+                aa: "M".to_owned(),
+                number: 1,
+            };
+            aa_end = aa_start.clone();
+            is_init_met = true;
+            is_ambiguous = true;
+        }
+
+        if insertion.starts_with("*") {
+            // stop codon at variant position
+            aa_start = ProtPos {
+                aa: deletion.chars().next().unwrap().to_string(),
+                number: *start,
+            };
+            aa_end = aa_start.clone();
+        } else if *start as usize == self.ref_seq().len() {
+            // extension
+            fsext_len = if self.alt_seq().chars().last() == Some('*') {
+                UncertainLengthChange::Known(insertion.len() as i32 - deletion.len() as i32)
+            } else {
+                UncertainLengthChange::Unknown
+            };
+
+            aa_start = ProtPos {
+                aa: "*".to_owned(),
+                number: *start,
+            };
+            aa_end = aa_start.clone();
+
+            reference = "".to_owned();
+            alternative = insertion.chars().next().unwrap().to_string();
+            is_ext = true;
+        } else if *is_frameshift {
+            // frameshift
+            aa_start = ProtPos {
+                aa: deletion.chars().next().unwrap().to_string(),
+                number: *start,
+            };
+            aa_end = aa_start.clone();
+
+            reference = "".to_owned();
+            alternative = insertion.chars().next().unwrap().to_string();
+
+            fsext_len = insertion
+                .find("*")
+                .map(|pos| UncertainLengthChange::Known(pos as i32 + 1))
+                .unwrap_or(UncertainLengthChange::Unknown);
+
+            // ALL CASES BELOW HERE: no frameshift - sub/delins/dup
+        } else if insertion == deletion {
+            // silent
+            aa_start = ProtPos {
+                aa: deletion.clone(),
+                number: *start,
+            };
+            aa_end = aa_start.clone();
+        } else if insertion.len() == 1 && deletion.len() == 1 {
+            // substitution
+            aa_start = ProtPos {
+                aa: deletion.clone(),
+                number: *start,
+            };
+            aa_end = aa_start.clone();
+            reference = "".to_owned();
+            alternative = reference.clone();
+            is_sub = true;
+        } else if !deletion.is_empty() {
+            // delins OR deletion OR stop codon at variant position
+            todo!()
+        } else if deletion.is_empty() {
+            // insertion OR duplication OR extension
+        } else {
+            panic!("Unexpected variant: {:?}", &record);
+        }
+
+        self.create_variant(
+            Some(aa_start),
+            Some(aa_end),
+            &reference,
+            &alternative,
+            fsext_len,
+            is_dup,
+            protein_accession,
+            is_ambiguous,
+            is_sub,
+            is_ext,
+            false,
+            is_init_met,
+            *is_frameshift,
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -728,7 +836,7 @@ impl AltSeqToHgvsp {
         end: Option<ProtPos>,
         reference: &str,
         alternative: &str,
-        fsext_len: i32,
+        fsext_len: UncertainLengthChange,
         is_dup: bool,
         acc: &str,
         is_ambiguous: bool,
@@ -761,13 +869,13 @@ impl AltSeqToHgvsp {
                         ProteinEdit::Ext {
                             aa_ext: Some(reference.to_string()),
                             ext_aa: Some(alternative.to_string()),
-                            change: UncertainLengthChange::Known(fsext_len),
+                            change: fsext_len,
                         }
                     } else if is_frameshift {
                         ProteinEdit::Fs {
                             alternative: Some(reference.to_string()),
                             terminal: Some("*".to_owned()),
-                            length: UncertainLengthChange::Known(fsext_len),
+                            length: fsext_len,
                         }
                     } else if is_dup {
                         ProteinEdit::Dup

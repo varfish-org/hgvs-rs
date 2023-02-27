@@ -146,8 +146,9 @@ impl NaEdit {
 }
 
 /// Uncertain change through extension.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub enum UncertainLengthChange {
+    #[default]
     None,
     Unknown,
     Known(i32),
@@ -748,7 +749,7 @@ impl From<ProtInterval> for Range<i32> {
 }
 
 /// Protein position.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct ProtPos {
     /// Amino acid value.
     pub aa: String,
