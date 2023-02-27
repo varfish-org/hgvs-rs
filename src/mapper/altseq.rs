@@ -1,6 +1,6 @@
 //! Code for building alternative sequence and convertion to HGVS.p.
 
-use std::rc::Rc;
+use std::{cmp::Ordering, rc::Rc};
 
 use crate::{
     data::interface::Provider,
@@ -584,30 +584,29 @@ impl AltSeqToHgvsp {
                     let delta = self.alt_seq().len() as isize - self.ref_seq().len() as isize;
                     let offset = start + delta.unsigned_abs();
 
-                    let (insertion, deletion, ref_sub, alt_sub) = if delta > 0 {
-                        // net insertion
-                        (
+                    let (insertion, deletion, ref_sub, alt_sub) = match delta.cmp(&0) {
+                        // if delta > 0 {
+                        Ordering::Greater => (
+                            // net insertion
                             self.alt_seq()[start..offset].to_owned(),
                             "".to_string(),
                             self.ref_seq()[start..].to_owned(),
                             self.alt_seq()[offset..].to_owned(),
-                        )
-                    } else if delta < 0 {
-                        // net deletion
-                        (
+                        ),
+                        Ordering::Less => (
+                            // net deletion
                             "".to_string(),
                             self.ref_seq()[start..offset].to_owned(),
                             self.ref_seq()[offset..].to_owned(),
                             self.alt_seq()[start..].to_owned(),
-                        )
-                    } else {
-                        // size remains the same
-                        (
+                        ),
+                        Ordering::Equal => (
+                            // size remains the same
                             "".to_string(),
                             "".to_string(),
                             self.ref_seq()[start..].to_owned(),
                             self.alt_seq()[start..].to_owned(),
-                        )
+                        ),
                     };
 
                     // From start, get del/ins out to last difference.
