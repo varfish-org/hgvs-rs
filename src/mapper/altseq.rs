@@ -805,9 +805,88 @@ impl AltSeqToHgvsp {
             is_sub = true;
         } else if !deletion.is_empty() {
             // delins OR deletion OR stop codon at variant position
-            todo!()
+            reference = deletion.clone();
+            let end = start + deletion.len() as i32 - 1;
+
+            aa_start = ProtPos {
+                aa: deletion.chars().next().unwrap().to_string(),
+                number: *start,
+            };
+            if !insertion.is_empty() {
+                // delins
+                aa_end = if end > *start {
+                    ProtPos {
+                        aa: deletion.chars().next().unwrap().to_string(),
+                        number: end,
+                    }
+                } else {
+                    aa_start.clone()
+                };
+                alternative = insertion.clone();
+            } else {
+                // deletion OR stop codon at variant position
+                if deletion.len() as i32 + start == self.ref_seq().len() as i32 {
+                    // stop codon at variant position
+                    aa_end = aa_start.clone();
+                    reference = "".to_string();
+                    alternative = "*".to_string();
+                    is_sub = true;
+                } else {
+                    // deletion
+                    aa_end = if end > *start {
+                        ProtPos {
+                            aa: deletion.chars().last().unwrap().to_string(),
+                            number: end,
+                        }
+                    } else {
+                        aa_start.clone()
+                    };
+                    alternative = "".to_string()
+                }
+            }
         } else if deletion.is_empty() {
             // insertion OR duplication OR extension
+            let (is_dup, dup_start) = self.check_if_ins_is_dup(*start, insertion);
+
+            if is_dup {
+                // is duplication
+                let dup_end = dup_start + insertion.len() as i32 - 1;
+                aa_start = ProtPos {
+                    aa: insertion.chars().next().unwrap().to_string(),
+                    number: dup_start,
+                };
+                aa_end = ProtPos {
+                    aa: insertion.chars().last().unwrap().to_string(),
+                    number: dup_end,
+                };
+                reference = "".to_string();
+                alternative = reference.clone();
+            } else {
+                // is non-dup insertion
+                let start = start - 1;
+                let end = start + 1;
+
+                aa_start = ProtPos {
+                    aa: self
+                        .ref_seq()
+                        .chars()
+                        .nth(start as usize - 1)
+                        .unwrap()
+                        .to_string(),
+                    number: start,
+                };
+                aa_end = ProtPos {
+                    aa: self
+                        .ref_seq()
+                        .chars()
+                        .nth(end as usize - 1)
+                        .unwrap()
+                        .to_string(),
+                    number: end,
+                };
+                reference = "".to_string();
+                alternative = insertion.clone();
+            }
         } else {
             panic!("Unexpected variant: {:?}", &record);
         }
@@ -893,5 +972,9 @@ impl AltSeqToHgvsp {
             gene_symbol: None,
             loc_edit,
         })
+    }
+
+    fn check_if_ins_is_dup(&self, start: i32, insertion: &str) -> (bool, i32) {
+        todo!()
     }
 }
