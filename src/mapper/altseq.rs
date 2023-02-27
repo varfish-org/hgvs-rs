@@ -87,14 +87,18 @@ impl RefTranscriptData {
 
 pub struct AltTranscriptData {
     /// Transcript nucleotide sequence.
+    #[allow(dead_code)]
     transcript_sequence: String,
     /// 1-letter amino acid sequence.
     aa_sequence: String,
     /// 1-based CDS start position.
+    #[allow(dead_code)]
     cds_start: i32,
     /// 1-based CDS stop position.
+    #[allow(dead_code)]
     cds_stop: i32,
     /// Protein accession number, e.g., `"NP_999999.2"`.
+    #[allow(dead_code)]
     protein_accession: String,
     /// Whether this is a frameshift variant.
     is_frameshift: bool,
@@ -698,16 +702,8 @@ impl AltSeqToHgvsp {
         &self.alt_data.aa_sequence
     }
 
-    fn frameshift_start(&self) -> Option<i32> {
-        self.alt_data.frameshift_start
-    }
-
     fn is_substitution(&self) -> bool {
         self.alt_data.is_substitution
-    }
-
-    fn is_init_met(&self) -> bool {
-        false
     }
 
     fn convert_to_hgvs_variant(
@@ -729,18 +725,19 @@ impl AltSeqToHgvsp {
         let mut is_ext = false;
         let mut is_init_met = false;
         let mut is_ambiguous = self.alt_data.is_ambiguous;
-        let mut aa_start = Default::default();
-        let mut aa_end = Default::default();
+        let aa_start;
+        let aa_end;
         let mut reference = String::new();
         let mut alternative = String::new();
 
         if *start == 1 {
             // initial methionine is modified
-            aa_start = ProtPos {
-                aa: "M".to_owned(),
-                number: 1,
-            };
-            aa_end = aa_start.clone();
+            // TODO: aa_start/aa_end was in Python code, not needed?
+            // aa_start = ProtPos {
+            //     aa: "M".to_owned(),
+            //     number: 1,
+            // };
+            // aa_end = aa_start.clone();
             is_init_met = true;
             is_ambiguous = true;
         }
@@ -846,7 +843,8 @@ impl AltSeqToHgvsp {
             }
         } else if deletion.is_empty() {
             // insertion OR duplication OR extension
-            let (is_dup, dup_start) = self.check_if_ins_is_dup(*start, insertion);
+            let dup_start;
+            (is_dup, dup_start) = self.check_if_ins_is_dup(*start, insertion);
 
             if is_dup {
                 // is duplication
@@ -974,7 +972,14 @@ impl AltSeqToHgvsp {
         })
     }
 
+    /// Helper to identity an insertion as a duplicate.
     fn check_if_ins_is_dup(&self, start: i32, insertion: &str) -> (bool, i32) {
-        todo!()
+        let dup_cand_start = start as usize - insertion.len() - 1;
+        let dup_cand = &self.ref_seq()[dup_cand_start..dup_cand_start + insertion.len()];
+        if insertion == dup_cand {
+            (true, dup_cand_start as i32 + 1)
+        } else {
+            (false, -1)
+        }
     }
 }
