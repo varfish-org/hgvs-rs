@@ -1038,4 +1038,201 @@ mod test {
 
         Ok(())
     }
+
+    /// The following tests corresponds to the `test_hgvs_variantmapper_cp_sanity.py`
+    /// test suite of the Python package.  It uses a mock data provider, defined
+    /// in the `sanity_mock` module.
+
+    mod sanity_mock {
+        use std::{
+            path::{Path, PathBuf},
+            rc::Rc,
+        };
+
+        use linked_hash_map::LinkedHashMap;
+
+        use crate::{data::interface::Provider as ProviderInterface, static_data::ASSEMBLY_INFOS};
+        use crate::{
+            data::interface::TxIdentityInfo,
+            mapper::variant::{Config, Mapper},
+        };
+
+        #[derive(Debug, serde::Deserialize)]
+        struct ProviderRecord {
+            pub accession: String,
+            pub transcript_sequence: String,
+            pub cds_start_i: i32,
+            pub cds_end_i: i32,
+        }
+
+        pub struct Provider {
+            records: Vec<ProviderRecord>,
+        }
+
+        impl Provider {
+            pub fn new(path: &Path) -> Result<Self, anyhow::Error> {
+                let mut records = Vec::new();
+
+                let mut rdr = csv::ReaderBuilder::new()
+                    .delimiter(b'\t')
+                    .has_headers(true)
+                    .from_path(path)?;
+                for record in rdr.deserialize() {
+                    records.push(record?);
+                }
+
+                Ok(Self { records })
+            }
+        }
+
+        impl ProviderInterface for Provider {
+            fn data_version(&self) -> &str {
+                panic!("for test use only");
+            }
+
+            fn schema_version(&self) -> &str {
+                panic!("for test use only");
+            }
+
+            fn get_assembly_map(
+                &self,
+                _assembly: crate::static_data::Assembly,
+            ) -> linked_hash_map::LinkedHashMap<String, String> {
+                panic!("for test use only");
+            }
+
+            fn get_gene_info(
+                &self,
+                _hgnc: &str,
+            ) -> Result<crate::data::interface::GeneInfoRecord, anyhow::Error> {
+                panic!("for test use only");
+            }
+
+            fn get_pro_ac_for_tx_ac(&self, _tx_ac: &str) -> Result<Option<String>, anyhow::Error> {
+                panic!("for test use only");
+            }
+
+            fn get_seq_part(
+                &self,
+                tx_ac: &str,
+                begin: Option<usize>,
+                end: Option<usize>,
+            ) -> Result<String, anyhow::Error> {
+                for record in &self.records {
+                    if record.accession == tx_ac {
+                        let seq = &record.transcript_sequence;
+                        return match (begin, end) {
+                            (None, None) => Ok(seq.to_string()),
+                            (None, Some(end)) => Ok(seq[..end].to_string()),
+                            (Some(begin), None) => Ok(seq[begin..].to_string()),
+                            (Some(begin), Some(end)) => Ok(seq[begin..end].to_string()),
+                        };
+                    }
+                }
+                Err(anyhow::anyhow!("Found no record for accession {}", &tx_ac))
+            }
+
+            fn get_acs_for_protein_seq(&self, _seq: &str) -> Result<Vec<String>, anyhow::Error> {
+                panic!("for test use only");
+            }
+
+            fn get_similar_transcripts(
+                &self,
+                _tx_ac: &str,
+            ) -> Result<Vec<crate::data::interface::TxSimilarityRecord>, anyhow::Error>
+            {
+                panic!("for test use only");
+            }
+
+            fn get_tx_exons(
+                &self,
+                tx_ac: &str,
+                alt_ac: &str,
+                alt_aln_method: &str,
+            ) -> Result<Vec<crate::data::interface::TxExonsRecord>, anyhow::Error> {
+                todo!()
+            }
+
+            fn get_tx_for_gene(
+                &self,
+                _gene: &str,
+            ) -> Result<Vec<crate::data::interface::TxInfoRecord>, anyhow::Error> {
+                panic!("for test use only");
+            }
+
+            fn get_tx_for_region(
+                &self,
+                _alt_ac: &str,
+                _alt_aln_method: &str,
+                _start_i: i32,
+                _end_i: i32,
+            ) -> Result<Vec<crate::data::interface::TxForRegionRecord>, anyhow::Error> {
+                panic!("for test use only");
+            }
+
+            fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, anyhow::Error> {
+                for record in &self.records {
+                    if record.accession == tx_ac {
+                        return Ok(TxIdentityInfo {
+                            tx_ac: record.accession.clone(),
+                            alt_ac: record.accession.clone(),
+                            alt_aln_method: "splign".to_string(),
+                            cds_start_i: record.cds_start_i,
+                            cds_end_i: record.cds_end_i,
+                            lengths: Vec::new(),
+                            hgnc: "MOCK".to_string(),
+                        });
+                    }
+                }
+                Err(anyhow::anyhow!("Found no record for accession {}", &tx_ac))
+            }
+
+            fn get_tx_info(
+                &self,
+                tx_ac: &str,
+                alt_ac: &str,
+                alt_aln_method: &str,
+            ) -> Result<crate::data::interface::TxInfoRecord, anyhow::Error> {
+                panic!("for test use only");
+            }
+
+            fn get_tx_mapping_options(
+                &self,
+                tax_ac: &str,
+            ) -> Result<Vec<crate::data::interface::TxMappingOptionsRecord>, anyhow::Error>
+            {
+                panic!("for test use only");
+            }
+        }
+
+        pub fn build_mapper() -> Result<Mapper, anyhow::Error> {
+            let path = PathBuf::from("tests/data/mapper/sanity_cp.tsv");
+            let provider = Rc::new(Provider::new(&path)?);
+            let config = Config::default();
+            Ok(Mapper::new(&config, provider))
+        }
+    }
+
+    fn test_hgvs_c_to_p_conversion(hgvsc: &str, hgvsp_expected: &str) -> Result<(), anyhow::Error> {
+        let mapper = sanity_mock::build_mapper()?;
+
+        let var_c = HgvsVariant::from_str(hgvsc)?;
+        let ac_p = "MOCK";
+
+        let var_p = mapper.c_to_p(&var_c, Some(ac_p))?;
+        let hgvsp_actual = format!("{}", &var_p);
+
+        assert_eq!(hgvsp_actual, hgvsp_expected);
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_silent() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.6A>G";
+        let hgvsp_expected = "MOCK:p.(Lys2=)";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
 }
