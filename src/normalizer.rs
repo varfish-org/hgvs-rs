@@ -9,7 +9,7 @@ use crate::{
         GenomeInterval, GenomeLocEdit, HgvsVariant, MtInterval, MtLocEdit, Mu, NaEdit, RnaInterval,
         RnaLocEdit, RnaPos, TxInterval, TxLocEdit, TxPos,
     },
-    utils::{revcomp, trim_common_prefixes, trim_common_suffixes},
+    sequences::{revcomp, trim_common_prefixes, trim_common_suffixes},
     validator::Validator,
 };
 

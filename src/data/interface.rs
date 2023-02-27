@@ -232,6 +232,12 @@ pub trait Provider {
         end: Option<usize>,
     ) -> Result<String, anyhow::Error>;
 
+    /// Returns a list of protein accessions for a given sequence.
+    ///
+    /// The list is guaranteed to contain at least one element with the MD5-based accession
+    /// (MD5_01234abc..def56789) at the end of the list.
+    fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, anyhow::Error>;
+
     /// Return a list of transcripts that are similar to the given transcript, with relevant
     /// similarity criteria.
     ///

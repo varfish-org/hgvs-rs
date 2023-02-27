@@ -12,60 +12,10 @@ use crate::{
         Accession, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval, GenomeLocEdit,
         HgvsVariant, Mu, NaEdit, TxInterval, TxLocEdit, TxPos,
     },
-    utils::revcomp,
+    sequences::revcomp,
     validator::{ValidationLevel, Validator},
 };
 use std::ops::Deref;
-
-/// Implementation details of `Mapper::c_to_p`
-mod c_to_p_impl {
-    use std::rc::Rc;
-
-    use crate::{data::interface::Provider, parser::HgvsVariant};
-
-    pub struct RefTranscriptData {
-        /// Data provider.
-        pub provider: Rc<dyn Provider>,
-        /// Transcript accession.
-        pub tx_ac: String,
-        /// Protein accession.
-        pub prot_ac: Option<String>,
-    }
-
-    pub struct AltSeqBuilder<'a> {
-        pub reference_data: &'a RefTranscriptData,
-    }
-
-    pub struct AltData {}
-
-    impl<'a> AltSeqBuilder<'a> {
-        pub fn new(reference_data: &'a RefTranscriptData) -> Self {
-            Self { reference_data }
-        }
-
-        pub fn build_altseq(&self) -> Result<Vec<AltData>, anyhow::Error> {
-            todo!()
-        }
-    }
-
-    pub struct AltSeqToHgvsp<'a> {
-        pub var_c: &'a HgvsVariant,
-        pub reference_data: &'a RefTranscriptData,
-    }
-
-    impl<'a> AltSeqToHgvsp<'a> {
-        pub fn new(var_c: &'a HgvsVariant, reference_data: &'a RefTranscriptData) -> Self {
-            Self {
-                var_c,
-                reference_data,
-            }
-        }
-
-        pub fn build_hgvsp(&self) -> Result<HgvsVariant, anyhow::Error> {
-            todo!()
-        }
-    }
-}
 
 /// Configuration for Mapper.
 ///
@@ -698,7 +648,7 @@ impl Mapper {
         var_c: &HgvsVariant,
         prot_ac: Option<&str>,
     ) -> Result<HgvsVariant, anyhow::Error> {
-        use c_to_p_impl::*;
+        use super::altseq::*;
 
         if let HgvsVariant::CdsVariant {
             accession,
@@ -708,11 +658,11 @@ impl Mapper {
         {
             self.validator.validate(var_c)?;
 
-            let reference_data = RefTranscriptData {
-                provider: self.provider.clone(),
-                tx_ac: accession.deref().clone(),
-                prot_ac: prot_ac.map(|s| s.to_string()),
-            };
+            let reference_data = RefTranscriptData::new(
+                self.provider.clone(),
+                accession.deref(),
+                prot_ac.map(|s| s.to_string()).as_deref(),
+            )?;
             let builder = AltSeqBuilder::new(&reference_data);
 
             // NB: the following comment is from the original code.
