@@ -127,7 +127,7 @@ impl AltTranscriptData {
         is_ambiguous: bool,
     ) -> Result<Self, anyhow::Error> {
         let transcript_sequence = seq.to_owned();
-        let aa_sequence = if seq.is_empty() {
+        let aa_sequence = if !seq.is_empty() {
             let seq_cds = &transcript_sequence[((cds_start - 1) as usize)..];
             let seq_aa = translate_cds(seq_cds, false, "*", TranslationTable::Standard)?;
             let stop_pos = seq_aa[..((cds_stop - cds_start + 1) as usize / 3)]
@@ -533,11 +533,16 @@ impl AltSeqToHgvsp {
                 let start = self.alt_data.variant_start_aa;
                 let record = if let Some(start) = start {
                     if start - 1 < self.ref_seq().len() as i32 {
-                        let del = &self.ref_seq()[(start as usize - 1)..(start as usize - 1)];
+                        let del = &self
+                            .ref_seq()
+                            .chars()
+                            .nth(start as usize - 1)
+                            .unwrap()
+                            .to_string();
                         AdHocRecord {
                             start,
-                            ins: del.to_owned(),
-                            del: del.to_owned(),
+                            ins: del.clone(),
+                            del: del.clone(),
                             is_frameshift: self.alt_data.is_frameshift,
                         }
                     } else {

@@ -507,6 +507,26 @@ pub fn aa_to_aa1(seq: &str) -> Result<String, anyhow::Error> {
     }
 }
 
+/// Coerces string of 1- or 3-letter amino acids to 3-letter representation.
+///
+/// Fails if the sequence is not of valid 3/1-letter amino acids.
+///
+/// # Args
+///
+/// * `seq` -- An amino acid sequence.
+///
+/// # Returns
+///
+/// The sequence as one of 1-letter amino acids.
+#[allow(dead_code)]
+pub fn aa_to_aa3(seq: &str) -> Result<String, anyhow::Error> {
+    if looks_like_aa3_p(seq) {
+        Ok(seq.to_string())
+    } else {
+        aa1_to_aa3(seq)
+    }
+}
+
 /// Converts string of 1-letter amino acids to 3-letter amino acids.
 ///
 /// Fails if the sequence is not of 1-letter amino acids.

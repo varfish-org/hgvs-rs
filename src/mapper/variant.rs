@@ -1198,7 +1198,7 @@ mod test {
 
             fn get_tx_mapping_options(
                 &self,
-                tax_ac: &str,
+                tx_ac: &str,
             ) -> Result<Vec<crate::data::interface::TxMappingOptionsRecord>, anyhow::Error>
             {
                 panic!("for test use only");
