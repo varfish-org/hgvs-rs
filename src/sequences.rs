@@ -478,7 +478,7 @@ static DNA_TO_AA1_SEC: phf::Map<&'static str, &'static str> = phf_map! {
     "YTR" => "L",
 };
 
-static IUPAC_AMBIGUITY_CODES: &'static str = "BDHVNUWSMKRYZ";
+static IUPAC_AMBIGUITY_CODES: &str = "BDHVNUWSMKRYZ";
 
 /// Allow selection of translation table.
 pub enum TranslationTable {
@@ -616,7 +616,7 @@ pub fn translate_cds(
         TranslationTable::Selenocysteine => &DNA_TO_AA1_SEC,
     };
 
-    let seq = seq.replace("u", "t").replace("U", "T").to_uppercase();
+    let seq = seq.replace('u', "t").replace('U', "T").to_uppercase();
 
     let mut result = String::new();
     for i in 0..(seq.len() / 3) {
@@ -630,7 +630,7 @@ pub fn translate_cds(
             for i in 0..codon.len() {
                 if IUPAC_AMBIGUITY_CODES.contains(&codon[i..(i + 1)]) {
                     ok = true;
-                    result.push_str("X");
+                    result.push('X');
                     break;
                 }
             }
