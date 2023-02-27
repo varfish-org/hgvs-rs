@@ -621,7 +621,7 @@ impl AltSeqToHgvsp {
                         .collect::<Vec<_>>();
                     let diff_indices = if diff_indices.is_empty()
                         && deletion.is_empty()
-                        && insertion.chars().next().unwrap() == '*'
+                        && insertion.starts_with('*')
                     {
                         vec![0]
                     } else {
@@ -716,8 +716,8 @@ impl AltSeqToHgvsp {
 
     fn convert_to_hgvs_variant(
         &self,
-        record: AdHocRecord,
-        protein_accession: &str,
+        _record: AdHocRecord,
+        _protein_accession: &str,
     ) -> Result<HgvsVariant, anyhow::Error> {
         todo!()
     }
