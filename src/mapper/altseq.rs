@@ -553,7 +553,7 @@ impl AltSeqToHgvsp {
                 };
                 records.push(record);
                 do_delins = false;
-            } else if self.is_substitution() && self.ref_seq() == self.alt_seq() {
+            } else if self.is_substitution() && self.ref_seq().len() == self.alt_seq().len() {
                 let r = self.ref_seq().chars();
                 let a = self.alt_seq().chars();
                 let e = r.zip(a).enumerate();
@@ -647,7 +647,7 @@ impl AltSeqToHgvsp {
                     };
 
                     records.push(AdHocRecord {
-                        start: start as i32,
+                        start: start as i32 + 1,
                         ins: insertion,
                         del: deletion,
                         is_frameshift: self.alt_data.is_frameshift,
@@ -754,6 +754,8 @@ impl AltSeqToHgvsp {
                 number: *start,
             };
             aa_end = aa_start.clone();
+            reference = "".to_string();
+            alternative = "*".to_string();
         } else if *start as usize == self.ref_seq().len() {
             // extension
             fsext_len = if self.alt_seq().ends_with('*') {
@@ -803,7 +805,7 @@ impl AltSeqToHgvsp {
             };
             aa_end = aa_start.clone();
             reference = "".to_owned();
-            alternative = reference.clone();
+            alternative = insertion.clone();
             is_sub = true;
         } else if !deletion.is_empty() {
             // delins OR deletion OR stop codon at variant position
@@ -938,6 +940,8 @@ impl AltSeqToHgvsp {
                 end: end.expect("must provide end"),
             };
             // NB: order matters.
+            // NB: in the original Python module, it is configurable whether the result
+            // of protein prediction is certain or uncertain.
             if is_no_protein {
                 ProtLocEdit::NoProtein
             } else {
@@ -949,13 +953,13 @@ impl AltSeqToHgvsp {
                         }
                     } else if is_ext {
                         ProteinEdit::Ext {
-                            aa_ext: Some(reference.to_string()),
-                            ext_aa: Some(alternative.to_string()),
+                            aa_ext: Some(alternative.to_string()),
+                            ext_aa: Some("*".to_string()),
                             change: fsext_len,
                         }
                     } else if is_frameshift {
                         ProteinEdit::Fs {
-                            alternative: Some(reference.to_string()),
+                            alternative: Some(alternative.to_string()),
                             terminal: Some("*".to_owned()),
                             length: fsext_len,
                         }

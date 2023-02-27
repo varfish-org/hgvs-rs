@@ -139,20 +139,34 @@ impl Display for ProteinEdit {
                 (Some(alt), None, UncertainLengthChange::None) => write!(f, "{alt}fs"),
                 (Some(alt), None, UncertainLengthChange::Unknown) => write!(f, "{alt}fs?"),
                 (Some(alt), None, UncertainLengthChange::Known(count)) => {
+                    let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
                     write!(f, "{alt}fs{count}")
                 }
-                (None, Some(ter), UncertainLengthChange::None) => write!(f, "fs{ter}"),
-                (None, Some(ter), UncertainLengthChange::Unknown) => write!(f, "fs{ter}?"),
+                (None, Some(ter), UncertainLengthChange::None) => {
+                    let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    write!(f, "fs{ter}")
+                },
+                (None, Some(ter), UncertainLengthChange::Unknown) => {
+                    let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    write!(f, "fs{ter}?")
+                },
                 (None, Some(ter), UncertainLengthChange::Known(count)) => {
+                    let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
                     write!(f, "fs{ter}{count}")
                 }
                 (Some(alt), Some(ter), UncertainLengthChange::None) => {
+                    let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
+                    let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
                     write!(f, "{alt}fs{ter}")
                 }
                 (Some(alt), Some(ter), UncertainLengthChange::Unknown) => {
+                    let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
+                    let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
                     write!(f, "{alt}fs{ter}?")
                 }
                 (Some(alt), Some(ter), UncertainLengthChange::Known(count)) => {
+                    let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
+                    let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
                     write!(f, "{alt}fs{ter}{count}")
                 }
             },
@@ -242,7 +256,7 @@ impl Display for ProtLocEdit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // TODO: make configurable whether inferred protein is uncertain or not?
         match self {
-            ProtLocEdit::Ordinary { loc, edit } => write!(f, "({loc}{edit})"),
+            ProtLocEdit::Ordinary { loc, edit } => write!(f, "{loc}{edit}"),
             ProtLocEdit::NoChange => write!(f, "="),
             ProtLocEdit::NoChangeUncertain => write!(f, "(=)"),
             ProtLocEdit::NoProtein => write!(f, "0"),

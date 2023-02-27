@@ -1230,7 +1230,52 @@ mod test {
     #[test]
     fn hgvs_c_to_p_silent() -> Result<(), anyhow::Error> {
         let hgvsc = "NM_999999.1:c.6A>G";
-        let hgvsp_expected = "MOCK:p.(Lys2=)";
+        let hgvsp_expected = "MOCK:p.Lys2=";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_substitution() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.6A>T";
+        let hgvsp_expected = "MOCK:p.Lys2Asn";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_substitution_introduces_stop_codon() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999996.1:c.8C>A";
+        let hgvsp_expected = "MOCK:p.Ser3Ter";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_substitution_removes_stop_codon() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999998.1:c.30G>T";
+        let hgvsp_expected = "MOCK:p.Ter10TyrextTer3";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_insertion_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.6_7insGGG";
+        let hgvsp_expected = "MOCK:p.Lys2_Ala3insGly";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_insertion_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.22_23insT";
+        let hgvsp_expected = "MOCK:p.Ala8ValfsTer?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
