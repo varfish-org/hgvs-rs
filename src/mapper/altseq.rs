@@ -742,7 +742,7 @@ impl AltSeqToHgvsp {
             is_ambiguous = true;
         }
 
-        if insertion.starts_with("*") {
+        if insertion.starts_with('*') {
             // stop codon at variant position
             aa_start = ProtPos {
                 aa: deletion.chars().next().unwrap().to_string(),
@@ -751,7 +751,7 @@ impl AltSeqToHgvsp {
             aa_end = aa_start.clone();
         } else if *start as usize == self.ref_seq().len() {
             // extension
-            fsext_len = if self.alt_seq().chars().last() == Some('*') {
+            fsext_len = if self.alt_seq().ends_with('*') {
                 UncertainLengthChange::Known(insertion.len() as i32 - deletion.len() as i32)
             } else {
                 UncertainLengthChange::Unknown
@@ -778,7 +778,7 @@ impl AltSeqToHgvsp {
             alternative = insertion.chars().next().unwrap().to_string();
 
             fsext_len = insertion
-                .find("*")
+                .find('*')
                 .map(|pos| UncertainLengthChange::Known(pos as i32 + 1))
                 .unwrap_or(UncertainLengthChange::Unknown);
 
