@@ -750,41 +750,31 @@ impl AltSeqToHgvsp {
             // NB: order matters.
             if is_no_protein {
                 ProtLocEdit::NoProtein
-            } else if is_sub {
-                ProtLocEdit::Ordinary {
-                    loc: Mu::Certain(interval),
-                    edit: Mu::Certain(ProteinEdit::Subst {
-                        alternative: alternative.to_string(),
-                    }),
-                }
-            } else if is_ext {
-                ProtLocEdit::Ordinary {
-                    loc: Mu::Certain(interval),
-                    edit: Mu::Certain(ProteinEdit::Ext {
-                        aa_ext: Some(reference.to_string()),
-                        ext_aa: Some(alternative.to_string()),
-                        change: UncertainLengthChange::Known(fsext_len),
-                    }),
-                }
-            } else if is_frameshift {
-                ProtLocEdit::Ordinary {
-                    loc: Mu::Certain(interval),
-                    edit: Mu::Certain(ProteinEdit::Fs {
-                        alternative: Some(reference.to_string()),
-                        terminal: Some("*".to_owned()),
-                        length: UncertainLengthChange::Known(fsext_len),
-                    }),
-                }
-            } else if is_dup {
-                ProtLocEdit::Ordinary {
-                    loc: Mu::Certain(interval),
-                    edit: Mu::Certain(ProteinEdit::Dup),
-                }
             } else {
                 ProtLocEdit::Ordinary {
                     loc: Mu::Certain(interval),
-                    edit: Mu::Certain(ProteinEdit::Subst {
-                        alternative: alternative.to_string(),
+                    edit: Mu::Certain(if is_sub {
+                        ProteinEdit::Subst {
+                            alternative: alternative.to_string(),
+                        }
+                    } else if is_ext {
+                        ProteinEdit::Ext {
+                            aa_ext: Some(reference.to_string()),
+                            ext_aa: Some(alternative.to_string()),
+                            change: UncertainLengthChange::Known(fsext_len),
+                        }
+                    } else if is_frameshift {
+                        ProteinEdit::Fs {
+                            alternative: Some(reference.to_string()),
+                            terminal: Some("*".to_owned()),
+                            length: UncertainLengthChange::Known(fsext_len),
+                        }
+                    } else if is_dup {
+                        ProteinEdit::Dup
+                    } else {
+                        ProteinEdit::Subst {
+                            alternative: alternative.to_string(),
+                        }
                     }),
                 }
             }
