@@ -4,10 +4,11 @@ use std::rc::Rc;
 
 use crate::{
     data::interface::Provider,
-    parser::HgvsVariant,
-    sequences::{translate_cds, TranslationTable},
+    parser::{CdsFrom, HgvsVariant, NaEdit},
+    sequences::{revcomp, translate_cds, TranslationTable},
 };
 
+#[derive(Debug, Clone)]
 pub struct RefTranscriptData {
     /// Transcript nucleotide sequence.
     pub transcript_sequence: String,
@@ -81,33 +82,419 @@ impl RefTranscriptData {
     }
 }
 
+pub struct AltTranscriptData {
+    /// Transcript nucleotide sequence.
+    transcript_sequence: String,
+    /// 1-letter amino acid sequence.
+    aa_sequence: String,
+    /// 1-based CDS start position.
+    cds_start: i32,
+    /// 1-based CDS stop position.
+    cds_stop: i32,
+    /// Protein accession number, e.g., `"NP_999999.2"`.
+    protein_accession: String,
+    /// Whether this is a frameshift variant.
+    is_frameshift: bool,
+    /// 1-based AA start index for this variant.
+    variant_start_aa: Option<i32>,
+    /// Starting position (AA ref index) of the last framewshift which affects the rest of the
+    /// sequence, ie.e., not offset by subsequent frameshifts.
+    frameshift_start: Option<i32>,
+    /// Whether this is a substitution AA variant.
+    is_substitution: bool,
+    /// Whether variant is "?".
+    is_ambiguous: bool,
+}
+
+impl AltTranscriptData {
+    /// Create a variant sequence using inputs from `VariantInserter`.
+    pub fn new(
+        seq: &str,
+        cds_start: i32,
+        cds_stop: i32,
+        is_frameshift: bool,
+        variant_start_aa: Option<i32>,
+        protein_accession: &str,
+        is_substitution: bool,
+        is_ambiguous: bool,
+    ) -> Result<Self, anyhow::Error> {
+        let transcript_sequence = seq.to_owned();
+        let aa_sequence = if seq.is_empty() {
+            let seq_cds = &transcript_sequence[((cds_start - 1) as usize)..];
+            let seq_aa = translate_cds(seq_cds, false, "*", TranslationTable::Standard)?;
+            let stop_pos = seq_aa[..((cds_stop - cds_start + 1) as usize / 3)]
+                .rfind("*")
+                .or_else(|| seq_aa.find("*"));
+            if let Some(stop_pos) = stop_pos {
+                seq_aa[..(stop_pos as usize + 1)].to_owned()
+            } else {
+                seq_aa.to_owned()
+            }
+        } else {
+            "".to_owned()
+        };
+
+        Ok(Self {
+            transcript_sequence,
+            aa_sequence,
+            cds_start,
+            cds_stop,
+            protein_accession: protein_accession.to_owned(),
+            is_frameshift,
+            variant_start_aa,
+            frameshift_start: None,
+            is_substitution,
+            is_ambiguous,
+        })
+    }
+}
+
+/// Utility enum for locating variant in a transcript.
+enum VariantLocation {
+    Exon,
+    Intron,
+    FivePrimeUtr,
+    ThreePrimeUtr,
+    WholeGene,
+}
+
+/// Utility enum for edit type.
+enum EditType {
+    NaRefAlt,
+    Dup,
+    Inv,
+    NotCds,
+    WholeGeneDeleted,
+}
+
 /// Utility to insert an hgvs variant into a transcript sequence.
 ///
 /// Generates a record corresponding to the modified transcript sequence, along with annotations
 /// for use in conversion to an hgvsp tag.  Used in hgvsc to hgvsp conversion.
-pub struct AltSeqBuilder<'a> {
-    pub reference_data: &'a RefTranscriptData,
+pub struct AltSeqBuilder {
+    /// HgvsVariant::CdsVariant to build the alternative sequence for.
+    pub var_c: HgvsVariant,
+    /// Information about the transcript reference.
+    pub reference_data: RefTranscriptData,
+    /// Whether the transcript reference amino acid sequence has multiple stop codons.
+    pub ref_has_multiple_stops: bool,
 }
 
-pub struct AltData {}
+impl AltSeqBuilder {
+    pub fn new(var_c: HgvsVariant, reference_data: RefTranscriptData) -> Self {
+        if !matches!(&var_c, HgvsVariant::CdsVariant { .. }) {
+            panic!("Must initialize with HgvsVariant::CdsVariant");
+        }
+        let ref_has_multiple_stops = reference_data.aa_sequence.matches("*").count() > 1;
 
-impl<'a> AltSeqBuilder<'a> {
-    pub fn new(reference_data: &'a RefTranscriptData) -> Self {
-        Self { reference_data }
+        Self {
+            var_c,
+            reference_data,
+            ref_has_multiple_stops,
+        }
     }
 
-    pub fn build_altseq(&self) -> Result<Vec<AltData>, anyhow::Error> {
-        todo!()
+    /// Given a variant and a sequence, incorporate the variant and return the new sequence.
+    ///
+    /// Data structure returned is analogous to the data structure used to return the variant
+    /// sequence, but with an additional parameter denoting the start of a frameshift that should
+    /// affect all bases downstream.
+    ///
+    /// # Returns
+    ///
+    /// Variant sequence data.
+    pub fn build_altseq(&self) -> Result<Vec<AltTranscriptData>, anyhow::Error> {
+        // NB: the following common is from the original Python code.
+        // Should loop over each allele rather than assume only 1 variant; return a list for now.
+
+        let na_edit = self.var_c.na_edit().expect("Invalid CdsVariant");
+        let edit_type = match self.get_variant_region() {
+            VariantLocation::Exon => match na_edit {
+                NaEdit::RefAlt { .. }
+                | NaEdit::NumAlt { .. }
+                | NaEdit::DelRef { .. }
+                | NaEdit::DelNum { .. }
+                | NaEdit::Ins { .. } => EditType::NaRefAlt,
+                NaEdit::Dup { .. } => EditType::Dup,
+                NaEdit::InvRef { .. } | NaEdit::InvNum { .. } => EditType::Inv,
+            },
+            VariantLocation::Intron
+            // NB: the following comment is from the original Python code
+            // TODO: handle case where variatn introduces a `Met` (new start)
+            | VariantLocation::FivePrimeUtr
+            | VariantLocation::ThreePrimeUtr => EditType::NotCds,
+            VariantLocation::WholeGene => match na_edit {
+                NaEdit::DelNum { .. } => EditType::WholeGeneDeleted,
+                NaEdit::Dup { .. } => {
+                    log::warn!("Whole-gene duplication; consequence assumed to not affect protein product");
+                    EditType::NotCds
+                },
+                NaEdit::InvRef { .. } |
+                NaEdit::InvNum { .. } => {
+                    log::warn!("Whole-gene inversion; consequence assumed to not affected protein product");
+                    EditType::NotCds
+                },
+                _ => panic!("Invalid combination of whole gene variant location and NaEdit {:?}", na_edit),
+            },
+        };
+
+        // Get the start of the "terminal" frameshift (i.e. one never "cancelled out").
+        let alt_data = match edit_type {
+            EditType::NaRefAlt => self.incorporate_delins(),
+            EditType::Dup => self.incorporate_dup(),
+            EditType::Inv => self.incorporate_inv(),
+            EditType::NotCds => self.create_alt_equals_ref_noncds(),
+            EditType::WholeGeneDeleted => self.create_no_protein(),
+        }?;
+
+        let alt_data = self.get_frameshift_start(alt_data);
+
+        Ok(vec![alt_data])
+    }
+
+    /// Categorize variant by location in transcript.
+    fn get_variant_region(&self) -> VariantLocation {
+        match &self.var_c {
+            HgvsVariant::CdsVariant { loc_edit, .. } => {
+                let loc = loc_edit.loc.inner();
+                if loc.start.cds_from == CdsFrom::End && loc.end.cds_from == CdsFrom::End {
+                    VariantLocation::ThreePrimeUtr
+                } else if loc.start.base < 0 && loc.end.base < 0 {
+                    VariantLocation::FivePrimeUtr
+                } else if loc.start.base < 0 && loc.end.cds_from == CdsFrom::End {
+                    VariantLocation::WholeGene
+                } else if loc.start.offset.is_some() || loc.end.offset.is_some() {
+                    // Leave out anything intronic for now.
+                    VariantLocation::Intron
+                } else {
+                    // Anything else that contains an exon.
+                    VariantLocation::Exon
+                }
+            }
+            _ => panic!("Must be CDS variant"),
+        }
+    }
+
+    /// Helper to setup incorporate function.
+    ///
+    /// # Returns
+    ///
+    /// `(transcript sequence, cds start [1-based], cds stop [1-based], cds start index in
+    /// seq [inc, 0-based], cds end index in seq [excl, 0-based])`
+    fn setup_incorporate(&self) -> (String, i32, i32, usize, usize) {
+        let mut start_end = Vec::new();
+
+        match &self.var_c {
+            HgvsVariant::CdsVariant { loc_edit, .. } => {
+                for pos in vec![&loc_edit.loc.inner().start, &loc_edit.loc.inner().end] {
+                    match pos.cds_from {
+                        CdsFrom::Start => {
+                            if pos.base < 0 {
+                                // 5' UTR
+                                start_end.push(self.reference_data.cds_start as usize - 1);
+                            } else {
+                                if pos.offset.unwrap_or(0) <= 0 {
+                                    start_end.push(
+                                        self.reference_data.cds_start as usize - 1
+                                            + pos.base as usize
+                                            - 1,
+                                    );
+                                } else {
+                                    start_end.push(
+                                        self.reference_data.cds_start as usize - 1
+                                            + pos.base as usize,
+                                    );
+                                }
+                            }
+                        }
+                        CdsFrom::End => {
+                            // 3' UTR
+                            start_end.push(
+                                self.reference_data.cds_stop as usize + pos.base as usize - 1,
+                            );
+                        }
+                    }
+                }
+            }
+            _ => panic!("invalid variant"),
+        }
+
+        (
+            self.reference_data.transcript_sequence.to_owned(),
+            self.reference_data.cds_start,
+            self.reference_data.cds_stop,
+            start_end[0],
+            start_end[1] + 1,
+        )
+    }
+
+    /// Get starting position (AA ref index) of the last frameshift which affects the rest of
+    /// the sequence, i.e. not offset by subsequent frameshifts.
+    fn get_frameshift_start(&self, variant_data: AltTranscriptData) -> AltTranscriptData {
+        AltTranscriptData {
+            frameshift_start: if variant_data.is_frameshift {
+                variant_data.variant_start_aa
+            } else {
+                variant_data.frameshift_start
+            },
+            ..variant_data
+        }
+    }
+
+    fn incorporate_delins(&self) -> Result<AltTranscriptData, anyhow::Error> {
+        let (mut seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
+
+        let (reference, alternative) = match &self.var_c {
+            HgvsVariant::CdsVariant { loc_edit, .. } => match loc_edit.edit.inner() {
+                NaEdit::RefAlt {
+                    reference,
+                    alternative,
+                } => (reference.clone(), alternative.clone()),
+                NaEdit::DelRef { reference } => (reference.to_owned(), "".to_string()),
+                NaEdit::Ins { alternative } => ("".to_string(), alternative.to_owned()),
+                _ => panic!("Can only work with concrete ref/alt"),
+            },
+            _ => panic!("Can only work on CDS variants"),
+        };
+        let ref_len = if reference.is_empty() { 0 } else { end - start } as i32;
+        let alt_len = alternative.len() as i32;
+        let net_base_change = alt_len - ref_len;
+        let cds_stop = cds_stop + net_base_change;
+
+        // Incorporate the variant into the sequence (depending on the type).
+        let mut is_substitution = false;
+        if !reference.is_empty() && !alternative.is_empty() {
+            // delins or SNP
+            seq.replace_range(start..end, &alternative);
+            if reference.len() == 1 && alternative.len() == 1 {
+                is_substitution = true;
+            }
+        } else if !reference.is_empty() {
+            // deletion
+            seq.replace_range(start..end, "");
+        } else {
+            // insertion
+            seq.insert_str(start + 1, &alternative);
+        }
+
+        let is_frameshift = net_base_change % 3 != 0;
+
+        // Use max. of mod 3 value and 1 (in the event that the indel starts in the 5' UTR range).
+        let loc_range = self
+            .var_c
+            .loc_range()
+            .expect("Could not determine insertion location");
+        let variant_start_aa = std::cmp::max((loc_range.start as f64 / 3.0).ceil() as i32, 1);
+
+        AltTranscriptData::new(
+            &seq,
+            cds_start,
+            cds_stop,
+            is_frameshift,
+            Some(variant_start_aa),
+            &self.reference_data.protein_accession,
+            is_substitution,
+            self.ref_has_multiple_stops,
+        )
+    }
+
+    fn incorporate_dup(&self) -> Result<AltTranscriptData, anyhow::Error> {
+        let (seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
+
+        let seq = format!(
+            "{}{}{}{}",
+            &seq[..start],
+            &seq[start..end],
+            &seq[start..end],
+            &seq[end..]
+        );
+
+        let is_frameshift = (end - start) % 3 != 0;
+
+        let loc_range = self
+            .var_c
+            .loc_range()
+            .expect("Could not determine insertion location");
+        let variant_start_aa = ((loc_range.end + 1) as f64 / 3.0).ceil() as i32;
+
+        AltTranscriptData::new(
+            &seq,
+            cds_start,
+            cds_stop,
+            is_frameshift,
+            Some(variant_start_aa),
+            &self.reference_data.protein_accession,
+            false,
+            self.ref_has_multiple_stops,
+        )
+    }
+
+    /// Incorporate inversion into sequence.
+    fn incorporate_inv(&self) -> Result<AltTranscriptData, anyhow::Error> {
+        let (seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
+
+        let seq = format!(
+            "{}{}{}",
+            &seq[..start],
+            revcomp(&seq[start..end]),
+            &seq[end..]
+        );
+
+        let loc_range = self
+            .var_c
+            .loc_range()
+            .expect("Could not determine insertion location");
+        let variant_start_aa =
+            std::cmp::max((((loc_range.start + 1) as f64) / 3.0).ceil() as i32, 1);
+
+        AltTranscriptData::new(
+            &seq,
+            cds_start,
+            cds_stop,
+            false,
+            Some(variant_start_aa),
+            &self.reference_data.protein_accession,
+            false,
+            self.ref_has_multiple_stops,
+        )
+    }
+
+    /// Create an alt seq that matches the reference (for non-CDS variants).
+    fn create_alt_equals_ref_noncds(&self) -> Result<AltTranscriptData, anyhow::Error> {
+        AltTranscriptData::new(
+            &self.reference_data.transcript_sequence,
+            self.reference_data.cds_start,
+            self.reference_data.cds_stop,
+            false,
+            None,
+            &self.reference_data.protein_accession,
+            false,
+            false,
+        )
+    }
+
+    /// Create a no-protein result.
+    fn create_no_protein(&self) -> Result<AltTranscriptData, anyhow::Error> {
+        AltTranscriptData::new(
+            "",
+            -1,
+            -1,
+            false,
+            None,
+            &self.reference_data.protein_accession,
+            false,
+            false,
+        )
     }
 }
 
-pub struct AltSeqToHgvsp<'a> {
-    pub var_c: &'a HgvsVariant,
-    pub reference_data: &'a RefTranscriptData,
+pub struct AltSeqToHgvsp {
+    pub var_c: HgvsVariant,
+    pub reference_data: RefTranscriptData,
 }
 
-impl<'a> AltSeqToHgvsp<'a> {
-    pub fn new(var_c: &'a HgvsVariant, reference_data: &'a RefTranscriptData) -> Self {
+impl AltSeqToHgvsp {
+    pub fn new(var_c: HgvsVariant, reference_data: RefTranscriptData) -> Self {
         Self {
             var_c,
             reference_data,

@@ -663,7 +663,7 @@ impl Mapper {
                 accession.deref(),
                 prot_ac.map(|s| s.to_string()).as_deref(),
             )?;
-            let builder = AltSeqBuilder::new(&reference_data);
+            let builder = AltSeqBuilder::new(var_c.clone(), reference_data.clone());
 
             // NB: the following comment is from the original code.
             // TODO: handle case where you get 2+ alt sequences back;  currently get lis tof 1 element
@@ -673,7 +673,7 @@ impl Mapper {
                 .build_altseq()?
                 .into_iter()
                 .map(|_alt_data| {
-                    let builder = AltSeqToHgvsp::new(var_c, &reference_data);
+                    let builder = AltSeqToHgvsp::new(var_c.clone(), reference_data.clone());
                     builder.build_hgvsp()
                 })
                 .collect();
