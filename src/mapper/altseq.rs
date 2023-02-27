@@ -4,7 +4,10 @@ use std::rc::Rc;
 
 use crate::{
     data::interface::Provider,
-    parser::{CdsFrom, HgvsVariant, NaEdit},
+    parser::{
+        Accession, CdsFrom, HgvsVariant, Mu, NaEdit, ProtInterval, ProtLocEdit, ProtPos,
+        ProteinEdit, UncertainLengthChange,
+    },
     sequences::{revcomp, translate_cds, TranslationTable},
 };
 
@@ -485,20 +488,313 @@ impl AltSeqBuilder {
     }
 }
 
+/// Build `HgvsVariant::ProtVariant` from information about change to transcript.
 pub struct AltSeqToHgvsp {
-    pub var_c: HgvsVariant,
-    pub reference_data: RefTranscriptData,
+    pub ref_data: RefTranscriptData,
+    pub alt_data: AltTranscriptData,
+}
+
+struct AdHocRecord {
+    start: Option<i32>,
+    ins: String,
+    del: String,
+    is_frameshift: bool,
+}
+
+impl Default for AdHocRecord {
+    fn default() -> Self {
+        Self {
+            start: None,
+            ins: "".to_owned(),
+            del: "".to_owned(),
+            is_frameshift: false,
+        }
+    }
 }
 
 impl AltSeqToHgvsp {
-    pub fn new(var_c: HgvsVariant, reference_data: RefTranscriptData) -> Self {
-        Self {
-            var_c,
-            reference_data,
+    pub fn new(ref_data: RefTranscriptData, alt_data: AltTranscriptData) -> Self {
+        Self { ref_data, alt_data }
+    }
+
+    /// Compare two amino acid sequences and generate a HGVS tag from the output.
+    pub fn build_hgvsp(&self) -> Result<HgvsVariant, anyhow::Error> {
+        let mut records = Vec::new();
+
+        if !self.is_ambiguous() && !self.alt_seq().is_empty() {
+            let mut do_delins = true;
+            if self.ref_seq() == self.alt_seq() {
+                // Silent p. variant.
+                let start = self.alt_data.variant_start_aa;
+                let record = if let Some(start) = start {
+                    if start - 1 < self.ref_seq().len() as i32 {
+                        let del = &self.ref_seq()[(start as usize - 1)..(start as usize - 1)];
+                        AdHocRecord {
+                            start: Some(start),
+                            ins: del.to_owned(),
+                            del: del.to_owned(),
+                            is_frameshift: self.alt_data.is_frameshift,
+                        }
+                    } else {
+                        Default::default()
+                    }
+                } else {
+                    Default::default()
+                };
+                records.push(record);
+                do_delins = false;
+            } else if self.is_substitution() && self.ref_seq() == self.alt_seq() {
+                let r = self.ref_seq().chars();
+                let a = self.alt_seq().chars();
+                let e = r.zip(a).enumerate();
+                let mut diff_records = e
+                    .filter(|(_i, (r, a))| r != a)
+                    .map(|(i, (r, a))| AdHocRecord {
+                        start: Some(i as i32 + 1),
+                        del: r.to_string(),
+                        ins: a.to_string(),
+                        is_frameshift: self.alt_data.is_frameshift,
+                    })
+                    .collect::<Vec<_>>();
+                if diff_records.len() == 1 {
+                    records.push(diff_records.drain(..).next().unwrap());
+                    do_delins = false;
+                }
+            }
+
+            if do_delins {
+                let mut start = self.alt_data.variant_start_aa.unwrap() as usize - 1;
+                while self.ref_seq().chars().nth(start) == self.alt_seq().chars().nth(start) {
+                    start += 1;
+                }
+                if self.alt_data.is_frameshift {
+                    // Case: frameshifting delins or dup.
+                    let deletion = &self.ref_seq()[start..];
+                    let insertion = &self.alt_seq()[start..];
+                    records.push(AdHocRecord {
+                        start: Some(start as i32 + 1),
+                        ins: insertion.to_owned(),
+                        del: deletion.to_owned(),
+                        is_frameshift: self.alt_data.is_frameshift,
+                    })
+                } else {
+                    // Case: non-frameshifting delins or dup.
+                    //
+                    // Get size diff from diff in ref/alt lengths.
+                    let delta = self.alt_seq().len() as isize - self.ref_seq().len() as isize;
+                    let offset = start + delta.unsigned_abs();
+
+                    let (insertion, deletion, ref_sub, alt_sub) = if delta > 0 {
+                        // net insertion
+                        (
+                            self.alt_seq()[start..offset].to_owned(),
+                            "".to_string(),
+                            self.ref_seq()[start..].to_owned(),
+                            self.alt_seq()[offset..].to_owned(),
+                        )
+                    } else if delta < 0 {
+                        // net deletion
+                        (
+                            "".to_string(),
+                            self.ref_seq()[start..offset].to_owned(),
+                            self.ref_seq()[offset..].to_owned(),
+                            self.alt_seq()[start..].to_owned(),
+                        )
+                    } else {
+                        // size remains the same
+                        (
+                            "".to_string(),
+                            "".to_string(),
+                            self.ref_seq()[start..].to_owned(),
+                            self.alt_seq()[start..].to_owned(),
+                        )
+                    };
+
+                    // From start, get del/ins out to last difference.
+                    let r = ref_sub.chars();
+                    let a = alt_sub.chars();
+                    let diff_indices = r
+                        .zip(a)
+                        .enumerate()
+                        .filter(|(_i, (r, a))| r != a)
+                        .map(|(i, _)| i)
+                        .collect::<Vec<_>>();
+                    let diff_indices = if diff_indices.is_empty()
+                        && deletion.is_empty()
+                        && insertion.chars().next().unwrap() == '*'
+                    {
+                        vec![0]
+                    } else {
+                        diff_indices
+                    };
+                    let (deletion, insertion) = if !diff_indices.is_empty() {
+                        let max_diff = diff_indices.last().unwrap() + 1;
+                        (
+                            format!("{}{}", deletion, &ref_sub[..max_diff]),
+                            format!("{}{}", insertion, &alt_sub[..max_diff]),
+                        )
+                    } else {
+                        (deletion, insertion)
+                    };
+
+                    records.push(AdHocRecord {
+                        start: Some(start as i32),
+                        ins: insertion,
+                        del: deletion,
+                        is_frameshift: self.alt_data.is_frameshift,
+                    });
+                }
+            }
+        }
+
+        if self.is_ambiguous() {
+            Ok(self.create_variant(
+                None,
+                None,
+                "",
+                "",
+                -1,
+                false,
+                self.protein_accession(),
+                self.is_ambiguous(),
+                false,
+                false,
+                false,
+                false,
+                false,
+            )?)
+        } else if self.alt_seq().is_empty() {
+            Ok(self.create_variant(
+                None,
+                None,
+                "",
+                "",
+                -1,
+                false,
+                self.protein_accession(),
+                self.is_ambiguous(),
+                false,
+                false,
+                true,
+                false,
+                false,
+            )?)
+        } else if let Some(var) = records.drain(..).next() {
+            Ok(self.convert_to_hgvs_variant(var, self.protein_accession())?)
+        } else {
+            Err(anyhow::anyhow!("Got multiple AA variants - not supported!"))
         }
     }
 
-    pub fn build_hgvsp(&self) -> Result<HgvsVariant, anyhow::Error> {
+    fn protein_accession(&self) -> &str {
+        &self.ref_data.protein_accession
+    }
+
+    fn ref_seq(&self) -> &str {
+        &self.ref_data.aa_sequence
+    }
+
+    fn alt_seq(&self) -> &str {
+        &self.alt_data.aa_sequence
+    }
+
+    fn frameshift_start(&self) -> Option<i32> {
+        self.alt_data.frameshift_start
+    }
+
+    fn is_substitution(&self) -> bool {
+        self.alt_data.is_substitution
+    }
+
+    fn is_ambiguous(&self) -> bool {
+        self.alt_data.is_ambiguous
+    }
+
+    fn is_init_met(&self) -> bool {
+        false
+    }
+
+    fn convert_to_hgvs_variant(
+        &self,
+        record: AdHocRecord,
+        protein_accession: &str,
+    ) -> Result<HgvsVariant, anyhow::Error> {
         todo!()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn create_variant(
+        &self,
+        start: Option<ProtPos>,
+        end: Option<ProtPos>,
+        reference: &str,
+        alternative: &str,
+        fsext_len: i32,
+        is_dup: bool,
+        acc: &str,
+        is_ambiguous: bool,
+        is_sub: bool,
+        is_ext: bool,
+        is_no_protein: bool,
+        is_init_met: bool,
+        is_frameshift: bool,
+    ) -> Result<HgvsVariant, anyhow::Error> {
+        let loc_edit = if is_init_met {
+            ProtLocEdit::NoProteinUncertain
+        } else if is_ambiguous {
+            ProtLocEdit::NoChangeUncertain
+        } else {
+            let interval = ProtInterval {
+                start: start.expect("must provide start"),
+                end: end.expect("must provide end"),
+            };
+            // NB: order matters.
+            if is_no_protein {
+                ProtLocEdit::NoProtein
+            } else if is_sub {
+                ProtLocEdit::Ordinary {
+                    loc: Mu::Certain(interval),
+                    edit: Mu::Certain(ProteinEdit::Subst {
+                        alternative: alternative.to_string(),
+                    }),
+                }
+            } else if is_ext {
+                ProtLocEdit::Ordinary {
+                    loc: Mu::Certain(interval),
+                    edit: Mu::Certain(ProteinEdit::Ext {
+                        aa_ext: Some(reference.to_string()),
+                        ext_aa: Some(alternative.to_string()),
+                        change: UncertainLengthChange::Known(fsext_len),
+                    }),
+                }
+            } else if is_frameshift {
+                ProtLocEdit::Ordinary {
+                    loc: Mu::Certain(interval),
+                    edit: Mu::Certain(ProteinEdit::Fs {
+                        alternative: Some(reference.to_string()),
+                        terminal: Some("*".to_owned()),
+                        length: UncertainLengthChange::Known(fsext_len),
+                    }),
+                }
+            } else if is_dup {
+                ProtLocEdit::Ordinary {
+                    loc: Mu::Certain(interval),
+                    edit: Mu::Certain(ProteinEdit::Dup),
+                }
+            } else {
+                ProtLocEdit::Ordinary {
+                    loc: Mu::Certain(interval),
+                    edit: Mu::Certain(ProteinEdit::Subst {
+                        alternative: alternative.to_string(),
+                    }),
+                }
+            }
+        };
+
+        Ok(HgvsVariant::ProtVariant {
+            accession: Accession::new(acc),
+            gene_symbol: None,
+            loc_edit,
+        })
     }
 }

@@ -159,7 +159,7 @@ pub struct Accession {
     pub value: String,
 }
 
-impl lazy_static::__Deref for Accession {
+impl Deref for Accession {
     type Target = String;
 
     fn deref(&self) -> &Self::Target {

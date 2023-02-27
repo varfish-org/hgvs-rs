@@ -672,8 +672,8 @@ impl Mapper {
             let var_ps: Result<Vec<_>, anyhow::Error> = builder
                 .build_altseq()?
                 .into_iter()
-                .map(|_alt_data| {
-                    let builder = AltSeqToHgvsp::new(var_c.clone(), reference_data.clone());
+                .map(|alt_data| {
+                    let builder = AltSeqToHgvsp::new(reference_data.clone(), alt_data);
                     builder.build_hgvsp()
                 })
                 .collect();
