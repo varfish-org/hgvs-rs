@@ -108,6 +108,7 @@ pub struct AltTranscriptData {
 
 impl AltTranscriptData {
     /// Create a variant sequence using inputs from `VariantInserter`.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         seq: &str,
         cds_start: i32,
@@ -123,12 +124,12 @@ impl AltTranscriptData {
             let seq_cds = &transcript_sequence[((cds_start - 1) as usize)..];
             let seq_aa = translate_cds(seq_cds, false, "*", TranslationTable::Standard)?;
             let stop_pos = seq_aa[..((cds_stop - cds_start + 1) as usize / 3)]
-                .rfind("*")
-                .or_else(|| seq_aa.find("*"));
+                .rfind('*')
+                .or_else(|| seq_aa.find('*'));
             if let Some(stop_pos) = stop_pos {
-                seq_aa[..(stop_pos as usize + 1)].to_owned()
+                seq_aa[..(stop_pos + 1)].to_owned()
             } else {
-                seq_aa.to_owned()
+                seq_aa
             }
         } else {
             "".to_owned()
@@ -185,7 +186,7 @@ impl AltSeqBuilder {
         if !matches!(&var_c, HgvsVariant::CdsVariant { .. }) {
             panic!("Must initialize with HgvsVariant::CdsVariant");
         }
-        let ref_has_multiple_stops = reference_data.aa_sequence.matches("*").count() > 1;
+        let ref_has_multiple_stops = reference_data.aa_sequence.matches('*').count() > 1;
 
         Self {
             var_c,
@@ -234,7 +235,7 @@ impl AltSeqBuilder {
                     log::warn!("Whole-gene inversion; consequence assumed to not affected protein product");
                     EditType::NotCds
                 },
-                _ => panic!("Invalid combination of whole gene variant location and NaEdit {:?}", na_edit),
+                _ => panic!("Invalid combination of whole gene variant location and NaEdit {na_edit:?}"),
             },
         };
 
@@ -286,25 +287,21 @@ impl AltSeqBuilder {
 
         match &self.var_c {
             HgvsVariant::CdsVariant { loc_edit, .. } => {
-                for pos in vec![&loc_edit.loc.inner().start, &loc_edit.loc.inner().end] {
+                for pos in &[&loc_edit.loc.inner().start, &loc_edit.loc.inner().end] {
                     match pos.cds_from {
                         CdsFrom::Start => {
                             if pos.base < 0 {
                                 // 5' UTR
                                 start_end.push(self.reference_data.cds_start as usize - 1);
+                            } else if pos.offset.unwrap_or(0) <= 0 {
+                                start_end.push(
+                                    self.reference_data.cds_start as usize - 1 + pos.base as usize
+                                        - 1,
+                                );
                             } else {
-                                if pos.offset.unwrap_or(0) <= 0 {
-                                    start_end.push(
-                                        self.reference_data.cds_start as usize - 1
-                                            + pos.base as usize
-                                            - 1,
-                                    );
-                                } else {
-                                    start_end.push(
-                                        self.reference_data.cds_start as usize - 1
-                                            + pos.base as usize,
-                                    );
-                                }
+                                start_end.push(
+                                    self.reference_data.cds_start as usize - 1 + pos.base as usize,
+                                );
                             }
                         }
                         CdsFrom::End => {
