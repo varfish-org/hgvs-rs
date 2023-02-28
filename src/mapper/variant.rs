@@ -1561,6 +1561,25 @@ mod test {
 
         Ok(())
     }
+
+    // The following tests correspond to the tests in `test_hgvs_variantmapper_cp_real.py`.
+
+    #[test]
+    fn hgvs_c_to_p_format() -> Result<(), anyhow::Error> {
+        let mapper = build_mapper()?;
+        let hgvs_c = "NM_022464.4:c.3G>A";  // gene SIL1
+        // let hgvsp_expected_alternative = "NP_071909.1:p.?";
+
+        let var_c = HgvsVariant::from_str(hgvs_c)?;
+        let var_p = mapper.c_to_p(&var_c, None)?;
+        assert_eq!(format!("{}", &var_p), "NP_071909.1:p.Met1?");
+
+        // TODO(#25): implement formatting of display and uncomment
+        // alt_format_p = var_p.format(conf={"p_init_met": False})
+        // self.assertEqual(hgvsp_expected_alternative, alt_format_p)
+
+        Ok(())
+    }
 }
 
 // <LICENSE>
