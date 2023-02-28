@@ -1566,7 +1566,8 @@ mod test {
     //
     // For adding tests, you will have to
     //
-    // - add a record to `real_cp.tsv`, in particular fill out gene column
+    // - add a record to `real_cp.tsv`
+    // - update `bootstrap.sh` with the HGNC symbol if necessary
     // - re-run `bootstrap.sh` so the records are pulled into the subset
     // - re-create the local database and import the subset
     // - re-run the test with `TEST_SEQREPO_CACHE_MODE=write` so the relevant queries to
@@ -1575,8 +1576,9 @@ mod test {
     #[test]
     fn hgvs_c_to_p_format() -> Result<(), anyhow::Error> {
         let mapper = build_mapper()?;
-        let hgvs_c = "NM_022464.4:c.3G>A"; // gene SIL1
-                                           // let hgvsp_expected_alternative = "NP_071909.1:p.?";
+        // gene SIL1
+        let hgvs_c = "NM_022464.4:c.3G>A";
+        // let hgvsp_expected_alternative = "NP_071909.1:p.?";
 
         let var_c = HgvsVariant::from_str(hgvs_c)?;
         let var_p = mapper.c_to_p(&var_c, None)?;
@@ -1589,12 +1591,11 @@ mod test {
         Ok(())
     }
 
-    mod cp_real_test {
+    mod gcp_tests {
         use std::path::Path;
 
         #[derive(Debug, serde::Deserialize)]
         pub struct Record {
-            pub hgnc: String,
             pub id: String,
             pub hgvs_g: String,
             pub hgvs_c: String,
@@ -1620,7 +1621,7 @@ mod test {
     fn cp_real() -> Result<(), anyhow::Error> {
         let mapper = build_mapper()?;
         let path = PathBuf::from("tests/data/mapper/real_cp.tsv");
-        let records = cp_real_test::load_records(&path)?;
+        let records = gcp_tests::load_records(&path)?;
 
         for record in records {
             let var_c = HgvsVariant::from_str(&record.hgvs_c)?;
@@ -1637,6 +1638,78 @@ mod test {
             assert_eq!(result, expected);
         }
 
+        Ok(())
+    }
+
+    // The following tests correspond to those in `test_hgvs_variantmapper_gcp.py`.
+
+    #[test]
+    fn zcchc3_dbsnp() -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
+    #[test]
+    fn orai1_dbsnp() -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
+    #[test]
+    fn folr3_dbsnp() -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
+    #[test]
+    fn adra2b_dbsnp() -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
+    #[test]
+    fn jrk_dbsnp() -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
+    #[test]
+    fn nefl_dbsnp() -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
+    #[test]
+    fn dnah11_hgmd() -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
+    #[test]
+    fn dnah11_dbsnp_nm_003777() -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
+    #[test]
+    fn DNAH11_dbSNP_NM_001277115() -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
+    #[test]
+    fn regression() -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
+    #[test]
+    fn DNAH11_dbSNP_full() -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
+    #[test]
+    fn regression() -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
+    #[test]
+    fn real() -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
+    #[test]
+    fn noncoding() -> Result<(), anyhow::Error> {
         Ok(())
     }
 }
