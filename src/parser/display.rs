@@ -145,11 +145,11 @@ impl Display for ProteinEdit {
                 (None, Some(ter), UncertainLengthChange::None) => {
                     let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
                     write!(f, "fs{ter}")
-                },
+                }
                 (None, Some(ter), UncertainLengthChange::Unknown) => {
                     let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
                     write!(f, "fs{ter}?")
-                },
+                }
                 (None, Some(ter), UncertainLengthChange::Known(count)) => {
                     let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
                     write!(f, "fs{ter}{count}")

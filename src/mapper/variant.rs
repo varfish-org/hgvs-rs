@@ -1024,7 +1024,7 @@ mod test {
         let hgvs_c = "NM_001051.2:c.1257dupG"; // gene SSTR3
         let var_c = HgvsVariant::from_str(hgvs_c)?;
         let var_p = mapper.c_to_p(&var_c, None)?;
-        assert_eq!(format!("{}", &var_p), "NP_001042.1:p.(=)");
+        assert_eq!(format!("{}", &var_p), "NP_001042.1:p.=)");
 
         Ok(())
     }
@@ -1276,6 +1276,297 @@ mod test {
     fn hgvs_c_to_p_insertion_frameshift() -> Result<(), anyhow::Error> {
         let hgvsc = "NM_999999.1:c.22_23insT";
         let hgvsp_expected = "MOCK:p.Ala8ValfsTer?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_adds_stop() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.8_9insTT";
+        let hgvsp_expected = "MOCK:p.Lys4Ter";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.10_12del";
+        let hgvsp_expected = "MOCK:p.Lys4del";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion2_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.4_15del";
+        let hgvsp_expected = "MOCK:p.Lys2_Ala5del";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion3_no_frameshift_c_term() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999995.1:c.4_6del";
+        let hgvsp_expected = "MOCK:p.Lys3del";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion4_no_frameshift_c_term() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999994.1:c.4_9del";
+        let hgvsp_expected = "MOCK:p.Lys3_Lys4del";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion5_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999994.1:c.20_25del";
+        let hgvsp_expected = "MOCK:p.Ala7_Arg9delinsGly";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion6_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.5_7del";
+        let hgvsp_expected = "MOCK:p.Lys2_Ala3delinsThr";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion7_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999993.1:c.13_24del";
+        let hgvsp_expected = "MOCK:p.Arg5_Ala8del";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion_frameshift_nostop() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.11_12del";
+        let hgvsp_expected = "MOCK:p.Lys4SerfsTer?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion_frameshift_adds_stop() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999997.1:c.7del";
+        let hgvsp_expected = "MOCK:p.Ala3ArgfsTer6";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion_no_frameshift_removes_stop_plus_previous() -> Result<(), anyhow::Error>
+    {
+        let hgvsc = "NM_999999.1:c.25_30del";
+        let hgvsp_expected = "MOCK:p.Lys9_Ter10delinsGly";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_indel_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.11_12delinsTCCCA";
+        let hgvsp_expected = "MOCK:p.Lys4delinsIlePro";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_indel2_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.11_18delinsTCCCA";
+        let hgvsp_expected = "MOCK:p.Lys4_Phe6delinsIlePro";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_indel_frameshift_nostop() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.8delinsGG";
+        let hgvsp_expected = "MOCK:p.Ala3GlyfsTer?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_dup_1AA_no_frameshift_2() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.10_12dup";
+        let hgvsp_expected = "MOCK:p.Lys4dup";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_dup_1AA_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.16_18dup";
+        let hgvsp_expected = "MOCK:p.Phe6dup";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_dup_2AA_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.16_21dup";
+        let hgvsp_expected = "MOCK:p.Phe6_Arg7dup";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_dup_2AA2_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999995.1:c.4_6dup";
+        let hgvsp_expected = "MOCK:p.Lys3dup";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_3AA_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.16_24dup";
+        let hgvsp_expected = "MOCK:p.Phe6_Ala8dup";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_dup_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.12_13dup";
+        let hgvsp_expected = "MOCK:p.Ala5GlufsTer?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_intron() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.12+1G>A";
+        let hgvsp_expected = "MOCK:p.?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_five_prime_utr() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.-2A>G";
+        let hgvsp_expected = "MOCK:p.?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_three_prime_utr() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.*3G>A";
+        let hgvsp_expected = "MOCK:p.?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion_into_three_prime_utr_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.27_*3del";
+        let hgvsp_expected = "MOCK:p.Lys9XaafsTer?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion_into_three_prime_utr_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999995.1:c.28_*3del";
+        let hgvsp_expected = "MOCK:p.Lys10_Ter11delinsArgGlnPheArg";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_delins_into_three_prime_utr_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999995.1:c.28_*3delinsGGG";
+        let hgvsp_expected = "MOCK:p.Lys10_Ter11delinsGlyArgGlnPheArg";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    /// See recommendations re p.? (p.Met1?) at:
+    /// http://varnomen.hgvs.org/recommendations/protein/variant/substitution/
+    #[test]
+    fn hgvs_c_to_p_substitution_removes_start_codon() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.1A>G";
+        let hgvsp_expected = "MOCK:p.Met1?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion_from_five_prime_utr_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.-3_1del";
+        let hgvsp_expected = "MOCK:p.Met1?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion_from_five_prime_utr_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.-3_3del";
+        let hgvsp_expected = "MOCK:p.Met1?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_delins_from_five_prime_utr_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.-3_3delinsAAA";
+        let hgvsp_expected = "MOCK:p.Met1?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_delete_entire_gene() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.-3_*1del";
+        let hgvsp_expected = "MOCK:p.0?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_multiple_stop_codons() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999992.1:c.4G>A";
+        let hgvsp_expected = "MOCK:p.?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
