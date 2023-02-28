@@ -830,7 +830,7 @@ impl AltSeqToHgvsp {
                 // delins
                 aa_end = if end > *start {
                     Some(ProtPos {
-                        aa: deletion.chars().next().unwrap().to_string(),
+                        aa: deletion.chars().last().unwrap().to_string(),
                         number: end,
                     })
                 } else {
@@ -981,9 +981,17 @@ impl AltSeqToHgvsp {
                     } else if is_dup {
                         ProteinEdit::Dup
                     } else if reference.is_empty() == alternative.is_empty() {
-                        ProteinEdit::Subst {
-                            alternative: alternative.to_string(),
+                        if reference.len() > 1 || alternative.len() > 1 {
+                            ProteinEdit::DelIns {
+                                alternative: alternative.to_string(),
+                            }
+                        } else {
+                            ProteinEdit::Subst {
+                                alternative: alternative.to_string(),
+                            }
                         }
+                    } else if alternative.is_empty() {
+                        ProteinEdit::Del
                     } else {
                         ProteinEdit::Ins {
                             alternative: alternative.to_string(),
