@@ -961,12 +961,6 @@ mod test {
 
         let var_n = HgvsVariant::from_str(hgvs_n)?;
         let var_c = HgvsVariant::from_str(hgvs_c)?;
-        let _tx_ac = if let HgvsVariant::TxVariant { accession, .. } = &var_c {
-            Some(accession.value.clone())
-        } else {
-            None
-        }
-        .unwrap();
 
         // n_to_c: transcript is non-coding
         assert!(mapper.n_to_c(&var_n).is_err());
