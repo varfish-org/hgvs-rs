@@ -902,7 +902,10 @@ impl Mapper {
 #[cfg(test)]
 mod test {
     use pretty_assertions::assert_eq;
-    use std::{path::PathBuf, str::FromStr};
+    use std::{
+        path::{Path, PathBuf},
+        str::FromStr,
+    };
     use test_log::test;
 
     use crate::{
@@ -1597,9 +1600,14 @@ mod test {
         #[derive(Debug, serde::Deserialize)]
         pub struct Record {
             pub id: String,
+            #[serde(alias = "HGVSg")]
             pub hgvs_g: String,
+            #[serde(alias = "HGVSc")]
             pub hgvs_c: String,
-            pub hgvs_p: String,
+            #[serde(alias = "HGVSp")]
+            pub hgvs_p: Option<String>,
+            pub description: Option<String>,
+            pub alternatives: Option<String>,
         }
 
         pub fn load_records(path: &Path) -> Result<Vec<Record>, anyhow::Error> {
@@ -1608,6 +1616,8 @@ mod test {
             let mut rdr = csv::ReaderBuilder::new()
                 .delimiter(b'\t')
                 .has_headers(true)
+                .flexible(true)
+                .comment(Some(b'#'))
                 .from_path(path)?;
             for record in rdr.deserialize() {
                 records.push(record?);
@@ -1625,10 +1635,16 @@ mod test {
 
         for record in records {
             let var_c = HgvsVariant::from_str(&record.hgvs_c)?;
-            let prot_ac = record.hgvs_p.split(":").next();
-            let var_p = mapper.c_to_p(&var_c, prot_ac)?;
+            let prot_ac = record
+                .hgvs_p
+                .as_ref()
+                .unwrap()
+                .split(":")
+                .next()
+                .map(|s| s.to_string());
+            let var_p = mapper.c_to_p(&var_c, prot_ac.as_deref())?;
             let result = format!("{}", &var_p);
-            let expected = &record.hgvs_p;
+            let expected = &record.hgvs_p.unwrap();
 
             let expected = if &result != expected {
                 expected.replace("*", "Ter")
@@ -1643,74 +1659,75 @@ mod test {
 
     // The following tests correspond to those in `test_hgvs_variantmapper_gcp.py`.
 
+    fn run_gxp_test(path: &str) -> Result<(), anyhow::Error> {
+        let records = gcp_tests::load_records(&Path::new(path))?;
+
+        Ok(())
+    }
+
     #[test]
     fn zcchc3_dbsnp() -> Result<(), anyhow::Error> {
-        Ok(())
+        run_gxp_test("tests/data/mapper/gcp/ZCCHC3-dbSNP.tsv")
     }
 
     #[test]
     fn orai1_dbsnp() -> Result<(), anyhow::Error> {
-        Ok(())
+        run_gxp_test("tests/data/mapper/gcp/ORAI1-dbSNP.tsv")
     }
 
     #[test]
     fn folr3_dbsnp() -> Result<(), anyhow::Error> {
-        Ok(())
+        run_gxp_test("tests/data/mapper/gcp/FOLR3-dbSNP.tsv")
     }
 
     #[test]
     fn adra2b_dbsnp() -> Result<(), anyhow::Error> {
-        Ok(())
+        run_gxp_test("tests/data/mapper/gcp/ADRA2B-dbSNP.tsv")
     }
 
     #[test]
     fn jrk_dbsnp() -> Result<(), anyhow::Error> {
-        Ok(())
+        run_gxp_test("tests/data/mapper/gcp/JRK-dbSNP.tsv")
     }
 
     #[test]
     fn nefl_dbsnp() -> Result<(), anyhow::Error> {
-        Ok(())
+        run_gxp_test("tests/data/mapper/gcp/NEFL-dbSNP.tsv")
     }
 
     #[test]
     fn dnah11_hgmd() -> Result<(), anyhow::Error> {
-        Ok(())
+        run_gxp_test("tests/data/mapper/gcp/DNAH11-HGMD.tsv")
     }
 
     #[test]
     fn dnah11_dbsnp_nm_003777() -> Result<(), anyhow::Error> {
-        Ok(())
+        run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP-NM_003777.tsv")
     }
 
     #[test]
-    fn DNAH11_dbSNP_NM_001277115() -> Result<(), anyhow::Error> {
-        Ok(())
-    }
-
-    #[test]
-    fn regression() -> Result<(), anyhow::Error> {
-        Ok(())
-    }
-
-    #[test]
-    fn DNAH11_dbSNP_full() -> Result<(), anyhow::Error> {
-        Ok(())
+    fn dnah11_db_snp_nm_001277115() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP-NM_001277115.tsv")
     }
 
     #[test]
     fn regression() -> Result<(), anyhow::Error> {
-        Ok(())
+        run_gxp_test("tests/data/mapper/gcp/regression.tsv")
+    }
+
+    #[test]
+    fn dnah11_db_snp_full() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP.tsv")
     }
 
     #[test]
     fn real() -> Result<(), anyhow::Error> {
-        Ok(())
+        run_gxp_test("tests/data/mapper/gcp/real.tsv")
     }
 
     #[test]
     fn noncoding() -> Result<(), anyhow::Error> {
-        Ok(())
+        run_gxp_test("tests/data/mapper/gcp/noncoding.tsv")
     }
 }
 
