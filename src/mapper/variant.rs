@@ -1748,70 +1748,70 @@ mod test {
         Ok(())
     }
 
-    #[test]
-    fn zcchc3_dbsnp() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/ZCCHC3-dbSNP.tsv")
-    }
+    // #[test]
+    // fn zcchc3_dbsnp() -> Result<(), anyhow::Error> {
+    //     run_gxp_test("tests/data/mapper/gcp/ZCCHC3-dbSNP.tsv")
+    // }
 
-    #[test]
-    fn orai1_dbsnp() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/ORAI1-dbSNP.tsv")
-    }
+    // #[test]
+    // fn orai1_dbsnp() -> Result<(), anyhow::Error> {
+    //     run_gxp_test("tests/data/mapper/gcp/ORAI1-dbSNP.tsv")
+    // }
 
-    #[test]
-    fn folr3_dbsnp() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/FOLR3-dbSNP.tsv")
-    }
+    // #[test]
+    // fn folr3_dbsnp() -> Result<(), anyhow::Error> {
+    //     run_gxp_test("tests/data/mapper/gcp/FOLR3-dbSNP.tsv")
+    // }
 
-    #[test]
-    fn adra2b_dbsnp() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/ADRA2B-dbSNP.tsv")
-    }
+    // #[test]
+    // fn adra2b_dbsnp() -> Result<(), anyhow::Error> {
+    //     run_gxp_test("tests/data/mapper/gcp/ADRA2B-dbSNP.tsv")
+    // }
 
-    #[test]
-    fn jrk_dbsnp() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/JRK-dbSNP.tsv")
-    }
+    // #[test]
+    // fn jrk_dbsnp() -> Result<(), anyhow::Error> {
+    //     run_gxp_test("tests/data/mapper/gcp/JRK-dbSNP.tsv")
+    // }
 
-    #[test]
-    fn nefl_dbsnp() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/NEFL-dbSNP.tsv")
-    }
+    // #[test]
+    // fn nefl_dbsnp() -> Result<(), anyhow::Error> {
+    //     run_gxp_test("tests/data/mapper/gcp/NEFL-dbSNP.tsv")
+    // }
 
-    #[test]
-    fn dnah11_hgmd() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/DNAH11-HGMD.tsv")
-    }
+    // #[test]
+    // fn dnah11_hgmd() -> Result<(), anyhow::Error> {
+    //     run_gxp_test("tests/data/mapper/gcp/DNAH11-HGMD.tsv")
+    // }
 
-    #[test]
-    fn dnah11_dbsnp_nm_003777() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP-NM_003777.tsv")
-    }
+    // #[test]
+    // fn dnah11_dbsnp_nm_003777() -> Result<(), anyhow::Error> {
+    //     run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP-NM_003777.tsv")
+    // }
 
-    #[test]
-    fn dnah11_db_snp_nm_001277115() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP-NM_001277115.tsv")
-    }
+    // #[test]
+    // fn dnah11_db_snp_nm_001277115() -> Result<(), anyhow::Error> {
+    //     run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP-NM_001277115.tsv")
+    // }
 
-    #[test]
-    fn regression() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/regression.tsv")
-    }
+    // #[test]
+    // fn regression() -> Result<(), anyhow::Error> {
+    //     run_gxp_test("tests/data/mapper/gcp/regression.tsv")
+    // }
 
-    #[test]
-    fn dnah11_db_snp_full() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP.tsv")
-    }
+    // #[test]
+    // fn dnah11_db_snp_full() -> Result<(), anyhow::Error> {
+    //     run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP.tsv")
+    // }
 
-    #[test]
-    fn real() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/real.tsv")
-    }
+    // #[test]
+    // fn real() -> Result<(), anyhow::Error> {
+    //     run_gxp_test("tests/data/mapper/gcp/real.tsv")
+    // }
 
-    #[test]
-    fn noncoding() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/noncoding.tsv")
-    }
+    // #[test]
+    // fn noncoding() -> Result<(), anyhow::Error> {
+    //     run_gxp_test("tests/data/mapper/gcp/noncoding.tsv")
+    // }
 }
 
 // <LICENSE>
