@@ -129,7 +129,7 @@ impl AltTranscriptData {
         let transcript_sequence = seq.to_owned();
         let aa_sequence = if !seq.is_empty() {
             let seq_cds = &transcript_sequence[((cds_start - 1) as usize)..];
-            let seq_aa = translate_cds(seq_cds, false, "*", TranslationTable::Standard)?;
+            let seq_aa = translate_cds(seq_cds, false, "X", TranslationTable::Standard)?;
             let stop_pos = seq_aa[..((cds_stop - cds_start + 1) as usize / 3)]
                 .rfind('*')
                 .or_else(|| seq_aa.find('*'));
@@ -353,32 +353,37 @@ impl AltSeqBuilder {
                 NaEdit::RefAlt {
                     reference,
                     alternative,
-                } => (reference.clone(), alternative.clone()),
-                NaEdit::DelRef { reference } => (reference.to_owned(), "".to_string()),
-                NaEdit::Ins { alternative } => ("".to_string(), alternative.to_owned()),
+                } => (Some(reference.clone()), Some(alternative.clone())),
+                NaEdit::DelRef { reference } => (Some(reference.to_owned()), None),
+                NaEdit::Ins { alternative } => (None, Some(alternative.to_owned())),
                 _ => panic!("Can only work with concrete ref/alt"),
             },
             _ => panic!("Can only work on CDS variants"),
         };
-        let ref_len = if reference.is_empty() { 0 } else { end - start } as i32;
-        let alt_len = alternative.len() as i32;
+        let ref_len = reference.as_ref().map(|_| end - start).unwrap_or(0) as i32;
+        let alt_len = alternative.as_ref().map(|alt| alt.len()).unwrap_or(0) as i32;
         let net_base_change = alt_len - ref_len;
         let cds_stop = cds_stop + net_base_change;
 
         // Incorporate the variant into the sequence (depending on the type).
         let mut is_substitution = false;
-        if !reference.is_empty() && !alternative.is_empty() {
-            // delins or SNP
-            seq.replace_range(start..end, &alternative);
-            if reference.len() == 1 && alternative.len() == 1 {
-                is_substitution = true;
+        match (reference, alternative) {
+            (Some(reference), Some(alternative)) => {
+                // delins or SNP
+                seq.replace_range(start..end, &alternative);
+                if reference.len() == 1 && alternative.len() == 1 {
+                    is_substitution = true;
+                }
             }
-        } else if !reference.is_empty() {
-            // deletion
-            seq.replace_range(start..end, "");
-        } else {
-            // insertion
-            seq.insert_str(start + 1, &alternative);
+            (Some(_reference), None) => {
+                // deletion
+                seq.replace_range(start..end, "");
+            }
+            (None, Some(alternative)) => {
+                // insertion
+                seq.insert_str(start + 1, &alternative);
+            }
+            _ => panic!("This should not happen"),
         }
 
         let is_frameshift = net_base_change % 3 != 0;
@@ -975,7 +980,7 @@ impl AltSeqToHgvsp {
                         }
                     } else if is_dup {
                         ProteinEdit::Dup
-                    } else if reference.is_empty() && alternative.is_empty() {
+                    } else if reference.is_empty() == alternative.is_empty() {
                         ProteinEdit::Subst {
                             alternative: alternative.to_string(),
                         }
