@@ -12,60 +12,10 @@ use crate::{
         Accession, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval, GenomeLocEdit,
         HgvsVariant, Mu, NaEdit, TxInterval, TxLocEdit, TxPos,
     },
-    utils::revcomp,
+    sequences::revcomp,
     validator::{ValidationLevel, Validator},
 };
 use std::ops::Deref;
-
-/// Implementation details of `Mapper::c_to_p`
-mod c_to_p_impl {
-    use std::rc::Rc;
-
-    use crate::{data::interface::Provider, parser::HgvsVariant};
-
-    pub struct RefTranscriptData {
-        /// Data provider.
-        pub provider: Rc<dyn Provider>,
-        /// Transcript accession.
-        pub tx_ac: String,
-        /// Protein accession.
-        pub prot_ac: Option<String>,
-    }
-
-    pub struct AltSeqBuilder<'a> {
-        pub reference_data: &'a RefTranscriptData,
-    }
-
-    pub struct AltData {}
-
-    impl<'a> AltSeqBuilder<'a> {
-        pub fn new(reference_data: &'a RefTranscriptData) -> Self {
-            Self { reference_data }
-        }
-
-        pub fn build_altseq(&self) -> Result<Vec<AltData>, anyhow::Error> {
-            todo!()
-        }
-    }
-
-    pub struct AltSeqToHgvsp<'a> {
-        pub var_c: &'a HgvsVariant,
-        pub reference_data: &'a RefTranscriptData,
-    }
-
-    impl<'a> AltSeqToHgvsp<'a> {
-        pub fn new(var_c: &'a HgvsVariant, reference_data: &'a RefTranscriptData) -> Self {
-            Self {
-                var_c,
-                reference_data,
-            }
-        }
-
-        pub fn build_hgvsp(&self) -> Result<HgvsVariant, anyhow::Error> {
-            todo!()
-        }
-    }
-}
 
 /// Configuration for Mapper.
 ///
@@ -551,7 +501,7 @@ impl Mapper {
             };
 
             let var_g = HgvsVariant::GenomeVariant {
-                accession: accession.clone(),
+                accession: Accession::from(alt_ac.to_string()),
                 gene_symbol: self.fetch_gene_symbol(accession.deref().as_str(), gene_symbol)?,
                 loc_edit: GenomeLocEdit {
                     loc: pos_g,
@@ -698,7 +648,7 @@ impl Mapper {
         var_c: &HgvsVariant,
         prot_ac: Option<&str>,
     ) -> Result<HgvsVariant, anyhow::Error> {
-        use c_to_p_impl::*;
+        use super::altseq::*;
 
         if let HgvsVariant::CdsVariant {
             accession,
@@ -708,12 +658,12 @@ impl Mapper {
         {
             self.validator.validate(var_c)?;
 
-            let reference_data = RefTranscriptData {
-                provider: self.provider.clone(),
-                tx_ac: accession.deref().clone(),
-                prot_ac: prot_ac.map(|s| s.to_string()),
-            };
-            let builder = AltSeqBuilder::new(&reference_data);
+            let reference_data = RefTranscriptData::new(
+                self.provider.clone(),
+                accession.deref(),
+                prot_ac.map(|s| s.to_string()).as_deref(),
+            )?;
+            let builder = AltSeqBuilder::new(var_c.clone(), reference_data.clone());
 
             // NB: the following comment is from the original code.
             // TODO: handle case where you get 2+ alt sequences back;  currently get lis tof 1 element
@@ -722,8 +672,8 @@ impl Mapper {
             let var_ps: Result<Vec<_>, anyhow::Error> = builder
                 .build_altseq()?
                 .into_iter()
-                .map(|_alt_data| {
-                    let builder = AltSeqToHgvsp::new(var_c, &reference_data);
+                .map(|alt_data| {
+                    let builder = AltSeqToHgvsp::new(reference_data.clone(), alt_data);
                     builder.build_hgvsp()
                 })
                 .collect();
@@ -951,27 +901,19 @@ impl Mapper {
 
 #[cfg(test)]
 mod test {
-    use std::{rc::Rc, str::FromStr};
+    use pretty_assertions::assert_eq;
+    use std::str::FromStr;
     use test_log::test;
 
     use crate::{
-        data::uta::{Config as ProviderConfig, Provider},
-        parser::HgvsVariant,
+        data::uta_sr::test_helpers::build_provider,
+        parser::{HgvsVariant, NoRef},
     };
 
     use super::{Config, Mapper};
 
-    fn get_config() -> ProviderConfig {
-        ProviderConfig {
-            db_url: std::env::var("TEST_UTA_DATABASE_URL")
-                .expect("Environment variable TEST_UTA_DATABASE_URL undefined!"),
-            db_schema: std::env::var("TEST_UTA_DATABASE_SCHEMA")
-                .expect("Environment variable TEST_UTA_DATABASE_SCHEMA undefined!"),
-        }
-    }
-
     fn build_mapper() -> Result<Mapper, anyhow::Error> {
-        let provider = Rc::new(Provider::with_config(&get_config())?);
+        let provider = build_provider()?;
         let config = Config::default();
         Ok(Mapper::new(&config, provider))
     }
@@ -1010,7 +952,6 @@ mod test {
         Ok(())
     }
 
-    #[ignore]
     #[test]
     fn fail_on_undefined_cds() -> Result<(), anyhow::Error> {
         let mapper = build_mapper()?;
@@ -1020,12 +961,6 @@ mod test {
 
         let var_n = HgvsVariant::from_str(hgvs_n)?;
         let var_c = HgvsVariant::from_str(hgvs_c)?;
-        let _tx_ac = if let HgvsVariant::TxVariant { accession, .. } = &var_c {
-            Some(accession.value.clone())
-        } else {
-            None
-        }
-        .unwrap();
 
         // n_to_c: transcript is non-coding
         assert!(mapper.n_to_c(&var_n).is_err());
@@ -1036,7 +971,6 @@ mod test {
         Ok(())
     }
 
-    #[ignore]
     #[test]
     fn map_var_of_unsupported_validation() -> Result<(), anyhow::Error> {
         let mapper = build_mapper()?;
@@ -1044,12 +978,14 @@ mod test {
         let var_c = HgvsVariant::from_str(hgvs_c)?;
 
         let var_g = mapper.c_to_g(&var_c, "NC_000007.13", "splign")?;
-        assert_eq!(format!("{}", &var_g), "NC_000007.13:g.21940852_21940908del");
+        assert_eq!(
+            format!("{}", &NoRef(&var_g)),
+            "NC_000007.13:g.21940852_21940908del"
+        );
 
         Ok(())
     }
 
-    #[ignore]
     #[test]
     fn map_to_unknown_p_effect() -> Result<(), anyhow::Error> {
         let mapper = build_mapper()?;
@@ -1061,36 +997,567 @@ mod test {
         Ok(())
     }
 
-    #[ignore]
-    #[test]
-    fn map_of_c_out_of_cds_bound() -> Result<(), anyhow::Error> {
-        let mapper = build_mapper()?;
-        let hgvs_c = "NM_145901.2:c.343T>C"; // gene HMGA1
-        let var_c = HgvsVariant::from_str(hgvs_c)?;
-        assert!(mapper.c_to_p(&var_c, None).is_err());
+    // TODO(#17): Need to implement validation.
+    // #[test]
+    // fn map_of_c_out_of_cds_bound() -> Result<(), anyhow::Error> {
+    //     let mapper = build_mapper()?;
+    //     let hgvs_c = "NM_145901.2:c.343T>C"; // gene HMGA1
+    //     let var_c = HgvsVariant::from_str(hgvs_c)?;
+    //     assert!(mapper.c_to_p(&var_c, None).is_err());
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
-    #[ignore]
     #[test]
     fn map_of_dup_at_cds_end() -> Result<(), anyhow::Error> {
         let mapper = build_mapper()?;
         let hgvs_c = "NM_001051.2:c.1257dupG"; // gene SSTR3
         let var_c = HgvsVariant::from_str(hgvs_c)?;
         let var_p = mapper.c_to_p(&var_c, None)?;
-        assert_eq!(format!("{}", &var_p), "NP_001042.1:p.(=)");
+        assert_eq!(format!("{}", &var_p), "NP_001042.1:p.=");
 
         Ok(())
     }
 
-    #[ignore]
+    // TODO(#17): Need to implement validation.
+    // #[test]
+    // fn map_of_c_out_of_reference_bound() -> Result<(), anyhow::Error> {
+    //     let mapper = build_mapper()?;
+    //     let hgvs_c = "NM_000249.3:c.-73960_*46597del"; // gene MLH1
+    //     let var_c = HgvsVariant::from_str(hgvs_c)?;
+    //     assert!(mapper.c_to_p(&var_c, None).is_err());
+
+    //     Ok(())
+    // }
+
+    /// The following tests corresponds to the `test_hgvs_variantmapper_cp_sanity.py`
+    /// test suite of the Python package.  It uses a mock data provider, defined
+    /// in the `sanity_mock` module.
+
+    mod sanity_mock {
+        use std::{
+            path::{Path, PathBuf},
+            rc::Rc,
+        };
+
+        use crate::data::interface::Provider as ProviderInterface;
+        use crate::{
+            data::interface::TxIdentityInfo,
+            mapper::variant::{Config, Mapper},
+        };
+
+        #[derive(Debug, serde::Deserialize)]
+        struct ProviderRecord {
+            pub accession: String,
+            pub transcript_sequence: String,
+            pub cds_start_i: i32,
+            pub cds_end_i: i32,
+        }
+
+        pub struct Provider {
+            records: Vec<ProviderRecord>,
+        }
+
+        impl Provider {
+            pub fn new(path: &Path) -> Result<Self, anyhow::Error> {
+                let mut records = Vec::new();
+
+                let mut rdr = csv::ReaderBuilder::new()
+                    .delimiter(b'\t')
+                    .has_headers(true)
+                    .from_path(path)?;
+                for record in rdr.deserialize() {
+                    records.push(record?);
+                }
+
+                Ok(Self { records })
+            }
+        }
+
+        impl ProviderInterface for Provider {
+            fn data_version(&self) -> &str {
+                panic!("for test use only");
+            }
+
+            fn schema_version(&self) -> &str {
+                panic!("for test use only");
+            }
+
+            fn get_assembly_map(
+                &self,
+                _assembly: crate::static_data::Assembly,
+            ) -> linked_hash_map::LinkedHashMap<String, String> {
+                panic!("for test use only");
+            }
+
+            fn get_gene_info(
+                &self,
+                _hgnc: &str,
+            ) -> Result<crate::data::interface::GeneInfoRecord, anyhow::Error> {
+                panic!("for test use only");
+            }
+
+            fn get_pro_ac_for_tx_ac(&self, _tx_ac: &str) -> Result<Option<String>, anyhow::Error> {
+                panic!("for test use only");
+            }
+
+            fn get_seq_part(
+                &self,
+                tx_ac: &str,
+                begin: Option<usize>,
+                end: Option<usize>,
+            ) -> Result<String, anyhow::Error> {
+                for record in &self.records {
+                    if record.accession == tx_ac {
+                        let seq = &record.transcript_sequence;
+                        return match (begin, end) {
+                            (None, None) => Ok(seq.to_string()),
+                            (None, Some(end)) => Ok(seq[..end].to_string()),
+                            (Some(begin), None) => Ok(seq[begin..].to_string()),
+                            (Some(begin), Some(end)) => Ok(seq[begin..end].to_string()),
+                        };
+                    }
+                }
+                Err(anyhow::anyhow!("Found no record for accession {}", &tx_ac))
+            }
+
+            fn get_acs_for_protein_seq(&self, _seq: &str) -> Result<Vec<String>, anyhow::Error> {
+                panic!("for test use only");
+            }
+
+            fn get_similar_transcripts(
+                &self,
+                _tx_ac: &str,
+            ) -> Result<Vec<crate::data::interface::TxSimilarityRecord>, anyhow::Error>
+            {
+                panic!("for test use only");
+            }
+
+            fn get_tx_exons(
+                &self,
+                _tx_ac: &str,
+                _alt_ac: &str,
+                _alt_aln_method: &str,
+            ) -> Result<Vec<crate::data::interface::TxExonsRecord>, anyhow::Error> {
+                todo!()
+            }
+
+            fn get_tx_for_gene(
+                &self,
+                _gene: &str,
+            ) -> Result<Vec<crate::data::interface::TxInfoRecord>, anyhow::Error> {
+                panic!("for test use only");
+            }
+
+            fn get_tx_for_region(
+                &self,
+                _alt_ac: &str,
+                _alt_aln_method: &str,
+                _start_i: i32,
+                _end_i: i32,
+            ) -> Result<Vec<crate::data::interface::TxForRegionRecord>, anyhow::Error> {
+                panic!("for test use only");
+            }
+
+            fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, anyhow::Error> {
+                for record in &self.records {
+                    if record.accession == tx_ac {
+                        return Ok(TxIdentityInfo {
+                            tx_ac: record.accession.clone(),
+                            alt_ac: record.accession.clone(),
+                            alt_aln_method: "splign".to_string(),
+                            cds_start_i: record.cds_start_i,
+                            cds_end_i: record.cds_end_i,
+                            lengths: Vec::new(),
+                            hgnc: "MOCK".to_string(),
+                        });
+                    }
+                }
+                Err(anyhow::anyhow!("Found no record for accession {}", &tx_ac))
+            }
+
+            fn get_tx_info(
+                &self,
+                _tx_ac: &str,
+                _alt_ac: &str,
+                _alt_aln_method: &str,
+            ) -> Result<crate::data::interface::TxInfoRecord, anyhow::Error> {
+                panic!("for test use only");
+            }
+
+            fn get_tx_mapping_options(
+                &self,
+                _tx_ac: &str,
+            ) -> Result<Vec<crate::data::interface::TxMappingOptionsRecord>, anyhow::Error>
+            {
+                panic!("for test use only");
+            }
+        }
+
+        pub fn build_mapper() -> Result<Mapper, anyhow::Error> {
+            let path = PathBuf::from("tests/data/mapper/sanity_cp.tsv");
+            let provider = Rc::new(Provider::new(&path)?);
+            let config = Config::default();
+            Ok(Mapper::new(&config, provider))
+        }
+    }
+
+    fn test_hgvs_c_to_p_conversion(hgvsc: &str, hgvsp_expected: &str) -> Result<(), anyhow::Error> {
+        let mapper = sanity_mock::build_mapper()?;
+
+        let var_c = HgvsVariant::from_str(hgvsc)?;
+        let ac_p = "MOCK";
+
+        let var_p = mapper.c_to_p(&var_c, Some(ac_p))?;
+        let hgvsp_actual = format!("{}", &var_p);
+
+        assert_eq!(hgvsp_actual, hgvsp_expected);
+
+        Ok(())
+    }
+
     #[test]
-    fn map_of_c_out_of_reference_bound() -> Result<(), anyhow::Error> {
-        let mapper = build_mapper()?;
-        let hgvs_c = "NM_000249.3:c.-73960_*46597del"; // gene MLH1
-        let var_c = HgvsVariant::from_str(hgvs_c)?;
-        assert!(mapper.c_to_p(&var_c, None).is_err());
+    fn hgvs_c_to_p_silent() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.6A>G";
+        let hgvsp_expected = "MOCK:p.Lys2=";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_substitution() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.6A>T";
+        let hgvsp_expected = "MOCK:p.Lys2Asn";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_substitution_introduces_stop_codon() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999996.1:c.8C>A";
+        let hgvsp_expected = "MOCK:p.Ser3Ter";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_substitution_removes_stop_codon() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999998.1:c.30G>T";
+        let hgvsp_expected = "MOCK:p.Ter10TyrextTer3";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    //xx
+    #[test]
+    fn hgvs_c_to_p_insertion_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.6_7insGGG";
+        let hgvsp_expected = "MOCK:p.Lys2_Ala3insGly";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_insertion_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.22_23insT";
+        let hgvsp_expected = "MOCK:p.Ala8ValfsTer?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_adds_stop() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.8_9insTT";
+        let hgvsp_expected = "MOCK:p.Lys4Ter";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.10_12del";
+        let hgvsp_expected = "MOCK:p.Lys4del";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion2_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.4_15del";
+        let hgvsp_expected = "MOCK:p.Lys2_Ala5del";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion3_no_frameshift_c_term() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999995.1:c.4_6del";
+        let hgvsp_expected = "MOCK:p.Lys3del";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion4_no_frameshift_c_term() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999994.1:c.4_9del";
+        let hgvsp_expected = "MOCK:p.Lys3_Lys4del";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion5_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999994.1:c.20_25del";
+        let hgvsp_expected = "MOCK:p.Ala7_Arg9delinsGly";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion6_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.5_7del";
+        let hgvsp_expected = "MOCK:p.Lys2_Ala3delinsThr";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion7_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999993.1:c.13_24del";
+        let hgvsp_expected = "MOCK:p.Arg5_Ala8del";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion_frameshift_nostop() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.11_12del";
+        let hgvsp_expected = "MOCK:p.Lys4SerfsTer?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion_frameshift_adds_stop() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999997.1:c.7del";
+        let hgvsp_expected = "MOCK:p.Ala3ArgfsTer6";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion_no_frameshift_removes_stop_plus_previous() -> Result<(), anyhow::Error>
+    {
+        let hgvsc = "NM_999999.1:c.25_30del";
+        let hgvsp_expected = "MOCK:p.Lys9_Ter10delinsGly";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_indel_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.11_12delinsTCCCA";
+        let hgvsp_expected = "MOCK:p.Lys4delinsIlePro";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_indel2_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.11_18delinsTCCCA";
+        let hgvsp_expected = "MOCK:p.Lys4_Phe6delinsIlePro";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_indel_frameshift_nostop() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.8delinsGG";
+        let hgvsp_expected = "MOCK:p.Ala3GlyfsTer?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_dup_1aa_no_frameshift_2() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.10_12dup";
+        let hgvsp_expected = "MOCK:p.Lys4dup";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_dup_1aa_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.16_18dup";
+        let hgvsp_expected = "MOCK:p.Phe6dup";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_dup_2aa_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.16_21dup";
+        let hgvsp_expected = "MOCK:p.Phe6_Arg7dup";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_dup_2aa2_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999995.1:c.4_6dup";
+        let hgvsp_expected = "MOCK:p.Lys3dup";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_3aa_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.16_24dup";
+        let hgvsp_expected = "MOCK:p.Phe6_Ala8dup";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_dup_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.12_13dup";
+        let hgvsp_expected = "MOCK:p.Ala5GlufsTer?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_intron() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.12+1G>A";
+        let hgvsp_expected = "MOCK:p.?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_five_prime_utr() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.-2A>G";
+        let hgvsp_expected = "MOCK:p.?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_three_prime_utr() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.*3G>A";
+        let hgvsp_expected = "MOCK:p.?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion_into_three_prime_utr_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.27_*3del";
+        let hgvsp_expected = "MOCK:p.Lys9XaafsTer?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion_into_three_prime_utr_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999995.1:c.28_*3del";
+        let hgvsp_expected = "MOCK:p.Lys10_Ter11delinsArgGlnPheArg";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_delins_into_three_prime_utr_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999995.1:c.28_*3delinsGGG";
+        let hgvsp_expected = "MOCK:p.Lys10_Ter11delinsGlyArgGlnPheArg";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    /// See recommendations re p.? (p.Met1?) at:
+    /// http://varnomen.hgvs.org/recommendations/protein/variant/substitution/
+    #[test]
+    fn hgvs_c_to_p_substitution_removes_start_codon() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.1A>G";
+        let hgvsp_expected = "MOCK:p.Met1?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion_from_five_prime_utr_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.-3_1del";
+        let hgvsp_expected = "MOCK:p.Met1?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_deletion_from_five_prime_utr_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.-3_3del";
+        let hgvsp_expected = "MOCK:p.Met1?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_delins_from_five_prime_utr_no_frameshift() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.-3_3delinsAAA";
+        let hgvsp_expected = "MOCK:p.Met1?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_delete_entire_gene() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999999.1:c.-3_*1del";
+        let hgvsp_expected = "MOCK:p.0?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_multiple_stop_codons() -> Result<(), anyhow::Error> {
+        let hgvsc = "NM_999992.1:c.4G>A";
+        let hgvsp_expected = "MOCK:p.?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
     }

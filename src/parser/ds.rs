@@ -146,8 +146,9 @@ impl NaEdit {
 }
 
 /// Uncertain change through extension.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub enum UncertainLengthChange {
+    #[default]
     None,
     Unknown,
     Known(i32),
@@ -159,7 +160,7 @@ pub struct Accession {
     pub value: String,
 }
 
-impl lazy_static::__Deref for Accession {
+impl Deref for Accession {
     type Target = String;
 
     fn deref(&self) -> &Self::Target {
@@ -726,6 +727,10 @@ pub enum ProtLocEdit {
     NoProtein,
     /// `0?`
     NoProteinUncertain,
+    /// `?`
+    Unknown,
+    /// `Met1?`
+    InitiationUncertain,
 }
 
 /// Protein position interval.
@@ -748,7 +753,7 @@ impl From<ProtInterval> for Range<i32> {
 }
 
 /// Protein position.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct ProtPos {
     /// Amino acid value.
     pub aa: String,

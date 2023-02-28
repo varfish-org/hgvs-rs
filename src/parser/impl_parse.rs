@@ -314,6 +314,10 @@ impl ProtLocEdit {
         map(tag("(=)"), |_| ProtLocEdit::NoChangeUncertain)(input)
     }
 
+    fn parse_unknown(input: &str) -> IResult<&str, Self> {
+        map(tag("?"), |_| ProtLocEdit::Unknown)(input)
+    }
+
     fn parse_no_protein(input: &str) -> IResult<&str, Self> {
         map(tag("0"), |_| ProtLocEdit::NoProtein)(input)
     }
@@ -338,6 +342,7 @@ impl Parseable for ProtLocEdit {
             Self::parse_no_protein,
             Self::parse_no_change_uncertain,
             Self::parse_no_change,
+            Self::parse_unknown,
         ))(input)
     }
 }

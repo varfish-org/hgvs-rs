@@ -124,6 +124,10 @@ impl ProviderInterface for Provider {
         self.seqrepo.fetch_sequence_part(&aos, begin, end)
     }
 
+    fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, anyhow::Error> {
+        self.inner.get_acs_for_protein_seq(seq)
+    }
+
     fn get_similar_transcripts(
         &self,
         tx_ac: &str,

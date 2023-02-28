@@ -7,6 +7,7 @@ use postgres::{Client, NoTls, Row};
 use std::fmt::Debug;
 use std::sync::Mutex;
 
+use crate::sequences::seq_md5;
 use crate::static_data::{Assembly, ASSEMBLY_INFOS};
 
 use crate::data::{
@@ -274,6 +275,23 @@ impl ProviderInterface for Provider {
             .map(|end| std::cmp::min(end, seq.len()))
             .unwrap_or(seq.len());
         Ok(seq[begin..end].into())
+    }
+
+    fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, anyhow::Error> {
+        let md5 = seq_md5(seq, true)?;
+        let sql = format!(
+            "SELECT ac FROM {}.seq_anno WHERE seq_id = $1",
+            self.config.db_schema
+        );
+
+        let mut result = Vec::new();
+        for row in self.conn.lock().unwrap().query(&sql, &[&md5])? {
+            result.push(row.get(0));
+        }
+
+        // Add sentinel sequence.
+        result.push(format!("MD5_{}", &md5));
+        Ok(result)
     }
 
     fn get_similar_transcripts(
