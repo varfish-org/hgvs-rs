@@ -217,7 +217,7 @@ impl Display for ProteinEdit {
                 if alternative.is_empty() {
                     write!(f, "=")
                 } else {
-                    write!(f, "delins{alternative}")
+                    write!(f, "{alternative}")
                 }
             }
             ProteinEdit::DelIns { alternative } => {
