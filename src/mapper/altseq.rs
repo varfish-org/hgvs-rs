@@ -949,56 +949,54 @@ impl AltSeqToHgvsp {
             ProtLocEdit::Unknown
         } else if start.is_none() && !is_no_protein {
             ProtLocEdit::NoChange
+        } else if is_no_protein {
+            ProtLocEdit::NoProteinUncertain
         } else {
-            if is_no_protein {
-                ProtLocEdit::NoProteinUncertain
-            } else {
-                let interval = ProtInterval {
-                    start: start.expect("must provide start"),
-                    end: end.expect("must provide end"),
-                };
-                // NB: order matters.
-                // NB: in the original Python module, it is configurable whether the result
-                // of protein prediction is certain or uncertain by a global configuration
-                // variable.
-                ProtLocEdit::Ordinary {
-                    loc: Mu::Certain(interval),
-                    edit: Mu::Certain(if is_sub {
+            let interval = ProtInterval {
+                start: start.expect("must provide start"),
+                end: end.expect("must provide end"),
+            };
+            // NB: order matters.
+            // NB: in the original Python module, it is configurable whether the result
+            // of protein prediction is certain or uncertain by a global configuration
+            // variable.
+            ProtLocEdit::Ordinary {
+                loc: Mu::Certain(interval),
+                edit: Mu::Certain(if is_sub {
+                    ProteinEdit::Subst {
+                        alternative: alternative.to_string(),
+                    }
+                } else if is_ext {
+                    ProteinEdit::Ext {
+                        aa_ext: Some(alternative.to_string()),
+                        ext_aa: Some("*".to_string()),
+                        change: fsext_len,
+                    }
+                } else if is_frameshift {
+                    ProteinEdit::Fs {
+                        alternative: Some(alternative.to_string()),
+                        terminal: Some("*".to_owned()),
+                        length: fsext_len,
+                    }
+                } else if is_dup {
+                    ProteinEdit::Dup
+                } else if reference.is_empty() == alternative.is_empty() {
+                    if reference.len() > 1 || alternative.len() > 1 {
+                        ProteinEdit::DelIns {
+                            alternative: alternative.to_string(),
+                        }
+                    } else {
                         ProteinEdit::Subst {
                             alternative: alternative.to_string(),
                         }
-                    } else if is_ext {
-                        ProteinEdit::Ext {
-                            aa_ext: Some(alternative.to_string()),
-                            ext_aa: Some("*".to_string()),
-                            change: fsext_len,
-                        }
-                    } else if is_frameshift {
-                        ProteinEdit::Fs {
-                            alternative: Some(alternative.to_string()),
-                            terminal: Some("*".to_owned()),
-                            length: fsext_len,
-                        }
-                    } else if is_dup {
-                        ProteinEdit::Dup
-                    } else if reference.is_empty() == alternative.is_empty() {
-                        if reference.len() > 1 || alternative.len() > 1 {
-                            ProteinEdit::DelIns {
-                                alternative: alternative.to_string(),
-                            }
-                        } else {
-                            ProteinEdit::Subst {
-                                alternative: alternative.to_string(),
-                            }
-                        }
-                    } else if alternative.is_empty() {
-                        ProteinEdit::Del
-                    } else {
-                        ProteinEdit::Ins {
-                            alternative: alternative.to_string(),
-                        }
-                    }),
-                }
+                    }
+                } else if alternative.is_empty() {
+                    ProteinEdit::Del
+                } else {
+                    ProteinEdit::Ins {
+                        alternative: alternative.to_string(),
+                    }
+                }),
             }
         };
 
