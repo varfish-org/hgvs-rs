@@ -262,6 +262,7 @@ impl Display for ProtLocEdit {
             ProtLocEdit::NoProtein => write!(f, "0"),
             ProtLocEdit::NoProteinUncertain => write!(f, "0?"),
             ProtLocEdit::Unknown => write!(f, "?"),
+            ProtLocEdit::InitiationUncertain => write!(f, "Met1?"),
         }
     }
 }

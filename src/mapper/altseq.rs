@@ -931,7 +931,7 @@ impl AltSeqToHgvsp {
         is_frameshift: bool,
     ) -> Result<HgvsVariant, anyhow::Error> {
         let loc_edit = if is_init_met {
-            ProtLocEdit::NoProteinUncertain
+            ProtLocEdit::InitiationUncertain
         } else if is_ambiguous {
             ProtLocEdit::Unknown
         } else if reference.is_empty() && alternative.is_empty() {
