@@ -501,7 +501,7 @@ impl Mapper {
             };
 
             let var_g = HgvsVariant::GenomeVariant {
-                accession: accession.clone(),
+                accession: Accession::from(alt_ac.to_string()),
                 gene_symbol: self.fetch_gene_symbol(accession.deref().as_str(), gene_symbol)?,
                 loc_edit: GenomeLocEdit {
                     loc: pos_g,
@@ -901,27 +901,19 @@ impl Mapper {
 
 #[cfg(test)]
 mod test {
-    use std::{rc::Rc, str::FromStr};
+    use pretty_assertions::assert_eq;
+    use std::str::FromStr;
     use test_log::test;
 
     use crate::{
-        data::uta::{Config as ProviderConfig, Provider},
-        parser::HgvsVariant,
+        data::uta_sr::test_helpers::build_provider,
+        parser::{HgvsVariant, NoRef},
     };
 
     use super::{Config, Mapper};
 
-    fn get_config() -> ProviderConfig {
-        ProviderConfig {
-            db_url: std::env::var("TEST_UTA_DATABASE_URL")
-                .expect("Environment variable TEST_UTA_DATABASE_URL undefined!"),
-            db_schema: std::env::var("TEST_UTA_DATABASE_SCHEMA")
-                .expect("Environment variable TEST_UTA_DATABASE_SCHEMA undefined!"),
-        }
-    }
-
     fn build_mapper() -> Result<Mapper, anyhow::Error> {
-        let provider = Rc::new(Provider::with_config(&get_config())?);
+        let provider = build_provider()?;
         let config = Config::default();
         Ok(Mapper::new(&config, provider))
     }
@@ -992,7 +984,10 @@ mod test {
         let var_c = HgvsVariant::from_str(hgvs_c)?;
 
         let var_g = mapper.c_to_g(&var_c, "NC_000007.13", "splign")?;
-        assert_eq!(format!("{}", &var_g), "NC_000007.13:g.21940852_21940908del");
+        assert_eq!(
+            format!("{}", &NoRef(&var_g)),
+            "NC_000007.13:g.21940852_21940908del"
+        );
 
         Ok(())
     }
@@ -1024,7 +1019,7 @@ mod test {
         let hgvs_c = "NM_001051.2:c.1257dupG"; // gene SSTR3
         let var_c = HgvsVariant::from_str(hgvs_c)?;
         let var_p = mapper.c_to_p(&var_c, None)?;
-        assert_eq!(format!("{}", &var_p), "NP_001042.1:p.=)");
+        assert_eq!(format!("{}", &var_p), "NP_001042.1:p.=");
 
         Ok(())
     }
@@ -1049,9 +1044,7 @@ mod test {
             rc::Rc,
         };
 
-
-
-        use crate::{data::interface::Provider as ProviderInterface};
+        use crate::data::interface::Provider as ProviderInterface;
         use crate::{
             data::interface::TxIdentityInfo,
             mapper::variant::{Config, Mapper},

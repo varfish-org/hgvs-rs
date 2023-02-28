@@ -473,7 +473,7 @@ impl AltSeqBuilder {
             None,
             &self.reference_data.protein_accession,
             false,
-            false,
+            true,
         )
     }
 
@@ -918,7 +918,7 @@ impl AltSeqToHgvsp {
         &self,
         start: Option<ProtPos>,
         end: Option<ProtPos>,
-        _reference: &str,
+        reference: &str,
         alternative: &str,
         fsext_len: UncertainLengthChange,
         is_dup: bool,
@@ -933,7 +933,9 @@ impl AltSeqToHgvsp {
         let loc_edit = if is_init_met {
             ProtLocEdit::NoProteinUncertain
         } else if is_ambiguous {
-            ProtLocEdit::NoChangeUncertain
+            ProtLocEdit::Unknown
+        } else if reference.is_empty() && alternative.is_empty() {
+            ProtLocEdit::NoChange
         } else {
             let interval = ProtInterval {
                 start: start.expect("must provide start"),
@@ -941,7 +943,8 @@ impl AltSeqToHgvsp {
             };
             // NB: order matters.
             // NB: in the original Python module, it is configurable whether the result
-            // of protein prediction is certain or uncertain.
+            // of protein prediction is certain or uncertain by a global configuration
+            // variable.
             if is_no_protein {
                 ProtLocEdit::NoProtein
             } else {
@@ -966,7 +969,7 @@ impl AltSeqToHgvsp {
                     } else if is_dup {
                         ProteinEdit::Dup
                     } else {
-                        ProteinEdit::Subst {
+                        ProteinEdit::Ins {
                             alternative: alternative.to_string(),
                         }
                     }),

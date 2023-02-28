@@ -727,6 +727,8 @@ pub enum ProtLocEdit {
     NoProtein,
     /// `0?`
     NoProteinUncertain,
+    /// `?`
+    Unknown,
 }
 
 /// Protein position interval.
