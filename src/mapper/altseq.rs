@@ -671,6 +671,7 @@ impl AltSeqToHgvsp {
                 false,
                 false,
                 false,
+                false,
             )?)
         } else if self.alt_seq().is_empty() {
             Ok(self.create_variant(
@@ -685,6 +686,7 @@ impl AltSeqToHgvsp {
                 false,
                 false,
                 true,
+                false,
                 false,
                 false,
             )?)
@@ -730,6 +732,7 @@ impl AltSeqToHgvsp {
         let mut is_ext = false;
         let mut is_init_met = false;
         let mut is_ambiguous = self.alt_data.is_ambiguous;
+        let mut is_silent = false;
         let aa_start;
         let aa_end;
         let mut reference = String::new();
@@ -792,6 +795,7 @@ impl AltSeqToHgvsp {
             // ALL CASES BELOW HERE: no frameshift - sub/delins/dup
         } else if insertion == deletion {
             // silent
+            is_silent = true;
             aa_start = ProtPos {
                 aa: deletion.clone(),
                 number: *start,
@@ -910,6 +914,7 @@ impl AltSeqToHgvsp {
             false,
             is_init_met,
             *is_frameshift,
+            is_silent,
         )
     }
 
@@ -929,12 +934,13 @@ impl AltSeqToHgvsp {
         is_no_protein: bool,
         is_init_met: bool,
         is_frameshift: bool,
+        is_silent: bool,
     ) -> Result<HgvsVariant, anyhow::Error> {
         let loc_edit = if is_init_met {
             ProtLocEdit::InitiationUncertain
         } else if is_ambiguous {
             ProtLocEdit::Unknown
-        } else if reference.is_empty() && alternative.is_empty() {
+        } else if is_silent || (reference.is_empty() && alternative.is_empty()) {
             ProtLocEdit::NoChange
         } else {
             let interval = ProtInterval {
