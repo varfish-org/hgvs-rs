@@ -232,6 +232,7 @@ impl AltSeqBuilder {
             | VariantLocation::FivePrimeUtr
             | VariantLocation::ThreePrimeUtr => EditType::NotCds,
             VariantLocation::WholeGene => match na_edit {
+                NaEdit::DelRef {..} |
                 NaEdit::DelNum { .. } => EditType::WholeGeneDeleted,
                 NaEdit::Dup { .. } => {
                     log::warn!("Whole-gene duplication; consequence assumed to not affect protein product");
@@ -347,17 +348,21 @@ impl AltSeqBuilder {
 
     fn incorporate_delins(&self) -> Result<AltTranscriptData, anyhow::Error> {
         let (mut seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
+        let loc_range_start;
 
         let (reference, alternative) = match &self.var_c {
-            HgvsVariant::CdsVariant { loc_edit, .. } => match loc_edit.edit.inner() {
-                NaEdit::RefAlt {
-                    reference,
-                    alternative,
-                } => (Some(reference.clone()), Some(alternative.clone())),
-                NaEdit::DelRef { reference } => (Some(reference.to_owned()), None),
-                NaEdit::Ins { alternative } => (None, Some(alternative.to_owned())),
-                _ => panic!("Can only work with concrete ref/alt"),
-            },
+            HgvsVariant::CdsVariant { loc_edit, .. } => {
+                loc_range_start = loc_edit.loc.inner().start.base;
+                match loc_edit.edit.inner() {
+                    NaEdit::RefAlt {
+                        reference,
+                        alternative,
+                    } => (Some(reference.clone()), Some(alternative.clone())),
+                    NaEdit::DelRef { reference } => (Some(reference.to_owned()), None),
+                    NaEdit::Ins { alternative } => (None, Some(alternative.to_owned())),
+                    _ => panic!("Can only work with concrete ref/alt"),
+                }
+            }
             _ => panic!("Can only work on CDS variants"),
         };
         let ref_len = reference.as_ref().map(|_| end - start).unwrap_or(0) as i32;
@@ -389,11 +394,7 @@ impl AltSeqBuilder {
         let is_frameshift = net_base_change % 3 != 0;
 
         // Use max. of mod 3 value and 1 (in the event that the indel starts in the 5' UTR range).
-        let loc_range = self
-            .var_c
-            .loc_range()
-            .expect("Could not determine insertion location");
-        let variant_start_aa = std::cmp::max((loc_range.start as f64 / 3.0).ceil() as i32, 1);
+        let variant_start_aa = std::cmp::max((loc_range_start as f64 / 3.0).ceil() as i32, 1);
 
         AltTranscriptData::new(
             &seq,
@@ -946,20 +947,20 @@ impl AltSeqToHgvsp {
             ProtLocEdit::InitiationUncertain
         } else if is_ambiguous {
             ProtLocEdit::Unknown
-        } else if start.is_none() {
+        } else if start.is_none() && !is_no_protein {
             ProtLocEdit::NoChange
         } else {
-            let interval = ProtInterval {
-                start: start.expect("must provide start"),
-                end: end.expect("must provide end"),
-            };
-            // NB: order matters.
-            // NB: in the original Python module, it is configurable whether the result
-            // of protein prediction is certain or uncertain by a global configuration
-            // variable.
             if is_no_protein {
-                ProtLocEdit::NoProtein
+                ProtLocEdit::NoProteinUncertain
             } else {
+                let interval = ProtInterval {
+                    start: start.expect("must provide start"),
+                    end: end.expect("must provide end"),
+                };
+                // NB: order matters.
+                // NB: in the original Python module, it is configurable whether the result
+                // of protein prediction is certain or uncertain by a global configuration
+                // variable.
                 ProtLocEdit::Ordinary {
                     loc: Mu::Certain(interval),
                     edit: Mu::Certain(if is_sub {
