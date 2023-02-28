@@ -918,7 +918,7 @@ impl AltSeqToHgvsp {
         &self,
         start: Option<ProtPos>,
         end: Option<ProtPos>,
-        reference: &str,
+        _reference: &str,
         alternative: &str,
         fsext_len: UncertainLengthChange,
         is_dup: bool,

@@ -1049,9 +1049,9 @@ mod test {
             rc::Rc,
         };
 
-        use linked_hash_map::LinkedHashMap;
 
-        use crate::{data::interface::Provider as ProviderInterface, static_data::ASSEMBLY_INFOS};
+
+        use crate::{data::interface::Provider as ProviderInterface};
         use crate::{
             data::interface::TxIdentityInfo,
             mapper::variant::{Config, Mapper},
@@ -1146,9 +1146,9 @@ mod test {
 
             fn get_tx_exons(
                 &self,
-                tx_ac: &str,
-                alt_ac: &str,
-                alt_aln_method: &str,
+                _tx_ac: &str,
+                _alt_ac: &str,
+                _alt_aln_method: &str,
             ) -> Result<Vec<crate::data::interface::TxExonsRecord>, anyhow::Error> {
                 todo!()
             }
@@ -1189,16 +1189,16 @@ mod test {
 
             fn get_tx_info(
                 &self,
-                tx_ac: &str,
-                alt_ac: &str,
-                alt_aln_method: &str,
+                _tx_ac: &str,
+                _alt_ac: &str,
+                _alt_aln_method: &str,
             ) -> Result<crate::data::interface::TxInfoRecord, anyhow::Error> {
                 panic!("for test use only");
             }
 
             fn get_tx_mapping_options(
                 &self,
-                tx_ac: &str,
+                _tx_ac: &str,
             ) -> Result<Vec<crate::data::interface::TxMappingOptionsRecord>, anyhow::Error>
             {
                 panic!("for test use only");
@@ -1410,7 +1410,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_dup_1AA_no_frameshift_2() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_dup_1aa_no_frameshift_2() -> Result<(), anyhow::Error> {
         let hgvsc = "NM_999999.1:c.10_12dup";
         let hgvsp_expected = "MOCK:p.Lys4dup";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1419,7 +1419,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_dup_1AA_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_dup_1aa_no_frameshift() -> Result<(), anyhow::Error> {
         let hgvsc = "NM_999999.1:c.16_18dup";
         let hgvsp_expected = "MOCK:p.Phe6dup";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1428,7 +1428,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_dup_2AA_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_dup_2aa_no_frameshift() -> Result<(), anyhow::Error> {
         let hgvsc = "NM_999999.1:c.16_21dup";
         let hgvsp_expected = "MOCK:p.Phe6_Arg7dup";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1437,7 +1437,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_dup_2AA2_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_dup_2aa2_no_frameshift() -> Result<(), anyhow::Error> {
         let hgvsc = "NM_999995.1:c.4_6dup";
         let hgvsp_expected = "MOCK:p.Lys3dup";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1446,7 +1446,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_3AA_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_3aa_no_frameshift() -> Result<(), anyhow::Error> {
         let hgvsc = "NM_999999.1:c.16_24dup";
         let hgvsp_expected = "MOCK:p.Phe6_Ala8dup";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
