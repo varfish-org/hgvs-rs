@@ -671,7 +671,6 @@ impl AltSeqToHgvsp {
                 false,
                 false,
                 false,
-                false,
             )?)
         } else if self.alt_seq().is_empty() {
             Ok(self.create_variant(
@@ -686,7 +685,6 @@ impl AltSeqToHgvsp {
                 false,
                 false,
                 true,
-                false,
                 false,
                 false,
             )?)
@@ -732,7 +730,6 @@ impl AltSeqToHgvsp {
         let mut is_ext = false;
         let mut is_init_met = false;
         let mut is_ambiguous = self.alt_data.is_ambiguous;
-        let mut is_silent = false;
         let aa_start;
         let aa_end;
         let mut reference = String::new();
@@ -752,13 +749,14 @@ impl AltSeqToHgvsp {
 
         if insertion.starts_with('*') {
             // stop codon at variant position
-            aa_start = ProtPos {
+            aa_start = Some(ProtPos {
                 aa: deletion.chars().next().unwrap().to_string(),
                 number: *start,
-            };
+            });
             aa_end = aa_start.clone();
             reference = "".to_string();
             alternative = "*".to_string();
+            is_sub = true;
         } else if *start as usize == self.ref_seq().len() {
             // extension
             fsext_len = if self.alt_seq().ends_with('*') {
@@ -767,10 +765,10 @@ impl AltSeqToHgvsp {
                 UncertainLengthChange::Unknown
             };
 
-            aa_start = ProtPos {
+            aa_start = Some(ProtPos {
                 aa: "*".to_owned(),
                 number: *start,
-            };
+            });
             aa_end = aa_start.clone();
 
             reference = "".to_owned();
@@ -778,10 +776,10 @@ impl AltSeqToHgvsp {
             is_ext = true;
         } else if *is_frameshift {
             // frameshift
-            aa_start = ProtPos {
+            aa_start = Some(ProtPos {
                 aa: deletion.chars().next().unwrap().to_string(),
                 number: *start,
-            };
+            });
             aa_end = aa_start.clone();
 
             reference = "".to_owned();
@@ -795,18 +793,21 @@ impl AltSeqToHgvsp {
             // ALL CASES BELOW HERE: no frameshift - sub/delins/dup
         } else if insertion == deletion {
             // silent
-            is_silent = true;
-            aa_start = ProtPos {
-                aa: deletion.clone(),
-                number: *start,
+            aa_start = if *start == -1 {
+                None
+            } else {
+                Some(ProtPos {
+                    aa: deletion.clone(),
+                    number: *start,
+                })
             };
             aa_end = aa_start.clone();
         } else if insertion.len() == 1 && deletion.len() == 1 {
             // substitution
-            aa_start = ProtPos {
+            aa_start = Some(ProtPos {
                 aa: deletion.clone(),
                 number: *start,
-            };
+            });
             aa_end = aa_start.clone();
             reference = "".to_owned();
             alternative = insertion.clone();
@@ -816,17 +817,17 @@ impl AltSeqToHgvsp {
             reference = deletion.clone();
             let end = start + deletion.len() as i32 - 1;
 
-            aa_start = ProtPos {
+            aa_start = Some(ProtPos {
                 aa: deletion.chars().next().unwrap().to_string(),
                 number: *start,
-            };
+            });
             if !insertion.is_empty() {
                 // delins
                 aa_end = if end > *start {
-                    ProtPos {
+                    Some(ProtPos {
                         aa: deletion.chars().next().unwrap().to_string(),
                         number: end,
-                    }
+                    })
                 } else {
                     aa_start.clone()
                 };
@@ -842,10 +843,10 @@ impl AltSeqToHgvsp {
                 } else {
                     // deletion
                     aa_end = if end > *start {
-                        ProtPos {
+                        Some(ProtPos {
                             aa: deletion.chars().last().unwrap().to_string(),
                             number: end,
-                        }
+                        })
                     } else {
                         aa_start.clone()
                     };
@@ -860,14 +861,14 @@ impl AltSeqToHgvsp {
             if is_dup {
                 // is duplication
                 let dup_end = dup_start + insertion.len() as i32 - 1;
-                aa_start = ProtPos {
+                aa_start = Some(ProtPos {
                     aa: insertion.chars().next().unwrap().to_string(),
                     number: dup_start,
-                };
-                aa_end = ProtPos {
+                });
+                aa_end = Some(ProtPos {
                     aa: insertion.chars().last().unwrap().to_string(),
                     number: dup_end,
-                };
+                });
                 reference = "".to_string();
                 alternative = reference.clone();
             } else {
@@ -875,7 +876,7 @@ impl AltSeqToHgvsp {
                 let start = start - 1;
                 let end = start + 1;
 
-                aa_start = ProtPos {
+                aa_start = Some(ProtPos {
                     aa: self
                         .ref_seq()
                         .chars()
@@ -883,8 +884,8 @@ impl AltSeqToHgvsp {
                         .unwrap()
                         .to_string(),
                     number: start,
-                };
-                aa_end = ProtPos {
+                });
+                aa_end = Some(ProtPos {
                     aa: self
                         .ref_seq()
                         .chars()
@@ -892,7 +893,7 @@ impl AltSeqToHgvsp {
                         .unwrap()
                         .to_string(),
                     number: end,
-                };
+                });
                 reference = "".to_string();
                 alternative = insertion.clone();
             }
@@ -901,8 +902,8 @@ impl AltSeqToHgvsp {
         }
 
         self.create_variant(
-            Some(aa_start),
-            Some(aa_end),
+            aa_start,
+            aa_end,
             &reference,
             &alternative,
             fsext_len,
@@ -914,7 +915,6 @@ impl AltSeqToHgvsp {
             false,
             is_init_met,
             *is_frameshift,
-            is_silent,
         )
     }
 
@@ -934,13 +934,14 @@ impl AltSeqToHgvsp {
         is_no_protein: bool,
         is_init_met: bool,
         is_frameshift: bool,
-        is_silent: bool,
     ) -> Result<HgvsVariant, anyhow::Error> {
+        assert!(start.is_some() == end.is_some());
+
         let loc_edit = if is_init_met {
             ProtLocEdit::InitiationUncertain
         } else if is_ambiguous {
             ProtLocEdit::Unknown
-        } else if is_silent || (reference.is_empty() && alternative.is_empty()) {
+        } else if start.is_none() {
             ProtLocEdit::NoChange
         } else {
             let interval = ProtInterval {
@@ -974,6 +975,10 @@ impl AltSeqToHgvsp {
                         }
                     } else if is_dup {
                         ProteinEdit::Dup
+                    } else if reference.is_empty() && alternative.is_empty() {
+                        ProteinEdit::Subst {
+                            alternative: alternative.to_string(),
+                        }
                     } else {
                         ProteinEdit::Ins {
                             alternative: alternative.to_string(),
