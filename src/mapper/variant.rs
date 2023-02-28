@@ -902,7 +902,7 @@ impl Mapper {
 #[cfg(test)]
 mod test {
     use pretty_assertions::assert_eq;
-    use std::str::FromStr;
+    use std::{path::PathBuf, str::FromStr};
     use test_log::test;
 
     use crate::{
@@ -1563,12 +1563,20 @@ mod test {
     }
 
     // The following tests correspond to the tests in `test_hgvs_variantmapper_cp_real.py`.
+    //
+    // For adding tests, you will have to
+    //
+    // - add a record to `real_cp.tsv`, in particular fill out gene column
+    // - re-run `bootstrap.sh` so the records are pulled into the subset
+    // - re-create the local database and import the subset
+    // - re-run the test with `TEST_SEQREPO_CACHE_MODE=write` so the relevant queries to
+    //   the seqrepo are cached
 
     #[test]
     fn hgvs_c_to_p_format() -> Result<(), anyhow::Error> {
         let mapper = build_mapper()?;
-        let hgvs_c = "NM_022464.4:c.3G>A";  // gene SIL1
-        // let hgvsp_expected_alternative = "NP_071909.1:p.?";
+        let hgvs_c = "NM_022464.4:c.3G>A"; // gene SIL1
+                                           // let hgvsp_expected_alternative = "NP_071909.1:p.?";
 
         let var_c = HgvsVariant::from_str(hgvs_c)?;
         let var_p = mapper.c_to_p(&var_c, None)?;
@@ -1577,6 +1585,57 @@ mod test {
         // TODO(#25): implement formatting of display and uncomment
         // alt_format_p = var_p.format(conf={"p_init_met": False})
         // self.assertEqual(hgvsp_expected_alternative, alt_format_p)
+
+        Ok(())
+    }
+
+    mod cp_real_test {
+        use std::path::Path;
+
+        #[derive(Debug, serde::Deserialize)]
+        pub struct Record {
+            pub hgnc: String,
+            pub id: String,
+            pub hgvs_g: String,
+            pub hgvs_c: String,
+            pub hgvs_p: String,
+        }
+
+        pub fn load_records(path: &Path) -> Result<Vec<Record>, anyhow::Error> {
+            let mut records = Vec::new();
+
+            let mut rdr = csv::ReaderBuilder::new()
+                .delimiter(b'\t')
+                .has_headers(true)
+                .from_path(path)?;
+            for record in rdr.deserialize() {
+                records.push(record?);
+            }
+
+            Ok(records)
+        }
+    }
+
+    #[test]
+    fn cp_real() -> Result<(), anyhow::Error> {
+        let mapper = build_mapper()?;
+        let path = PathBuf::from("tests/data/mapper/real_cp.tsv");
+        let records = cp_real_test::load_records(&path)?;
+
+        for record in records {
+            let var_c = HgvsVariant::from_str(&record.hgvs_c)?;
+            let prot_ac = record.hgvs_p.split(":").next();
+            let var_p = mapper.c_to_p(&var_c, prot_ac)?;
+            let result = format!("{}", &var_p);
+            let expected = &record.hgvs_p;
+
+            let expected = if &result != expected {
+                expected.replace("*", "Ter")
+            } else {
+                expected.clone()
+            };
+            assert_eq!(result, expected);
+        }
 
         Ok(())
     }

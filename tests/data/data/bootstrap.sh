@@ -63,7 +63,7 @@ VERSION=$2
 # Destination directory.
 DST=$SCRIPT_DIR
 
-# The HGNC symbols of the genes to fetc.
+# The HGNC symbols of the genes to fetch.
 set +e
 read -r -d '' GENES <<EOF
 AADACL3
@@ -90,6 +90,9 @@ SRD5A2
 SSTR3
 EOF
 set -e
+
+# Augment list of genes to fetch.
+GENES="$GENES $(cut -f 1 tests/data/mapper/real_cp.tsv | tail -n +2)"
 
 # Transform gene list for postgres query.
 PG_GENES=$(pg-list $GENES)
