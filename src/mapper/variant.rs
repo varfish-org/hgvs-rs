@@ -901,7 +901,9 @@ impl Mapper {
 
 #[cfg(test)]
 mod test {
+    use lazy_static::__Deref;
     use pretty_assertions::assert_eq;
+    use regex::Regex;
     use std::{
         path::{Path, PathBuf},
         str::FromStr,
@@ -1660,7 +1662,88 @@ mod test {
     // The following tests correspond to those in `test_hgvs_variantmapper_gcp.py`.
 
     fn run_gxp_test(path: &str) -> Result<(), anyhow::Error> {
+        fn rm_del_seq(var: &HgvsVariant) -> String {
+            let tmp = format!("{}", &var);
+            let re = Regex::new(r"del\w+ins").unwrap();
+            re.replace(&tmp, "delins").to_string()
+        }
+
+        let mapper = build_mapper()?;
         let records = gcp_tests::load_records(&Path::new(path))?;
+
+        for record in &records {
+            let var_g = HgvsVariant::from_str(&record.hgvs_g)?;
+            let var_x = HgvsVariant::from_str(&record.hgvs_c)?;
+            let var_p = record
+                .hgvs_p
+                .as_ref()
+                .map(|s| HgvsVariant::from_str(&s))
+                .transpose()?;
+
+            // g -> x
+            let var_x_test = match &var_x {
+                HgvsVariant::CdsVariant { accession, .. } => {
+                    mapper.g_to_c(&var_g, &accession, "splign")?
+                }
+                HgvsVariant::TxVariant { accession, .. } => {
+                    mapper.g_to_n(&var_g, &accession, "splign")?
+                }
+                _ => panic!("cannot happen"),
+            };
+            assert_eq!(
+                rm_del_seq(&var_x),
+                rm_del_seq(&var_x_test),
+                "{} != {} (g>t; {}; HGVSg={})",
+                var_x_test,
+                var_x,
+                &record.id,
+                &record.hgvs_g
+            );
+
+            // c, n -> g
+            let var_g_test = match &var_x {
+                HgvsVariant::CdsVariant { .. } => {
+                    mapper.c_to_g(&var_x, var_g.accession(), "splign")?
+                }
+                HgvsVariant::TxVariant { .. } => {
+                    mapper.n_to_g(&var_x, var_g.accession(), "splign")?
+                }
+                _ => panic!("cannot happen"),
+            };
+            assert_eq!(
+                rm_del_seq(&var_g),
+                rm_del_seq(&var_g_test),
+                "{} != {} (t>g; {}; HGVSc={})",
+                var_x_test,
+                var_x,
+                &record.id,
+                &record.hgvs_c
+            );
+
+            if let Some(var_p) = &var_p {
+                // c -> p
+                let hgvs_p_exp = format!("{}", var_p);
+                let var_p_test = mapper.c_to_p(&var_x, Some(var_p.accession().deref()))?;
+
+                // TODO: if expected value isn't uncertain, strip uncertain from test
+                // if var_p.posedit and not var_p.posedit.uncertain:
+                //     # if expected value isn't uncertain, strip uncertain from test
+                //     var_p_test.posedit.uncertain = False
+
+                let mut hgvs_p_test = format!("{}", &var_p_test);
+
+                if hgvs_p_exp.ends_with("Ter") {
+                    let re = Regex::new(r"Ter\d+$").unwrap();
+                    hgvs_p_test = re.replace(&hgvs_p_test, "Ter").to_string();
+                }
+
+                assert_eq!(
+                    hgvs_p_exp, hgvs_p_test,
+                    "{} != {} ({})",
+                    &hgvs_p_exp, &hgvs_p_test, &record.id,
+                );
+            }
+        }
 
         Ok(())
     }
