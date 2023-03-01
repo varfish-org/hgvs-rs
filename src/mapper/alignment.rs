@@ -103,6 +103,7 @@ where
 }
 
 /// Configuration for mapping.
+#[derive(Debug, Clone)]
 pub struct Config {
     /// Require transcript variants to be within transcript sequence bounds.
     pub strict_bounds: bool,
@@ -140,11 +141,13 @@ pub struct Mapper {
 
 impl Mapper {
     pub fn new(
+        config: &Config,
         provider: Rc<dyn Provider>,
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
     ) -> Result<Mapper, anyhow::Error> {
+        let config = config.clone();
         let (strand, gc_offset, cds_start_i, cds_end_i, tgt_len, cigar_mapper) =
             if alt_aln_method != "transcript" {
                 let tx_info = provider.get_tx_info(tx_ac, alt_ac, alt_aln_method)?;
@@ -231,7 +234,7 @@ impl Mapper {
         }
 
         Ok(Mapper {
-            config: Default::default(),
+            config,
             provider,
             tx_ac: tx_ac.to_string(),
             alt_ac: alt_ac.to_string(),
@@ -576,15 +579,49 @@ mod test {
 
         // unknown sequences
 
-        assert!(Mapper::new(provider.clone(), "bogus", "NM_033089.6", "splign").is_err());
-        assert!(Mapper::new(provider.clone(), "bogus", "NM_033089.6", "transcript").is_err());
-        assert!(Mapper::new(provider.clone(), "NM_033089.6", "bogus", "splign").is_err());
-        assert!(Mapper::new(provider.clone(), "NM_000051.3", "NC_000011.9", "bogus").is_err());
+        assert!(Mapper::new(
+            &Default::default(),
+            provider.clone(),
+            "bogus",
+            "NM_033089.6",
+            "splign"
+        )
+        .is_err());
+        assert!(Mapper::new(
+            &Default::default(),
+            provider.clone(),
+            "bogus",
+            "NM_033089.6",
+            "transcript"
+        )
+        .is_err());
+        assert!(Mapper::new(
+            &Default::default(),
+            provider.clone(),
+            "NM_033089.6",
+            "bogus",
+            "splign"
+        )
+        .is_err());
+        assert!(Mapper::new(
+            &Default::default(),
+            provider.clone(),
+            "NM_000051.3",
+            "NC_000011.9",
+            "bogus"
+        )
+        .is_err());
 
         // invalid intervals
 
         {
-            let am = Mapper::new(provider.clone(), "NM_000348.3", "NC_000002.11", "splign")?;
+            let am = Mapper::new(
+                &Default::default(),
+                provider.clone(),
+                "NM_000348.3",
+                "NC_000002.11",
+                "splign",
+            )?;
             assert!(am
                 .n_to_c(&TxInterval {
                     start: TxPos {
@@ -600,7 +637,13 @@ mod test {
         }
 
         {
-            let am = Mapper::new(provider, "NM_000348.3", "NC_000002.11", "splign")?;
+            let am = Mapper::new(
+                &Default::default(),
+                provider,
+                "NM_000348.3",
+                "NC_000002.11",
+                "splign",
+            )?;
             assert!(am
                 .c_to_n(&CdsInterval {
                     start: CdsPos {
@@ -627,7 +670,7 @@ mod test {
         cases: &Vec<(GenomeInterval, TxInterval, CdsInterval)>,
     ) -> Result<(), anyhow::Error> {
         let provider = build_provider()?;
-        let mapper = Mapper::new(provider, tx_ac, alt_ac, "splign")?;
+        let mapper = Mapper::new(&Default::default(), provider, tx_ac, alt_ac, "splign")?;
 
         for (g_interval, n_interval, c_interval) in cases {
             assert_eq!(

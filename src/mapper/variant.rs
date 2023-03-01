@@ -4,7 +4,7 @@ use std::{ops::Range, rc::Rc};
 
 use log::{debug, info};
 
-use super::alignment::Mapper as AlignmentMapper;
+use super::alignment::{Config as AlignmentConfig, Mapper as AlignmentMapper};
 use crate::{
     data::interface::Provider,
     normalizer::{self, Normalizer},
@@ -113,7 +113,15 @@ impl Mapper {
         alt_aln_method: &str,
     ) -> Result<AlignmentMapper, anyhow::Error> {
         // TODO: implement caching
-        AlignmentMapper::new(self.provider.clone(), tx_ac, alt_ac, alt_aln_method)
+        AlignmentMapper::new(
+            &AlignmentConfig {
+                strict_bounds: self.config.strict_bounds,
+            },
+            self.provider.clone(),
+            tx_ac,
+            alt_ac,
+            alt_aln_method,
+        )
     }
 
     /// Convert from genome (g.) variant to transcript variant (g. or n.).
@@ -658,6 +666,8 @@ impl Mapper {
         {
             self.validator.validate(var_c)?;
 
+            let var_c = self.replace_reference(var_c.clone())?;
+
             let reference_data = RefTranscriptData::new(
                 self.provider.clone(),
                 accession.deref(),
@@ -1199,16 +1209,19 @@ mod test {
             }
         }
 
-        pub fn build_mapper() -> Result<Mapper, anyhow::Error> {
+        pub fn build_mapper(strict_bounds: bool) -> Result<Mapper, anyhow::Error> {
             let path = PathBuf::from("tests/data/mapper/sanity_cp.tsv");
             let provider = Rc::new(Provider::new(&path)?);
-            let config = Config::default();
+            let config = Config {
+                strict_bounds,
+                ..Default::default()
+            };
             Ok(Mapper::new(&config, provider))
         }
     }
 
     fn test_hgvs_c_to_p_conversion(hgvsc: &str, hgvsp_expected: &str) -> Result<(), anyhow::Error> {
-        let mapper = sanity_mock::build_mapper()?;
+        let mapper = sanity_mock::build_mapper(false)?;
 
         let var_c = HgvsVariant::from_str(hgvsc)?;
         let ac_p = "MOCK";
