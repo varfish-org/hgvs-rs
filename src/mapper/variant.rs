@@ -1677,9 +1677,13 @@ mod test {
 
     // The following tests correspond to those in `test_hgvs_variantmapper_gcp.py`.
 
-    fn run_gxp_test(path: &str) -> Result<(), anyhow::Error> {
-        fn rm_del_seq(var: &HgvsVariant) -> String {
-            let tmp = format!("{}", &var);
+    fn run_gxp_test(path: &str, noref: bool) -> Result<(), anyhow::Error> {
+        fn rm_del_seq(var: &HgvsVariant, noref: bool) -> String {
+            let tmp = if noref {
+                format!("{}", &NoRef(var))
+            } else {
+                format!("{}", var)
+            };
             let re = Regex::new(r"del\w+ins").unwrap();
             re.replace(&tmp, "delins").to_string()
         }
@@ -1717,8 +1721,8 @@ mod test {
             };
 
             assert_eq!(
-                rm_del_seq(&var_x),
-                rm_del_seq(&var_x_test),
+                rm_del_seq(&var_x, noref),
+                rm_del_seq(&var_x_test, noref),
                 "{} != {} (g>t; {}; HGVSg={})",
                 var_x_test,
                 var_x,
@@ -1747,8 +1751,8 @@ mod test {
             };
 
             assert_eq!(
-                rm_del_seq(&var_g),
-                rm_del_seq(&var_g_test),
+                rm_del_seq(&var_g, noref),
+                rm_del_seq(&var_g_test, noref),
                 "{} != {} (t>g; {}; HGVSc={})",
                 var_x_test,
                 var_x,
@@ -1786,67 +1790,67 @@ mod test {
 
     #[test]
     fn zcchc3_dbsnp() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/ZCCHC3-dbSNP.tsv")
+        run_gxp_test("tests/data/mapper/gcp/ZCCHC3-dbSNP.tsv", false)
     }
 
     #[test]
     fn orai1_dbsnp() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/ORAI1-dbSNP.tsv")
+        run_gxp_test("tests/data/mapper/gcp/ORAI1-dbSNP.tsv", false)
     }
 
     #[test]
     fn folr3_dbsnp() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/FOLR3-dbSNP.tsv")
+        run_gxp_test("tests/data/mapper/gcp/FOLR3-dbSNP.tsv", false)
     }
 
     #[test]
     fn adra2b_dbsnp() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/ADRA2B-dbSNP.tsv")
+        run_gxp_test("tests/data/mapper/gcp/ADRA2B-dbSNP.tsv", false)
     }
 
     #[test]
     fn jrk_dbsnp() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/JRK-dbSNP.tsv")
+        run_gxp_test("tests/data/mapper/gcp/JRK-dbSNP.tsv", false)
     }
 
     #[test]
     fn nefl_dbsnp() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/NEFL-dbSNP.tsv")
+        run_gxp_test("tests/data/mapper/gcp/NEFL-dbSNP.tsv", false)
     }
 
     #[test]
     fn dnah11_hgmd() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/DNAH11-HGMD.tsv")
+        run_gxp_test("tests/data/mapper/gcp/DNAH11-HGMD.tsv", true)
     }
 
     #[test]
     fn dnah11_dbsnp_nm_003777() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP-NM_003777.tsv")
+        run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP-NM_003777.tsv", false)
     }
 
     #[test]
     fn dnah11_db_snp_nm_001277115() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP-NM_001277115.tsv")
+        run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP-NM_001277115.tsv", false)
     }
 
     #[test]
     fn regression() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/regression.tsv")
+        run_gxp_test("tests/data/mapper/gcp/regression.tsv", false)
     }
 
     #[test]
     fn dnah11_db_snp_full() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP.tsv")
+        run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP.tsv", false)
     }
 
     #[test]
     fn real() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/real.tsv")
+        run_gxp_test("tests/data/mapper/gcp/real.tsv", false)
     }
 
     #[test]
     fn noncoding() -> Result<(), anyhow::Error> {
-        run_gxp_test("tests/data/mapper/gcp/noncoding.tsv")
+        run_gxp_test("tests/data/mapper/gcp/noncoding.tsv", false)
     }
 }
 
