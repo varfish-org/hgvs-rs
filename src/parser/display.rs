@@ -853,7 +853,7 @@ mod test {
                     length: UncertainLengthChange::None,
                 }
             ),
-            "fs".to_string(),
+            "fsTer".to_string(),
         );
         assert_eq!(
             format!(
@@ -864,7 +864,7 @@ mod test {
                     length: UncertainLengthChange::Unknown,
                 }
             ),
-            "fs?".to_string(),
+            "fsTer?".to_string(),
         );
         assert_eq!(
             format!(
@@ -875,7 +875,7 @@ mod test {
                     length: UncertainLengthChange::Known(42),
                 }
             ),
-            "fs42".to_string(),
+            "fsTer42".to_string(),
         );
 
         assert_eq!(
@@ -887,7 +887,7 @@ mod test {
                     length: UncertainLengthChange::None,
                 }
             ),
-            "Leufs".to_string(),
+            "LeufsTer".to_string(),
         );
         assert_eq!(
             format!(
@@ -898,7 +898,7 @@ mod test {
                     length: UncertainLengthChange::Unknown,
                 }
             ),
-            "Leufs?".to_string(),
+            "LeufsTer?".to_string(),
         );
         assert_eq!(
             format!(
@@ -909,7 +909,7 @@ mod test {
                     length: UncertainLengthChange::Known(42),
                 }
             ),
-            "Leufs42".to_string(),
+            "LeufsTer42".to_string(),
         );
 
         assert_eq!(
