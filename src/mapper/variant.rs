@@ -1637,6 +1637,7 @@ mod test {
             for record in rdr.deserialize() {
                 let mut record: Record = record?;
                 // p.(*) => p.
+                println!("{}", &record.id);
                 record.hgvs_p = record.hgvs_p.map(|s| s.replace("(", "").replace(")", ""));
                 records.push(record);
             }
@@ -1692,6 +1693,7 @@ mod test {
         let records = gcp_tests::load_records(&Path::new(path))?;
 
         for record in &records {
+            println!("id = {}", &record.id);
             let var_g = HgvsVariant::from_str(&record.hgvs_g)?;
             let var_x = HgvsVariant::from_str(&record.hgvs_c)?;
             let var_p = record
