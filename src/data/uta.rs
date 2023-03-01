@@ -4,6 +4,7 @@
 
 use linked_hash_map::LinkedHashMap;
 use postgres::{Client, NoTls, Row};
+use quick_cache::sync::Cache;
 use std::fmt::Debug;
 use std::sync::Mutex;
 
@@ -155,6 +156,37 @@ impl TryFrom<Row> for TxMappingOptionsRecord {
     }
 }
 
+/// Caches for the Provider data structure.
+struct ProviderCaches {
+    get_gene_info: Cache<String, GeneInfoRecord>,
+    get_pro_ac_for_tx_ac: Cache<String, Option<String>>,
+    get_acs_for_protein_seq: Cache<String, Vec<String>>,
+    get_similar_transcripts: Cache<String, Vec<TxSimilarityRecord>>,
+    get_tx_exons: Cache<(String, String, String), Vec<TxExonsRecord>>,
+    get_tx_for_gene: Cache<String, Vec<TxInfoRecord>>,
+    get_tx_for_region: Cache<(String, String, i32, i32), Vec<TxForRegionRecord>>,
+    get_tx_identity_info: Cache<String, TxIdentityInfo>,
+    get_tx_info: Cache<(String, String, String), TxInfoRecord>,
+    get_tx_mapping_options: Cache<String, Vec<TxMappingOptionsRecord>>,
+}
+
+impl ProviderCaches {
+    fn new(items_capacity: usize) -> Self {
+        Self {
+            get_gene_info: Cache::new(items_capacity),
+            get_pro_ac_for_tx_ac: Cache::new(items_capacity),
+            get_acs_for_protein_seq: Cache::new(items_capacity),
+            get_similar_transcripts: Cache::new(items_capacity),
+            get_tx_exons: Cache::new(items_capacity),
+            get_tx_for_gene: Cache::new(items_capacity),
+            get_tx_for_region: Cache::new(items_capacity),
+            get_tx_identity_info: Cache::new(items_capacity),
+            get_tx_info: Cache::new(items_capacity),
+            get_tx_mapping_options: Cache::new(items_capacity),
+        }
+    }
+}
+
 /// This provider provides information from a UTA Postgres database only.
 ///
 /// The sequences are also read from the database which implies that no genome contig information
@@ -166,6 +198,8 @@ pub struct Provider {
     conn: Mutex<Client>,
     /// The schema version, set on creation.
     schema_version: String,
+    /// Caches for the individual queries.
+    caches: ProviderCaches,
 }
 
 impl Debug for Provider {
@@ -187,6 +221,7 @@ impl Provider {
             config,
             conn,
             schema_version,
+            caches: ProviderCaches::new(10),
         })
     }
 
@@ -216,18 +251,32 @@ impl ProviderInterface for Provider {
     }
 
     fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, anyhow::Error> {
+        if let Some(result) = self.caches.get_gene_info.get(hgnc) {
+            return Ok(result);
+        }
+
         let sql = format!(
             "SELECT * FROM {}.gene WHERE hgnc = $1",
             self.config.db_schema
         );
-        self.conn
+        let result: GeneInfoRecord = self
+            .conn
             .lock()
             .unwrap()
             .query_one(&sql, &[&hgnc])?
-            .try_into()
+            .try_into()?;
+
+        self.caches
+            .get_gene_info
+            .insert(hgnc.to_string(), result.clone());
+        Ok(result)
     }
 
     fn get_pro_ac_for_tx_ac(&self, tx_ac: &str) -> Result<Option<String>, anyhow::Error> {
+        if let Some(result) = self.caches.get_pro_ac_for_tx_ac.get(tx_ac) {
+            return Ok(result);
+        }
+
         let sql = format!(
             "SELECT pro_ac FROM {}.associated_accessions \
             WHERE tx_ac = $1 ORDER BY pro_ac DESC",
@@ -237,9 +286,17 @@ impl ProviderInterface for Provider {
             .into_iter()
             .next()
         {
-            return Ok(Some(row.try_get("pro_ac")?));
+            let result = Some(row.try_get("pro_ac")?);
+            self.caches
+                .get_pro_ac_for_tx_ac
+                .insert(tx_ac.to_string(), None);
+            return Ok(result);
+        } else {
+            self.caches
+                .get_pro_ac_for_tx_ac
+                .insert(tx_ac.to_string(), None);
+            Ok(None)
         }
-        Ok(None)
     }
 
     fn get_seq_part(
@@ -248,6 +305,7 @@ impl ProviderInterface for Provider {
         begin: Option<usize>,
         end: Option<usize>,
     ) -> Result<String, anyhow::Error> {
+        // NB: no caching
         let sql = format!(
             "SELECT seq_id FROM {}.seq_anno WHERE ac = $1",
             self.config.db_schema
@@ -279,18 +337,24 @@ impl ProviderInterface for Provider {
 
     fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, anyhow::Error> {
         let md5 = seq_md5(seq, true)?;
+        if let Some(result) = self.caches.get_acs_for_protein_seq.get(&md5) {
+            return Ok(result);
+        }
+
         let sql = format!(
             "SELECT ac FROM {}.seq_anno WHERE seq_id = $1",
             self.config.db_schema
         );
-
         let mut result = Vec::new();
         for row in self.conn.lock().unwrap().query(&sql, &[&md5])? {
             result.push(row.get(0));
         }
-
         // Add sentinel sequence.
         result.push(format!("MD5_{}", &md5));
+
+        self.caches
+            .get_acs_for_protein_seq
+            .insert(md5, result.clone());
         Ok(result)
     }
 
@@ -298,6 +362,10 @@ impl ProviderInterface for Provider {
         &self,
         tx_ac: &str,
     ) -> Result<Vec<TxSimilarityRecord>, anyhow::Error> {
+        if let Some(result) = self.caches.get_similar_transcripts.get(tx_ac) {
+            return Ok(result);
+        }
+
         let sql = format!(
             "SELECT * FROM {}.tx_similarity_v \
             WHERE tx_ac1 = $1 \
@@ -308,6 +376,10 @@ impl ProviderInterface for Provider {
         for row in self.conn.lock().unwrap().query(&sql, &[&tx_ac])? {
             result.push(row.try_into()?);
         }
+
+        self.caches
+            .get_similar_transcripts
+            .insert(tx_ac.to_string(), result.clone());
         Ok(result)
     }
 
@@ -317,6 +389,15 @@ impl ProviderInterface for Provider {
         alt_ac: &str,
         alt_aln_method: &str,
     ) -> Result<Vec<TxExonsRecord>, anyhow::Error> {
+        let key = (
+            tx_ac.to_string(),
+            alt_ac.to_string(),
+            alt_aln_method.to_string(),
+        );
+        if let Some(result) = self.caches.get_tx_exons.get(&key) {
+            return Ok(result);
+        }
+
         let sql = format!(
             "SELECT * FROM {}.tx_exon_aln_v \
             WHERE tx_ac = $1 AND alt_ac = $2 and alt_aln_method = $3 \
@@ -340,11 +421,16 @@ impl ProviderInterface for Provider {
                 &alt_aln_method
             ))
         } else {
+            self.caches.get_tx_exons.insert(key, result.clone());
             Ok(result)
         }
     }
 
     fn get_tx_for_gene(&self, gene: &str) -> Result<Vec<TxInfoRecord>, anyhow::Error> {
+        if let Some(result) = self.caches.get_tx_for_gene.get(gene) {
+            return Ok(result);
+        }
+
         let sql = format!(
             "SELECT hgnc, cds_start_i, cds_end_i, tx_ac, alt_ac, alt_aln_method \
             FROM {}.transcript T \
@@ -357,6 +443,10 @@ impl ProviderInterface for Provider {
         for row in self.conn.lock().unwrap().query(&sql, &[&gene])? {
             result.push(row.try_into()?);
         }
+
+        self.caches
+            .get_tx_for_gene
+            .insert(gene.to_string(), result.clone());
         Ok(result)
     }
 
@@ -367,6 +457,16 @@ impl ProviderInterface for Provider {
         start_i: i32,
         end_i: i32,
     ) -> Result<Vec<TxForRegionRecord>, anyhow::Error> {
+        let key = (
+            alt_ac.to_string(),
+            alt_aln_method.to_string(),
+            start_i,
+            end_i,
+        );
+        if let Some(result) = self.caches.get_tx_for_region.get(&key) {
+            return Ok(result);
+        }
+
         let sql = format!(
             "SELECT tx_ac, alt_ac, alt_strand, alt_aln_method, \
                     min(start_i) AS start_i, max(end_i) AS end_i \
@@ -391,10 +491,16 @@ impl ProviderInterface for Provider {
                 result.push(record);
             }
         }
+
+        self.caches.get_tx_for_region.insert(key, result.clone());
         Ok(result)
     }
 
     fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, anyhow::Error> {
+        if let Some(result) = self.caches.get_tx_identity_info.get(tx_ac) {
+            return Ok(result);
+        }
+
         let sql = format!(
             "SELECT DISTINCT(tx_ac), alt_ac, alt_aln_method, cds_start_i, \
                     cds_end_i, lengths, hgnc \
@@ -403,11 +509,17 @@ impl ProviderInterface for Provider {
             ORDER BY tx_ac, alt_ac, alt_aln_method, cds_start_i, cds_end_i, lengths, hgnc",
             self.config.db_schema
         );
-        self.conn
+        let result: TxIdentityInfo = self
+            .conn
             .lock()
             .unwrap()
             .query_one(&sql, &[&tx_ac])?
-            .try_into()
+            .try_into()?;
+
+        self.caches
+            .get_tx_identity_info
+            .insert(tx_ac.to_string(), result.clone());
+        Ok(result)
     }
 
     fn get_tx_info(
@@ -416,6 +528,15 @@ impl ProviderInterface for Provider {
         alt_ac: &str,
         alt_aln_method: &str,
     ) -> Result<TxInfoRecord, anyhow::Error> {
+        let key = (
+            tx_ac.to_string(),
+            alt_ac.to_string(),
+            alt_aln_method.to_string(),
+        );
+        if let Some(result) = self.caches.get_tx_info.get(&key) {
+            return Ok(result);
+        }
+
         let sql = format!(
             "SELECT hgnc, cds_start_i, cds_end_i, tx_ac, alt_ac, alt_aln_method
             FROM {}.transcript t \
@@ -424,17 +545,25 @@ impl ProviderInterface for Provider {
             ORDER BY hgnc, cds_start_i, cds_end_i, tx_ac, alt_ac, alt_aln_method",
             self.config.db_schema, self.config.db_schema,
         );
-        self.conn
+        let result: TxInfoRecord = self
+            .conn
             .lock()
             .unwrap()
             .query_one(&sql, &[&tx_ac, &alt_ac, &alt_aln_method])?
-            .try_into()
+            .try_into()?;
+
+        self.caches.get_tx_info.insert(key, result.clone());
+        Ok(result)
     }
 
     fn get_tx_mapping_options(
         &self,
         tx_ac: &str,
     ) -> Result<Vec<TxMappingOptionsRecord>, anyhow::Error> {
+        if let Some(result) = self.caches.get_tx_mapping_options.get(tx_ac) {
+            return Ok(result);
+        }
+
         let sql = format!(
             "SELECT DISTINCT tx_ac, alt_ac, alt_aln_method \
             FROM {}.tx_exon_aln_v \
@@ -446,6 +575,10 @@ impl ProviderInterface for Provider {
         for row in self.conn.lock().unwrap().query(&sql, &[&tx_ac])? {
             result.push(row.try_into()?);
         }
+
+        self.caches
+            .get_tx_mapping_options
+            .insert(tx_ac.to_string(), result.clone());
         Ok(result)
     }
 }
