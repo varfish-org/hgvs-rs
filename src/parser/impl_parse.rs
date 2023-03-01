@@ -141,9 +141,9 @@ impl Parseable for ProteinEdit {
             protein_edit::ident,
             protein_edit::subst_qm,
             protein_edit::subst_aa,
+            protein_edit::delins,
             protein_edit::del,
             protein_edit::ins,
-            protein_edit::delins,
             protein_edit::dup,
         ))(input)
     }

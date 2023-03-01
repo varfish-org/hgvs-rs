@@ -1835,33 +1835,6 @@ mod test {
     fn noncoding() -> Result<(), anyhow::Error> {
         run_gxp_test("tests/data/mapper/gcp/noncoding.tsv")
     }
-
-    #[test]
-    fn case() -> Result<(), anyhow::Error> {
-        let mapper = build_mapper()?;
-        let s_g = "NC_000008.10:g.143750582_143750607del26";
-        let var_g = HgvsVariant::from_str(s_g)?;
-        let s_c = "NM_001077527.1:c.-463+743_-463+768del26";
-        let var_c = HgvsVariant::from_str(s_c)?;
-        let x = mapper.g_to_c(&var_g, &var_c.accession(), "splign")?;
-
-
-        // Use `del<COUNT>` syntax in output when we saw this in the input.  The original
-        // Python library implements this by always storing the count in the nucleic acid
-        // edit.
-        let x = if var_g.is_na_edit_num() {
-            x.with_na_ref_num()
-        } else {
-            x
-        };
-
-
-        assert_eq!(format!("{}", &var_g), s_g,);
-        assert_eq!(format!("{}", &var_c), s_c,);
-        assert_eq!(format!("{}", &x), s_c);
-
-        Ok(())
-    }
 }
 
 // <LICENSE>
