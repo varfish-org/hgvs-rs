@@ -1622,7 +1622,10 @@ mod test {
                 .comment(Some(b'#'))
                 .from_path(path)?;
             for record in rdr.deserialize() {
-                records.push(record?);
+                let mut record: Record = record?;
+                // p.(*) => p.
+                record.hgvs_p = record.hgvs_p.map(|s| s.replace("(", "").replace(")", ""));
+                records.push(record);
             }
 
             Ok(records)
@@ -1690,6 +1693,16 @@ mod test {
                 }
                 _ => panic!("cannot happen"),
             };
+
+            // Use `del<COUNT>` syntax in output when we saw this in the input.  The original
+            // Python library implements this by always storing the count in the nucleic acid
+            // edit.
+            let var_x_test = if var_g.is_na_edit_num() {
+                var_x_test.with_na_ref_num()
+            } else {
+                var_x_test
+            };
+
             assert_eq!(
                 rm_del_seq(&var_x),
                 rm_del_seq(&var_x_test),
@@ -1710,6 +1723,16 @@ mod test {
                 }
                 _ => panic!("cannot happen"),
             };
+
+            // Use `del<COUNT>` syntax in output when we saw this in the input.  The original
+            // Python library implements this by always storing the count in the nucleic acid
+            // edit.
+            let var_g_test = if var_x.is_na_edit_num() {
+                var_g_test.with_na_ref_num()
+            } else {
+                var_g_test
+            };
+
             assert_eq!(
                 rm_del_seq(&var_g),
                 rm_del_seq(&var_g_test),
@@ -1748,70 +1771,97 @@ mod test {
         Ok(())
     }
 
-    // #[test]
-    // fn zcchc3_dbsnp() -> Result<(), anyhow::Error> {
-    //     run_gxp_test("tests/data/mapper/gcp/ZCCHC3-dbSNP.tsv")
-    // }
+    #[test]
+    fn zcchc3_dbsnp() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/ZCCHC3-dbSNP.tsv")
+    }
 
-    // #[test]
-    // fn orai1_dbsnp() -> Result<(), anyhow::Error> {
-    //     run_gxp_test("tests/data/mapper/gcp/ORAI1-dbSNP.tsv")
-    // }
+    #[test]
+    fn orai1_dbsnp() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/ORAI1-dbSNP.tsv")
+    }
 
-    // #[test]
-    // fn folr3_dbsnp() -> Result<(), anyhow::Error> {
-    //     run_gxp_test("tests/data/mapper/gcp/FOLR3-dbSNP.tsv")
-    // }
+    #[test]
+    fn folr3_dbsnp() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/FOLR3-dbSNP.tsv")
+    }
 
-    // #[test]
-    // fn adra2b_dbsnp() -> Result<(), anyhow::Error> {
-    //     run_gxp_test("tests/data/mapper/gcp/ADRA2B-dbSNP.tsv")
-    // }
+    #[test]
+    fn adra2b_dbsnp() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/ADRA2B-dbSNP.tsv")
+    }
 
-    // #[test]
-    // fn jrk_dbsnp() -> Result<(), anyhow::Error> {
-    //     run_gxp_test("tests/data/mapper/gcp/JRK-dbSNP.tsv")
-    // }
+    #[test]
+    fn jrk_dbsnp() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/JRK-dbSNP.tsv")
+    }
 
-    // #[test]
-    // fn nefl_dbsnp() -> Result<(), anyhow::Error> {
-    //     run_gxp_test("tests/data/mapper/gcp/NEFL-dbSNP.tsv")
-    // }
+    #[test]
+    fn nefl_dbsnp() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/NEFL-dbSNP.tsv")
+    }
 
-    // #[test]
-    // fn dnah11_hgmd() -> Result<(), anyhow::Error> {
-    //     run_gxp_test("tests/data/mapper/gcp/DNAH11-HGMD.tsv")
-    // }
+    #[test]
+    fn dnah11_hgmd() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/DNAH11-HGMD.tsv")
+    }
 
-    // #[test]
-    // fn dnah11_dbsnp_nm_003777() -> Result<(), anyhow::Error> {
-    //     run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP-NM_003777.tsv")
-    // }
+    #[test]
+    fn dnah11_dbsnp_nm_003777() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP-NM_003777.tsv")
+    }
 
-    // #[test]
-    // fn dnah11_db_snp_nm_001277115() -> Result<(), anyhow::Error> {
-    //     run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP-NM_001277115.tsv")
-    // }
+    #[test]
+    fn dnah11_db_snp_nm_001277115() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP-NM_001277115.tsv")
+    }
 
-    // #[test]
-    // fn regression() -> Result<(), anyhow::Error> {
-    //     run_gxp_test("tests/data/mapper/gcp/regression.tsv")
-    // }
+    #[test]
+    fn regression() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/regression.tsv")
+    }
 
-    // #[test]
-    // fn dnah11_db_snp_full() -> Result<(), anyhow::Error> {
-    //     run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP.tsv")
-    // }
+    #[test]
+    fn dnah11_db_snp_full() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP.tsv")
+    }
 
-    // #[test]
-    // fn real() -> Result<(), anyhow::Error> {
-    //     run_gxp_test("tests/data/mapper/gcp/real.tsv")
-    // }
+    #[test]
+    fn real() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/real.tsv")
+    }
 
-    // #[test]
-    // fn noncoding() -> Result<(), anyhow::Error> {
-    //     run_gxp_test("tests/data/mapper/gcp/noncoding.tsv")
-    // }
+    #[test]
+    fn noncoding() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/noncoding.tsv")
+    }
+
+    #[test]
+    fn case() -> Result<(), anyhow::Error> {
+        let mapper = build_mapper()?;
+        let s_g = "NC_000008.10:g.143750582_143750607del26";
+        let var_g = HgvsVariant::from_str(s_g)?;
+        let s_c = "NM_001077527.1:c.-463+743_-463+768del26";
+        let var_c = HgvsVariant::from_str(s_c)?;
+        let x = mapper.g_to_c(&var_g, &var_c.accession(), "splign")?;
+
+
+        // Use `del<COUNT>` syntax in output when we saw this in the input.  The original
+        // Python library implements this by always storing the count in the nucleic acid
+        // edit.
+        let x = if var_g.is_na_edit_num() {
+            x.with_na_ref_num()
+        } else {
+            x
+        };
+
+
+        assert_eq!(format!("{}", &var_g), s_g,);
+        assert_eq!(format!("{}", &var_c), s_c,);
+        assert_eq!(format!("{}", &x), s_c);
+
+        Ok(())
+    }
 }
 
 // <LICENSE>

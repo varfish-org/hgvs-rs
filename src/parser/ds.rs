@@ -103,6 +103,36 @@ pub enum NaEdit {
 }
 
 impl NaEdit {
+    /// Returns whether the edit has a count (and not reference sequence).
+    pub fn is_na_edit_num(&self) -> bool {
+        match self {
+            NaEdit::RefAlt { .. }
+            | NaEdit::DelRef { .. }
+            | NaEdit::Ins { .. }
+            | NaEdit::Dup { .. }
+            | NaEdit::InvRef { .. } => false,
+            NaEdit::NumAlt { .. } | NaEdit::DelNum { .. } | NaEdit::InvNum { .. } => true,
+        }
+    }
+
+    /// Ensures that the reference is a count and no reference bases.
+    pub fn with_num(&self) -> Self {
+        match self {
+            NaEdit::DelRef { reference } => NaEdit::DelNum {
+                count: reference.len() as i32,
+            },
+            NaEdit::InvRef { reference } => NaEdit::InvNum {
+                count: reference.len() as i32,
+            },
+            NaEdit::NumAlt { .. }
+            | NaEdit::RefAlt { .. }
+            | NaEdit::DelNum { .. }
+            | NaEdit::InvNum { .. }
+            | NaEdit::Ins { .. }
+            | NaEdit::Dup { .. } => self.clone(),
+        }
+    }
+
     /// Return whether the reference equals the given value.
     pub fn reference_equals(&self, value: &str) -> bool {
         match self {
@@ -257,7 +287,79 @@ pub enum HgvsVariant {
 }
 
 impl HgvsVariant {
-    // Replace reference sequence.
+    /// Return whether has a nucleic acid change and that one uses counts.
+    pub fn is_na_edit_num(&self) -> bool {
+        match self {
+            HgvsVariant::CdsVariant { loc_edit, .. } => loc_edit.edit.inner().is_na_edit_num(),
+            HgvsVariant::GenomeVariant { loc_edit, .. } => loc_edit.edit.inner().is_na_edit_num(),
+            HgvsVariant::MtVariant { loc_edit, .. } => loc_edit.edit.inner().is_na_edit_num(),
+            HgvsVariant::TxVariant { loc_edit, .. } => loc_edit.edit.inner().is_na_edit_num(),
+            HgvsVariant::RnaVariant { loc_edit, .. } => loc_edit.edit.inner().is_na_edit_num(),
+            HgvsVariant::ProtVariant { .. } => false,
+        }
+    }
+
+    /// Replace `NaEdit` having a reference with one having a count.
+    pub fn with_na_ref_num(self) -> Self {
+        match self {
+            HgvsVariant::CdsVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            } => HgvsVariant::CdsVariant {
+                accession,
+                gene_symbol,
+                loc_edit: loc_edit.with_num(),
+            },
+            HgvsVariant::GenomeVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            } => HgvsVariant::GenomeVariant {
+                accession,
+                gene_symbol,
+                loc_edit: loc_edit.with_num(),
+            },
+            HgvsVariant::MtVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            } => HgvsVariant::MtVariant {
+                accession,
+                gene_symbol,
+                loc_edit: loc_edit.with_num(),
+            },
+            HgvsVariant::TxVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            } => HgvsVariant::TxVariant {
+                accession,
+                gene_symbol,
+                loc_edit: loc_edit.with_num(),
+            },
+            HgvsVariant::ProtVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            } => HgvsVariant::ProtVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            },
+            HgvsVariant::RnaVariant {
+                accession,
+                gene_symbol,
+                loc_edit,
+            } => HgvsVariant::RnaVariant {
+                accession,
+                gene_symbol,
+                loc_edit: loc_edit.with_num(),
+            },
+        }
+    }
+
+    /// Replace reference sequence.
     pub fn with_reference(self, value: String) -> Self {
         match self {
             HgvsVariant::CdsVariant {
@@ -419,16 +521,16 @@ impl HgvsVariant {
     pub fn spans_intron(&self) -> bool {
         match self {
             HgvsVariant::CdsVariant { loc_edit, .. } => {
-                loc_edit.loc.inner().start.offset.unwrap_or_default() > 0
-                    || loc_edit.loc.inner().end.offset.unwrap_or_default() > 0
+                loc_edit.loc.inner().start.offset.is_some()
+                    || loc_edit.loc.inner().end.offset.is_some()
             }
             HgvsVariant::TxVariant { loc_edit, .. } => {
-                loc_edit.loc.inner().start.offset.unwrap_or_default() > 0
-                    || loc_edit.loc.inner().end.offset.unwrap_or_default() > 0
+                loc_edit.loc.inner().start.offset.is_some()
+                    || loc_edit.loc.inner().end.offset.is_some()
             }
             HgvsVariant::RnaVariant { loc_edit, .. } => {
-                loc_edit.loc.inner().start.offset.unwrap_or_default() > 0
-                    || loc_edit.loc.inner().end.offset.unwrap_or_default() > 0
+                loc_edit.loc.inner().start.offset.is_some()
+                    || loc_edit.loc.inner().end.offset.is_some()
             }
             _ => false,
         }
@@ -452,6 +554,17 @@ impl CdsLocEdit {
             edit: match self.edit {
                 Mu::Certain(edit) => Mu::Certain(edit.with_reference(reference)),
                 Mu::Uncertain(edit) => Mu::Uncertain(edit.with_reference(reference)),
+            },
+        }
+    }
+
+    /// Return the LocEdit and ensure that the `NaEdit` has a count and no reference bases.
+    fn with_num(self) -> Self {
+        CdsLocEdit {
+            loc: self.loc,
+            edit: match self.edit {
+                Mu::Certain(edit) => Mu::Certain(edit.with_num()),
+                Mu::Uncertain(edit) => Mu::Uncertain(edit.with_num()),
             },
         }
     }
@@ -528,6 +641,17 @@ impl GenomeLocEdit {
             },
         }
     }
+
+    /// Return the LocEdit and ensure that the `NaEdit` has a count and no reference bases.
+    fn with_num(self) -> Self {
+        GenomeLocEdit {
+            loc: self.loc,
+            edit: match self.edit {
+                Mu::Certain(edit) => Mu::Certain(edit.with_num()),
+                Mu::Uncertain(edit) => Mu::Uncertain(edit.with_num()),
+            },
+        }
+    }
 }
 
 /// Genome position interval.
@@ -576,6 +700,17 @@ impl MtLocEdit {
             },
         }
     }
+
+    /// Return the LocEdit and ensure that the `NaEdit` has a count and no reference bases.
+    fn with_num(self) -> Self {
+        MtLocEdit {
+            loc: self.loc,
+            edit: match self.edit {
+                Mu::Certain(edit) => Mu::Certain(edit.with_num()),
+                Mu::Uncertain(edit) => Mu::Uncertain(edit.with_num()),
+            },
+        }
+    }
 }
 /// Mitochondrial position interval.
 #[derive(Clone, Debug, PartialEq)]
@@ -620,6 +755,17 @@ impl TxLocEdit {
             edit: match self.edit {
                 Mu::Certain(edit) => Mu::Certain(edit.with_reference(reference)),
                 Mu::Uncertain(edit) => Mu::Uncertain(edit.with_reference(reference)),
+            },
+        }
+    }
+
+    /// Return the LocEdit and ensure that the `NaEdit` has a count and no reference bases.
+    fn with_num(self) -> Self {
+        TxLocEdit {
+            loc: self.loc,
+            edit: match self.edit {
+                Mu::Certain(edit) => Mu::Certain(edit.with_num()),
+                Mu::Uncertain(edit) => Mu::Uncertain(edit.with_num()),
             },
         }
     }
@@ -675,6 +821,17 @@ impl RnaLocEdit {
             edit: match self.edit {
                 Mu::Certain(edit) => Mu::Certain(edit.with_reference(reference)),
                 Mu::Uncertain(edit) => Mu::Uncertain(edit.with_reference(reference)),
+            },
+        }
+    }
+
+    /// Return the LocEdit and ensure that the `NaEdit` has a count and no reference bases.
+    fn with_num(self) -> Self {
+        RnaLocEdit {
+            loc: self.loc,
+            edit: match self.edit {
+                Mu::Certain(edit) => Mu::Certain(edit.with_num()),
+                Mu::Uncertain(edit) => Mu::Uncertain(edit.with_num()),
             },
         }
     }
