@@ -3,11 +3,11 @@
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::complete::alphanumeric1,
     character::complete::char,
+    character::complete::{alphanumeric1, digit1, satisfy},
     combinator::{all_consuming, map, opt, recognize},
     sequence::{pair, tuple},
-    IResult,
+    AsChar, IResult,
 };
 
 use crate::parser::ds::*;
@@ -169,9 +169,10 @@ impl Parseable for NaEdit {
 impl Parseable for Accession {
     fn parse(input: &str) -> IResult<&str, Self> {
         let parser_accession = recognize(tuple((
+            satisfy(|c| c.is_alpha()),
             alphanum::narrowed_alphanumeric1,
             opt(pair(char('_'), alphanumeric1)),
-            opt(pair(char('.'), alphanumeric1)),
+            opt(pair(char('.'), digit1)),
         )));
 
         let mut parser = map(parser_accession, |value| Self {
@@ -846,6 +847,106 @@ mod test {
                 }
             ))
         );
+    }
+
+    // The following is a port of the tests in `test_hgvs_grammar_full.py` of the Python
+    // package
+
+    /// Tests of the grammar
+    ///
+    /// Code takes a tab-delimited text file of the form:
+    ///
+    ///   Func    Test    Valid   InType  Expected
+    ///   pm      -+      True    string
+    ///   pm      *       False   one
+    ///   num     1|+1    True    list    1|1
+    ///
+    /// Headers are defined as follows:
+    /// Func: function name to call in the grammar
+    /// Test: item(s) to test
+    /// Valid: if the input is expected to be valid (True or False)
+    /// InType: 3 type:
+    /// - one: input is a single value
+    /// - string: input is a string; test each character in the string separately
+    /// - list: input is a list delimited by a pipe character ("|")
+    /// Expected: expected result (if stringifying input does not return the same answer, e,g. "+1" -> "1")
+    /// - if expected is left blank, then it is assumed that stringifying the parsed input returns the same answer.
+    mod grammar_full {
+        use nom::combinator::all_consuming;
+
+        use crate::parser::{impl_parse::Parseable, Accession};
+
+        #[test]
+        fn parser_grammar() -> Result<(), anyhow::Error> {
+            let path = "tests/data/parser/grammar_test.tsv";
+            let mut rdr = csv::ReaderBuilder::new()
+                .delimiter(b'\t')
+                .has_headers(false)
+                .comment(Some(b'#'))
+                .flexible(true)
+                .from_path(path)?;
+
+            for row in rdr.records() {
+                let row = row?;
+                if row.get(0) == Some("Func") {
+                    continue; // skip header
+                }
+
+                // setup input
+                let inputs = split_inputs(row.get(1).unwrap(), row.get(3).unwrap())?;
+                let expected_results = if row.get(4).is_some() && row.get(4) != Some("") {
+                    split_inputs(row.get(4).unwrap(), row.get(3).unwrap())?
+                } else {
+                    inputs.clone()
+                };
+                let is_valid = row.get(2).unwrap().to_lowercase() == "true";
+
+                for (input, expected) in inputs.into_iter().zip(expected_results.into_iter()) {
+                    let func = row.get(0).unwrap();
+                    match func {
+                        "accn" => {
+                            let x = input.clone();
+                            let res = all_consuming(Accession::parse)(&x);
+                            if is_valid {
+                                let (r, acc) = res.unwrap();
+                                assert_eq!(r, "");
+                                assert_eq!(acc.as_str(), expected);
+                            } else {
+                                assert!(res.is_err());
+                            }
+                        }
+                        _ => println!("We need to implement the other cases as well"),
+                    }
+                }
+            }
+
+            Ok(())
+        }
+
+        fn split_inputs(in_string: &str, in_type: &str) -> Result<Vec<String>, anyhow::Error> {
+            let inputs = if in_type == "list" {
+                in_string
+                    .split('|')
+                    .into_iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+            } else if in_type == "string" {
+                in_string
+                    .chars()
+                    .into_iter()
+                    .map(|c| c.to_string())
+                    .collect::<Vec<_>>()
+            } else if in_type == "one" {
+                vec![in_string.to_string()]
+            } else {
+                panic!("should never reach here (in_type={:?})", &in_type)
+            };
+
+            Ok(inputs
+                .into_iter()
+                .filter(|s| s != "None")
+                .collect::<Vec<_>>())
+        }
     }
 }
 
