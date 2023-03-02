@@ -115,4 +115,4 @@ jobs:
           verbose: true
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
-        if: ${{ matrix.label == "full" }}
+        if: matrix.label == "full"
