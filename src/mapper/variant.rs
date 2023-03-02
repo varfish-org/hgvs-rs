@@ -124,6 +124,16 @@ impl Mapper {
         )
     }
 
+    /// Construct a new normalizer for the variant mapper.
+    pub fn normalizer(&self) -> Result<Normalizer, anyhow::Error> {
+        Ok(Normalizer::new(
+            self,
+            self.provider.clone(),
+            self.validator.clone(),
+            Default::default(),
+        ))
+    }
+
     /// Convert from genome (g.) variant to transcript variant (g. or n.).
     ///
     /// # Args
@@ -175,13 +185,7 @@ impl Mapper {
                 && !mapper.is_g_interval_in_bounds(loc_edit.loc.inner())
             {
                 info!("Renormalizing out-of-bounds minus strand variant on genomic sequenc");
-                Normalizer::new(
-                    self,
-                    self.provider.clone(),
-                    self.validator.clone(),
-                    Default::default(),
-                )
-                .normalize(&var_g)?
+                self.normalizer()?.normalize(&var_g)?
             } else {
                 var_g.clone()
             };
