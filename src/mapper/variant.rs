@@ -1852,25 +1852,6 @@ mod test {
     fn noncoding() -> Result<(), anyhow::Error> {
         run_gxp_test("tests/data/mapper/gcp/noncoding.tsv", false)
     }
-
-    #[test]
-    fn case() -> Result<(), anyhow::Error> {
-        let s_g = "NC_000007.13:g.21723128_21723129insT";
-        let s_c = "NM_001277115.2:c.5461-273dupT";
-        let var_g = HgvsVariant::from_str(s_g)?;
-        let var_c = HgvsVariant::from_str(s_c)?;
-
-        let mapper = build_mapper()?;
-        let var_x = mapper.g_to_n(&var_g, &var_c.accession(), "splign")?;
-        assert_eq!(format!("{}", &var_x), s_c);
-
-        Ok(())
-    }
-
-    // #rs35803309	NC_000007.13:g.21723128_21723129insT	NM_001277115.2:c.5461-273dupT
-    // #rs35803309	NC_000007.13:g.21723128_21723129insT	NM_003777.3:c.5482-273dupT
-    // #rs146960178	NC_000007.13:g.21723129_21723130insC	NM_001277115.2:c.5461-269dupC
-    // #rs146960178	NC_000007.13:g.21723129_21723130insC	NM_003777.3:c.5482-269dupC
 }
 
 // <LICENSE>
