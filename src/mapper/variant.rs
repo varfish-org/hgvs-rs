@@ -139,7 +139,7 @@ impl Mapper {
     ) -> Result<HgvsVariant, anyhow::Error> {
         self.validator.validate(var_g)?;
         let var_g = self.replace_reference(var_g.clone())?;
-        let mapper = self.build_alignment_mapper(&tx_ac, &var_g.accession(), alt_aln_method)?;
+        let mapper = self.build_alignment_mapper(tx_ac, var_g.accession(), alt_aln_method)?;
         if mapper.is_coding_transcript() {
             self.g_to_c(&var_g, tx_ac, alt_aln_method)
         } else {
