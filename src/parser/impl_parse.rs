@@ -306,6 +306,10 @@ impl Parseable for ProtInterval {
 }
 
 impl ProtLocEdit {
+    fn parse_initiation_uncertain(input: &str) -> IResult<&str, Self> {
+        map(tag("Met1?"), |_| ProtLocEdit::InitiationUncertain)(input)
+    }
+
     fn parse_no_change(input: &str) -> IResult<&str, Self> {
         map(tag("="), |_| ProtLocEdit::NoChange)(input)
     }
@@ -337,6 +341,7 @@ impl ProtLocEdit {
 impl Parseable for ProtLocEdit {
     fn parse(input: &str) -> IResult<&str, Self> {
         alt((
+            Self::parse_initiation_uncertain,
             Self::parse_ordinary,
             Self::parse_no_protein_uncertain,
             Self::parse_no_protein,

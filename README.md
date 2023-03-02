@@ -14,7 +14,7 @@ To use the public database:
 
 ```
 export TEST_UTA_DATABASE_URL=postgres://anonymous:anonymous@uta.biocommons.org:/uta
-export TEST_UTA_DATABASE_SCHEMA=uta_20210129
+export TEST_UTA_DATABASE_SCHEMA=uta_20180821
 ```
 
 Note that [seqrepo-rs](https://github.com/bihealth/seqrepo-rs) is used for access to the genome contig sequence.
@@ -31,6 +31,7 @@ export TEST_SEQREPO_CACHE_PATH=tests/data/seqrepo_cache.fasta
 ```
 
 When running the tests with `cargo test`, the cache file will be (re-)written.
+Note that you have to use `cargo test -- --test-threads 1` when writing the cache for enforcing a single test writing to the cache at any time.
 If you don't want to regenerate the cache then you can use the following settings.
 With these settings, the cache will only be read.
 
@@ -55,7 +56,7 @@ The process is as follows:
    This will download the given UTA dump and reduce it to the information related to these transcripts.
 
 ```
-$ bootstrap.sh http://dl.biocommons.org/uta uta_20210129
+$ bootstrap.sh http://dl.biocommons.org/uta uta_20180821
 ```
 
 The `*.pgd.gz` file is added to the Git repository via `git-lfs` and in CI, this minimal database will be used.

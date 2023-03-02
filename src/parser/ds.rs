@@ -148,8 +148,6 @@ impl NaEdit {
     pub fn with_reference(self, reference: String) -> Self {
         match self {
             NaEdit::RefAlt { alternative, .. } | NaEdit::NumAlt { alternative, .. } => {
-                // let (_, reference, alternative) = trim_common_suffixes(&reference, &alternative);
-                // let (_, reference, alternative) = trim_common_prefixes(&reference, &alternative);
                 if reference == alternative {
                     NaEdit::RefAlt {
                         reference: "".to_string(),

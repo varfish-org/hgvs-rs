@@ -23,7 +23,7 @@ pub struct Config {
     /// URL with the connection string, e.g.
     /// `"postgresql://anonymous:anonymous@uta.biocommons.org/uta'"`.
     pub db_url: String,
-    /// The databaser schema to use, corresponds to the data version, e.g., `uta_20210129`.
+    /// The databaser schema to use, corresponds to the data version, e.g., `uta_20180821`.
     pub db_schema: String,
 }
 
@@ -33,7 +33,7 @@ impl Default for Config {
             db_url: "postgresql://anonymous:anonymous@uta.biocommons.org:5432\
             /uta"
                 .to_string(),
-            db_schema: "uta_20210129".to_string(),
+            db_schema: "uta_20180821".to_string(),
         }
     }
 }

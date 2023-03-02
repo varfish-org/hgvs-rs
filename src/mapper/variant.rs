@@ -1652,6 +1652,7 @@ mod test {
         let records = gcp_tests::load_records(&path)?;
 
         for record in records {
+            println!("-- {}", &record.id);
             let var_c = HgvsVariant::from_str(&record.hgvs_c)?;
             let prot_ac = record
                 .hgvs_p
@@ -1838,6 +1839,8 @@ mod test {
         run_gxp_test("tests/data/mapper/gcp/regression.tsv", false)
     }
 
+    // The following test is very expensive.
+    #[ignore]
     #[test]
     fn dnah11_db_snp_full() -> Result<(), anyhow::Error> {
         run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP.tsv", false)
@@ -1852,6 +1855,22 @@ mod test {
     fn noncoding() -> Result<(), anyhow::Error> {
         run_gxp_test("tests/data/mapper/gcp/noncoding.tsv", false)
     }
+
+    // #[test]
+    // fn case() -> Result<(), anyhow::Error> {
+    //     let mapper = build_mapper()?;
+
+    //     let s_c = "NM_000425.3:c.3772dupT";
+    //     let s_p = "NP_000416.1:p.Ter1258Leuext*96";
+
+    //     let var_c = HgvsVariant::from_str(s_c)?;
+    //     let var_p = mapper.c_to_p(&var_c, None)?;
+
+    //     let hgvsp_actual = format!("{}", &var_p);
+    //     assert_eq!(hgvsp_actual, s_p);
+
+    //     Ok(())
+    // }
 }
 
 // <LICENSE>
