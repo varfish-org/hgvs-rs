@@ -28,16 +28,12 @@ psql-uta()
 
 pg-list()
 {
-    result=""
-    while [[ $# -ne 0 ]]; do
-        if [[ ! -z "${result}" ]]; then
-            result="${result}, "
-        fi
-        result="${result}'$1'"
-        shift
-    done
-    result="(${result})"
-    echo $result
+    echo $* \
+    | tr ' ' '\n' \
+    | sed -e "s/^/'/g" -e "s/$/'/g" \
+    | tr '\n' ',' \
+    | sed -e 's/,$//g' \
+    | sed -e "s/^/(/g" -e "s/$/)/g"
 }
 
 # Initialization ------------------------------------------------------------
