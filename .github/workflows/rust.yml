@@ -109,7 +109,7 @@ jobs:
         if: ${{ matrix.label == 'fast' }}
 
       - name: Run cargo-test with full tests
-        uses: actions-rs/cargo@v0.1
+        uses: actions-rs/cargo@v1
         with:
           command: test
           args: "--release -- ${{ matrix.flag }}"
