@@ -54,9 +54,7 @@ jobs:
       matrix:
         include:
           - label: fast
-            flag: ""
           - label: full
-            flag: "--ignored"
 
     services:
       # The tests need a postgres server;  the data will be loaded later
@@ -98,7 +96,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v1.3.0
 
-      - name: Run cargo-tarpaulin
+      - name: Run cargo-tarpaulin with fast tests
         uses: actions-rs/tarpaulin@v0.1
         with:
           version: 0.21.0
@@ -108,6 +106,19 @@ jobs:
           TEST_UTA_DATABASE_SCHEMA: uta_20210129
           TEST_SEQREPO_CACHE_MODE: read
           TEST_SEQREPO_CACHE_PATH: tests/data/seqrepo_cache.fasta
+        if: ${{ matrix.label == 'fast' }}
+
+      - name: Run cargo-tarpaulin with full tests
+        uses: actions-rs/tarpaulin@v0.1
+        with:
+          version: 0.21.0
+          args: "-- --test-threads 1 ${{ matrix.flag }}"
+        env:
+          TEST_UTA_DATABASE_URL: postgres://uta_admin:uta_admin@0.0.0.0/uta
+          TEST_UTA_DATABASE_SCHEMA: uta_20210129
+          TEST_SEQREPO_CACHE_MODE: read
+          TEST_SEQREPO_CACHE_PATH: tests/data/seqrepo_cache.fasta
+        if: ${{ matrix.label == 'full' }}
 
       - name: Codecov
         uses: codecov/codecov-action@v3
