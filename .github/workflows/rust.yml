@@ -50,6 +50,14 @@ jobs:
     needs: Formatting
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        include:
+          - label: fast
+            flag: ""
+          - label: full
+            flag: "--ignored"
+
     services:
       # The tests need a postgres server;  the data will be loaded later
       # after checkout.
@@ -94,7 +102,7 @@ jobs:
         uses: actions-rs/tarpaulin@v0.1
         with:
           version: 0.21.0
-          args: "-- --test-threads 1 --ignored"
+          args: "-- --test-threads 1 ${matrix.flag}"
         env:
           TEST_UTA_DATABASE_URL: postgres://uta_admin:uta_admin@0.0.0.0/uta
           TEST_UTA_DATABASE_SCHEMA: uta_20210129

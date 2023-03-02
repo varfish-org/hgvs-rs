@@ -1829,6 +1829,7 @@ mod test {
         run_gxp_test("tests/data/mapper/gcp/regression.tsv", false)
     }
 
+    #[ignore]
     #[test]
     fn dnah11_db_snp_full() -> Result<(), anyhow::Error> {
         run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP.tsv", false)
