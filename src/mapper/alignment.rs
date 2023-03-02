@@ -452,7 +452,6 @@ impl Mapper {
             start: n_start?,
             end: n_end?,
         };
-        log::debug!("c_to_n({}) = {}", c_interval, &result);
         Ok(result)
     }
 
@@ -567,7 +566,7 @@ mod test {
     fn construction() -> Result<(), anyhow::Error> {
         let provider = build_provider()?;
 
-        assert_eq!(provider.data_version(), "uta_20180821");
+        assert_eq!(provider.data_version(), "uta_20210129");
         assert_eq!(provider.schema_version(), "1.1");
 
         Ok(())

@@ -14,7 +14,7 @@ To use the public database:
 
 ```
 export TEST_UTA_DATABASE_URL=postgres://anonymous:anonymous@uta.biocommons.org:/uta
-export TEST_UTA_DATABASE_SCHEMA=uta_20180821
+export TEST_UTA_DATABASE_SCHEMA=uta_20210129
 ```
 
 Note that [seqrepo-rs](https://github.com/bihealth/seqrepo-rs) is used for access to the genome contig sequence.
@@ -46,7 +46,7 @@ After either this, you can run the tests.
 cargo test
 ```
 
-## Creating Recuded UTA Databases
+## Creating Reduced UTA Databases
 
 The script `tests/data/data/bootstrap.sh` allows to easily build a reduced set of the UTA database given a list of genes.
 The process is as follows:
@@ -56,7 +56,7 @@ The process is as follows:
    This will download the given UTA dump and reduce it to the information related to these transcripts.
 
 ```
-$ bootstrap.sh http://dl.biocommons.org/uta uta_20180821
+$ bootstrap.sh http://dl.biocommons.org/uta uta_20210129
 ```
 
 The `*.pgd.gz` file is added to the Git repository via `git-lfs` and in CI, this minimal database will be used.

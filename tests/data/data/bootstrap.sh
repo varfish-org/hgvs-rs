@@ -45,7 +45,7 @@ pg-list()
 if [[ "$#" -ne 2 ]]; then
     log "USAGE: bootstrap.sh DL_URL VERSION"
     log ""
-    log "E.g.: bootstrap.sh http://dl.biocommons.org/uta uta_20180821"
+    log "E.g.: bootstrap.sh http://dl.biocommons.org/uta uta_20210129"
     log ""
     log "Set VERBOSE=1 to increase verbosity."
     exit 1
@@ -96,6 +96,7 @@ FBN1
 FBXO22
 FOLR3
 GTF3C2
+HIST3H2A
 H2AW
 HELQ
 HMGA1

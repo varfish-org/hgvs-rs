@@ -124,8 +124,14 @@ impl NaEdit {
             NaEdit::InvRef { reference } => NaEdit::InvNum {
                 count: reference.len() as i32,
             },
+            NaEdit::RefAlt {
+                reference,
+                alternative,
+            } => NaEdit::NumAlt {
+                count: reference.len() as i32,
+                alternative: alternative.clone(),
+            },
             NaEdit::NumAlt { .. }
-            | NaEdit::RefAlt { .. }
             | NaEdit::DelNum { .. }
             | NaEdit::InvNum { .. }
             | NaEdit::Ins { .. }
@@ -147,11 +153,14 @@ impl NaEdit {
     /// Return an updated `NaEdit` that has the reference replaced with the given sequence.
     pub fn with_reference(self, reference: String) -> Self {
         match self {
-            NaEdit::RefAlt { alternative, .. } | NaEdit::NumAlt { alternative, .. } => {
-                if reference == alternative {
+            NaEdit::RefAlt {
+                alternative,
+                reference: old_reference,
+            } => {
+                if old_reference.is_empty() && alternative.is_empty() {
                     NaEdit::RefAlt {
-                        reference: "".to_string(),
-                        alternative: "".to_string(),
+                        alternative: reference.clone(),
+                        reference,
                     }
                 } else {
                     NaEdit::RefAlt {
@@ -160,6 +169,10 @@ impl NaEdit {
                     }
                 }
             }
+            NaEdit::NumAlt { alternative, .. } => NaEdit::RefAlt {
+                reference,
+                alternative,
+            },
             NaEdit::DelRef { .. } => NaEdit::DelRef { reference },
             NaEdit::DelNum { .. } => NaEdit::DelRef { reference },
             NaEdit::Ins { alternative } => {

@@ -798,7 +798,6 @@ impl Mapper {
 
     /// Fetch reference sequence for variant and return updated `HgvsVariant` if necessary.
     pub(crate) fn replace_reference(&self, var: HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
-        log::debug!("replace_reference({})", &var);
         match &var {
             HgvsVariant::ProtVariant { .. } => Err(anyhow::anyhow!(
                 "Can only update reference for c, g, m, n, r"
@@ -806,14 +805,10 @@ impl Mapper {
             _ => Ok(()),
         }?;
 
-        log::debug!("???");
-
         if let Some(NaEdit::Ins { .. }) = var.na_edit() {
             // Insertions have no reference sequence (zero-width); return as-is.
             return Ok(var);
         }
-
-        log::debug!("111");
 
         if var.spans_intron() {
             debug!(
@@ -822,8 +817,6 @@ impl Mapper {
             );
             return Ok(var);
         }
-
-        log::debug!("???");
 
         // For c. variants, we need coordinates on underlying sequence.
         let (r, ac): (Range<_>, _) = match &var {
@@ -876,13 +869,10 @@ impl Mapper {
             return Ok(var);
         }
 
-        log::debug!("foo");
-
         let na_edit = var
             .na_edit()
             .expect("Variant must be of nucleic acid type here");
         if !na_edit.reference_equals(&seq) {
-            debug!("Replaced reference sequence in {} with {}", &var, &seq);
             Ok(var.with_reference(seq))
         } else {
             Ok(var)
@@ -1715,7 +1705,7 @@ mod test {
             // Use `del<COUNT>` syntax in output when we saw this in the input.  The original
             // Python library implements this by always storing the count in the nucleic acid
             // edit.
-            let var_x_test = if var_g.is_na_edit_num() {
+            let var_x_test = if var_x.is_na_edit_num() {
                 var_x_test.with_na_ref_num()
             } else {
                 var_x_test
@@ -1725,8 +1715,8 @@ mod test {
                 rm_del_seq(&var_x, noref),
                 rm_del_seq(&var_x_test, noref),
                 "{} != {} (g>t; {}; HGVSg={})",
-                var_x_test,
                 var_x,
+                var_x_test,
                 &record.id,
                 &record.hgvs_g
             );
@@ -1745,7 +1735,7 @@ mod test {
             // Use `del<COUNT>` syntax in output when we saw this in the input.  The original
             // Python library implements this by always storing the count in the nucleic acid
             // edit.
-            let var_g_test = if var_x.is_na_edit_num() {
+            let var_g_test = if var_g.is_na_edit_num() {
                 var_g_test.with_na_ref_num()
             } else {
                 var_g_test
@@ -1755,8 +1745,8 @@ mod test {
                 rm_del_seq(&var_g, noref),
                 rm_del_seq(&var_g_test, noref),
                 "{} != {} (t>g; {}; HGVSc={})",
-                var_x_test,
-                var_x,
+                var_g,
+                var_g_test,
                 &record.id,
                 &record.hgvs_c
             );
@@ -1839,8 +1829,6 @@ mod test {
         run_gxp_test("tests/data/mapper/gcp/regression.tsv", false)
     }
 
-    // The following test is very expensive.
-    #[ignore]
     #[test]
     fn dnah11_db_snp_full() -> Result<(), anyhow::Error> {
         run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP.tsv", false)

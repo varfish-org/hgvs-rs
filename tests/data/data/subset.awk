@@ -55,9 +55,3 @@ BEGIN {
         print $0;
     }
 }
-
-END {
-    print "REFRESH MATERIALIZED VIEW uta_20180821.exon_set_exons_fp_mv;";
-    print "REFRESH MATERIALIZED VIEW uta_20180821.tx_exon_set_summary_mv;";
-    print "REFRESH MATERIALIZED VIEW uta_20180821.tx_def_summary_mv;";
-}

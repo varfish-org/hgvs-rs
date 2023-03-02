@@ -21,7 +21,7 @@ pub struct Config {
     /// URL with the connection string, e.g.
     /// `"postgresql://anonymous:anonymous@uta.biocommons.org/uta'"`.
     pub db_url: String,
-    /// The databaser schema to use, corresponds to the data version, e.g., `uta_20180821`.
+    /// The databaser schema to use, corresponds to the data version, e.g., `uta_20210129`.
     pub db_schema: String,
     /// Path to the seqrepo directory, e.g., `/usr/local/share/seqrepo/latest`.  The last path
     /// component is the "instance" name.
