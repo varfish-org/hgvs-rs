@@ -108,11 +108,11 @@ jobs:
           TEST_SEQREPO_CACHE_PATH: tests/data/seqrepo_cache.fasta
         if: ${{ matrix.label == 'fast' }}
 
-      - name: Run cargo-tarpaulin with full tests
-        uses: actions-rs/tarpaulin@v0.1
+      - name: Run cargo-test with full tests
+        uses: actions-rs/cargo@v0.1
         with:
-          version: 0.21.0
-          args: "-- --test-threads 1 ${{ matrix.flag }}"
+          command: test
+          args: "--release -- ${{ matrix.flag }}"
         env:
           TEST_UTA_DATABASE_URL: postgres://uta_admin:uta_admin@0.0.0.0/uta
           TEST_UTA_DATABASE_SCHEMA: uta_20210129
@@ -120,10 +120,10 @@ jobs:
           TEST_SEQREPO_CACHE_PATH: tests/data/seqrepo_cache.fasta
         if: ${{ matrix.label == 'full' }}
 
-      - name: Codecov
+      - name: Codecov submission of fast test results
         uses: codecov/codecov-action@v3
         with:
           verbose: true
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
-        if: ${{ matrix.label == 'full' }}
+        if: ${{ matrix.label == 'fast' }}
