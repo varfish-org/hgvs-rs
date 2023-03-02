@@ -45,7 +45,7 @@ pg-list()
 if [[ "$#" -ne 2 ]]; then
     log "USAGE: bootstrap.sh DL_URL VERSION"
     log ""
-    log "E.g.: bootstrap.sh http://dl.biocommons.org/uta uta_20210129"
+    log "E.g.: bootstrap.sh http://dl.biocommons.org/uta uta_20180821"
     log ""
     log "Set VERBOSE=1 to increase verbosity."
     exit 1
@@ -158,5 +158,5 @@ psql-uta "select exon_aln_id from exon_aln where tx_exon_id in (select exon_id f
 
 pigz -d -c download/$VERSION.pgd.gz \
 | awk -F ' ' -f subset.awk \
-| gzip -c \
+| pigz -c \
 > $VERSION-subset.pgd.gz
