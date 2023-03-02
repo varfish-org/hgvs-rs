@@ -618,7 +618,7 @@ impl<'a> Normalizer<'a> {
         end: i32,
         boundary: &Range<i32>,
         alternative: &String,
-        reference: &String,
+        reference: &str,
     ) -> Result<(i32, i32, NaEdit), anyhow::Error> {
         Ok(if ref_len == 0 {
             let adj_seq = if self.config.shuffle_direction == Direction::FiveToThree {
@@ -662,7 +662,7 @@ impl<'a> Normalizer<'a> {
                 start,
                 end - 1,
                 NaEdit::RefAlt {
-                    reference: reference.clone(),
+                    reference: reference.to_owned(),
                     alternative: alternative.clone(),
                 },
             )
@@ -907,7 +907,7 @@ fn normalize_alleles_left(
             let left = step - trimmed;
             let r = left..;
             reference = new_reference[r.clone()].to_string();
-            alternative = new_alternative[r.clone()].to_string();
+            alternative = new_alternative[r].to_string();
             break;
         }
     }
