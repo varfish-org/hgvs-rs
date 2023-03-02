@@ -93,6 +93,7 @@ set -e
 
 # Augment list of genes to fetch.
 GENES="$GENES $(cut -f 1 tests/data/mapper/real_cp.tsv | tail -n +2)"
+GENES="$GENES $(zcat tests/data/mapper/clinvar.gz | grep -v ^# | cut -f 1 | tail -n +2 | sort -u)"
 
 # Transform gene list for postgres query.
 PG_GENES=$(pg-list $GENES)

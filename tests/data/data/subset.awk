@@ -23,6 +23,20 @@ BEGIN {
         next;  # skip for testing
     }
 
+    # We don't need any of the materialized views.
+    if ($0 ~ /REFRESH/ || $0 ~ /CREATE.*INDEX .*_mv/) {
+        print "-- " $0;
+        next;
+    } else if ($0 ~ /MATERIALIZED VIEW/) {
+        gsub(/MATERIALIZED VIEW/, "VIEW", $0);
+        print $0;
+        next;
+    } else if ($0 ~ /WITH NO DATA/) {
+        gsub(/WITH NO DATA/, "", $0);
+        print $0;
+        next;
+    }
+
     if ($0 ~ /^COPY/) {
         table_name = $2;
         gsub(/.*?\./, "", table_name);

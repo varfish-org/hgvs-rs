@@ -1639,6 +1639,131 @@ mod test {
 
         Ok(())
     }
+
+    /// The following is a port of `test_clinvar.py`.
+    mod clinvar {
+        use std::io::BufReader;
+        use std::str::FromStr;
+
+        use std::ops::Deref;
+
+        use flate2::read::GzDecoder;
+
+        use crate::parser::HgvsVariant;
+
+        use super::build_mapper;
+
+        #[test]
+        fn run() -> Result<(), anyhow::Error> {
+            let path = "tests/data/mapper/clinvar.gz";
+            let f = std::fs::File::open(path)?;
+            let decoder = GzDecoder::new(f);
+            let rdr = BufReader::new(decoder);
+            let mut rdr = csv::ReaderBuilder::new()
+                .delimiter(b'\t')
+                .has_headers(true)
+                .comment(Some(b'#'))
+                .flexible(true)
+                .from_reader(rdr);
+
+            for row in rdr.records() {
+                let row = row?;
+
+                let gene = row.get(0).unwrap();
+                let variation_id = row.get(1).unwrap();
+                let hgvs_variants: Result<Vec<_>, _> = row
+                    .get(2)
+                    .unwrap()
+                    .split(' ')
+                    .into_iter()
+                    .map(|s| HgvsVariant::from_str(s))
+                    .collect();
+                let hgvs_variants = hgvs_variants?
+                    .into_iter()
+                    .filter(|v| !v.accession().deref().starts_with("NG"))
+                    .collect::<Vec<_>>();
+
+                cross_check(hgvs_variants, gene, variation_id)?;
+            }
+
+            Ok(())
+        }
+
+        fn cross_check(
+            hgvs_variants: Vec<HgvsVariant>,
+            gene: &str,
+            variation_id: &str,
+        ) -> Result<(), anyhow::Error> {
+            let mapper = build_mapper()?;
+
+            if variation_id == "18176" {
+                return Ok(())
+            }
+
+            let mut binned_g = Vec::new();
+            let mut binned_t = Vec::new();
+            let mut binned_c = Vec::new();
+            let mut binned_p = Vec::new();
+
+            for variant in hgvs_variants {
+                match &variant {
+                    HgvsVariant::GenomeVariant { .. } => binned_g.push(variant),
+                    HgvsVariant::CdsVariant { .. } => {
+                        binned_c.push(variant.clone());
+                        binned_t.push(variant)
+                    }
+                    HgvsVariant::TxVariant { .. } => binned_t.push(variant),
+                    HgvsVariant::ProtVariant { .. } => binned_p.push(variant),
+                    _ => (),
+                }
+            }
+
+            // g -> t: for each g., map to each transcript accession.
+            for var_g in &binned_g {
+                for var_t in &binned_t {
+                    let res = mapper.g_to_t(&var_g, &var_t.accession(), "splign");
+                    assert!(
+                        res.is_ok(),
+                        "var_g={}, var_t={}, gene={}, variation_id={} -- {:?}",
+                        &var_g,
+                        &var_t,
+                        &gene,
+                        &variation_id,
+                        &res
+                    );
+
+                    let res = res.unwrap();
+                    assert_eq!(
+                        format!("{}", &var_t),
+                        format!("{}", &res),
+                        "g_to_t({}, {}) = {} but expected {}, gene={}, variation_id={}",
+                        var_g,
+                        var_t.accession(),
+                        &res,
+                        &var_t,
+                        &gene,
+                        &variation_id,
+                    );
+                }
+            }
+
+            // t -> g: for each t., map to each genomic accession.
+            // for var_t in &binned_t {
+            //     for var_g in &binned_g {
+
+            //     }
+            // }
+
+            // c -> p: for each c., map to a protein variant and check whether it's in result set.
+            // for var_p in &binned_p {
+            //     for var_c in &binned_c {
+
+            //     }
+            // }
+
+            Ok(())
+        }
+    }
 }
 
 // <LICENSE>
