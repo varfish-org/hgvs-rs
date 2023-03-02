@@ -3,11 +3,11 @@
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::complete::{alphanumeric1, digit1, satisfy},
     character::complete::char,
+    character::complete::{alphanumeric1, digit1, satisfy},
     combinator::{all_consuming, map, opt, recognize},
     sequence::{pair, tuple},
-    IResult, AsChar,
+    AsChar, IResult,
 };
 
 use crate::parser::ds::*;
@@ -874,7 +874,7 @@ mod test {
     mod grammar_full {
         use nom::combinator::all_consuming;
 
-        use crate::parser::{Accession, impl_parse::Parseable};
+        use crate::parser::{impl_parse::Parseable, Accession};
 
         #[test]
         fn parser_grammar() -> Result<(), anyhow::Error> {
@@ -889,7 +889,7 @@ mod test {
             for row in rdr.records() {
                 let row = row?;
                 if row.get(0) == Some("Func") {
-                    continue;  // skip header
+                    continue; // skip header
                 }
 
                 // setup input
@@ -901,10 +901,7 @@ mod test {
                 };
                 let is_valid = row.get(2).unwrap().to_lowercase() == "true";
 
-                for (input, expected) in inputs
-                    .into_iter()
-                    .zip(expected_results.into_iter())
-                {
+                for (input, expected) in inputs.into_iter().zip(expected_results.into_iter()) {
                     let func = row.get(0).unwrap();
                     match func {
                         "accn" => {
