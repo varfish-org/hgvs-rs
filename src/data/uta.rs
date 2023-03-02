@@ -290,7 +290,7 @@ impl ProviderInterface for Provider {
             self.caches
                 .get_pro_ac_for_tx_ac
                 .insert(tx_ac.to_string(), None);
-            return Ok(result);
+            Ok(result)
         } else {
             self.caches
                 .get_pro_ac_for_tx_ac

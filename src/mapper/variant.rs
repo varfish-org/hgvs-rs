@@ -673,7 +673,7 @@ impl Mapper {
                 accession.deref(),
                 prot_ac.map(|s| s.to_string()).as_deref(),
             )?;
-            let builder = AltSeqBuilder::new(var_c.clone(), reference_data.clone());
+            let builder = AltSeqBuilder::new(var_c, reference_data.clone());
 
             // NB: the following comment is from the original code.
             // TODO: handle case where you get 2+ alt sequences back;  currently get lis tof 1 element
@@ -1637,7 +1637,7 @@ mod test {
             for record in rdr.deserialize() {
                 let mut record: Record = record?;
                 // p.(*) => p.
-                record.hgvs_p = record.hgvs_p.map(|s| s.replace("(", "").replace(")", ""));
+                record.hgvs_p = record.hgvs_p.map(|s| s.replace(['(', ')'], ""));
                 records.push(record);
             }
 
@@ -1657,7 +1657,7 @@ mod test {
                 .hgvs_p
                 .as_ref()
                 .unwrap()
-                .split(":")
+                .split(':')
                 .next()
                 .map(|s| s.to_string());
             let var_p = mapper.c_to_p(&var_c, prot_ac.as_deref())?;
@@ -1665,7 +1665,7 @@ mod test {
             let expected = &record.hgvs_p.unwrap();
 
             let expected = if &result != expected {
-                expected.replace("*", "Ter")
+                expected.replace('*', "Ter")
             } else {
                 expected.clone()
             };
@@ -1682,14 +1682,14 @@ mod test {
             let tmp = if noref {
                 format!("{}", &NoRef(var))
             } else {
-                format!("{}", var)
+                format!("{var}")
             };
             let re = Regex::new(r"del\w+ins").unwrap();
             re.replace(&tmp, "delins").to_string()
         }
 
         let mapper = build_mapper()?;
-        let records = gcp_tests::load_records(&Path::new(path))?;
+        let records = gcp_tests::load_records(Path::new(path))?;
 
         for record in &records {
             let var_g = HgvsVariant::from_str(&record.hgvs_g)?;
@@ -1697,16 +1697,16 @@ mod test {
             let var_p = record
                 .hgvs_p
                 .as_ref()
-                .map(|s| HgvsVariant::from_str(&s))
+                .map(|s| HgvsVariant::from_str(s))
                 .transpose()?;
 
             // g -> x
             let var_x_test = match &var_x {
                 HgvsVariant::CdsVariant { accession, .. } => {
-                    mapper.g_to_c(&var_g, &accession, "splign")?
+                    mapper.g_to_c(&var_g, accession, "splign")?
                 }
                 HgvsVariant::TxVariant { accession, .. } => {
-                    mapper.g_to_n(&var_g, &accession, "splign")?
+                    mapper.g_to_n(&var_g, accession, "splign")?
                 }
                 _ => panic!("cannot happen"),
             };
@@ -1762,7 +1762,7 @@ mod test {
 
             if let Some(var_p) = &var_p {
                 // c -> p
-                let hgvs_p_exp = format!("{}", var_p);
+                let hgvs_p_exp = format!("{var_p}");
                 let var_p_test = mapper.c_to_p(&var_x, Some(var_p.accession().deref()))?;
 
                 // TODO: if expected value isn't uncertain, strip uncertain from test
