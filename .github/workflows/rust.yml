@@ -100,7 +100,7 @@ jobs:
         uses: actions-rs/tarpaulin@v0.1
         with:
           version: 0.21.0
-          args: "-- --test-threads 1 ${{ matrix.flag }}"
+          args: "-- --test-threads 1"
         env:
           TEST_UTA_DATABASE_URL: postgres://uta_admin:uta_admin@0.0.0.0/uta
           TEST_UTA_DATABASE_SCHEMA: uta_20210129
@@ -112,7 +112,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: "--release -- ${{ matrix.flag }}"
+          args: "--release -- --include-ignored"
         env:
           TEST_UTA_DATABASE_URL: postgres://uta_admin:uta_admin@0.0.0.0/uta
           TEST_UTA_DATABASE_SCHEMA: uta_20210129
