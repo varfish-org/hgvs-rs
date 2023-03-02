@@ -169,7 +169,7 @@ impl Mapper {
     ///
     /// * `var_n` -- `HgvsVariant::TxVariant` to project
     pub fn n_to_g(&self, var_n: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
-        let alt_ac = self.alt_ac_for_tx_ac(&var_n.accession())?;
+        let alt_ac = self.alt_ac_for_tx_ac(var_n.accession())?;
         let var = self
             .inner
             .n_to_g(var_n, &alt_ac, &self.config.alt_aln_method)?;
@@ -184,7 +184,7 @@ impl Mapper {
     /// * `alt_ac` -- alternative contig accession
     /// * `alt_al_method` -- alignment method, e.g., `"splign"`
     pub fn c_to_g(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
-        let alt_ac = self.alt_ac_for_tx_ac(&var_c.accession())?;
+        let alt_ac = self.alt_ac_for_tx_ac(var_c.accession())?;
         let var = self
             .inner
             .n_to_g(var_c, &alt_ac, &self.config.alt_aln_method)?;
@@ -199,7 +199,7 @@ impl Mapper {
     /// * `alt_ac` -- accession of alternativ esequence
     /// * `alt_al_method` -- alignment method, e.g., `"splign"`
     pub fn t_to_g(&self, var_t: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
-        let alt_ac = self.alt_ac_for_tx_ac(&var_t.accession())?;
+        let alt_ac = self.alt_ac_for_tx_ac(var_t.accession())?;
         let var = self
             .inner
             .n_to_g(var_t, &alt_ac, &self.config.alt_aln_method)?;
@@ -253,7 +253,7 @@ impl Mapper {
                     .provider
                     .as_ref()
                     .get_tx_for_region(
-                        &var_g.accession(),
+                        var_g.accession(),
                         &self.config.alt_aln_method,
                         r.start,
                         r.end,
@@ -409,8 +409,7 @@ mod test {
 
                 assert_eq!(
                     actual, expected,
-                    "loc_type={} disc_type={}",
-                    loc_type, disc_type,
+                    "loc_type={loc_type} disc_type={disc_type}",
                 )
             }
 
