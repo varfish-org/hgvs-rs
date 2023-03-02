@@ -75,7 +75,6 @@ impl<'a> Normalizer<'a> {
     }
 
     pub fn normalize(&self, var: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
-        log::debug!("normalize({})", var);
         // Run the pre-normalization checks (a) whether trying to normalize the variant is an
         // error, (b) whether the variant should be returned as is, and (c) whether the variant
         // was translated from CDS to transcript and needs translation into the other direction.
@@ -84,9 +83,7 @@ impl<'a> Normalizer<'a> {
             as_is,
             cds_to_tx,
         } = self.check_and_guard(var)?;
-        log::debug!("~~~~~");
         if as_is {
-            log::debug!("short-circuit as-is: {}", &var);
             return Ok(var);
         }
 
@@ -95,13 +92,6 @@ impl<'a> Normalizer<'a> {
         let boundary = self.get_boundary(&var)?;
         let (start, end, reference, alternative) =
             self.normalize_alleles(&var, boundary.clone())?;
-        log::debug!(
-            "~~ start, end, reference, alternative = {} {} {} {}",
-            start,
-            end,
-            &reference,
-            &alternative
-        );
 
         // Build a new variant from the given alleles and possibly project back to the CDS.
         self.build_result(var, start, end, reference, alternative, boundary, cds_to_tx)
@@ -139,7 +129,6 @@ impl<'a> Normalizer<'a> {
 
         // Guard against identity variants.
         if let Some(na_edit) = var.na_edit() {
-            log::debug!("Short-circuit on identity variant: {:?}", &var);
             if format!("{na_edit}") == "=" {
                 return Ok(CheckAndGuardResult {
                     var,
@@ -176,13 +165,10 @@ impl<'a> Normalizer<'a> {
             ac: &str,
             len: usize,
         ) -> Result<bool, anyhow::Error> {
-            log::debug!("get_seq_part({}, {}, {})", ac, len - 1, len);
             let res = provider.get_seq_part(ac, Some(len - 1), Some(len))?;
-            log::debug!("== {}", res);
             Ok(!res.is_empty())
         }
 
-        log::debug!("+++");
         // Bail out when coordinates are out of bounds.
         if let Some(var_loc_range) = var.loc_range() {
             if var_loc_range.start < 0
@@ -209,7 +195,6 @@ impl<'a> Normalizer<'a> {
             ),
             "Variant must have one of the types gmnr"
         );
-        log::debug!("###");
 
         Ok(CheckAndGuardResult {
             var,
@@ -220,7 +205,6 @@ impl<'a> Normalizer<'a> {
 
     /// Obtain position of exon-intron boundary for the current variant.
     fn get_boundary(&self, var: &HgvsVariant) -> Result<Range<i32>, anyhow::Error> {
-        log::debug!("get_boundary({})", var);
         if !self.config.cross_boundaries
             && matches!(
                 &var,
@@ -236,7 +220,6 @@ impl<'a> Normalizer<'a> {
                 .into_iter()
                 .filter(|r| r.alt_aln_method == self.config.alt_aln_method)
                 .collect::<Vec<_>>();
-            log::debug!("map_info = {:?}", &map_info);
             let alt_ac = &map_info[0].alt_ac;
 
             // Obtain tx info.
@@ -254,15 +237,12 @@ impl<'a> Normalizer<'a> {
                 alt_ac,
                 &self.config.alt_aln_method,
             )?;
-            log::debug!("exon_info = {:?}", &map_info);
             let mut exon_starts = exon_info.iter().map(|r| r.tx_start_i).collect::<Vec<_>>();
             exon_starts.sort();
             let mut exon_ends = exon_info.iter().map(|r| r.tx_end_i).collect::<Vec<_>>();
             exon_ends.sort();
             exon_starts.push(*exon_ends.last().unwrap());
             exon_ends.push(std::i32::MAX);
-            log::debug!("exon_starts = {:?}", &exon_starts);
-            log::debug!("exon_ends = {:?}", &exon_ends);
 
             // Find the end pos of the exon where the var locates.
             let _left = 0;
@@ -271,7 +251,6 @@ impl<'a> Normalizer<'a> {
             // NB: the following content is from the original Python code.
             // TODO: #242: implement methods to find tx regions
             let loc_range = var.loc_range().unwrap();
-            log::debug!("var = {}, loc_range = {:?}", &var, var.loc_range());
             let i = exon_starts
                 .iter()
                 .enumerate()
@@ -288,8 +267,6 @@ impl<'a> Normalizer<'a> {
                 })
                 .unwrap()
                 .0;
-
-            log::debug!("i = {}", i);
 
             if i != j {
                 return Err(anyhow::anyhow!(
@@ -343,16 +320,6 @@ impl<'a> Normalizer<'a> {
         let (reference, alternative) = self.get_ref_alt(var, &boundary)?;
         let win_size = self.config.window_size;
 
-        log::debug!(
-            "normalize_alleles({}, {}, {}, {}, {:?}) config={:?}",
-            &reference,
-            &alternative,
-            win_size,
-            var,
-            &boundary,
-            &self.config
-        );
-
         if self.config.shuffle_direction == Direction::FiveToThree {
             self.normalize_alleles_5_to_3(
                 reference,
@@ -380,20 +347,9 @@ impl<'a> Normalizer<'a> {
         var: &HgvsVariant,
         boundary: Range<i32>,
     ) -> Result<(i32, i32, String, String), anyhow::Error> {
-        log::debug!(
-            "normalize_alleles_5_to_3({}, {}, {}, {}, {:?}) config={:?}",
-            &reference,
-            &alternative,
-            win_size,
-            var,
-            &boundary,
-            &self.config
-        );
-
         let mut reference = reference;
         let mut alternative = alternative;
         let loc_range = var.loc_range().unwrap();
-        log::debug!("loc_rang e= {:?}", &loc_range);
         let (mut base, mut start, mut stop) = match var.na_edit().unwrap() {
             NaEdit::Ins { .. } => (loc_range.start + 1, 1, 1),
             NaEdit::Dup { .. } => (loc_range.end, 1, 1),
@@ -408,14 +364,6 @@ impl<'a> Normalizer<'a> {
                 win_size,
                 &boundary,
             )?;
-            log::debug!(
-                "base = {}, stop = {}, win_size = {}, boundary = {:?}",
-                base,
-                stop,
-                win_size,
-                &boundary
-            );
-            log::debug!("ref_seq = {}", &ref_seq);
             if ref_seq.is_empty() {
                 break;
             }
@@ -430,13 +378,6 @@ impl<'a> Normalizer<'a> {
                 win_size,
                 false,
             )?;
-            log::debug!(
-                "start, stop, reference, alternative = {}, {}, {}, {}",
-                start,
-                stop,
-                &reference,
-                &alternative
-            );
             if stop < ref_seq.len().try_into()? || start == orig_start {
                 break;
             }
@@ -457,19 +398,9 @@ impl<'a> Normalizer<'a> {
         var: &HgvsVariant,
         boundary: Range<i32>,
     ) -> Result<(i32, i32, String, String), anyhow::Error> {
-        log::debug!(
-            "normalize_alleles_3_to_5({}, {}, {}, {}, {:?}) config={:?}",
-            &reference,
-            &alternative,
-            win_size,
-            var,
-            &boundary,
-            &self.config
-        );
         let mut reference = reference;
         let mut alternative = alternative;
         let loc_range = var.loc_range().unwrap();
-        log::debug!("loc_range = {:?}", &loc_range);
         let mut base = std::cmp::max(loc_range.start + 1 - win_size, 1);
         let (mut start, mut stop) = match var.na_edit().unwrap() {
             NaEdit::Ins { .. } => (loc_range.end - base, loc_range.end - base),
@@ -478,28 +409,13 @@ impl<'a> Normalizer<'a> {
         };
 
         loop {
-            log::debug!(
-                "base, boundary, start, stop = {} {:?} {} {}",
-                base,
-                &boundary,
-                start,
-                stop
-            );
             if base < boundary.start + 1 {
                 start -= boundary.start + 1 - base;
                 stop -= boundary.start + 1 - base;
                 base = boundary.start + 1;
             }
-            log::debug!(
-                "..base, boundary, start, stop = {} {:?} {} {}",
-                base,
-                &boundary,
-                start,
-                stop
-            );
             let ref_seq =
                 self.fetch_bounded_seq(var, base - 1, base + stop - 1, start, &boundary)?;
-            log::debug!("ref_seq = {}", &ref_seq);
             if ref_seq.is_empty() {
                 break;
             }
@@ -540,8 +456,6 @@ impl<'a> Normalizer<'a> {
         let ref_len = reference.len() as i32;
         let alt_len = alternative.len() as i32;
 
-        log::debug!("alt_len = {}, ref_len = {}", alt_len, ref_len);
-
         let (ref_start, ref_end, edit) = match alt_len.cmp(&ref_len) {
             Ordering::Equal => {
                 self.build_result_len_eq(start, end, ref_len, &reference, &alternative, alt_len)
@@ -561,23 +475,8 @@ impl<'a> Normalizer<'a> {
             )?,
         };
 
-        log::debug!(
-            "ref_start = {}, ref_end = {}, edit = {:?}",
-            ref_start,
-            ref_end,
-            &edit
-        );
-
-        log::debug!(
-            "ref_start, ref_end, edit = {} {} {}",
-            ref_start,
-            ref_end,
-            edit
-        );
-
         // Ensure the start is not 0.
         let (ref_start, ref_end, edit, _reference, alternative) = if ref_start == 0 {
-            log::debug!("Prevent start == 0");
             let reference = self.fetch_bounded_seq(&var, 0, 1, 0, &boundary)?;
             let alternative = format!("{}{}", alternative, &reference);
 
@@ -597,9 +496,7 @@ impl<'a> Normalizer<'a> {
 
         // Ensure the end is not outside of reference sequence.
         let tgt_len = self.get_tgt_len(&var)?;
-        log::debug!("tgt_len = {}", tgt_len);
         let (ref_start, ref_end, edit) = if ref_end == tgt_len.saturating_add(1) {
-            log::debug!("Prevent end outside of reference sequence");
             let reference = self.fetch_bounded_seq(&var, tgt_len - 1, tgt_len, 0, &boundary)?;
             let alternative = format!("{}{}", &reference, alternative);
             (
@@ -615,7 +512,6 @@ impl<'a> Normalizer<'a> {
         };
 
         let res = self.build_result_construct(var, ref_start, ref_end, edit, cds_to_tx)?;
-        log::debug!("result = {:?}", &res);
         Ok(res)
     }
 
@@ -627,7 +523,6 @@ impl<'a> Normalizer<'a> {
         edit: NaEdit,
         cds_to_tx: bool,
     ) -> Result<HgvsVariant, anyhow::Error> {
-        log::debug!("build_result_construct({:?})", &var);
         Ok(match var {
             HgvsVariant::GenomeVariant {
                 accession,
@@ -682,8 +577,6 @@ impl<'a> Normalizer<'a> {
                     },
                 };
 
-                log::debug!("var_t = {}", &var_t);
-
                 if cds_to_tx {
                     self.mapper.n_to_c(&var_t)?
                 } else {
@@ -725,16 +618,14 @@ impl<'a> Normalizer<'a> {
         end: i32,
         boundary: &Range<i32>,
         alternative: &String,
-        reference: &String,
+        reference: &str,
     ) -> Result<(i32, i32, NaEdit), anyhow::Error> {
         Ok(if ref_len == 0 {
-            log::debug!("build_result_len_gt(ref_len={}, var={}, start={}, alt_len={}, end={}, boundary={:?}, {}, {})", ref_len, var, start, alt_len, end, boundary, alternative, reference);
             let adj_seq = if self.config.shuffle_direction == Direction::FiveToThree {
                 self.fetch_bounded_seq(var, start - alt_len - 1, end - 1, 0, boundary)?
             } else {
                 self.fetch_bounded_seq(var, start - 1, start + alt_len - 1, 0, boundary)?
             };
-            log::debug!("alternative, adj_seq = {}, {}", &alternative, &adj_seq);
 
             if *alternative != adj_seq {
                 // ins
@@ -771,7 +662,7 @@ impl<'a> Normalizer<'a> {
                 start,
                 end - 1,
                 NaEdit::RefAlt {
-                    reference: reference.clone(),
+                    reference: reference.to_owned(),
                     alternative: alternative.clone(),
                 },
             )
@@ -813,12 +704,10 @@ impl<'a> Normalizer<'a> {
         alternative: &str,
         alt_len: i32,
     ) -> (i32, i32, NaEdit) {
-        log::debug!("Ordering::Equal");
         let ref_start = start;
         let ref_end = end - 1;
 
         if ref_len > 1 && *reference == revcomp(alternative) {
-            log::debug!("inversion");
             // inversion
             (
                 ref_start,
@@ -828,7 +717,6 @@ impl<'a> Normalizer<'a> {
                 },
             )
         } else if ref_len == 0 && alt_len == 0 {
-            log::debug!("identity");
             // identity
             (
                 ref_end,
@@ -839,7 +727,6 @@ impl<'a> Normalizer<'a> {
                 },
             )
         } else {
-            log::debug!("subs or delins");
             // substitution or delins
             (
                 ref_start,
@@ -869,14 +756,6 @@ impl<'a> Normalizer<'a> {
         window_size: i32,
         boundary: &Range<i32>,
     ) -> Result<String, anyhow::Error> {
-        log::debug!(
-            "fetch_bounded_seq(var={}, start={}, end={}, window_size={}, boundary={:?})",
-            var,
-            start,
-            end,
-            window_size,
-            &boundary
-        );
         let var_len = end - start - window_size;
 
         let start = std::cmp::max(start, boundary.start);
@@ -890,13 +769,6 @@ impl<'a> Normalizer<'a> {
             Some(start.try_into()?),
             Some(end.try_into()?),
         )?;
-        log::debug!(
-            "get_seq_part({}, {}, {}) = {}",
-            var.accession(),
-            start,
-            end,
-            &seq
-        );
         let seq_len: i32 = seq.len().try_into()?;
 
         if seq_len < end - start && seq_len < var_len {
@@ -918,7 +790,6 @@ impl<'a> Normalizer<'a> {
                 std::i32::MAX
             } else {
                 let id_info = self.provider.get_tx_identity_info(var.accession())?;
-                log::debug!("id_info = {:?}", &id_info);
                 id_info.lengths.into_iter().sum()
             },
         )
@@ -953,14 +824,6 @@ impl<'a> Normalizer<'a> {
             _ => panic!("Cannot work with NumAlt,DelNum/InvNum"),
         };
 
-        log::debug!(
-            "get_ref_alt({}, {:?}, {}, {})",
-            &var,
-            boundary,
-            &reference,
-            &alternative
-        );
-
         Ok((reference, alternative))
     }
 }
@@ -976,17 +839,6 @@ fn normalize_alleles(
     ref_step: i32,
     left: bool,
 ) -> Result<(i32, i32, String, String), anyhow::Error> {
-    log::debug!(
-        "normalize_alleles({}, {}, {}, {}, {}, {}, {}, {})",
-        ref_seq,
-        start,
-        stop,
-        &reference,
-        &alternative,
-        bound,
-        ref_step,
-        left
-    );
     if left {
         normalize_alleles_left(
             ref_seq,
@@ -1022,53 +874,24 @@ fn normalize_alleles_left(
     // Step 1: Trim common suffix./
     let (trimmed, reference, alternative) = trim_common_suffixes(&reference, &alternative);
     let mut stop = stop - trimmed;
-    log::debug!(
-        "after suffix trimming {} {:?} {:?} {}",
-        trimmed,
-        &reference,
-        &alternative,
-        stop
-    );
 
     // Step 2: Trim common prefix.
     let (trimmed, mut reference, mut alternative) = trim_common_prefixes(&reference, &alternative);
     let mut start = start + trimmed;
-    log::debug!(
-        "after suffix trimming {} {:?} {:?} {}",
-        trimmed,
-        &reference,
-        &alternative,
-        start
-    );
 
     // Step 3: While a null allele exists, right shuffle by appending alleles with reference
     //         and trimming common prefixes.
 
     let shuffle = true;
-    log::debug!(
-        "shuffle, reference, alternative, start, bound = {} {} {} {} {}",
-        shuffle,
-        &reference,
-        &alternative,
-        stop,
-        bound
-    );
     while shuffle && (reference.is_empty() || alternative.is_empty()) && start > bound {
         let step = std::cmp::min(ref_step, start - bound);
 
         let r = ref_seq[(start - step)..(start - bound)].to_uppercase();
-        log::debug!("r = {}", &r);
         let new_reference = format!("{r}{reference}");
         let new_alternative = format!("{r}{alternative}");
 
         let (trimmed, new_reference, new_alternative) =
             trim_common_suffixes(&new_reference, &new_alternative);
-        log::debug!(
-            "trimmed = {}, new_reference = {}, new_alternative = {}",
-            trimmed,
-            &new_reference,
-            &new_alternative
-        );
 
         if trimmed == 0 {
             break;
@@ -1084,25 +907,9 @@ fn normalize_alleles_left(
             let left = step - trimmed;
             let r = left..;
             reference = new_reference[r.clone()].to_string();
-            alternative = new_alternative[r.clone()].to_string();
-            log::debug!(
-                "break -- left, r, reference, alternative = {} {:?} {} {}",
-                left,
-                &r,
-                &reference,
-                &alternative
-            );
+            alternative = new_alternative[r].to_string();
             break;
         }
-
-        log::debug!(
-            "~~shuffle, reference, alternative, start, bound = {} {} {} {} {}",
-            shuffle,
-            &reference,
-            &alternative,
-            stop,
-            bound
-        );
     }
 
     Ok((start.try_into()?, stop.try_into()?, reference, alternative))
@@ -1117,58 +924,27 @@ fn normalize_alleles_right(
     bound: usize,
     ref_step: usize,
 ) -> Result<(i32, i32, String, String), anyhow::Error> {
-    log::debug!("normalize_alleles_right");
     // Step 1: Trim common prefix.
     let (trimmed, reference, alternative) = trim_common_prefixes(&reference, &alternative);
     let mut start = start + trimmed;
-    log::debug!(
-        "after prefix trimming {} {} {} {}",
-        trimmed,
-        &reference,
-        &alternative,
-        start
-    );
 
     // Step 2: Trim common suffix.
     let (trimmed, mut reference, mut alternative) = trim_common_suffixes(&reference, &alternative);
     let mut stop = stop - trimmed;
-    log::debug!(
-        "after suffix trimming {} {} {} {}",
-        trimmed,
-        &reference,
-        &alternative,
-        stop
-    );
 
     // Step 3: While a null allele exists, right shuffle by appending alleles with reference
     //         and trimming common prefixes.
 
     let shuffle = true;
-    log::debug!(
-        "shuffle, reference, alternative, start, bound = {} {} {} {} {}",
-        shuffle,
-        &reference,
-        &alternative,
-        stop,
-        bound
-    );
     while shuffle && (reference.is_empty() || alternative.is_empty()) && stop < bound {
         let step = std::cmp::min(ref_step, bound - stop);
 
         let r = ref_seq[stop..(stop + step)].to_uppercase();
-        log::debug!("r = {}", &r);
         let new_reference = format!("{reference}{r}");
         let new_alternative = format!("{alternative}{r}");
 
         let (trimmed, new_reference, new_alternative) =
             trim_common_prefixes(&new_reference, &new_alternative);
-
-        log::debug!(
-            "trimmed = {}, new_reference = {}, new_alternative = {}",
-            trimmed,
-            &new_reference,
-            &new_alternative
-        );
 
         if trimmed == 0 {
             break;
@@ -1186,23 +962,8 @@ fn normalize_alleles_right(
             reference = new_reference[r].to_string();
             let r = ..(new_alternative.len() - left);
             alternative = new_alternative[r].to_string();
-            log::debug!(
-                "break -- left, r, reference, alternative = {} {:?} {} {}",
-                left,
-                &r,
-                &reference,
-                &alternative
-            );
             break;
         }
-        log::debug!(
-            "shuffle, reference, alternative, start, bound = {} {} {} {} {}",
-            shuffle,
-            &reference,
-            &alternative,
-            stop,
-            bound
-        );
     }
 
     Ok((start.try_into()?, stop.try_into()?, reference, alternative))

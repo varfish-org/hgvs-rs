@@ -45,7 +45,7 @@ impl RefTranscriptData {
         let cds_start = tx_info.cds_start_i + 1;
         let cds_stop = tx_info.cds_end_i;
 
-        // Coding sequences taht are not divisable by 3 are not yet supported.
+        // Coding sequences that are not divisable by 3 are not yet supported.
         let tx_seq_to_translate =
             &transcript_sequence[((cds_start - 1) as usize)..(cds_stop as usize)];
         if tx_seq_to_translate.len() % 3 != 0 {

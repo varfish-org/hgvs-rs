@@ -66,7 +66,13 @@ impl Display for NaEdit {
                 (1, 1) => write!(f, "{reference}>{alternative}"),
                 (0, _) => write!(f, "delins{alternative}"),
                 (_, 0) => write!(f, "del{reference}ins"),
-                (_, _) => write!(f, "del{reference}ins{alternative}"),
+                (_, _) => {
+                    if reference == alternative {
+                        write!(f, "=")
+                    } else {
+                        write!(f, "del{reference}ins{alternative}")
+                    }
+                }
             },
             NaEdit::NumAlt { count, alternative } => match (count, alternative.len()) {
                 (0, 0) => write!(f, "="),
@@ -94,7 +100,13 @@ impl<'a> Display for NoRef<'a, NaEdit> {
                 (0, 0) => write!(f, "="),
                 (1, 1) => write!(f, "{reference}>{alternative}"),
                 (_, 0) => write!(f, "delins"),
-                (_, _) => write!(f, "delins{alternative}"),
+                (_, _) => {
+                    if reference == alternative {
+                        write!(f, "=")
+                    } else {
+                        write!(f, "delins{alternative}")
+                    }
+                }
             },
             NoRef(NaEdit::NumAlt { count, alternative }) => match (count, alternative.len()) {
                 (0, 0) => write!(f, "="),
@@ -133,40 +145,58 @@ impl Display for ProteinEdit {
                 terminal,
                 length,
             } => match (alternative, terminal, length) {
-                (None, None, UncertainLengthChange::None) => write!(f, "fs"),
-                (None, None, UncertainLengthChange::Unknown) => write!(f, "fs?"),
-                (None, None, UncertainLengthChange::Known(count)) => write!(f, "fs{count}"),
-                (Some(alt), None, UncertainLengthChange::None) => write!(f, "{alt}fs"),
-                (Some(alt), None, UncertainLengthChange::Unknown) => write!(f, "{alt}fs?"),
+                (None, None, UncertainLengthChange::None) => write!(f, "fsTer"),
+                (None, None, UncertainLengthChange::Unknown) => write!(f, "fsTer?"),
+                (None, None, UncertainLengthChange::Known(count)) => write!(f, "fsTer{count}"),
+                (Some(alt), None, UncertainLengthChange::None) => write!(f, "{alt}fsTer"),
+                (Some(alt), None, UncertainLengthChange::Unknown) => write!(f, "{alt}fsTer?"),
                 (Some(alt), None, UncertainLengthChange::Known(count)) => {
                     let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
-                    write!(f, "{alt}fs{count}")
+                    write!(f, "{alt}fsTer{count}")
                 }
                 (None, Some(ter), UncertainLengthChange::None) => {
-                    let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    let mut ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    if ter.is_empty() {
+                        ter = "Ter".to_string();
+                    }
                     write!(f, "fs{ter}")
                 }
                 (None, Some(ter), UncertainLengthChange::Unknown) => {
-                    let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    let mut ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    if ter.is_empty() {
+                        ter = "Ter".to_string();
+                    }
                     write!(f, "fs{ter}?")
                 }
                 (None, Some(ter), UncertainLengthChange::Known(count)) => {
-                    let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    let mut ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    if ter.is_empty() {
+                        ter = "Ter".to_string();
+                    }
                     write!(f, "fs{ter}{count}")
                 }
                 (Some(alt), Some(ter), UncertainLengthChange::None) => {
                     let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
-                    let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    let mut ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    if ter.is_empty() {
+                        ter = "Ter".to_string();
+                    }
                     write!(f, "{alt}fs{ter}")
                 }
                 (Some(alt), Some(ter), UncertainLengthChange::Unknown) => {
                     let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
-                    let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    let mut ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    if ter.is_empty() {
+                        ter = "Ter".to_string();
+                    }
                     write!(f, "{alt}fs{ter}?")
                 }
                 (Some(alt), Some(ter), UncertainLengthChange::Known(count)) => {
                     let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
-                    let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    let mut ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    if ter.is_empty() {
+                        ter = "Ter".to_string();
+                    }
                     write!(f, "{alt}fs{ter}{count}")
                 }
             },
@@ -835,7 +865,7 @@ mod test {
                     length: UncertainLengthChange::None,
                 }
             ),
-            "fs".to_string(),
+            "fsTer".to_string(),
         );
         assert_eq!(
             format!(
@@ -846,7 +876,7 @@ mod test {
                     length: UncertainLengthChange::Unknown,
                 }
             ),
-            "fs?".to_string(),
+            "fsTer?".to_string(),
         );
         assert_eq!(
             format!(
@@ -857,7 +887,7 @@ mod test {
                     length: UncertainLengthChange::Known(42),
                 }
             ),
-            "fs42".to_string(),
+            "fsTer42".to_string(),
         );
 
         assert_eq!(
@@ -869,7 +899,7 @@ mod test {
                     length: UncertainLengthChange::None,
                 }
             ),
-            "Leufs".to_string(),
+            "LeufsTer".to_string(),
         );
         assert_eq!(
             format!(
@@ -880,7 +910,7 @@ mod test {
                     length: UncertainLengthChange::Unknown,
                 }
             ),
-            "Leufs?".to_string(),
+            "LeufsTer?".to_string(),
         );
         assert_eq!(
             format!(
@@ -891,7 +921,7 @@ mod test {
                     length: UncertainLengthChange::Known(42),
                 }
             ),
-            "Leufs42".to_string(),
+            "LeufsTer42".to_string(),
         );
 
         assert_eq!(

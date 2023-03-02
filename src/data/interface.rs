@@ -178,7 +178,7 @@ pub struct TxMappingOptionsRecord {
 
 /// Interface for data providers.
 pub trait Provider {
-    /// Return the data version, e.g., `uta_20180821`.
+    /// Return the data version, e.g., `uta_20210129`.
     fn data_version(&self) -> &str;
 
     /// Return the schema version, e.g., `"1.1"`.

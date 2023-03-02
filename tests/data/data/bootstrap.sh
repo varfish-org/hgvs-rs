@@ -67,32 +67,89 @@ DST=$SCRIPT_DIR
 set +e
 read -r -d '' GENES <<EOF
 AADACL3
+ADGRL3
+ADRA2B
+AGBL5
+ALG9
 AOAH
 ASB18
 ATM
+BAHCC1
+BOLA3
+BRCA1
 BRCA2
+C18orf32
+CACNA1S
+CCNQ
 COL1A1
+COL3A1
 DEFB133
+DMKN
 DNAH11
+DNMBP-AS1
+EGLN1
+EGR2
+FAM102A
+FAM129B
+FAM58A
+FBN1
+FBXO22
+FOLR3
+GTF3C2
+HIST3H2A
 H2AW
+HELQ
 HMGA1
+IRAK3
+JRK
+KCNIP4
+L1CAM
 LCE2B
 LCE3C
+LINC00336
+LPHN3
+MC1R
 MECP2
+MED21
 MLH1
+MSH6
+MYH7
+NEFL
 OMA1
 OPA1
 OR9A4
+ORAI1
+POMC
+PTEN
 PTH2
+RABGAP1L
 RET
+RGL3
+RMRP
+RPL17
+RPL38
+RPL41
+RYR1
+RYR2
+SCN5A
+SDHC
+SELENON
+SELL
+SERPINC1
 SIL1
+SLC22A5
+SRA1
 SRD5A2
 SSTR3
+TERC
+TPM3
+TSC2
+TSIX
+UFD1
+VPS26A
+ZCCHC3
 EOF
 set -e
-
-# Augment list of genes to fetch.
-GENES="$GENES $(cut -f 1 tests/data/mapper/real_cp.tsv | tail -n +2)"
 
 # Transform gene list for postgres query.
 PG_GENES=$(pg-list $GENES)
@@ -128,5 +185,5 @@ psql-uta "select exon_aln_id from exon_aln where tx_exon_id in (select exon_id f
 
 pigz -d -c download/$VERSION.pgd.gz \
 | awk -F ' ' -f subset.awk \
-| gzip -c \
+| pigz -c \
 > $VERSION-subset.pgd.gz

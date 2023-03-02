@@ -23,6 +23,23 @@ BEGIN {
         next;  # skip for testing
     }
 
+    # Materializing `tx_similarity_mv` is slow for large databases, so we would
+    # rather not materialize it.
+    if ($0 ~ /CREATE MATERIALIZED VIEW .*.tx_similarity_mv/) {
+        gsub(/MATERIALIZED /, "", $0);
+        skip_no_data=1;
+        print;
+        next;
+    } else if ($0 ~ /WITH NO DATA/ && skip_no_data == 1) {
+        gsub(/WITH NO DATA/, "", $0);
+        print;
+        next;
+    } else if ($0 ~ /CREATE .*INDEX .*ON .*tx_similarity_mv.*;/ ||
+               $0 ~ /REFRESH MATERIALIZED VIEW .*.tx_similarity_mv/) {
+        print "-- " $0;
+        next;
+    }
+
     if ($0 ~ /^COPY/) {
         table_name = $2;
         gsub(/.*?\./, "", table_name);

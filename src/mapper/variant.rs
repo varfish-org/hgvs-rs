@@ -4,7 +4,7 @@ use std::{ops::Range, rc::Rc};
 
 use log::{debug, info};
 
-use super::alignment::Mapper as AlignmentMapper;
+use super::alignment::{Config as AlignmentConfig, Mapper as AlignmentMapper};
 use crate::{
     data::interface::Provider,
     normalizer::{self, Normalizer},
@@ -113,7 +113,15 @@ impl Mapper {
         alt_aln_method: &str,
     ) -> Result<AlignmentMapper, anyhow::Error> {
         // TODO: implement caching
-        AlignmentMapper::new(self.provider.clone(), tx_ac, alt_ac, alt_aln_method)
+        AlignmentMapper::new(
+            &AlignmentConfig {
+                strict_bounds: self.config.strict_bounds,
+            },
+            self.provider.clone(),
+            tx_ac,
+            alt_ac,
+            alt_aln_method,
+        )
     }
 
     /// Convert from genome (g.) variant to transcript variant (g. or n.).
@@ -658,12 +666,14 @@ impl Mapper {
         {
             self.validator.validate(var_c)?;
 
+            let var_c = self.replace_reference(var_c.clone())?;
+
             let reference_data = RefTranscriptData::new(
                 self.provider.clone(),
                 accession.deref(),
                 prot_ac.map(|s| s.to_string()).as_deref(),
             )?;
-            let builder = AltSeqBuilder::new(var_c.clone(), reference_data.clone());
+            let builder = AltSeqBuilder::new(var_c, reference_data.clone());
 
             // NB: the following comment is from the original code.
             // TODO: handle case where you get 2+ alt sequences back;  currently get lis tof 1 element
@@ -788,7 +798,6 @@ impl Mapper {
 
     /// Fetch reference sequence for variant and return updated `HgvsVariant` if necessary.
     pub(crate) fn replace_reference(&self, var: HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
-        log::debug!("replace_reference({})", &var);
         match &var {
             HgvsVariant::ProtVariant { .. } => Err(anyhow::anyhow!(
                 "Can only update reference for c, g, m, n, r"
@@ -796,14 +805,10 @@ impl Mapper {
             _ => Ok(()),
         }?;
 
-        log::debug!("???");
-
         if let Some(NaEdit::Ins { .. }) = var.na_edit() {
             // Insertions have no reference sequence (zero-width); return as-is.
             return Ok(var);
         }
-
-        log::debug!("111");
 
         if var.spans_intron() {
             debug!(
@@ -812,8 +817,6 @@ impl Mapper {
             );
             return Ok(var);
         }
-
-        log::debug!("???");
 
         // For c. variants, we need coordinates on underlying sequence.
         let (r, ac): (Range<_>, _) = match &var {
@@ -866,13 +869,10 @@ impl Mapper {
             return Ok(var);
         }
 
-        log::debug!("foo");
-
         let na_edit = var
             .na_edit()
             .expect("Variant must be of nucleic acid type here");
         if !na_edit.reference_equals(&seq) {
-            debug!("Replaced reference sequence in {} with {}", &var, &seq);
             Ok(var.with_reference(seq))
         } else {
             Ok(var)
@@ -901,8 +901,13 @@ impl Mapper {
 
 #[cfg(test)]
 mod test {
+    use lazy_static::__Deref;
     use pretty_assertions::assert_eq;
-    use std::{path::PathBuf, str::FromStr};
+    use regex::Regex;
+    use std::{
+        path::{Path, PathBuf},
+        str::FromStr,
+    };
     use test_log::test;
 
     use crate::{
@@ -1194,16 +1199,19 @@ mod test {
             }
         }
 
-        pub fn build_mapper() -> Result<Mapper, anyhow::Error> {
+        pub fn build_mapper(strict_bounds: bool) -> Result<Mapper, anyhow::Error> {
             let path = PathBuf::from("tests/data/mapper/sanity_cp.tsv");
             let provider = Rc::new(Provider::new(&path)?);
-            let config = Config::default();
+            let config = Config {
+                strict_bounds,
+                ..Default::default()
+            };
             Ok(Mapper::new(&config, provider))
         }
     }
 
     fn test_hgvs_c_to_p_conversion(hgvsc: &str, hgvsp_expected: &str) -> Result<(), anyhow::Error> {
-        let mapper = sanity_mock::build_mapper()?;
+        let mapper = sanity_mock::build_mapper(false)?;
 
         let var_c = HgvsVariant::from_str(hgvsc)?;
         let ac_p = "MOCK";
@@ -1566,7 +1574,8 @@ mod test {
     //
     // For adding tests, you will have to
     //
-    // - add a record to `real_cp.tsv`, in particular fill out gene column
+    // - add a record to `real_cp.tsv`
+    // - update `bootstrap.sh` with the HGNC symbol if necessary
     // - re-run `bootstrap.sh` so the records are pulled into the subset
     // - re-create the local database and import the subset
     // - re-run the test with `TEST_SEQREPO_CACHE_MODE=write` so the relevant queries to
@@ -1575,8 +1584,9 @@ mod test {
     #[test]
     fn hgvs_c_to_p_format() -> Result<(), anyhow::Error> {
         let mapper = build_mapper()?;
-        let hgvs_c = "NM_022464.4:c.3G>A"; // gene SIL1
-                                           // let hgvsp_expected_alternative = "NP_071909.1:p.?";
+        // gene SIL1
+        let hgvs_c = "NM_022464.4:c.3G>A";
+        // let hgvsp_expected_alternative = "NP_071909.1:p.?";
 
         let var_c = HgvsVariant::from_str(hgvs_c)?;
         let var_p = mapper.c_to_p(&var_c, None)?;
@@ -1589,16 +1599,20 @@ mod test {
         Ok(())
     }
 
-    mod cp_real_test {
+    mod gcp_tests {
         use std::path::Path;
 
         #[derive(Debug, serde::Deserialize)]
         pub struct Record {
-            pub hgnc: String,
             pub id: String,
+            #[serde(alias = "HGVSg")]
             pub hgvs_g: String,
+            #[serde(alias = "HGVSc")]
             pub hgvs_c: String,
-            pub hgvs_p: String,
+            #[serde(alias = "HGVSp")]
+            pub hgvs_p: Option<String>,
+            pub description: Option<String>,
+            pub alternatives: Option<String>,
         }
 
         pub fn load_records(path: &Path) -> Result<Vec<Record>, anyhow::Error> {
@@ -1607,9 +1621,14 @@ mod test {
             let mut rdr = csv::ReaderBuilder::new()
                 .delimiter(b'\t')
                 .has_headers(true)
+                .flexible(true)
+                .comment(Some(b'#'))
                 .from_path(path)?;
             for record in rdr.deserialize() {
-                records.push(record?);
+                let mut record: Record = record?;
+                // p.(*) => p.
+                record.hgvs_p = record.hgvs_p.map(|s| s.replace(['(', ')'], ""));
+                records.push(record);
             }
 
             Ok(records)
@@ -1620,17 +1639,24 @@ mod test {
     fn cp_real() -> Result<(), anyhow::Error> {
         let mapper = build_mapper()?;
         let path = PathBuf::from("tests/data/mapper/real_cp.tsv");
-        let records = cp_real_test::load_records(&path)?;
+        let records = gcp_tests::load_records(&path)?;
 
         for record in records {
+            println!("-- {}", &record.id);
             let var_c = HgvsVariant::from_str(&record.hgvs_c)?;
-            let prot_ac = record.hgvs_p.split(":").next();
-            let var_p = mapper.c_to_p(&var_c, prot_ac)?;
+            let prot_ac = record
+                .hgvs_p
+                .as_ref()
+                .unwrap()
+                .split(':')
+                .next()
+                .map(|s| s.to_string());
+            let var_p = mapper.c_to_p(&var_c, prot_ac.as_deref())?;
             let result = format!("{}", &var_p);
-            let expected = &record.hgvs_p;
+            let expected = &record.hgvs_p.unwrap();
 
             let expected = if &result != expected {
-                expected.replace("*", "Ter")
+                expected.replace('*', "Ter")
             } else {
                 expected.clone()
             };
@@ -1639,6 +1665,201 @@ mod test {
 
         Ok(())
     }
+
+    // The following tests correspond to those in `test_hgvs_variantmapper_gcp.py`.
+
+    fn run_gxp_test(path: &str, noref: bool) -> Result<(), anyhow::Error> {
+        fn rm_del_seq(var: &HgvsVariant, noref: bool) -> String {
+            let tmp = if noref {
+                format!("{}", &NoRef(var))
+            } else {
+                format!("{var}")
+            };
+            let re = Regex::new(r"del\w+ins").unwrap();
+            re.replace(&tmp, "delins").to_string()
+        }
+
+        let mapper = build_mapper()?;
+        let records = gcp_tests::load_records(Path::new(path))?;
+
+        for record in &records {
+            let var_g = HgvsVariant::from_str(&record.hgvs_g)?;
+            let var_x = HgvsVariant::from_str(&record.hgvs_c)?;
+            let var_p = record
+                .hgvs_p
+                .as_ref()
+                .map(|s| HgvsVariant::from_str(s))
+                .transpose()?;
+
+            // g -> x
+            let var_x_test = match &var_x {
+                HgvsVariant::CdsVariant { accession, .. } => {
+                    mapper.g_to_c(&var_g, accession, "splign")?
+                }
+                HgvsVariant::TxVariant { accession, .. } => {
+                    mapper.g_to_n(&var_g, accession, "splign")?
+                }
+                _ => panic!("cannot happen"),
+            };
+
+            // Use `del<COUNT>` syntax in output when we saw this in the input.  The original
+            // Python library implements this by always storing the count in the nucleic acid
+            // edit.
+            let var_x_test = if var_x.is_na_edit_num() {
+                var_x_test.with_na_ref_num()
+            } else {
+                var_x_test
+            };
+
+            assert_eq!(
+                rm_del_seq(&var_x, noref),
+                rm_del_seq(&var_x_test, noref),
+                "{} != {} (g>t; {}; HGVSg={})",
+                var_x,
+                var_x_test,
+                &record.id,
+                &record.hgvs_g
+            );
+
+            // c, n -> g
+            let var_g_test = match &var_x {
+                HgvsVariant::CdsVariant { .. } => {
+                    mapper.c_to_g(&var_x, var_g.accession(), "splign")?
+                }
+                HgvsVariant::TxVariant { .. } => {
+                    mapper.n_to_g(&var_x, var_g.accession(), "splign")?
+                }
+                _ => panic!("cannot happen"),
+            };
+
+            // Use `del<COUNT>` syntax in output when we saw this in the input.  The original
+            // Python library implements this by always storing the count in the nucleic acid
+            // edit.
+            let var_g_test = if var_g.is_na_edit_num() {
+                var_g_test.with_na_ref_num()
+            } else {
+                var_g_test
+            };
+
+            assert_eq!(
+                rm_del_seq(&var_g, noref),
+                rm_del_seq(&var_g_test, noref),
+                "{} != {} (t>g; {}; HGVSc={})",
+                var_g,
+                var_g_test,
+                &record.id,
+                &record.hgvs_c
+            );
+
+            if let Some(var_p) = &var_p {
+                // c -> p
+                let hgvs_p_exp = format!("{var_p}");
+                let var_p_test = mapper.c_to_p(&var_x, Some(var_p.accession().deref()))?;
+
+                // TODO: if expected value isn't uncertain, strip uncertain from test
+                // if var_p.posedit and not var_p.posedit.uncertain:
+                //     # if expected value isn't uncertain, strip uncertain from test
+                //     var_p_test.posedit.uncertain = False
+
+                let mut hgvs_p_test = format!("{}", &var_p_test);
+
+                if hgvs_p_exp.ends_with("Ter") {
+                    let re = Regex::new(r"Ter\d+$").unwrap();
+                    hgvs_p_test = re.replace(&hgvs_p_test, "Ter").to_string();
+                }
+
+                assert_eq!(
+                    hgvs_p_exp, hgvs_p_test,
+                    "{} != {} ({})",
+                    &hgvs_p_exp, &hgvs_p_test, &record.id,
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn zcchc3_dbsnp() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/ZCCHC3-dbSNP.tsv", false)
+    }
+
+    #[test]
+    fn orai1_dbsnp() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/ORAI1-dbSNP.tsv", false)
+    }
+
+    #[test]
+    fn folr3_dbsnp() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/FOLR3-dbSNP.tsv", false)
+    }
+
+    #[test]
+    fn adra2b_dbsnp() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/ADRA2B-dbSNP.tsv", false)
+    }
+
+    #[test]
+    fn jrk_dbsnp() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/JRK-dbSNP.tsv", false)
+    }
+
+    #[test]
+    fn nefl_dbsnp() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/NEFL-dbSNP.tsv", false)
+    }
+
+    #[test]
+    fn dnah11_hgmd() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/DNAH11-HGMD.tsv", true)
+    }
+
+    #[test]
+    fn dnah11_dbsnp_nm_003777() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP-NM_003777.tsv", false)
+    }
+
+    #[test]
+    fn dnah11_db_snp_nm_001277115() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP-NM_001277115.tsv", false)
+    }
+
+    #[test]
+    fn regression() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/regression.tsv", false)
+    }
+
+    #[ignore]
+    #[test]
+    fn dnah11_db_snp_full() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP.tsv", false)
+    }
+
+    #[test]
+    fn real() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/real.tsv", false)
+    }
+
+    #[test]
+    fn noncoding() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/noncoding.tsv", false)
+    }
+
+    // #[test]
+    // fn case() -> Result<(), anyhow::Error> {
+    //     let mapper = build_mapper()?;
+
+    //     let s_c = "NM_000425.3:c.3772dupT";
+    //     let s_p = "NP_000416.1:p.Ter1258Leuext*96";
+
+    //     let var_c = HgvsVariant::from_str(s_c)?;
+    //     let var_p = mapper.c_to_p(&var_c, None)?;
+
+    //     let hgvsp_actual = format!("{}", &var_p);
+    //     assert_eq!(hgvsp_actual, s_p);
+
+    //     Ok(())
+    // }
 }
 
 // <LICENSE>

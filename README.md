@@ -31,6 +31,7 @@ export TEST_SEQREPO_CACHE_PATH=tests/data/seqrepo_cache.fasta
 ```
 
 When running the tests with `cargo test`, the cache file will be (re-)written.
+Note that you have to use `cargo test --release -- --test-threads 1 --ignored` when writing the cache for enforcing a single test writing to the cache at any time.
 If you don't want to regenerate the cache then you can use the following settings.
 With these settings, the cache will only be read.
 
@@ -45,7 +46,7 @@ After either this, you can run the tests.
 cargo test
 ```
 
-## Creating Recuded UTA Databases
+## Creating Reduced UTA Databases
 
 The script `tests/data/data/bootstrap.sh` allows to easily build a reduced set of the UTA database given a list of genes.
 The process is as follows:
