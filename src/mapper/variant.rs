@@ -292,7 +292,7 @@ impl Mapper {
 
             let (pos_g, edit_g) = if let Mu::Certain(pos_g) = pos_g {
                 let edit_g = self.convert_edit_check_strand(mapper.strand, &loc_edit.edit)?;
-                if let (NaEdit::Ins { .. }, Some(end), Some(start)) =
+                if let (NaEdit::Ins { alternative }, Some(end), Some(start)) =
                     (edit_g.inner(), pos_g.end, pos_g.start)
                 {
                     if end - start > 1 {
@@ -302,8 +302,9 @@ impl Mapper {
                                 end: Some(end - 1),
                             }),
                             Mu::from(
-                                NaEdit::Ins {
-                                    alternative: "".to_string(),
+                                NaEdit::RefAlt {
+                                    reference: "".to_string(),
+                                    alternative: alternative.to_owned(),
                                 },
                                 edit_g.is_certain(),
                             ),
@@ -742,7 +743,9 @@ impl Mapper {
                 seq.replace_range(r, alternative)
             }
             NaEdit::DelRef { .. } | NaEdit::DelNum { .. } => seq.replace_range(r, ""),
-            NaEdit::Ins { alternative } => seq.replace_range(r, alternative),
+            NaEdit::Ins { alternative } => {
+                seq.replace_range((r.start + 1)..(r.start + 1), alternative)
+            }
             NaEdit::Dup { .. } => {
                 let seg = seq[r.clone()].to_string();
                 seq.replace_range(r.end..r.end, &seg);
@@ -1642,7 +1645,6 @@ mod test {
         let records = gcp_tests::load_records(&path)?;
 
         for record in records {
-            println!("-- {}", &record.id);
             let var_c = HgvsVariant::from_str(&record.hgvs_c)?;
             let prot_ac = record
                 .hgvs_p

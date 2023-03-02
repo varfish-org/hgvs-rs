@@ -159,8 +159,9 @@ impl NaEdit {
             } => {
                 if old_reference.is_empty() && alternative.is_empty() {
                     NaEdit::RefAlt {
-                        alternative: reference.clone(),
-                        reference,
+                        // sic!
+                        alternative: reference.clone(), // sic!
+                        reference,                      // sic!
                     }
                 } else {
                     NaEdit::RefAlt {

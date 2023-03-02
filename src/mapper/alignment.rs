@@ -339,7 +339,7 @@ impl Mapper {
             .map_tgt_to_ref(frs, "start", self.config.strict_bounds)?;
         let gre = self
             .cigar_mapper
-            .map_tgt_to_ref(fre, "start", self.config.strict_bounds)?;
+            .map_tgt_to_ref(fre, "end", self.config.strict_bounds)?;
         let (grs_pos, gre_pos) = (grs.pos + self.gc_offset + 1, gre.pos + self.gc_offset + 1);
         let (gs, ge) = (grs_pos + start_offset, gre_pos + end_offset);
 

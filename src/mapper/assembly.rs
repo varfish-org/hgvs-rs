@@ -270,10 +270,14 @@ impl Mapper {
     /// the variant is intronic because future UTAs will support LRG, which will enable checking
     /// intronic variants.
     fn maybe_normalize(&self, var: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
-        self.inner
-            .normalizer()?
-            .normalize(var)
-            .or_else(|_| Ok(var.clone()))
+        if self.config.normalize {
+            self.inner
+                .normalizer()?
+                .normalize(var)
+                .or_else(|_| Ok(var.clone()))
+        } else {
+            Ok(var.clone())
+        }
     }
 
     /// Return chromosomal accession for the given transcript accession and the assembly and
@@ -354,15 +358,63 @@ impl Mapper {
 
 #[cfg(test)]
 mod test {
-    use crate::data::uta_sr::test_helpers::build_provider;
+    use crate::{data::uta_sr::test_helpers::build_provider, static_data::Assembly};
 
     use super::{Config, Mapper};
 
+    fn build_mapper_38() -> Result<Mapper, anyhow::Error> {
+        let provider = build_provider()?;
+        let config = Config {
+            assembly: Assembly::Grch38,
+            normalize: false,
+            ..Config::default()
+        };
+        Ok(Mapper::new(config, provider))
+    }
+
     #[test]
     fn smoke() -> Result<(), anyhow::Error> {
-        let provider = build_provider()?;
-        let _mapper = Mapper::new(Config::default(), provider);
-
+        build_mapper_38()?;
         Ok(())
+    }
+
+    /// The following is a port of the `test_hgvs_variantmapper_near_discrepancies.py` (sic!)
+    mod near_discrepancies {
+        use std::str::FromStr;
+
+        use crate::parser::{HgvsVariant, NoRef};
+
+        use super::build_mapper_38;
+
+        #[test]
+        fn run() -> Result<(), anyhow::Error> {
+            let mapper = build_mapper_38()?;
+            let mut rdr = csv::ReaderBuilder::new()
+                .delimiter(b'\t')
+                .has_headers(false)
+                .comment(Some(b'#'))
+                .from_path("tests/data/mapper/proj-near-disc.tsv")?;
+
+            for row in rdr.records() {
+                let row = row?;
+                let disc_type = row.get(0).unwrap();
+                let loc_type = row.get(1).unwrap();
+                let variant = row.get(2).unwrap();
+                let expected = row.get(3).unwrap();
+
+                let var_n = HgvsVariant::from_str(variant)?;
+                let var_g = mapper.n_to_g(&var_n)?;
+
+                let actual = format!("{}", &NoRef(&var_g)).replace(['(', ')'], "");
+
+                assert_eq!(
+                    actual, expected,
+                    "loc_type={} disc_type={}",
+                    loc_type, disc_type,
+                )
+            }
+
+            Ok(())
+        }
     }
 }
