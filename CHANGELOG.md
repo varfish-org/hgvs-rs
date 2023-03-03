@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/bihealth/hgvs-rs/compare/v0.1.0...v0.1.1) (2023-03-03)
+
+
+### Bug Fixes
+
+* release 0.1.1 on crates.io ([#38](https://github.com/bihealth/hgvs-rs/issues/38)) ([e318abf](https://github.com/bihealth/hgvs-rs/commit/e318abf6368b1f0b7160ad25f0880706a92fc662))
+
 ## 0.1.0 (2023-03-03)
 
 
