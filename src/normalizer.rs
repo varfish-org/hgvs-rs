@@ -1065,7 +1065,6 @@ mod test {
         ];
 
         for (input, exp_3) in cases3 {
-            log::info!("3' test case: ({}, {})", &input, &exp_3);
             let raw = HgvsVariant::from_str(input)?;
 
             // 5' -> 3' shuffling
@@ -1111,7 +1110,6 @@ mod test {
         ];
 
         for (input, exp_5) in cases5 {
-            log::info!("5' test case: ({}, {})", &input, &exp_5);
             let raw = HgvsVariant::from_str(input)?;
 
             // 3' -> 5' shuffling
