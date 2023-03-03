@@ -800,7 +800,7 @@ impl Mapper {
     }
 
     /// Fetch reference sequence for variant and return updated `HgvsVariant` if necessary.
-    pub(crate) fn replace_reference(&self, var: HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn replace_reference(&self, var: HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
         match &var {
             HgvsVariant::ProtVariant { .. } => Err(anyhow::anyhow!(
                 "Can only update reference for c, g, m, n, r"

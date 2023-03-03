@@ -146,7 +146,7 @@ impl Mapper {
     pub fn g_to_c(&self, var_g: &HgvsVariant, tx_ac: &str) -> Result<HgvsVariant, anyhow::Error> {
         let var = self
             .inner
-            .g_to_n(var_g, tx_ac, &self.config.alt_aln_method)?;
+            .g_to_c(var_g, tx_ac, &self.config.alt_aln_method)?;
         self.maybe_normalize(&var)
     }
 
@@ -187,7 +187,7 @@ impl Mapper {
         let alt_ac = self.alt_ac_for_tx_ac(var_c.accession())?;
         let var = self
             .inner
-            .n_to_g(var_c, &alt_ac, &self.config.alt_aln_method)?;
+            .c_to_g(var_c, &alt_ac, &self.config.alt_aln_method)?;
         self.maybe_normalize(&var)
     }
 
@@ -202,7 +202,7 @@ impl Mapper {
         let alt_ac = self.alt_ac_for_tx_ac(var_t.accession())?;
         let var = self
             .inner
-            .n_to_g(var_t, &alt_ac, &self.config.alt_aln_method)?;
+            .t_to_g(var_t, &alt_ac, &self.config.alt_aln_method)?;
         self.maybe_normalize(&var)
     }
 
@@ -354,6 +354,10 @@ impl Mapper {
             }
         }
     }
+
+    pub fn replace_reference(&self, var: HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
+        self.inner.replace_reference(var)
+    }
 }
 
 #[cfg(test)]
@@ -372,10 +376,540 @@ mod test {
         Ok(Mapper::new(config, provider))
     }
 
+    fn build_mapper_37() -> Result<Mapper, anyhow::Error> {
+        let provider = build_provider()?;
+        let config = Config {
+            assembly: Assembly::Grch37,
+            normalize: false,
+            ..Config::default()
+        };
+        Ok(Mapper::new(config, provider))
+    }
+
     #[test]
     fn smoke() -> Result<(), anyhow::Error> {
         build_mapper_38()?;
         Ok(())
+    }
+
+    /// The following is a port of `Test_VariantMapper` in
+    /// `test_hgvs_variantmapper_near_discrepancies.py` (sic!)
+    mod cases {
+        use std::str::FromStr;
+
+        use rstest::rstest;
+
+        use crate::parser::{HgvsVariant, NoRef};
+
+        use super::{build_mapper_37, build_mapper_38};
+
+        #[test]
+        fn test_quick_aoah() -> Result<(), anyhow::Error> {
+            let mapper = build_mapper_38()?;
+            let hgvs_g = "NC_000007.13:g.36561662C>T";
+            let hgvs_c = "NM_001637.3:c.1582G>A";
+            let hgvs_p = "NP_001628.1:p.Gly528Arg";
+
+            let var_g = HgvsVariant::from_str(hgvs_g)?;
+            let var_c = mapper.g_to_c(&var_g, "NM_001637.3")?;
+            let var_p = mapper.c_to_p(&var_c)?;
+
+            assert_eq!(format!("{}", var_c), hgvs_c);
+            assert_eq!(format!("{}", var_p), hgvs_p);
+
+            Ok(())
+        }
+
+        #[test]
+        fn test_fail_c_to_p_brca2() -> Result<(), anyhow::Error> {
+            let mapper = build_mapper_38()?;
+            let hgvs_c = "NM_000059.3:c.7790delAAG";
+            let var_c = HgvsVariant::from_str(hgvs_c)?;
+
+            assert!(mapper.c_to_p(&var_c).is_err());
+
+            Ok(())
+        }
+
+        #[rstest]
+        #[case("NM_000059.3:c.7791A>G", "NP_000050.2:p.Lys2597=", "BRCA2", 38)]
+        #[case("NM_000302.3:c.1594_1596del", "NP_000293.2:p.Glu532del", "PLOD1", 38)]
+        #[case(
+            "NM_000090.3:c.2490_2516del",
+            "NP_000081.1:p.Glu832_Gly840del",
+            "COL3A1",
+            38
+        )]
+        #[case("NM_001292004.1:c.376=", "NC_000005.10:g.74715659=", "HEXB", 38)]
+        #[case(
+            "NM_000116.4:c.-8_-3inv6",
+            "NC_000023.11:g.154411836_154411841inv",
+            "TAZ",
+            38
+        )]
+        #[case(
+            "NM_000348.3:c.89_91inv3",
+            "NC_000002.12:g.31580810_31580812inv",
+            "SDR5A2",
+            38
+        )]
+        #[case("NM_001637.3:c.1582_1583inv", "NP_001628.1:p.Gly528Pro", "AOAH", 38)]
+        #[case("NM_025137.3:c.-20_*20inv", "NP_079413.3:p.?", "SPG11", 38)]
+        fn project_c_to_x(
+            #[case] hgvs_c: &str,
+            #[case] hgvs_x: &str,
+            #[case] gene: &str,
+            #[case] build: i32,
+        ) -> Result<(), anyhow::Error> {
+            let mapper = if build == 38 {
+                build_mapper_38()?
+            } else {
+                build_mapper_37()?
+            };
+
+            let var_c = HgvsVariant::from_str(hgvs_c)?;
+            let var_x = HgvsVariant::from_str(hgvs_x)?;
+            let actual = match &var_x {
+                HgvsVariant::GenomeVariant { .. } => mapper.c_to_g(&var_c)?,
+                HgvsVariant::ProtVariant { .. } => mapper.c_to_p(&var_c)?,
+                _ => panic!("not implemented"),
+            };
+
+            assert_eq!(format!("{}", &NoRef(&actual)), hgvs_x, "gene={}", gene);
+
+            Ok(())
+        }
+
+        #[rstest]
+        #[case(
+            "NC_000019.10:g.50378563_50378564insTG",
+            "NM_007121.5:n.796_798delinsTG",
+            "NR1H2",
+            38
+        )]
+        #[case(
+            "NC_000007.14:g.149779575delC",
+            "NM_198455.2:n.1115_1116insAG",
+            "SSPO",
+            38
+        )]
+        #[case(
+            "NC_000012.11:g.122064775C>T",
+            "NM_032790.3:c.127_128insTGCCAC",
+            "ORAI1",
+            38
+        )]
+        #[case(
+            "NC_000002.11:g.73675227_73675228insCTC",
+            "NM_015120.4:c.1574_1576=",
+            "ALMS1",
+            37
+        )]
+        #[case("NM_000116.4:c.-120_-119insT", "NC_000023.10:g.153640061=", "TAZ", 37)]
+        #[case(
+            "NM_000348.3:c.88del",
+            "NC_000002.11:g.31805882_31805883=",
+            "SRD5A2",
+            37
+        )]
+        fn project_at_alignment_discrepancies(
+            #[case] hgvs_lhs: &str,
+            #[case] hgvs_rhs: &str,
+            #[case] gene: &str,
+            #[case] build: i32,
+        ) -> Result<(), anyhow::Error> {
+            let mapper = if build == 38 {
+                build_mapper_38()?
+            } else {
+                build_mapper_37()?
+            };
+
+            let var_lhs = HgvsVariant::from_str(hgvs_lhs)?;
+            let var_rhs = HgvsVariant::from_str(hgvs_rhs)?;
+            let actual = match (&var_lhs, &var_rhs) {
+                (HgvsVariant::CdsVariant { .. }, HgvsVariant::GenomeVariant { .. }) => {
+                    mapper.c_to_g(&var_lhs)?
+                }
+                (HgvsVariant::GenomeVariant { .. }, HgvsVariant::CdsVariant { .. }) => {
+                    mapper.g_to_c(&var_lhs, &var_rhs.accession())?
+                }
+                (HgvsVariant::GenomeVariant { .. }, HgvsVariant::TxVariant { .. }) => {
+                    mapper.g_to_n(&var_lhs, &var_rhs.accession())?
+                }
+                _ => panic!("not implemented"),
+            };
+
+            assert_eq!(
+                format!("{}", &crate::parser::NoRef(&actual)),
+                hgvs_rhs,
+                "gene={}",
+                gene
+            );
+
+            Ok(())
+        }
+
+        #[rstest]
+        #[case(
+            "NM_080877.2:c.1733_1735delinsTTT",
+            "NP_543153.1:p.Pro578_Lys579delinsLeuTer",
+            "SLC34A3"
+        )]
+        #[case(
+            "NM_001034853.1:c.2847_2848delAGinsCT",
+            "NP_001030025.1:p.Glu949_Glu950delinsAspTer",
+            "RPGR"
+        )]
+        #[case(
+            "NM_001034853.1:c.2847_2848inv",
+            "NP_001030025.1:p.Glu949_Glu950delinsAspTer",
+            "RPGR"
+        )]
+        #[case("NM_080877.2:c.1735A>T", "NP_543153.1:p.Lys579Ter", "SLC34A3")]
+        #[case("NM_080877.2:c.1795_*3delinsTAG", "NP_543153.1:p.Leu599Ter", "SLC34A3")]
+        fn c_to_p_with_stop_gain(
+            #[case] hgvs_c: &str,
+            #[case] hgvs_p: &str,
+            #[case] gene: &str,
+        ) -> Result<(), anyhow::Error> {
+            let mapper = build_mapper_38()?;
+            let var_c = HgvsVariant::from_str(hgvs_c)?;
+
+            let actual = mapper.c_to_p(&var_c)?;
+
+            assert_eq!(
+                format!("{}", &crate::parser::NoRef(&actual)),
+                hgvs_p,
+                "gene={}",
+                gene
+            );
+
+            Ok(())
+        }
+    }
+
+    /// The following is a port of the `Test_RefReplacement` in
+    /// `test_hgvs_variantmapper_near_discrepancies.py` (sic!)
+    mod ref_replacement {
+        use std::str::FromStr;
+
+        use rstest::rstest;
+
+        use crate::parser::HgvsVariant;
+
+        use super::build_mapper_38;
+
+        // These casese attempt to test reference update in four dimensions:
+        //
+        // - variant type: n, c, g
+        // - major mapping paths: c<->n, c<->g, n<->g
+        // - variant class: sub, del, ins, delins, dup
+        // - strand: +/-
+        //
+        // ADRB2    │ NM_000024.5 │  239 │ 1481 │ NC_000005.9  │  1 │ 148206155,148208197 | 284=1X32=1X1724=
+        //
+        // cseq = hdp.fetch_seq("NM_000024.5")
+        // gseq = hdp.fetch_seq("NC_000005.9",148206155,148208197)
+        // cseq[280:290] = "CAATAGAAGC"
+        // gseq[280:290] = "CAATGGAAGC"
+        //                      ^ @ n.285
+        #[rstest]
+        // These variants are in and around the first sub:
+        #[case(
+            "NM_000024.5:c.42C>N",
+            "NC_000005.9:g.148206436C>N",
+            "NM_000024.5:n.281C>N",
+            "ADRB2"
+        )]
+        #[case(
+            "NM_000024.5:c.43A>N",
+            "NC_000005.9:g.148206437A>N",
+            "NM_000024.5:n.282A>N",
+            "ADRB2"
+        )]
+        #[case(
+            "NM_000024.5:c.44A>N",
+            "NC_000005.9:g.148206438A>N",
+            "NM_000024.5:n.283A>N",
+            "ADRB2"
+        )]
+        #[case(
+            "NM_000024.5:c.45T>N",
+            "NC_000005.9:g.148206439T>N",
+            "NM_000024.5:n.284T>N",
+            "ADRB2"
+        )]
+        // ref repl
+        #[case(
+            "NM_000024.5:c.46A>N",
+            "NC_000005.9:g.148206440G>N",
+            "NM_000024.5:n.285A>N",
+            "ADRB2"
+        )]
+        #[case(
+            "NM_000024.5:c.47G>N",
+            "NC_000005.9:g.148206441G>N",
+            "NM_000024.5:n.286G>N",
+            "ADRB2"
+        )]
+        #[case(
+            "NM_000024.5:c.48A>N",
+            "NC_000005.9:g.148206442A>N",
+            "NM_000024.5:n.287A>N",
+            "ADRB2"
+        )]
+        #[case(
+            "NM_000024.5:c.49A>N",
+            "NC_000005.9:g.148206443A>N",
+            "NM_000024.5:n.288A>N",
+            "ADRB2"
+        )]
+        #[case(
+            "NM_000024.5:c.50G>N",
+            "NC_000005.9:g.148206444G>N",
+            "NM_000024.5:n.289G>N",
+            "ADRB2"
+        )]
+        #[case(
+            "NM_000024.5:c.51C>N",
+            "NC_000005.9:g.148206445C>N",
+            "NM_000024.5:n.281C>N",
+            "ADRB2"
+        )]
+        // ins, del, delins, dup
+        #[case(
+            "NM_000024.5:c.46_47insNN",
+            "NC_000005.9:g.148206440_148206441insNN",
+            "NM_000024.5:n.285_286insNN",
+            "ADRB2"
+        )]
+        #[case(
+            "NM_000024.5:c.45_47delTAG",
+            "NC_000005.9:g.148206439_148206441delTGG",
+            "NM_000024.5:n.284_286delTAG",
+            "ADRB2"
+        )]
+        #[case(
+            "NM_000024.5:c.45_47delTAGinsNNNN",
+            "NC_000005.9:g.148206439_148206441delTGGinsNNNN",
+            "NM_000024.5:n.284_286delTAGinsNNNN",
+            "ADRB2"
+        )]
+        #[case(
+            "NM_000024.5:c.45_47delTAGinsNNNN",
+            "NC_000005.9:g.148206439_148206441delTGGinsNNNN",
+            "NM_000024.5:n.284_286delTAGinsNNNN",
+            "ADRB2"
+        )]
+        #[case(
+            "NM_000024.5:c.46dupA",
+            "NC_000005.9:g.148206440dupG",
+            "NM_000024.5:n.285dupA",
+            "ADRB2"
+        )]
+        // IFNA16   │ NM_002173.2 │    6 │  576 │ NC_000009.11 │ -1 │  21216371, 21217310 | 691=2X246=
+        // cseq = hdp.fetch_seq("NM_002173.2")
+        // gseq = reverse_complement(hdp.fetch_seq("NC_000009.11",21216371,21217310))
+        // cseq[685:695] = "AAATTTCAAA"
+        // gseq[685:695] = "AAATTTTCAA"
+        //                        ^^ @ n.692_693
+        // These variants are in and around the 2X substitution
+        #[case(
+            "NM_002173.2:c.*110A>N",
+            "NC_000009.11:g.21216625T>N",
+            "NM_002173.2:n.686A>N",
+            "IFNA16"
+        )]
+        #[case(
+            "NM_002173.2:c.*111A>N",
+            "NC_000009.11:g.21216624T>N",
+            "NM_002173.2:n.687A>N",
+            "IFNA16"
+        )]
+        #[case(
+            "NM_002173.2:c.*112A>N",
+            "NC_000009.11:g.21216623T>N",
+            "NM_002173.2:n.688A>N",
+            "IFNA16"
+        )]
+        #[case(
+            "NM_002173.2:c.*113T>N",
+            "NC_000009.11:g.21216622A>N",
+            "NM_002173.2:n.689T>N",
+            "IFNA16"
+        )]
+        #[case(
+            "NM_002173.2:c.*114T>N",
+            "NC_000009.11:g.21216621A>N",
+            "NM_002173.2:n.690T>N",
+            "IFNA16"
+        )]
+        #[case(
+            "NM_002173.2:c.*115T>N",
+            "NC_000009.11:g.21216620A>N",
+            "NM_002173.2:n.691T>N",
+            "IFNA16"
+        )]
+        // ref repl
+        #[case(
+            "NM_002173.2:c.*116C>N",
+            "NC_000009.11:g.21216619A>N",
+            "NM_002173.2:n.692C>N",
+            "IFNA16"
+        )]
+        // ref repl
+        #[case(
+            "NM_002173.2:c.*117A>N",
+            "NC_000009.11:g.21216618G>N",
+            "NM_002173.2:n.693A>N",
+            "IFNA16"
+        )]
+        #[case(
+            "NM_002173.2:c.*118A>N",
+            "NC_000009.11:g.21216617T>N",
+            "NM_002173.2:n.694A>N",
+            "IFNA16"
+        )]
+        #[case(
+            "NM_002173.2:c.*119A>N",
+            "NC_000009.11:g.21216616T>N",
+            "NM_002173.2:n.695A>N",
+            "IFNA16"
+        )]
+        // ins, del, delins, dup:
+        #[case(
+            "NM_002173.2:c.*115_*117insNN",
+            "NC_000009.11:g.21216618_21216620insNN",
+            "NM_002173.2:n.691_693insNN",
+            "IFNA16"
+        )]
+        #[case(
+            "NM_002173.2:c.*114_*117delTTCA",
+            "NC_000009.11:g.21216618_21216621delGAAA",
+            "NM_002173.2:n.690_693delTTCA",
+            "IFNA16"
+        )]
+        #[case(
+            "NM_002173.2:c.*115_*117delTCAinsNN",
+            "NC_000009.11:g.21216618_21216620delGAAinsNN",
+            "NM_002173.2:n.691_693delTCAinsNN",
+            "IFNA16"
+        )]
+        #[case(
+            "NM_002173.2:c.*115_*117delTCAinsNN",
+            "NC_000009.11:g.21216618_21216620delGAAinsNN",
+            "NM_002173.2:n.691_693delTCAinsNN",
+            "IFNA16"
+        )]
+        #[case(
+            "NM_002173.2:c.*115_*117dupTCA",
+            "NC_000009.11:g.21216618_21216620dupGAA",
+            "NM_002173.2:n.691_693dupTCA",
+            "IFNA16"
+        )]
+        // genomic variation within an indel discrepancy
+        // NM_032790.3  c        108 >
+        // NM_032790.3  n        301 > CGGGGAGCCCCCGGGGGCC------CCGCCACCGCCGCCGT
+        //                             |||||||||||||||||||------||||||||||||||||
+        // NC_000012.11 g  122064755 > CGGGGAGCCCCCGGGGGCCCCGCCACCGCCACCGCCGCCGT
+        //                                              **********
+        #[case(
+            "NM_032790.3:c.125_128delCCCC",
+            "NC_000012.11:g.122064772_122064781delCCCCGCCACC",
+            "NM_032790.3:n.318_321delCCCC",
+            "ORAI1"
+        )]
+        fn cases(
+            #[case] hgvs_c: &str,
+            #[case] hgvs_g: &str,
+            #[case] hgvs_n: &str,
+            #[case] gene: &str,
+        ) -> Result<(), anyhow::Error> {
+            let mapper = build_mapper_38()?;
+            let var_c = HgvsVariant::from_str(hgvs_c)?;
+            let var_g = HgvsVariant::from_str(hgvs_g)?;
+            let var_n = HgvsVariant::from_str(hgvs_n)?;
+
+            let var_c = var_c.with_reference("NNNNNN".to_string());
+            let fixed_c = mapper.replace_reference(var_c)?;
+            assert_eq!(format!("{}", &fixed_c), hgvs_c, "gene={}", gene);
+
+            let var_g = var_g.with_reference("NNNNNN".to_string());
+            let fixed_g = mapper.replace_reference(var_g)?;
+            assert_eq!(format!("{}", &fixed_g), hgvs_g, "gene={}", gene);
+
+            let var_n = var_n.with_reference("NNNNNN".to_string());
+            let fixed_n = mapper.replace_reference(var_n)?;
+            assert_eq!(format!("{}", &fixed_n), hgvs_n, "gene={}", gene);
+
+            Ok(())
+        }
+    }
+
+    /// The following is a port of `Test_AssemblyMapper` in
+    /// `test_hgvs_variantmapper_near_discrepancies.py` (sic!)
+    mod projections {
+        use std::str::FromStr;
+
+        use crate::parser::HgvsVariant;
+
+        use super::build_mapper_37;
+
+        fn test_projections(
+            hgvs_g: &str,
+            hgvs_c: &str,
+            hgvs_n: &str,
+            hgvs_p: &str,
+        ) -> Result<(), anyhow::Error> {
+            let mapper = build_mapper_37()?;
+
+            let var_g = HgvsVariant::from_str(hgvs_g)?;
+            let var_c = HgvsVariant::from_str(hgvs_c)?;
+            let var_n = HgvsVariant::from_str(hgvs_n)?;
+
+            let res_cg = mapper.c_to_g(&var_c)?;
+            assert_eq!(format!("{}", res_cg), hgvs_g,);
+
+            let res_gc = mapper.g_to_c(&var_g, &var_c.accession())?;
+            assert_eq!(format!("{}", res_gc), hgvs_c,);
+
+            let res_ng = mapper.n_to_g(&var_n)?;
+            assert_eq!(format!("{}", res_ng), hgvs_g,);
+
+            let res_gn = mapper.g_to_n(&var_g, &var_n.accession())?;
+            assert_eq!(format!("{}", res_gn), hgvs_n,);
+
+            let res_cn = mapper.c_to_n(&var_c)?;
+            assert_eq!(format!("{}", res_cn), hgvs_n,);
+
+            let res_nc = mapper.n_to_c(&var_n)?;
+            assert_eq!(format!("{}", res_nc), hgvs_c,);
+
+            let res_cp = mapper.c_to_p(&var_c)?;
+            assert_eq!(format!("{}", res_cp), hgvs_p,);
+
+            Ok(())
+        }
+
+        #[test]
+        fn snv() -> Result<(), anyhow::Error> {
+            test_projections(
+                "NC_000007.13:g.36561662C>T",
+                "NM_001637.3:c.1582G>A",
+                "NM_001637.3:n.1983G>A",
+                "NP_001628.1:p.Gly528Arg",
+            )
+        }
+
+        #[test]
+        fn intronic() -> Result<(), anyhow::Error> {
+            test_projections(
+                "NC_000010.10:g.89711873A>C",
+                "NM_000314.4:c.493-2A>C",
+                "NM_000314.4:n.1524-2A>C",
+                "NP_000305.3:p.?",
+            )
+        }
     }
 
     /// The following is a port of the `test_hgvs_variantmapper_near_discrepancies.py` (sic!)
