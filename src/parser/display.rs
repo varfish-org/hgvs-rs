@@ -63,7 +63,13 @@ impl Display for NaEdit {
                 alternative,
             } => match (reference.len(), alternative.len()) {
                 (0, 0) => write!(f, "="),
-                (1, 1) => write!(f, "{reference}>{alternative}"),
+                (1, 1) => {
+                    if reference == alternative {
+                        write!(f, "=")
+                    } else {
+                        write!(f, "{reference}>{alternative}")
+                    }
+                }
                 (0, _) => write!(f, "delins{alternative}"),
                 (_, 0) => write!(f, "del{reference}ins"),
                 (_, _) => {
@@ -98,7 +104,13 @@ impl<'a> Display for NoRef<'a, NaEdit> {
                 alternative,
             }) => match (reference.len(), alternative.len()) {
                 (0, 0) => write!(f, "="),
-                (1, 1) => write!(f, "{reference}>{alternative}"),
+                (1, 1) => {
+                    if reference == alternative {
+                        write!(f, "=")
+                    } else {
+                        write!(f, "{reference}>{alternative}")
+                    }
+                }
                 (_, 0) => write!(f, "delins"),
                 (_, _) => {
                     if reference == alternative {

@@ -124,6 +124,16 @@ impl Mapper {
         )
     }
 
+    /// Construct a new normalizer for the variant mapper.
+    pub fn normalizer(&self) -> Result<Normalizer, anyhow::Error> {
+        Ok(Normalizer::new(
+            self,
+            self.provider.clone(),
+            self.validator.clone(),
+            Default::default(),
+        ))
+    }
+
     /// Convert from genome (g.) variant to transcript variant (g. or n.).
     ///
     /// # Args
@@ -175,13 +185,7 @@ impl Mapper {
                 && !mapper.is_g_interval_in_bounds(loc_edit.loc.inner())
             {
                 info!("Renormalizing out-of-bounds minus strand variant on genomic sequenc");
-                Normalizer::new(
-                    self,
-                    self.provider.clone(),
-                    self.validator.clone(),
-                    Default::default(),
-                )
-                .normalize(&var_g)?
+                self.normalizer()?.normalize(&var_g)?
             } else {
                 var_g.clone()
             };
@@ -193,7 +197,7 @@ impl Mapper {
             );
             let (pos_n, edit_n) = if let Mu::Certain(pos_n) = pos_n {
                 let edit_n = self.convert_edit_check_strand(mapper.strand, &loc_edit.edit)?;
-                if let NaEdit::Ins { .. } = edit_n.inner() {
+                if let NaEdit::Ins { alternative } = edit_n.inner() {
                     if pos_n.start.offset.is_none()
                         && pos_n.end.offset.is_none()
                         && pos_n.end.base - pos_n.start.base > 1
@@ -209,8 +213,9 @@ impl Mapper {
                                     ..pos_n.end
                                 },
                             }),
-                            Mu::Certain(NaEdit::Ins {
-                                alternative: "".to_string(),
+                            Mu::Certain(NaEdit::RefAlt {
+                                reference: "".to_string(),
+                                alternative: alternative.clone(),
                             }),
                         )
                     } else {
@@ -229,7 +234,7 @@ impl Mapper {
                         &var_g,
                     )?,
                 };
-                (Mu::Uncertain((*pos_n.inner()).clone()), Mu::Certain(edit_n))
+                (Mu::Certain((*pos_n.inner()).clone()), Mu::Certain(edit_n))
             };
 
             // the following is not needed?
@@ -288,7 +293,7 @@ impl Mapper {
 
             let (pos_g, edit_g) = if let Mu::Certain(pos_g) = pos_g {
                 let edit_g = self.convert_edit_check_strand(mapper.strand, &loc_edit.edit)?;
-                if let (NaEdit::Ins { .. }, Some(end), Some(start)) =
+                if let (NaEdit::Ins { alternative }, Some(end), Some(start)) =
                     (edit_g.inner(), pos_g.end, pos_g.start)
                 {
                     if end - start > 1 {
@@ -298,8 +303,9 @@ impl Mapper {
                                 end: Some(end - 1),
                             }),
                             Mu::from(
-                                NaEdit::Ins {
-                                    alternative: "".to_string(),
+                                NaEdit::RefAlt {
+                                    reference: "".to_string(),
+                                    alternative: alternative.to_owned(),
                                 },
                                 edit_g.is_certain(),
                             ),
@@ -379,7 +385,7 @@ impl Mapper {
 
             let (pos_c, edit_c) = if let Mu::Certain(pos_c) = pos_c {
                 let edit_c = self.convert_edit_check_strand(mapper.strand, &loc_edit.edit)?;
-                if let NaEdit::Ins { .. } = edit_c.inner() {
+                if let NaEdit::Ins { alternative } = edit_c.inner() {
                     if pos_c.start.offset.is_none()
                         && pos_c.end.offset.is_none()
                         && pos_c.end.base - pos_c.start.base > 1
@@ -395,8 +401,9 @@ impl Mapper {
                                     ..pos_c.end
                                 },
                             }),
-                            Mu::Certain(NaEdit::Ins {
-                                alternative: "".to_string(),
+                            Mu::Certain(NaEdit::RefAlt {
+                                reference: "".to_string(),
+                                alternative: alternative.clone(),
                             }),
                         )
                     } else {
@@ -415,7 +422,7 @@ impl Mapper {
                         &var_g,
                     )?,
                 };
-                (Mu::Uncertain((*pos_c.inner()).clone()), Mu::Certain(edit_c))
+                (Mu::Certain((*pos_c.inner()).clone()), Mu::Certain(edit_c))
             };
 
             let var_c = HgvsVariant::CdsVariant {
@@ -468,7 +475,7 @@ impl Mapper {
 
             let (pos_g, edit_g) = if let Mu::Certain(pos_g) = pos_g {
                 let edit_g = self.convert_edit_check_strand(mapper.strand, &loc_edit.edit)?;
-                if let (NaEdit::Ins { .. }, Some(end), Some(start)) =
+                if let (NaEdit::Ins { alternative }, Some(end), Some(start)) =
                     (edit_g.inner(), pos_g.end, pos_g.start)
                 {
                     if end - start > 1 {
@@ -478,8 +485,9 @@ impl Mapper {
                                 end: Some(end - 1),
                             }),
                             Mu::from(
-                                NaEdit::Ins {
-                                    alternative: "".to_string(),
+                                NaEdit::RefAlt {
+                                    reference: "".to_string(),
+                                    alternative: alternative.clone(),
                                 },
                                 edit_g.is_certain(),
                             ),
@@ -493,12 +501,20 @@ impl Mapper {
             } else {
                 // variant at alignment gap
                 let pos_n = mapper.g_to_n(pos_g.inner())?;
+                let var_n = HgvsVariant::TxVariant {
+                    accession: var_c.accession().clone(),
+                    gene_symbol: var_c.gene_symbol().clone(),
+                    loc_edit: TxLocEdit {
+                        loc: pos_n.clone(),
+                        edit: Mu::Certain(var_c.na_edit().unwrap().clone()),
+                    },
+                };
                 let edit_n = NaEdit::RefAlt {
                     reference: "".to_string(),
                     alternative: self.get_altered_sequence(
                         mapper.strand,
                         pos_n.inner().clone().into(),
-                        &var_c,
+                        &var_n,
                     )?,
                 };
                 (pos_g, Mu::Certain(edit_n))
@@ -738,7 +754,9 @@ impl Mapper {
                 seq.replace_range(r, alternative)
             }
             NaEdit::DelRef { .. } | NaEdit::DelNum { .. } => seq.replace_range(r, ""),
-            NaEdit::Ins { alternative } => seq.replace_range(r, alternative),
+            NaEdit::Ins { alternative } => {
+                seq.replace_range((r.start + 1)..(r.start + 1), alternative)
+            }
             NaEdit::Dup { .. } => {
                 let seg = seq[r.clone()].to_string();
                 seq.replace_range(r.end..r.end, &seg);
@@ -793,7 +811,7 @@ impl Mapper {
     }
 
     /// Fetch reference sequence for variant and return updated `HgvsVariant` if necessary.
-    pub(crate) fn replace_reference(&self, var: HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn replace_reference(&self, var: HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
         match &var {
             HgvsVariant::ProtVariant { .. } => Err(anyhow::anyhow!(
                 "Can only update reference for c, g, m, n, r"
@@ -1638,7 +1656,6 @@ mod test {
         let records = gcp_tests::load_records(&path)?;
 
         for record in records {
-            println!("-- {}", &record.id);
             let var_c = HgvsVariant::from_str(&record.hgvs_c)?;
             let prot_ac = record
                 .hgvs_p

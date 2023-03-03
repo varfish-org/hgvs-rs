@@ -159,8 +159,9 @@ impl NaEdit {
             } => {
                 if old_reference.is_empty() && alternative.is_empty() {
                     NaEdit::RefAlt {
-                        alternative: reference.clone(),
-                        reference,
+                        // sic!
+                        alternative: reference.clone(), // sic!
+                        reference,                      // sic!
                     }
                 } else {
                     NaEdit::RefAlt {
@@ -430,6 +431,18 @@ impl HgvsVariant {
                 gene_symbol,
                 loc_edit: loc_edit.with_reference(value),
             },
+        }
+    }
+
+    /// Return the gene symbol.
+    pub fn gene_symbol(&self) -> &Option<GeneSymbol> {
+        match self {
+            HgvsVariant::CdsVariant { gene_symbol, .. } => gene_symbol,
+            HgvsVariant::GenomeVariant { gene_symbol, .. } => gene_symbol,
+            HgvsVariant::MtVariant { gene_symbol, .. } => gene_symbol,
+            HgvsVariant::TxVariant { gene_symbol, .. } => gene_symbol,
+            HgvsVariant::ProtVariant { gene_symbol, .. } => gene_symbol,
+            HgvsVariant::RnaVariant { gene_symbol, .. } => gene_symbol,
         }
     }
 
