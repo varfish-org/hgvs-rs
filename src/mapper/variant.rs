@@ -385,7 +385,7 @@ impl Mapper {
 
             let (pos_c, edit_c) = if let Mu::Certain(pos_c) = pos_c {
                 let edit_c = self.convert_edit_check_strand(mapper.strand, &loc_edit.edit)?;
-                if let NaEdit::Ins { .. } = edit_c.inner() {
+                if let NaEdit::Ins { alternative } = edit_c.inner() {
                     if pos_c.start.offset.is_none()
                         && pos_c.end.offset.is_none()
                         && pos_c.end.base - pos_c.start.base > 1
@@ -401,8 +401,9 @@ impl Mapper {
                                     ..pos_c.end
                                 },
                             }),
-                            Mu::Certain(NaEdit::Ins {
-                                alternative: "".to_string(),
+                            Mu::Certain(NaEdit::RefAlt {
+                                reference: "".to_string(),
+                                alternative: alternative.clone(),
                             }),
                         )
                     } else {
@@ -421,7 +422,7 @@ impl Mapper {
                         &var_g,
                     )?,
                 };
-                (Mu::Uncertain((*pos_c.inner()).clone()), Mu::Certain(edit_c))
+                (Mu::Certain((*pos_c.inner()).clone()), Mu::Certain(edit_c))
             };
 
             let var_c = HgvsVariant::CdsVariant {
@@ -474,7 +475,7 @@ impl Mapper {
 
             let (pos_g, edit_g) = if let Mu::Certain(pos_g) = pos_g {
                 let edit_g = self.convert_edit_check_strand(mapper.strand, &loc_edit.edit)?;
-                if let (NaEdit::Ins { .. }, Some(end), Some(start)) =
+                if let (NaEdit::Ins { alternative }, Some(end), Some(start)) =
                     (edit_g.inner(), pos_g.end, pos_g.start)
                 {
                     if end - start > 1 {
@@ -484,8 +485,9 @@ impl Mapper {
                                 end: Some(end - 1),
                             }),
                             Mu::from(
-                                NaEdit::Ins {
-                                    alternative: "".to_string(),
+                                NaEdit::RefAlt {
+                                    reference: "".to_string(),
+                                    alternative: alternative.clone(),
                                 },
                                 edit_g.is_certain(),
                             ),
@@ -499,12 +501,20 @@ impl Mapper {
             } else {
                 // variant at alignment gap
                 let pos_n = mapper.g_to_n(pos_g.inner())?;
+                let var_n = HgvsVariant::TxVariant {
+                    accession: var_c.accession().clone(),
+                    gene_symbol: var_c.gene_symbol().clone(),
+                    loc_edit: TxLocEdit {
+                        loc: pos_n.clone(),
+                        edit: Mu::Certain(var_c.na_edit().unwrap().clone()),
+                    },
+                };
                 let edit_n = NaEdit::RefAlt {
                     reference: "".to_string(),
                     alternative: self.get_altered_sequence(
                         mapper.strand,
                         pos_n.inner().clone().into(),
-                        &var_c,
+                        &var_n,
                     )?,
                 };
                 (pos_g, Mu::Certain(edit_n))

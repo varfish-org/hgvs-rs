@@ -434,6 +434,18 @@ impl HgvsVariant {
         }
     }
 
+    /// Return the gene symbol.
+    pub fn gene_symbol(&self) -> &Option<GeneSymbol> {
+        match self {
+            HgvsVariant::CdsVariant { gene_symbol, .. } => gene_symbol,
+            HgvsVariant::GenomeVariant { gene_symbol, .. } => gene_symbol,
+            HgvsVariant::MtVariant { gene_symbol, .. } => gene_symbol,
+            HgvsVariant::TxVariant { gene_symbol, .. } => gene_symbol,
+            HgvsVariant::ProtVariant { gene_symbol, .. } => gene_symbol,
+            HgvsVariant::RnaVariant { gene_symbol, .. } => gene_symbol,
+        }
+    }
+
     /// Return the accession.
     pub fn accession(&self) -> &Accession {
         match self {
