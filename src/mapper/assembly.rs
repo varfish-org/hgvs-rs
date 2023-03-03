@@ -271,10 +271,11 @@ impl Mapper {
     /// intronic variants.
     fn maybe_normalize(&self, var: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
         if self.config.normalize {
-            self.inner
-                .normalizer()?
-                .normalize(var)
-                .or_else(|_| Ok(var.clone()))
+            let normalizer = self.inner.normalizer()?;
+            normalizer.normalize(var).or_else(|_| {
+                log::warn!("Normalization of variable {} failed", &var);
+                Ok(var.clone())
+            })
         } else {
             Ok(var.clone())
         }
@@ -366,21 +367,21 @@ mod test {
 
     use super::{Config, Mapper};
 
-    fn build_mapper_38() -> Result<Mapper, anyhow::Error> {
+    fn build_mapper_38(normalize: bool) -> Result<Mapper, anyhow::Error> {
         let provider = build_provider()?;
         let config = Config {
             assembly: Assembly::Grch38,
-            normalize: false,
+            normalize,
             ..Config::default()
         };
         Ok(Mapper::new(config, provider))
     }
 
-    fn build_mapper_37() -> Result<Mapper, anyhow::Error> {
+    fn build_mapper_37(normalize: bool) -> Result<Mapper, anyhow::Error> {
         let provider = build_provider()?;
         let config = Config {
             assembly: Assembly::Grch37,
-            normalize: false,
+            normalize,
             ..Config::default()
         };
         Ok(Mapper::new(config, provider))
@@ -388,7 +389,7 @@ mod test {
 
     #[test]
     fn smoke() -> Result<(), anyhow::Error> {
-        build_mapper_38()?;
+        build_mapper_38(true)?;
         Ok(())
     }
 
@@ -405,7 +406,7 @@ mod test {
 
         #[test]
         fn test_quick_aoah() -> Result<(), anyhow::Error> {
-            let mapper = build_mapper_38()?;
+            let mapper = build_mapper_38(true)?;
             let hgvs_g = "NC_000007.13:g.36561662C>T";
             let hgvs_c = "NM_001637.3:c.1582G>A";
             let hgvs_p = "NP_001628.1:p.Gly528Arg";
@@ -422,7 +423,7 @@ mod test {
 
         #[test]
         fn test_fail_c_to_p_brca2() -> Result<(), anyhow::Error> {
-            let mapper = build_mapper_38()?;
+            let mapper = build_mapper_38(true)?;
             let hgvs_c = "NM_000059.3:c.7790delAAG";
             let var_c = HgvsVariant::from_str(hgvs_c)?;
 
@@ -462,9 +463,9 @@ mod test {
             #[case] build: i32,
         ) -> Result<(), anyhow::Error> {
             let mapper = if build == 38 {
-                build_mapper_38()?
+                build_mapper_38(true)?
             } else {
-                build_mapper_37()?
+                build_mapper_37(true)?
             };
 
             let var_c = HgvsVariant::from_str(hgvs_c)?;
@@ -519,9 +520,9 @@ mod test {
             #[case] build: i32,
         ) -> Result<(), anyhow::Error> {
             let mapper = if build == 38 {
-                build_mapper_38()?
+                build_mapper_38(true)?
             } else {
-                build_mapper_37()?
+                build_mapper_37(true)?
             };
 
             let var_lhs = HgvsVariant::from_str(hgvs_lhs)?;
@@ -572,7 +573,7 @@ mod test {
             #[case] hgvs_p: &str,
             #[case] gene: &str,
         ) -> Result<(), anyhow::Error> {
-            let mapper = build_mapper_38()?;
+            let mapper = build_mapper_38(true)?;
             let var_c = HgvsVariant::from_str(hgvs_c)?;
 
             let actual = mapper.c_to_p(&var_c)?;
@@ -825,7 +826,7 @@ mod test {
             #[case] hgvs_n: &str,
             #[case] gene: &str,
         ) -> Result<(), anyhow::Error> {
-            let mapper = build_mapper_38()?;
+            let mapper = build_mapper_38(true)?;
             let var_c = HgvsVariant::from_str(hgvs_c)?;
             let var_g = HgvsVariant::from_str(hgvs_g)?;
             let var_n = HgvsVariant::from_str(hgvs_n)?;
@@ -861,7 +862,7 @@ mod test {
             hgvs_n: &str,
             hgvs_p: &str,
         ) -> Result<(), anyhow::Error> {
-            let mapper = build_mapper_37()?;
+            let mapper = build_mapper_37(false)?;
 
             let var_g = HgvsVariant::from_str(hgvs_g)?;
             let var_c = HgvsVariant::from_str(hgvs_c)?;
@@ -922,7 +923,7 @@ mod test {
 
         #[test]
         fn run() -> Result<(), anyhow::Error> {
-            let mapper = build_mapper_38()?;
+            let mapper = build_mapper_38(false)?;
             let mut rdr = csv::ReaderBuilder::new()
                 .delimiter(b'\t')
                 .has_headers(false)

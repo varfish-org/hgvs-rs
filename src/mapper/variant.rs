@@ -197,7 +197,7 @@ impl Mapper {
             );
             let (pos_n, edit_n) = if let Mu::Certain(pos_n) = pos_n {
                 let edit_n = self.convert_edit_check_strand(mapper.strand, &loc_edit.edit)?;
-                if let NaEdit::Ins { .. } = edit_n.inner() {
+                if let NaEdit::Ins { alternative } = edit_n.inner() {
                     if pos_n.start.offset.is_none()
                         && pos_n.end.offset.is_none()
                         && pos_n.end.base - pos_n.start.base > 1
@@ -213,8 +213,9 @@ impl Mapper {
                                     ..pos_n.end
                                 },
                             }),
-                            Mu::Certain(NaEdit::Ins {
-                                alternative: "".to_string(),
+                            Mu::Certain(NaEdit::RefAlt {
+                                reference: "".to_string(),
+                                alternative: alternative.clone(),
                             }),
                         )
                     } else {
@@ -233,7 +234,7 @@ impl Mapper {
                         &var_g,
                     )?,
                 };
-                (Mu::Uncertain((*pos_n.inner()).clone()), Mu::Certain(edit_n))
+                (Mu::Certain((*pos_n.inner()).clone()), Mu::Certain(edit_n))
             };
 
             // the following is not needed?
