@@ -10,7 +10,7 @@ const GRCH37_JSON_GZ: &[u8] = include_bytes!("_data/GRCh37.json.gz");
 const GRCH37_P10_JSON_GZ: &[u8] = include_bytes!("_data/GRCh37.p10.json.gz");
 const GRCH38_JSON_GZ: &[u8] = include_bytes!("_data/GRCh38.json.gz");
 
-#[derive(Debug, Deserialize, Enum, Clone, Copy)]
+#[derive(Debug, Deserialize, Enum, Clone, Copy, PartialEq, Eq)]
 pub enum Assembly {
     Grch37,
     Grch37p10,
