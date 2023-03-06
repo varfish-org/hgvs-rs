@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/bihealth/hgvs-rs/compare/v0.1.1...v0.2.0) (2023-03-06)
+
+
+### Features
+
+* implement PartialEq for Assembly ([#40](https://github.com/bihealth/hgvs-rs/issues/40)) ([8808211](https://github.com/bihealth/hgvs-rs/commit/8808211ed3f26c187f4d2787c23e680bbcdf38c3))
+
+
+### Bug Fixes
+
+* git lfs untrack 'src/static_data/**/*.json*' ([#41](https://github.com/bihealth/hgvs-rs/issues/41)) ([fa1af68](https://github.com/bihealth/hgvs-rs/commit/fa1af68c13b76bf1e9ba329159d3cf29b5893620))
+
 ## [0.1.1](https://github.com/bihealth/hgvs-rs/compare/v0.1.0...v0.1.1) (2023-03-03)
 
 
