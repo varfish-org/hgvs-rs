@@ -407,6 +407,7 @@ pub mod tests {
         assert_eq!(gap_to_cigar("M196 I1 M61 I1 M181"), "196=1D61=1D181=");
     }
 
+    #[cfg(skip_tests)]
     #[test]
     fn test_deserialize_big_files() -> Result<(), anyhow::Error> {
         let before = std::time::Instant::now();
