@@ -20,7 +20,7 @@ chrono = "0.4.23"
 enum-map = "2.4.2"
 flate2 = "1.0.25"
 lazy_static = "1.4.0"
-linked-hash-map = "0.5.6"
+linked-hash-map = { version = "0.5.6", features = ["serde", "serde_impl"] }
 log = "0.4.17"
 md-5 = "0.10.5"
 nom = "7.1.3"

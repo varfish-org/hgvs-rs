@@ -15,7 +15,7 @@ use crate::data::{
 };
 use seqrepo::{AliasOrSeqId, Interface as SeqRepoInterface, SeqRepo};
 
-/// Configurationf or the `data::uta::Provider`.
+/// Configuration for the `data::uta_sr::Provider`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Config {
     /// URL with the connection string, e.g.

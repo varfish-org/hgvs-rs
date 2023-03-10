@@ -17,7 +17,7 @@ use crate::data::{
     interface::TxMappingOptionsRecord, interface::TxSimilarityRecord,
 };
 
-/// Configurationf or the `data::uta::Provider`.
+/// Configuration for the `data::uta::Provider`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Config {
     /// URL with the connection string, e.g.
