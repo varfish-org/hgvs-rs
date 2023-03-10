@@ -233,7 +233,7 @@ pub mod models {
     pub fn gap_to_cigar(gap: &str) -> String {
         let mut result = String::new();
 
-        for gap_op in gap.split(" ") {
+        for gap_op in gap.split(' ') {
             result.push_str(&gap_op[1..]);
             let op = &gap_op[0..1];
             match op {
@@ -284,7 +284,7 @@ pub mod models {
             "MANE_Select" => Tag::ManeSelect,
             "MANE Select" => Tag::ManeSelect,
             "RefSeq Select" => Tag::RefSeqSelect,
-            _ => panic!("Invalid transcript tag {:?}", s),
+            _ => panic!("Invalid transcript tag {s:?}"),
         }
     }
 
@@ -299,9 +299,9 @@ pub mod models {
             opt_wrapped.map(|wrapped| {
                 wrapped
                     .0
-                    .split(",")
+                    .split(',')
                     .into_iter()
-                    .map(|s| str_to_tag(s))
+                    .map(str_to_tag)
                     .collect()
             })
         })
@@ -353,7 +353,7 @@ pub mod models {
             "TR_V_pseudogene" => BioType::TrVPseudogene,
             "unitary_pseudogene" => BioType::UnitaryPseudogene,
             "unprocessed_pseudogene" => BioType::UnprocessedPseudogene,
-            _ => panic!("Unknown biotype {:?}", s),
+            _ => panic!("Unknown biotype {s:?}"),
         }
     }
 
@@ -366,9 +366,9 @@ pub mod models {
             if buf.is_empty() {
                 Vec::new()
             } else {
-                buf.split(",")
+                buf.split(',')
                     .into_iter()
-                    .map(|s| str_to_biotype(s))
+                    .map(str_to_biotype)
                     .collect()
             }
         }))
