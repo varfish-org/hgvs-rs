@@ -68,7 +68,7 @@ impl Provider {
 
         Ok(Self {
             inner: TxProvider::with_config(
-                &config
+                config
                     .json_paths
                     .iter()
                     .map(|s| s.as_str())
@@ -86,7 +86,7 @@ impl Provider {
     ) -> Result<Provider, anyhow::Error> {
         Ok(Self {
             inner: TxProvider::with_config(
-                &config
+                config
                     .json_paths
                     .iter()
                     .map(|s| s.as_str())
@@ -608,9 +608,9 @@ impl TxProvider {
             .values()
             .into_iter()
             .filter(|gene| {
-                !gene.gene_symbol.is_none()
+                gene.gene_symbol.is_some()
                     && !gene.gene_symbol.as_ref().unwrap().is_empty()
-                    && !gene.map_location.is_none()
+                    && gene.map_location.is_some()
                     && !gene.map_location.as_ref().unwrap().is_empty()
             })
             .for_each(|gene| {
@@ -623,12 +623,12 @@ impl TxProvider {
         c_txs
             .values()
             .into_iter()
-            .filter(|tx| !tx.gene_name.is_none() && !tx.gene_name.as_ref().unwrap().is_empty())
+            .filter(|tx| tx.gene_name.is_some() && !tx.gene_name.as_ref().unwrap().is_empty())
             .for_each(|tx| {
                 let gene_name = tx.gene_name.as_ref().unwrap();
                 transcript_ids_for_gene
                     .get_mut(gene_name)
-                    .expect(&format!("tx {:?} for unknown gene {:?}", tx.id, gene_name))
+                    .unwrap_or_else(|| panic!("tx {:?} for unknown gene {:?}", tx.id, gene_name))
                     .push(tx.id.clone());
                 transcripts.insert(tx.id.clone(), tx.clone());
             });
@@ -1062,7 +1062,7 @@ pub mod tests {
         // Note that we don't actually use the seqrepo instance except for initializing the provider.
         let seqrepo: Rc<dyn SeqRepoInterface> =
             Rc::new(CacheReadingSeqRepo::new("tests/data/seqrepo_cache.fasta")?);
-        Ok(Provider::with_seqrepo(config, seqrepo)?)
+        Provider::with_seqrepo(config, seqrepo)
     }
 
     #[test]
