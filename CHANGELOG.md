@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/bihealth/hgvs-rs/compare/v0.3.0...v0.3.1) (2023-03-13)
+
+
+### Bug Fixes
+
+* deriving PartialEq and Eq for enums ([#47](https://github.com/bihealth/hgvs-rs/issues/47)) ([abd946e](https://github.com/bihealth/hgvs-rs/commit/abd946e0b37444222ff4f30da99eb61d67ac1a3d))
+
 ## [0.3.0](https://github.com/bihealth/hgvs-rs/compare/v0.2.0...v0.3.0) (2023-03-13)
 
 
