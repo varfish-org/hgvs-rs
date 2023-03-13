@@ -318,7 +318,7 @@ pub trait Provider {
     /// * `tx_ac` -- transcript accession with version (e.g., 'NM_000051.3')
     fn get_tx_mapping_options(
         &self,
-        tax_ac: &str,
+        tx_ac: &str,
     ) -> Result<Vec<TxMappingOptionsRecord>, anyhow::Error>;
 }
 

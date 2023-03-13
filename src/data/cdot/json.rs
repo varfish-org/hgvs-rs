@@ -1,0 +1,1058 @@
+//! Access to `cdot` transcripts from local JSON files with sequences from a `seqrepo`.
+//!
+//! https://github.com/SACGF/cdot
+
+use std::{collections::HashMap, path::PathBuf, rc::Rc, time::Instant};
+
+use crate::{
+    data::interface::{
+        GeneInfoRecord, Provider as ProviderInterface, TxExonsRecord, TxForRegionRecord,
+        TxIdentityInfo, TxInfoRecord, TxMappingOptionsRecord, TxSimilarityRecord,
+    },
+    static_data::{Assembly, ASSEMBLY_INFOS},
+};
+
+use bio::data_structures::interval_tree::ArrayBackedIntervalTree;
+use chrono::NaiveDateTime;
+use linked_hash_map::LinkedHashMap;
+use seqrepo::{Interface as SeqRepoInterface, SeqRepo};
+
+/// Configurationf or the `data::cdot::Provider`.
+#[derive(Debug, PartialEq, Clone)]
+pub struct Config {
+    /// Paths to the gzip-ed JSON files to load
+    pub json_paths: Vec<String>,
+    /// Path to the seqrepo directory, e.g., `/usr/local/share/seqrepo/latest`.  The last path
+    /// component is the "instance" name.
+    pub seqrepo_path: String,
+}
+
+/// This provider provides information from a UTA and a SeqRepo.
+///
+/// Transcripts from a UTA Postgres database, sequences comes from a SeqRepo.  This makes
+/// genome contig information available in contrast to `data::uta::Provider`.
+///
+/// # Remarks
+///
+/// The method are not implemented.
+///
+/// The method `get_tx_exons()` returns `None` for record entries `tx_aseq`, and `alt_aseq`
+/// and `std::i32::MAX` for `tx_exon-set_id`, `alt_exon_set_id`, `tx_exon_id`, `alt_exon_id`,
+/// `exon_aln_id`.
+pub struct Provider {
+    inner: TxProvider,
+    seqrepo: Rc<dyn SeqRepoInterface>,
+}
+
+impl Provider {
+    pub fn new(config: Config) -> Result<Self, anyhow::Error> {
+        let seqrepo = PathBuf::from(&config.seqrepo_path);
+        let path = seqrepo
+            .parent()
+            .ok_or(anyhow::anyhow!(
+                "Could not get parent from {}",
+                &config.seqrepo_path
+            ))?
+            .to_str()
+            .unwrap()
+            .to_string();
+        let instance = seqrepo
+            .file_name()
+            .ok_or(anyhow::anyhow!(
+                "Could not get basename from {}",
+                &config.seqrepo_path
+            ))?
+            .to_str()
+            .unwrap()
+            .to_string();
+
+        let inner = TxProvider::new(
+            &config
+                .json_paths
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<&str>>()
+                .as_ref(),
+        )?;
+
+        Ok(Self {
+            inner,
+            seqrepo: Rc::new(SeqRepo::new(path, &instance)?),
+        })
+    }
+}
+
+impl ProviderInterface for Provider {
+    fn data_version(&self) -> &str {
+        self.inner.data_version()
+    }
+
+    fn schema_version(&self) -> &str {
+        self.inner.schema_version()
+    }
+
+    fn get_assembly_map(
+        &self,
+        assembly: crate::static_data::Assembly,
+    ) -> linked_hash_map::LinkedHashMap<String, String> {
+        self.inner.get_assembly_map(assembly)
+    }
+
+    fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, anyhow::Error> {
+        self.inner.get_gene_info(hgnc)
+    }
+
+    fn get_pro_ac_for_tx_ac(&self, tx_ac: &str) -> Result<Option<String>, anyhow::Error> {
+        self.inner.get_pro_ac_for_tx_ac(tx_ac)
+    }
+
+    fn get_seq_part(
+        &self,
+        ac: &str,
+        begin: Option<usize>,
+        end: Option<usize>,
+    ) -> Result<String, anyhow::Error> {
+        self.seqrepo.fetch_sequence_part(
+            &seqrepo::AliasOrSeqId::Alias {
+                value: ac.to_string(),
+                namespace: None,
+            },
+            begin,
+            end,
+        )
+    }
+
+    fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, anyhow::Error> {
+        self.inner.get_acs_for_protein_seq(seq)
+    }
+
+    fn get_similar_transcripts(
+        &self,
+        tx_ac: &str,
+    ) -> Result<Vec<TxSimilarityRecord>, anyhow::Error> {
+        self.inner.get_similar_transcripts(tx_ac)
+    }
+
+    fn get_tx_exons(
+        &self,
+        tx_ac: &str,
+        alt_ac: &str,
+        alt_aln_method: &str,
+    ) -> Result<Vec<TxExonsRecord>, anyhow::Error> {
+        self.inner.get_tx_exons(tx_ac, alt_ac, alt_aln_method)
+    }
+
+    fn get_tx_for_gene(&self, gene: &str) -> Result<Vec<TxInfoRecord>, anyhow::Error> {
+        self.inner.get_tx_for_gene(gene)
+    }
+
+    fn get_tx_for_region(
+        &self,
+        alt_ac: &str,
+        alt_aln_method: &str,
+        start_i: i32,
+        end_i: i32,
+    ) -> Result<Vec<TxForRegionRecord>, anyhow::Error> {
+        self.inner
+            .get_tx_for_region(alt_ac, alt_aln_method, start_i, end_i)
+    }
+
+    fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, anyhow::Error> {
+        self.inner.get_tx_identity_info(tx_ac)
+    }
+
+    fn get_tx_info(
+        &self,
+        tx_ac: &str,
+        alt_ac: &str,
+        alt_aln_method: &str,
+    ) -> Result<TxInfoRecord, anyhow::Error> {
+        self.inner.get_tx_info(tx_ac, alt_ac, alt_aln_method)
+    }
+
+    fn get_tx_mapping_options(
+        &self,
+        tx_ac: &str,
+    ) -> Result<Vec<TxMappingOptionsRecord>, anyhow::Error> {
+        self.inner.get_tx_mapping_options(tx_ac)
+    }
+}
+
+/// Data structures used for deserializing from cdot.
+pub mod models {
+    use linked_hash_map::LinkedHashMap;
+    use serde::{Deserialize, Deserializer};
+
+    /// Container for a cDot data file.
+    #[derive(Deserialize, Debug, Clone)]
+    pub struct Container {
+        pub transcripts: LinkedHashMap<String, Transcript>,
+        pub cdot_version: String,
+        pub genome_builds: Vec<String>,
+        pub genes: LinkedHashMap<String, Gene>,
+    }
+
+    /// Enum for representing the tags for transcripts.
+    #[derive(Debug, Clone, Copy)]
+    pub enum Tag {
+        Basic,
+        EnsemblCanonical,
+        ManeSelect,
+        ManePlusClinical,
+        RefSeqSelect,
+    }
+
+    #[derive(Deserialize, Debug, Clone)]
+    pub struct Transcript {
+        /// Transcript biotype, e.g., `vec![BioType::ProteinCoding]` for BRCA1.
+        #[serde(default)]
+        pub biotype: Option<Vec<BioType>>,
+        /// Gene name, e.g., `"BRCA1"` for BRCA1.
+        #[serde(default)]
+        pub gene_name: Option<String>,
+        /// Gene version, NCBI gene ID for NCBI, e.g., `"672"` for BRCA1, ENSEMBL gene id, e.g.,
+        /// `"ENSG00000012048"` for BRCA1.
+        pub gene_version: String,
+        /// Alignments to the different genome builds.
+        pub genome_builds: LinkedHashMap<String, GenomeAlignment>,
+        /// HGNC identifier, e.g. `"1100"` for BRCA1 which is `HGNC:1100`.
+        #[serde(default)]
+        pub hgnc: Option<String>,
+        /// Identifier of the transcript, same as key in `transcripts`, e.g., `"NM_007294.3"` for BRCA1.
+        pub id: String,
+        /// Identifier of corresponding protein, e.g., `"NP_009225.1"` for `"NM_007294.3"` of BRCA1.
+        #[serde(default)]
+        pub protein: Option<String>,
+        /// Start codon of transcript, e.g., `232` for `"NM_007294.3"` of BRCA1.
+        #[serde(default)]
+        pub start_codon: Option<i32>,
+        /// Stop codon of transcript, e.g., `232` for `"NM_007294.3"` of BRCA1.
+        #[serde(default)]
+        pub stop_codon: Option<i32>,
+        /// Tags of the transcript.
+        #[serde(default)]
+        #[serde(deserialize_with = "deserialize_tag")]
+        pub tag: Option<Vec<Tag>>,
+    }
+
+    /// Representation of the strand.
+    #[derive(Deserialize, Debug, Clone, Copy)]
+    pub enum Strand {
+        #[serde(rename = "+")]
+        Plus,
+        #[serde(rename = "-")]
+        Minus,
+    }
+
+    /// Representation of an exon in the JSON.
+    #[derive(Deserialize, Debug, Clone)]
+    struct ExonHelper(i32, i32, i32, i32, i32, Option<String>);
+
+    /// Representation of an exon after loading.
+    #[derive(Debug, Clone)]
+    pub struct Exon {
+        /// Start position on reference.
+        pub alt_start_i: i32,
+        /// End position on reference.
+        pub alt_end_i: i32,
+        /// Exon number.
+        pub ord: i32,
+        /// CDS start coordinate.
+        pub alt_cds_start_i: i32,
+        /// CDS end coordinate.
+        pub alt_cds_end_i: i32,
+        /// Alignment of an exon in CIGAR format.
+        pub cigar: String,
+    }
+
+    /// Representation of `transcripts.*.genome_builds` value.
+    #[derive(Deserialize, Debug, Clone)]
+    pub struct GenomeAlignment {
+        /// CDS end position.
+        #[serde(default)]
+        pub cds_end: Option<i32>,
+        /// CDS start position.
+        #[serde(default)]
+        pub cds_start: Option<i32>,
+        /// ID of the contig.
+        pub contig: String,
+        /// List of exons.
+        pub exons: Vec<Exon>,
+        /// The strand.
+        pub strand: Strand,
+    }
+
+    /// Enum for representing the biotypes.
+    #[derive(Deserialize, Debug, Clone, Copy)]
+    pub enum BioType {
+        #[serde(rename = "3prime_overlapping_ncrna")]
+        ThreePrimeOverlappingNcRna,
+        #[serde(rename = "antisense")]
+        Antisense,
+        #[serde(rename = "artifact")]
+        Artifact,
+        #[serde(rename = "IG_C_gene")]
+        IgCGene,
+        #[serde(rename = "IG_C_pseudogene")]
+        IgCPseudogene,
+        #[serde(rename = "IG_D_gene")]
+        IgDGene,
+        #[serde(rename = "IG_J_gene")]
+        IdJGene,
+        #[serde(rename = "IG_J_pseudogene")]
+        IdJPseudogene,
+        #[serde(rename = "IG_pseudogene")]
+        IdPseudogene,
+        #[serde(rename = "IG_V_gene")]
+        IgVGene,
+        #[serde(rename = "IG_V_pseudogene")]
+        IgVPseudogene,
+        #[serde(rename = "Mt_rRNA")]
+        MtRna,
+        #[serde(rename = "non_coding")]
+        NonCoding,
+        #[serde(rename = "polymorphic_pseudogene")]
+        PolymorphicPseudogene,
+        #[serde(rename = "processed_pseudogene")]
+        ProcessedPseudogene,
+        #[serde(rename = "protein_coding")]
+        ProteinCoding,
+        #[serde(rename = "pseudogene")]
+        Pseudogene,
+        #[serde(rename = "rRNA_pseudogene")]
+        RnaPseudogene,
+        #[serde(rename = "sense_intronic")]
+        SenseIntronic,
+        #[serde(rename = "sense_overlapping")]
+        SenseOverlapping,
+        #[serde(rename = "sRNA")]
+        SRna,
+        #[serde(rename = "TEC")]
+        Tec,
+        #[serde(rename = "transcribed_processed_pseudogene")]
+        TranscriptProcessedPseudogene,
+        #[serde(rename = "transcribed_unitary_pseudogene")]
+        TranscriptUnitaryPseudogene,
+        #[serde(rename = "transcribed_unprocessed_pseudogene")]
+        TranscriptUnprocessedPseudogene,
+        #[serde(rename = "translated_processed_pseudogene")]
+        TranslatedProcessedPseudogene,
+        #[serde(rename = "translated_unprocessed_pseudogene")]
+        TranslatedUnprocessedPseudogene,
+        #[serde(rename = "TR_C_gene")]
+        TrCGene,
+        #[serde(rename = "TR_D_gene")]
+        TrDGene,
+        #[serde(rename = "TR_J_gene")]
+        TrJGene,
+        #[serde(rename = "TR_J_pseudogene")]
+        TrJPseudogene,
+        #[serde(rename = "TR_V_gene")]
+        TrVGene,
+        #[serde(rename = "TR_V_pseudogene")]
+        TrVPseudogene,
+        #[serde(rename = "unitary_pseudogene")]
+        UnitaryPseudogene,
+        #[serde(rename = "unprocessed_pseudogene")]
+        UnprocessedPseudogene,
+    }
+
+    #[derive(Deserialize, Debug, Clone)]
+    pub struct Gene {
+        #[serde(default)]
+        #[serde(deserialize_with = "deserialize_gene_aliases")]
+        pub aliases: Option<Vec<String>>,
+        #[serde(default)]
+        #[serde(deserialize_with = "deserialize_gene_biotype")]
+        pub biotype: Option<Vec<BioType>>,
+        #[serde(default)]
+        pub description: Option<String>,
+        pub gene_symbol: Option<String>,
+        #[serde(default)]
+        pub hgnc: Option<String>,
+        #[serde(default)]
+        pub map_location: Option<String>,
+        #[serde(default)]
+        pub summary: Option<String>,
+        pub url: String,
+    }
+
+    /// Convert cdot gap to CIGAR string.
+    ///
+    /// ```
+    // gap = 'M196 I1 M61 I1 M181'
+    // CIGAR = '194=1D60=1D184='
+    /// ```
+    pub fn gap_to_cigar(gap: &str) -> String {
+        let mut result = String::new();
+
+        for gap_op in gap.split(' ') {
+            result.push_str(&gap_op[1..]);
+            let op = &gap_op[0..1];
+            match op {
+                "M" => result.push('='),
+                "I" => result.push('D'),
+                "D" => result.push('I'),
+                _ => panic!("unknown"),
+            }
+        }
+
+        result
+    }
+
+    impl<'de> Deserialize<'de> for Exon {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            Deserialize::deserialize(deserializer).map(
+                |ExonHelper(alt_start_i, alt_end_i, ord, alt_cds_start_i, alt_cds_end_i, gap)| {
+                    Exon {
+                        alt_start_i,
+                        alt_end_i,
+                        ord,
+                        alt_cds_start_i,
+                        alt_cds_end_i,
+                        cigar: if let Some(gap) = gap {
+                            gap_to_cigar(&gap)
+                        } else {
+                            format!("{}M", alt_end_i - alt_start_i + 1)
+                        },
+                    }
+                },
+            )
+        }
+    }
+
+    fn str_to_tag(s: &str) -> Tag {
+        match s {
+            "basic" => Tag::Basic,
+            "Ensembl_canonical" => Tag::EnsemblCanonical,
+            "MANE_Plus_Clinical" => Tag::ManePlusClinical,
+            "MANE_Select" => Tag::ManeSelect,
+            "MANE Select" => Tag::ManeSelect,
+            "RefSeq Select" => Tag::RefSeqSelect,
+            _ => panic!("Invalid transcript tag {s:?}"),
+        }
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct WrappedString(String);
+
+    fn deserialize_tag<'de, D>(deserializer: D) -> Result<Option<Vec<Tag>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Option::<WrappedString>::deserialize(deserializer).map(|opt_wrapped| {
+            opt_wrapped.map(|wrapped| wrapped.0.split(',').into_iter().map(str_to_tag).collect())
+        })
+    }
+
+    fn deserialize_gene_aliases<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let buf = Option::<String>::deserialize(deserializer)?;
+
+        Ok(buf.map(|s| s.split(", ").into_iter().map(|s| s.to_string()).collect()))
+    }
+
+    fn str_to_biotype(s: &str) -> BioType {
+        match s {
+            "3prime_overlapping_ncrna" => BioType::ThreePrimeOverlappingNcRna,
+            "antisense" => BioType::Antisense,
+            "artifact" => BioType::Artifact,
+            "IG_C_gene" => BioType::IgCGene,
+            "IG_C_pseudogene" => BioType::IgCPseudogene,
+            "IG_D_gene" => BioType::IgDGene,
+            "IG_J_gene" => BioType::IdJGene,
+            "IG_J_pseudogene" => BioType::IdJPseudogene,
+            "IG_pseudogene" => BioType::IdPseudogene,
+            "IG_V_gene" => BioType::IgVGene,
+            "IG_V_pseudogene" => BioType::IgVPseudogene,
+            "Mt_rRNA" => BioType::MtRna,
+            "non_coding" => BioType::NonCoding,
+            "polymorphic_pseudogene" => BioType::PolymorphicPseudogene,
+            "processed_pseudogene" => BioType::ProcessedPseudogene,
+            "protein_coding" => BioType::ProteinCoding,
+            "pseudogene" => BioType::Pseudogene,
+            "rRNA_pseudogene" => BioType::RnaPseudogene,
+            "sense_intronic" => BioType::SenseIntronic,
+            "sense_overlapping" => BioType::SenseOverlapping,
+            "sRNA" => BioType::SRna,
+            "TEC" => BioType::Tec,
+            "transcribed_processed_pseudogene" => BioType::TranscriptProcessedPseudogene,
+            "transcribed_unitary_pseudogene" => BioType::TranscriptUnitaryPseudogene,
+            "transcribed_unprocessed_pseudogene" => BioType::TranscriptUnprocessedPseudogene,
+            "translated_processed_pseudogene" => BioType::TranslatedProcessedPseudogene,
+            "translated_unprocessed_pseudogene" => BioType::TranslatedUnprocessedPseudogene,
+            "TR_C_gene" => BioType::TrCGene,
+            "TR_D_gene" => BioType::TrDGene,
+            "TR_J_gene" => BioType::TrJGene,
+            "TR_J_pseudogene" => BioType::TrJPseudogene,
+            "TR_V_gene" => BioType::TrVGene,
+            "TR_V_pseudogene" => BioType::TrVPseudogene,
+            "unitary_pseudogene" => BioType::UnitaryPseudogene,
+            "unprocessed_pseudogene" => BioType::UnprocessedPseudogene,
+            _ => panic!("Unknown biotype {s:?}"),
+        }
+    }
+
+    fn deserialize_gene_biotype<'de, D>(deserializer: D) -> Result<Option<Vec<BioType>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let buf = Option::<String>::deserialize(deserializer)?;
+        Ok(buf.map(|buf| {
+            if buf.is_empty() {
+                Vec::new()
+            } else {
+                buf.split(',').into_iter().map(str_to_biotype).collect()
+            }
+        }))
+    }
+}
+
+/// Type alias for interval trees.
+type IntervalTree = ArrayBackedIntervalTree<i32, String>;
+
+/// Internal implementation of the transcript provider.
+struct TxProvider {
+    /// Genes by HGNC symbol.
+    genes: HashMap<String, models::Gene>,
+    /// Transcripts by ID.
+    transcripts: HashMap<String, models::Transcript>,
+    /// Transcript identifiers for each gene HGNC symbol.
+    transcript_ids_for_gene: HashMap<String, Vec<String>>,
+    /// Interval tree for each alternative contig.
+    interval_trees: HashMap<String, IntervalTree>,
+}
+
+/// "Normal" associated functions and methods.
+impl TxProvider {
+    fn new(json_paths: &[&str]) -> Result<Self, anyhow::Error> {
+        let mut genes = HashMap::new();
+        let mut transcripts = HashMap::new();
+        let mut transcript_ids_for_gene = HashMap::new();
+
+        for json_path in json_paths {
+            let start = Self::load_and_extract(
+                json_path,
+                &mut transcript_ids_for_gene,
+                &mut genes,
+                &mut transcripts,
+            )?;
+        }
+
+        let interval_trees = Self::build_interval_trees(&transcripts);
+
+        Ok(Self {
+            genes,
+            transcripts,
+            transcript_ids_for_gene,
+            interval_trees,
+        })
+    }
+
+    fn load_and_extract(
+        json_path: &&str,
+        transcript_ids_for_gene: &mut HashMap<String, Vec<String>>,
+        genes: &mut HashMap<String, models::Gene>,
+        transcripts: &mut HashMap<String, models::Transcript>,
+    ) -> Result<Instant, anyhow::Error> {
+        log::debug!("Loading cdot transcripts from {:?}", json_path);
+        let start = Instant::now();
+        let models::Container {
+            genes: c_genes,
+            transcripts: c_txs,
+            ..
+        } = if json_path.ends_with(".gz") {
+            serde_json::from_reader(flate2::bufread::GzDecoder::new(std::io::BufReader::new(
+                std::fs::File::open(json_path)?,
+            )))?
+        } else {
+            serde_json::from_reader(std::io::BufReader::new(std::fs::File::open(json_path)?))?
+        };
+        log::debug!("loading / deserializing cdot took {:?}", start.elapsed());
+
+        let start = Instant::now();
+        c_genes
+            .values()
+            .into_iter()
+            .filter(|gene| {
+                !gene.gene_symbol.is_none()
+                    && !gene.gene_symbol.as_ref().unwrap().is_empty()
+                    && !gene.map_location.is_none()
+                    && !gene.map_location.as_ref().unwrap().is_empty()
+            })
+            .for_each(|gene| {
+                let gene_symbol = gene.gene_symbol.as_ref().unwrap().clone();
+                transcript_ids_for_gene
+                    .entry(gene_symbol.clone())
+                    .or_insert(Vec::new());
+                genes.insert(gene_symbol, gene.clone());
+            });
+        c_txs
+            .values()
+            .into_iter()
+            .filter(|tx| tx.gene_name.is_none() || tx.gene_name.as_ref().unwrap().is_empty())
+            .for_each(|tx| {
+                let gene_name = tx.gene_name.as_ref().unwrap();
+                transcript_ids_for_gene
+                    .get_mut(gene_name)
+                    .expect(&format!("tx {:?} for unknown gene {:?}", tx.id, gene_name))
+                    .push(tx.id.clone());
+                transcripts.insert(tx.id.clone(), tx.clone());
+            });
+        log::debug!("extracting datastructures took {:?}", start.elapsed());
+        Ok(start)
+    }
+
+    fn build_interval_trees(
+        transcripts: &HashMap<String, models::Transcript>,
+    ) -> HashMap<String, IntervalTree> {
+        let start = Instant::now();
+        log::debug!("Building interval trees...");
+
+        let mut result = HashMap::new();
+        for transcript in transcripts.values() {
+            for genome_alignment in transcript.genome_builds.values() {
+                let contig = &genome_alignment.contig;
+                result.entry(contig.clone()).or_insert(IntervalTree::new());
+                let tree = result.get_mut(contig).unwrap();
+                let alt_start_i = genome_alignment
+                    .exons
+                    .iter()
+                    .map(|exon| exon.alt_start_i)
+                    .min()
+                    .unwrap()
+                    - 1;
+                let alt_end_i = genome_alignment
+                    .exons
+                    .iter()
+                    .map(|exon| exon.alt_end_i)
+                    .max()
+                    .unwrap();
+                tree.insert(alt_start_i..alt_end_i, transcript.id.clone());
+            }
+        }
+
+        for tree in result.values_mut() {
+            tree.index();
+        }
+
+        log::debug!("Built interval trees in {:?}", start.elapsed());
+        result
+    }
+}
+
+/// What is returned by `Provider::schema_version()` and `Provider::data_version()`.
+pub static REQUIRED_VERSION: &str = "1.1";
+
+/// The alignment method returned for all cdot transcripts.
+pub static NCBI_ALN_METHOD: &str = "splign";
+
+/// Implementation for `ProviderInterface`.
+impl TxProvider {
+    fn data_version(&self) -> &str {
+        REQUIRED_VERSION
+    }
+
+    fn schema_version(&self) -> &str {
+        REQUIRED_VERSION
+    }
+
+    fn get_assembly_map(&self, assembly: Assembly) -> LinkedHashMap<String, String> {
+        LinkedHashMap::from_iter(
+            ASSEMBLY_INFOS[assembly]
+                .sequences
+                .iter()
+                .map(|record| (record.refseq_ac.clone(), record.name.clone())),
+        )
+    }
+
+    fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, anyhow::Error> {
+        let gene = self
+            .genes
+            .get(hgnc)
+            .ok_or(anyhow::anyhow!("No gene found for {:?}", hgnc))?;
+
+        Ok(GeneInfoRecord {
+            hgnc: gene
+                .gene_symbol
+                .as_ref()
+                .expect("cannot happen; genes without symbol are not imported")
+                .clone(),
+            maploc: gene
+                .map_location
+                .as_ref()
+                .expect("cannot happen; genes without map_location are not imported")
+                .clone(),
+            descr: gene
+                .description
+                .as_ref()
+                .map(Clone::clone)
+                .unwrap_or_default(),
+            summary: gene.summary.as_ref().map(Clone::clone).unwrap_or_default(),
+            aliases: gene.aliases.as_ref().map(Clone::clone).unwrap_or_default(),
+            added: NaiveDateTime::default(),
+        })
+    }
+
+    fn get_pro_ac_for_tx_ac(&self, tx_ac: &str) -> Result<Option<String>, anyhow::Error> {
+        let transcript = self
+            .transcripts
+            .get(tx_ac)
+            .ok_or(anyhow::anyhow!("No transcript found for {:?}", &tx_ac))?;
+        Ok(transcript.protein.clone())
+    }
+
+    /// Note from the original cdot Python code.
+    ///
+    /// This is not implemented. The only caller has comment: 'TODO: drop get_acs_for_protein_seq'
+    /// And is only ever called as a backup when get_pro_ac_for_tx_ac fails
+    #[allow(dead_code)]
+    fn get_acs_for_protein_seq(&self, _seq: &str) -> Result<Vec<String>, anyhow::Error> {
+        log::warn!(
+            "cdot::data::json::TxProvider::get_acs_for_protein_seq() \
+            This has not been implemented"
+        );
+        Ok(vec![])
+    }
+
+    /// Note from the original cdot Python code.
+    ///
+    /// UTA specific functionality that uses tx_similarity_v table
+    /// This is not used by the HGVS library
+    #[allow(dead_code)]
+    fn get_similar_transcripts(
+        &self,
+        _tx_ac: &str,
+    ) -> Result<Vec<TxSimilarityRecord>, anyhow::Error> {
+        log::warn!(
+            "cdot::data::json::TxProvider::get_similar_transcripts() \
+            This has not been implemented"
+        );
+        Ok(vec![])
+    }
+
+    fn get_tx_exons(
+        &self,
+        tx_ac: &str,
+        alt_ac: &str,
+        alt_aln_method: &str,
+    ) -> Result<Vec<TxExonsRecord>, anyhow::Error> {
+        let tx = self.transcripts.get(tx_ac).ok_or(anyhow::anyhow!(
+            "Could not find transcript for {:?}",
+            &tx_ac
+        ))?;
+
+        let genome_alignment = tx
+            .genome_builds
+            .values()
+            .find(|genome_alignment| genome_alignment.contig == alt_ac);
+        if let Some(genome_alignment) = genome_alignment {
+            Ok(genome_alignment
+                .exons
+                .iter()
+                .map(|exon| TxExonsRecord {
+                    hgnc: tx
+                        .gene_name
+                        .as_ref()
+                        .expect("cannot happen; transcript without gene name not imported")
+                        .clone(),
+                    tx_ac: tx_ac.to_string(),
+                    alt_ac: genome_alignment.contig.clone(),
+                    alt_aln_method: alt_aln_method.to_string(),
+                    alt_strand: match genome_alignment.strand {
+                        models::Strand::Plus => 1,
+                        models::Strand::Minus => -1,
+                    },
+                    ord: exon.ord,
+                    tx_start_i: exon.alt_cds_start_i - 1,
+                    tx_end_i: exon.alt_cds_end_i,
+                    alt_start_i: exon.alt_start_i,
+                    alt_end_i: exon.alt_end_i,
+                    cigar: exon.cigar.clone(),
+                    tx_aseq: None,
+                    alt_aseq: None,
+                    tx_exon_set_id: std::i32::MAX,
+                    alt_exon_set_id: std::i32::MAX,
+                    tx_exon_id: std::i32::MAX,
+                    alt_exon_id: std::i32::MAX,
+                    exon_aln_id: std::i32::MAX,
+                })
+                .collect())
+        } else {
+            Err(anyhow::anyhow!(
+                "Could not find alignment of {:?} to {:?}",
+                tx_ac,
+                alt_ac
+            ))
+        }
+    }
+
+    fn get_tx_for_gene(&self, gene: &str) -> Result<Vec<TxInfoRecord>, anyhow::Error> {
+        if let Some(tx_acs) = self.transcript_ids_for_gene.get(gene) {
+            let mut tmp = Vec::new();
+            for tx_ac in tx_acs {
+                let tx = self.transcripts.get(tx_ac).unwrap();
+                let cds_start_i = tx.start_codon;
+                let cds_end_i = tx.stop_codon;
+                for genome_alignment in tx.genome_builds.values() {
+                    let contig = &genome_alignment.contig;
+                    let tx_start = genome_alignment.exons.first().unwrap().alt_start_i;
+                    let tx_end = genome_alignment.exons.last().unwrap().alt_end_i;
+                    let length = tx_end - tx_start;
+                    let rec = TxInfoRecord {
+                        hgnc: gene.to_string(),
+                        cds_start_i,
+                        cds_end_i,
+                        tx_ac: tx_ac.clone(),
+                        alt_ac: contig.clone(),
+                        alt_aln_method: NCBI_ALN_METHOD.to_string(),
+                    };
+                    tmp.push((length, rec));
+                }
+            }
+
+            // Sorted by length in descending order.
+            tmp.sort_by(|a, b| b.0.cmp(&a.0));
+
+            Ok(tmp.into_iter().map(|x| x.1).collect())
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    // NB: This implementation uses hgvs semantics, not cdot.
+    //
+    // cf. https://github.com/SACGF/cdot/issues/38
+    fn get_tx_for_region(
+        &self,
+        alt_ac: &str,
+        alt_aln_method: &str,
+        start_i: i32,
+        end_i: i32,
+    ) -> Result<Vec<TxForRegionRecord>, anyhow::Error> {
+        if alt_aln_method != NCBI_ALN_METHOD {
+            return Ok(Vec::new());
+        }
+
+        if let Some(contig_itv_tree) = self.interval_trees.get(alt_ac) {
+            let mut tmp = Vec::new();
+
+            for entry in contig_itv_tree.find((start_i - 1)..(end_i)) {
+                let tx_ac = entry.data();
+                let tx = self.transcripts.get(tx_ac).unwrap();
+                let genome_alignment = tx
+                    .genome_builds
+                    .values()
+                    .into_iter()
+                    .find(|genome_alignment| genome_alignment.contig == alt_ac);
+                if let Some(genome_alignment) = genome_alignment {
+                    let tx_start = genome_alignment.exons.first().unwrap().alt_start_i;
+                    let tx_end = genome_alignment.exons.last().unwrap().alt_end_i;
+                    let length = tx_end - tx_start;
+
+                    let rec = TxForRegionRecord {
+                        tx_ac: tx_ac.clone(),
+                        alt_ac: alt_ac.to_string(),
+                        alt_strand: match genome_alignment.strand {
+                            models::Strand::Plus => 1,
+                            models::Strand::Minus => -1,
+                        },
+                        alt_aln_method: alt_aln_method.to_string(),
+                        start_i: tx_start,
+                        end_i: tx_end,
+                    };
+                    tmp.push((length, rec));
+                }
+            }
+
+            // Sorted by length in descending order.
+            tmp.sort_by(|a, b| b.0.cmp(&a.0));
+
+            Ok(tmp.into_iter().map(|x| x.1).collect())
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, anyhow::Error> {
+        let tx = self.transcripts.get(tx_ac).ok_or(anyhow::anyhow!(
+            "Could not find transcript for {:?}",
+            &tx_ac
+        ))?;
+
+        let hgnc = tx
+            .gene_name
+            .as_ref()
+            .expect("cannot happen; transcripts without gene_name not imported")
+            .clone();
+
+        let mut tmp = tx
+            .genome_builds
+            .values()
+            .next()
+            .unwrap()
+            .exons
+            .iter()
+            .map(|exon| (exon.ord, exon.alt_cds_end_i + 1 - exon.alt_cds_start_i))
+            .collect::<Vec<(i32, i32)>>();
+        tmp.sort();
+
+        let lengths = tmp.into_iter().map(|(_, length)| length).collect();
+        Ok(TxIdentityInfo {
+            tx_ac: tx_ac.to_string(),
+            alt_ac: tx_ac.to_string(), // sic(!)
+            alt_aln_method: String::from("transcript"),
+            cds_start_i: tx.start_codon.unwrap_or_default(),
+            cds_end_i: tx.stop_codon.unwrap_or_default(),
+            lengths,
+            hgnc,
+        })
+    }
+
+    fn get_tx_info(
+        &self,
+        tx_ac: &str,
+        alt_ac: &str,
+        alt_aln_method: &str,
+    ) -> Result<TxInfoRecord, anyhow::Error> {
+        let tx = self.transcripts.get(tx_ac).ok_or(anyhow::anyhow!(
+            "Could not find transcript for {:?}",
+            &tx_ac
+        ))?;
+
+        Ok(TxInfoRecord {
+            hgnc: tx
+                .gene_name
+                .as_ref()
+                .expect("cannot happen; transcript without gene name not imported")
+                .clone(),
+            cds_start_i: tx.start_codon,
+            cds_end_i: tx.stop_codon,
+            tx_ac: tx_ac.to_string(),
+            alt_ac: alt_ac.to_string(),
+            alt_aln_method: alt_aln_method.to_string(),
+        })
+    }
+
+    fn get_tx_mapping_options(
+        &self,
+        tx_ac: &str,
+    ) -> Result<Vec<TxMappingOptionsRecord>, anyhow::Error> {
+        let tx = self.transcripts.get(tx_ac).ok_or(anyhow::anyhow!(
+            "Could not find transcript for {:?}",
+            &tx_ac
+        ))?;
+
+        Ok(tx
+            .genome_builds
+            .values()
+            .into_iter()
+            .map(|genome_alignment| TxMappingOptionsRecord {
+                tx_ac: tx_ac.to_string(),
+                alt_ac: genome_alignment.contig.clone(),
+                alt_aln_method: NCBI_ALN_METHOD.to_string(),
+            })
+            .collect())
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::models::{gap_to_cigar, Container};
+
+    #[test]
+    fn test_deserialize_brca1() -> Result<(), anyhow::Error> {
+        let json = std::fs::read_to_string(
+            "tests/data/data/cdot/cdot-0.2.12.refseq.grch37_grch38.brca1.json",
+        )?;
+
+        let c: Container = serde_json::from_str(&json)?;
+        assert_eq!(c.cdot_version, "0.2.12");
+
+        let c_dump = format!("{:#?}\n", &c);
+        let c_dump_expected = std::fs::read_to_string(
+            "tests/data/data/cdot/cdot-0.2.12.refseq.grch37_grch38.brca1.txt",
+        )?;
+        assert_eq!(c_dump, c_dump_expected);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_gap_to_cigar() {
+        assert_eq!(gap_to_cigar("M196 I1 M61 I1 M181"), "196=1D61=1D181=");
+    }
+
+    /// Deserialization of the big cdot files for benchmarking.
+    #[ignore]
+    #[test]
+    fn test_deserialize_big_files() -> Result<(), anyhow::Error> {
+        let before = std::time::Instant::now();
+        println!("ensembl...");
+        let _ensembl: Container =
+            serde_json::from_reader(flate2::bufread::GzDecoder::new(std::io::BufReader::new(
+                std::fs::File::open("cdot-0.2.12.ensembl.grch37_grch38.json.gz")?,
+            )))?;
+        println!("Reading ensembl: {:?}", before.elapsed());
+
+        let before = std::time::Instant::now();
+        println!("refseq...");
+        let _refseq: Container =
+            serde_json::from_reader(flate2::bufread::GzDecoder::new(std::io::BufReader::new(
+                std::fs::File::open("cdot-0.2.12.refseq.grch37_grch38.json.gz")?,
+            )))?;
+        println!("Reading refseq: {:?}", before.elapsed());
+
+        Ok(())
+    }
+
+    // #[test]
+}
+
+// <LICENSE>
+// Copyright 2023 hgvs-rs Contributors
+// Copyright 2014 Bioutils Contributors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// </LICENSE>
+
+// <LICENSE>
+// MIT License
+//
+// Copyright (c) 2022 SACGF
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// </LICENSE>

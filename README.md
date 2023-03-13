@@ -4,6 +4,7 @@
 # hgvs-rs
 
 This is a port of [biocommons/hgvs](https://github.com/biocommons/hgvs) to the Rust programming language.
+The `data::cdot::*` code is based on a port of  [SACGF/cdot](https://github.com/SACGF/cdot) to Rust.
 
 ## Running Tests
 
@@ -60,3 +61,21 @@ $ bootstrap.sh http://dl.biocommons.org/uta uta_20210129
 ```
 
 The `*.pgd.gz` file is added to the Git repository via `git-lfs` and in CI, this minimal database will be used.
+
+## Some Timing Results
+
+(I don't want to call it "benchmarks" yet.)
+
+### Deserialization of large cdot JSON files.
+
+Host:
+
+- CPU: Intel(R) Xeon(R) E-2174G CPU @ 3.80GHz
+- Disk: NVME (WDC CL SN720 SDAQNTW-1T00-2000)
+
+Single Running Time Results (no repetitions/warm start etc.)
+
+- ENSEMBL: 37s
+- RefSeq: 67s
+
+This includes loading and deserialization of the records only.
