@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/bihealth/hgvs-rs/compare/v0.2.0...v0.3.0) (2023-03-13)
+
+
+### Features
+
+* implement cdot data provider ([#43](https://github.com/bihealth/hgvs-rs/issues/43)) ([#44](https://github.com/bihealth/hgvs-rs/issues/44)) ([3a8ed9d](https://github.com/bihealth/hgvs-rs/commit/3a8ed9d49c1c34bb7295091afe82b7011d6826ef))
+
 ## [0.2.0](https://github.com/bihealth/hgvs-rs/compare/v0.1.1...v0.2.0) (2023-03-06)
 
 
