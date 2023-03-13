@@ -1030,7 +1030,7 @@ pub mod tests {
     }
 
     /// Deserialization of the big cdot files for benchmarking.
-    #[ignore]
+    #[cfg(deserialization_tests)]
     #[test]
     fn deserialize_big_files() -> Result<(), anyhow::Error> {
         let before = std::time::Instant::now();
