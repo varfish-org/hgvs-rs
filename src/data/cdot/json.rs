@@ -209,7 +209,7 @@ pub mod models {
     }
 
     /// Enum for representing the tags for transcripts.
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum Tag {
         Basic,
         EnsemblCanonical,
@@ -252,7 +252,7 @@ pub mod models {
     }
 
     /// Representation of the strand.
-    #[derive(Deserialize, Debug, Clone, Copy)]
+    #[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
     pub enum Strand {
         #[serde(rename = "+")]
         Plus,
@@ -299,7 +299,7 @@ pub mod models {
     }
 
     /// Enum for representing the biotypes.
-    #[derive(Deserialize, Debug, Clone, Copy)]
+    #[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
     pub enum BioType {
         #[serde(rename = "3prime_overlapping_ncrna")]
         ThreePrimeOverlappingNcRna,
