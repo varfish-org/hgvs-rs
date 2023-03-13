@@ -415,8 +415,8 @@ mod test {
             let var_c = mapper.g_to_c(&var_g, "NM_001637.3")?;
             let var_p = mapper.c_to_p(&var_c)?;
 
-            assert_eq!(format!("{}", var_c), hgvs_c);
-            assert_eq!(format!("{}", var_p), hgvs_p);
+            assert_eq!(format!("{var_c}"), hgvs_c);
+            assert_eq!(format!("{var_p}"), hgvs_p);
 
             Ok(())
         }
@@ -476,7 +476,7 @@ mod test {
                 _ => panic!("not implemented"),
             };
 
-            assert_eq!(format!("{}", &NoRef(&actual)), hgvs_x, "gene={}", gene);
+            assert_eq!(format!("{}", &NoRef(&actual)), hgvs_x, "gene={gene}");
 
             Ok(())
         }
@@ -532,10 +532,10 @@ mod test {
                     mapper.c_to_g(&var_lhs)?
                 }
                 (HgvsVariant::GenomeVariant { .. }, HgvsVariant::CdsVariant { .. }) => {
-                    mapper.g_to_c(&var_lhs, &var_rhs.accession())?
+                    mapper.g_to_c(&var_lhs, var_rhs.accession())?
                 }
                 (HgvsVariant::GenomeVariant { .. }, HgvsVariant::TxVariant { .. }) => {
-                    mapper.g_to_n(&var_lhs, &var_rhs.accession())?
+                    mapper.g_to_n(&var_lhs, var_rhs.accession())?
                 }
                 _ => panic!("not implemented"),
             };
@@ -543,8 +543,7 @@ mod test {
             assert_eq!(
                 format!("{}", &crate::parser::NoRef(&actual)),
                 hgvs_rhs,
-                "gene={}",
-                gene
+                "gene={gene}"
             );
 
             Ok(())
@@ -581,8 +580,7 @@ mod test {
             assert_eq!(
                 format!("{}", &crate::parser::NoRef(&actual)),
                 hgvs_p,
-                "gene={}",
-                gene
+                "gene={gene}"
             );
 
             Ok(())
@@ -833,15 +831,15 @@ mod test {
 
             let var_c = var_c.with_reference("NNNNNN".to_string());
             let fixed_c = mapper.replace_reference(var_c)?;
-            assert_eq!(format!("{}", &fixed_c), hgvs_c, "gene={}", gene);
+            assert_eq!(format!("{}", &fixed_c), hgvs_c, "gene={gene}");
 
             let var_g = var_g.with_reference("NNNNNN".to_string());
             let fixed_g = mapper.replace_reference(var_g)?;
-            assert_eq!(format!("{}", &fixed_g), hgvs_g, "gene={}", gene);
+            assert_eq!(format!("{}", &fixed_g), hgvs_g, "gene={gene}");
 
             let var_n = var_n.with_reference("NNNNNN".to_string());
             let fixed_n = mapper.replace_reference(var_n)?;
-            assert_eq!(format!("{}", &fixed_n), hgvs_n, "gene={}", gene);
+            assert_eq!(format!("{}", &fixed_n), hgvs_n, "gene={gene}");
 
             Ok(())
         }
@@ -869,25 +867,25 @@ mod test {
             let var_n = HgvsVariant::from_str(hgvs_n)?;
 
             let res_cg = mapper.c_to_g(&var_c)?;
-            assert_eq!(format!("{}", res_cg), hgvs_g,);
+            assert_eq!(format!("{res_cg}"), hgvs_g,);
 
-            let res_gc = mapper.g_to_c(&var_g, &var_c.accession())?;
-            assert_eq!(format!("{}", res_gc), hgvs_c,);
+            let res_gc = mapper.g_to_c(&var_g, var_c.accession())?;
+            assert_eq!(format!("{res_gc}"), hgvs_c,);
 
             let res_ng = mapper.n_to_g(&var_n)?;
-            assert_eq!(format!("{}", res_ng), hgvs_g,);
+            assert_eq!(format!("{res_ng}"), hgvs_g,);
 
-            let res_gn = mapper.g_to_n(&var_g, &var_n.accession())?;
-            assert_eq!(format!("{}", res_gn), hgvs_n,);
+            let res_gn = mapper.g_to_n(&var_g, var_n.accession())?;
+            assert_eq!(format!("{res_gn}"), hgvs_n,);
 
             let res_cn = mapper.c_to_n(&var_c)?;
-            assert_eq!(format!("{}", res_cn), hgvs_n,);
+            assert_eq!(format!("{res_cn}"), hgvs_n,);
 
             let res_nc = mapper.n_to_c(&var_n)?;
-            assert_eq!(format!("{}", res_nc), hgvs_c,);
+            assert_eq!(format!("{res_nc}"), hgvs_c,);
 
             let res_cp = mapper.c_to_p(&var_c)?;
-            assert_eq!(format!("{}", res_cp), hgvs_p,);
+            assert_eq!(format!("{res_cp}"), hgvs_p,);
 
             Ok(())
         }

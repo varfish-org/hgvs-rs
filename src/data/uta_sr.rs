@@ -15,7 +15,7 @@ use crate::data::{
 };
 use seqrepo::{AliasOrSeqId, Interface as SeqRepoInterface, SeqRepo};
 
-/// Configurationf or the `data::uta::Provider`.
+/// Configuration for the `data::uta_sr::Provider`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Config {
     /// URL with the connection string, e.g.
@@ -174,9 +174,9 @@ impl ProviderInterface for Provider {
 
     fn get_tx_mapping_options(
         &self,
-        tax_ac: &str,
+        tx_ac: &str,
     ) -> Result<Vec<TxMappingOptionsRecord>, anyhow::Error> {
-        self.inner.get_tx_mapping_options(tax_ac)
+        self.inner.get_tx_mapping_options(tx_ac)
     }
 }
 
