@@ -148,84 +148,85 @@ impl Mapper {
         alt_aln_method: &str,
     ) -> Result<Mapper, anyhow::Error> {
         let config = config.clone();
-        let (strand, gc_offset, cds_start_i, cds_end_i, tgt_len, cigar_mapper) =
-            if alt_aln_method != "transcript" {
-                let tx_info = provider.get_tx_info(tx_ac, alt_ac, alt_aln_method)?;
-                let tx_exons = {
-                    let tx_exons = provider.get_tx_exons(tx_ac, alt_ac, alt_aln_method)?;
-                    if tx_exons.is_empty() {
-                        return Err(anyhow::anyhow!(
-                            "Found no exons for tx_ac={}, alt_ac={}, alt_aln_method={}",
-                            tx_ac,
-                            alt_ac,
-                            alt_aln_method
-                        ));
-                    }
-
-                    // Issue biocommons/hgvs#386: An assumption when building the CIGAR string is that
-                    // exons are adjacent. Assert that here.
-                    let mut sorted_exons = tx_exons.clone();
-                    sorted_exons.sort_by(|a, b| a.ord.partial_cmp(&b.ord).unwrap());
-                    let offenders = sorted_exons
-                        .windows(2)
-                        .filter(|pair| {
-                            let lhs = &pair[0];
-                            let rhs = &pair[1];
-                            lhs.tx_end_i != rhs.tx_start_i
-                        })
-                        .collect::<Vec<_>>();
-                    if !offenders.is_empty() {
-                        return Err(anyhow::anyhow!(
-                            "Non-adjacent exons for tx_acc={}, alt_acc={}, alt_aln_method={}: {:#?}",
-                            tx_ac,
-                            alt_ac,
-                            alt_aln_method,
-                            &offenders
-                        ));
-                    }
-
-                    tx_exons
-                };
-
-                let strand = tx_exons[0].alt_strand;
-                let gc_offset = tx_exons[0].alt_start_i;
-                let cds_start_i = tx_info.cds_start_i;
-                let cds_end_i = tx_info.cds_end_i;
-
-                if cds_start_i.is_none() != cds_end_i.is_none() {
+        let (strand, gc_offset, cds_start_i, cds_end_i, tgt_len, cigar_mapper) = if alt_aln_method
+            != "transcript"
+        {
+            let tx_info = provider.get_tx_info(tx_ac, alt_ac, alt_aln_method)?;
+            let tx_exons = {
+                let tx_exons = provider.get_tx_exons(tx_ac, alt_ac, alt_aln_method)?;
+                if tx_exons.is_empty() {
                     return Err(anyhow::anyhow!(
-                        "CDS start and end must both be defined or undefined"
+                        "Found no exons for tx_ac={}, alt_ac={}, alt_aln_method={}",
+                        tx_ac,
+                        alt_ac,
+                        alt_aln_method
                     ));
                 }
 
-                let cigar_mapper = CigarMapper::new(&build_tx_cigar(&tx_exons, strand)?);
-                let tgt_len = cigar_mapper.tgt_len;
+                // Issue biocommons/hgvs#386: An assumption when building the CIGAR string is that
+                // exons are adjacent. Assert that here.
+                let mut sorted_exons = tx_exons.clone();
+                sorted_exons.sort_by(|a, b| a.ord.partial_cmp(&b.ord).unwrap());
+                let offenders = sorted_exons
+                    .windows(2)
+                    .filter(|pair| {
+                        let lhs = &pair[0];
+                        let rhs = &pair[1];
+                        lhs.tx_end_i != rhs.tx_start_i
+                    })
+                    .collect::<Vec<_>>();
+                if !offenders.is_empty() {
+                    return Err(anyhow::anyhow!(
+                        "Non-adjacent exons for tx_acc={}, alt_acc={}, alt_aln_method={}: {:#?}",
+                        tx_ac,
+                        alt_ac,
+                        alt_aln_method,
+                        &offenders
+                    ));
+                }
 
-                (
-                    strand,
-                    gc_offset,
-                    cds_start_i,
-                    cds_end_i,
-                    tgt_len,
-                    cigar_mapper,
-                )
-            } else {
-                // this covers the identity cases n <-> c
-                let tx_identity_info = provider.get_tx_identity_info(tx_ac)?;
-
-                let cds_start_i = tx_identity_info.cds_start_i;
-                let cds_end_i = tx_identity_info.cds_end_i;
-                let tgt_len: i32 = tx_identity_info.lengths.iter().sum();
-
-                (
-                    1, // strand
-                    0, // gc_offset
-                    Some(cds_start_i),
-                    Some(cds_end_i),
-                    tgt_len,
-                    Default::default(),
-                )
+                tx_exons
             };
+
+            let strand = tx_exons[0].alt_strand;
+            let gc_offset = tx_exons[0].alt_start_i;
+            let cds_start_i = tx_info.cds_start_i;
+            let cds_end_i = tx_info.cds_end_i;
+
+            if cds_start_i.is_none() != cds_end_i.is_none() {
+                return Err(anyhow::anyhow!(
+                    "CDS start and end must both be defined or undefined"
+                ));
+            }
+
+            let cigar_mapper = CigarMapper::new(&build_tx_cigar(&tx_exons, strand)?);
+            let tgt_len = cigar_mapper.tgt_len;
+
+            (
+                strand,
+                gc_offset,
+                cds_start_i,
+                cds_end_i,
+                tgt_len,
+                cigar_mapper,
+            )
+        } else {
+            // this covers the identity cases n <-> c
+            let tx_identity_info = provider.get_tx_identity_info(tx_ac)?;
+
+            let cds_start_i = tx_identity_info.cds_start_i;
+            let cds_end_i = tx_identity_info.cds_end_i;
+            let tgt_len: i32 = tx_identity_info.lengths.iter().sum();
+
+            (
+                1, // strand
+                0, // gc_offset
+                Some(cds_start_i),
+                Some(cds_end_i),
+                tgt_len,
+                Default::default(),
+            )
+        };
 
         if cds_start_i.is_none() != cds_end_i.is_none() {
             return Err(anyhow::anyhow!(
