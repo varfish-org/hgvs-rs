@@ -193,6 +193,7 @@ impl Mapper {
             let var_g = if mapper.strand == -1
                 && !self.config.strict_bounds
                 && !mapper.is_g_interval_in_bounds(loc_edit.loc.inner())
+                && self.config.renormalize_g
             {
                 info!("Renormalizing out-of-bounds minus strand variant on genomic sequenc");
                 self.normalizer()?.normalize(&var_g)?
