@@ -23,13 +23,14 @@ pub enum Direction {
 /// Configuration for the normalizer.
 #[derive(Debug, Clone)]
 pub struct Config {
-    alt_aln_method: String,
-    cross_boundaries: bool,
-    shuffle_direction: Direction,
+    pub alt_aln_method: String,
+    pub cross_boundaries: bool,
+    pub shuffle_direction: Direction,
+    pub replace_reference: bool,
     // TODO: inconsistent with passing in the validator...
     #[allow(dead_code)]
-    validate: bool,
-    window_size: usize,
+    pub validate: bool,
+    pub window_size: usize,
 }
 
 impl Default for Config {
@@ -38,6 +39,7 @@ impl Default for Config {
             alt_aln_method: "splign".to_string(),
             cross_boundaries: false,
             shuffle_direction: Direction::FiveToThree,
+            replace_reference: true,
             validate: true,
             window_size: 20,
         }
@@ -125,7 +127,11 @@ impl<'a> Normalizer<'a> {
 
         // NB: once we support gene conversions, guard against this here as well.
 
-        let var = self.mapper.replace_reference(var)?;
+        let var = if self.config.replace_reference {
+            self.mapper.replace_reference(var)?
+        } else {
+            var
+        };
 
         // Guard against identity variants.
         if let Some(na_edit) = var.na_edit() {

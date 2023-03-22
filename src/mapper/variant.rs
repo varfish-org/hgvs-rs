@@ -7,7 +7,7 @@ use log::{debug, info};
 use super::alignment::{Config as AlignmentConfig, Mapper as AlignmentMapper};
 use crate::{
     data::interface::Provider,
-    normalizer::{self, Normalizer},
+    normalizer::{self, Config as NormalizerConfig, Normalizer},
     parser::{
         Accession, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval, GenomeLocEdit,
         HgvsVariant, Mu, NaEdit, TxInterval, TxLocEdit, TxPos,
@@ -130,7 +130,10 @@ impl Mapper {
             self,
             self.provider.clone(),
             self.validator.clone(),
-            Default::default(),
+            NormalizerConfig {
+                replace_reference: self.config.replace_reference,
+                ..Default::default()
+            },
         ))
     }
 
