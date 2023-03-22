@@ -27,6 +27,7 @@ pub struct Config {
     pub cross_boundaries: bool,
     pub shuffle_direction: Direction,
     pub replace_reference: bool,
+    /// Whether to validate sequence length.  Can be disabled for mapping from genome
     // TODO: inconsistent with passing in the validator...
     #[allow(dead_code)]
     pub validate: bool,
@@ -77,6 +78,8 @@ impl<'a> Normalizer<'a> {
     }
 
     pub fn normalize(&self, var: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
+        let is_genome = matches!(&var, HgvsVariant::GenomeVariant { .. });
+
         // Run the pre-normalization checks (a) whether trying to normalize the variant is an
         // error, (b) whether the variant should be returned as is, and (c) whether the variant
         // was translated from CDS to transcript and needs translation into the other direction.
@@ -84,7 +87,7 @@ impl<'a> Normalizer<'a> {
             var,
             as_is,
             cds_to_tx,
-        } = self.check_and_guard(var)?;
+        } = self.check_and_guard(var, is_genome)?;
         if as_is {
             return Ok(var);
         }
@@ -99,9 +102,14 @@ impl<'a> Normalizer<'a> {
         self.build_result(var, start, end, reference, alternative, boundary, cds_to_tx)
     }
 
+    // # Args
+    //
+    // * `is_genome` -- allows for disabling length validation for genome (where contigs are likely
+    //   missing from the provider to save memory)
     fn check_and_guard(
         &self,
         orig_var: &HgvsVariant,
+        is_genome: bool,
     ) -> Result<CheckAndGuardResult, anyhow::Error> {
         let var = orig_var.clone();
         self.validator.validate(&var)?;
@@ -178,11 +186,12 @@ impl<'a> Normalizer<'a> {
         // Bail out when coordinates are out of bounds.
         if let Some(var_loc_range) = var.loc_range() {
             if var_loc_range.start < 0
-                || !valid_seq_len(
-                    self.provider.as_ref(),
-                    var.accession(),
-                    var_loc_range.end as usize,
-                )?
+                || !is_genome
+                    && valid_seq_len(
+                        self.provider.as_ref(),
+                        var.accession(),
+                        var_loc_range.end as usize,
+                    )?
             {
                 return Err(anyhow::anyhow!("Coordinates are out of bound: {}", var));
             }
