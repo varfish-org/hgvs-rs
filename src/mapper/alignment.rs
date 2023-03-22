@@ -176,12 +176,12 @@ impl Mapper {
                         .collect::<Vec<_>>();
                     if !offenders.is_empty() {
                         return Err(anyhow::anyhow!(
-                            "Non-adjacent exons for tx_acc={}, alt_acc={}, alt_aln_method={}: {:?}",
-                            tx_ac,
-                            alt_ac,
-                            alt_aln_method,
-                            &offenders
-                        ));
+                        "Non-adjacent exons for tx_acc={}, alt_acc={}, alt_aln_method={}: {:#?}",
+                        tx_ac,
+                        alt_ac,
+                        alt_aln_method,
+                        &offenders
+                    ));
                     }
 
                     tx_exons
