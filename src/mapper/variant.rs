@@ -148,7 +148,6 @@ impl Mapper {
         alt_aln_method: &str,
     ) -> Result<HgvsVariant, anyhow::Error> {
         self.validator.validate(var_g)?;
-        let var_g = self.replace_reference(var_g.clone())?;
         let mapper = self.build_alignment_mapper(tx_ac, var_g.accession(), alt_aln_method)?;
         if mapper.is_coding_transcript() {
             self.g_to_c(&var_g, tx_ac, alt_aln_method)
@@ -171,7 +170,11 @@ impl Mapper {
         alt_aln_method: &str,
     ) -> Result<HgvsVariant, anyhow::Error> {
         self.validator.validate(var_g)?;
-        let var_g = self.replace_reference(var_g.clone())?;
+        let var_g = if self.config.replace_reference {
+            self.replace_reference(var_g.clone())?
+        } else {
+            var_g.clone()
+        };
         if let HgvsVariant::GenomeVariant {
             accession,
             loc_edit,
@@ -373,7 +376,11 @@ impl Mapper {
         alt_aln_method: &str,
     ) -> Result<HgvsVariant, anyhow::Error> {
         self.validator.validate(var_g)?;
-        let var_g = self.replace_reference(var_g.clone())?;
+        let var_g = if self.config.replace_reference {
+            self.replace_reference(var_g.clone())?
+        } else {
+            var_g.clone()
+        };
         if let HgvsVariant::GenomeVariant {
             accession,
             gene_symbol,
@@ -463,7 +470,11 @@ impl Mapper {
         alt_aln_method: &str,
     ) -> Result<HgvsVariant, anyhow::Error> {
         self.validator.validate(var_c)?;
-        let var_c = self.replace_reference(var_c.clone())?;
+        let var_c = if self.config.replace_reference {
+            self.replace_reference(var_c.clone())?
+        } else {
+            var_c.clone()
+        };
         if let HgvsVariant::CdsVariant {
             accession,
             gene_symbol,
@@ -558,7 +569,11 @@ impl Mapper {
         alt_aln_method: &str,
     ) -> Result<HgvsVariant, anyhow::Error> {
         self.validator.validate(var_t)?;
-        let var_t = self.replace_reference(var_t.clone())?;
+        let var_t = if self.config.replace_reference {
+            self.replace_reference(var_t.clone())?
+        } else {
+            var_t.clone()
+        };
         match var_t {
             HgvsVariant::TxVariant { .. } => self.n_to_g(&var_t, alt_ac, alt_aln_method),
             HgvsVariant::CdsVariant { .. } => self.c_to_g(&var_t, alt_ac, alt_aln_method),
@@ -579,7 +594,11 @@ impl Mapper {
     pub fn c_to_n(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
         log::debug!("c_to_n({})", var_c);
         self.validator.validate(var_c)?;
-        let var_c = self.replace_reference(var_c.clone())?;
+        let var_c = if self.config.replace_reference {
+            self.replace_reference(var_c.clone())?
+        } else {
+            var_c.clone()
+        };
         if let HgvsVariant::CdsVariant {
             accession,
             gene_symbol,
@@ -622,7 +641,11 @@ impl Mapper {
     /// * `var_n` -- `HgvsVariant::TxVariant` to project
     pub fn n_to_c(&self, var_n: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
         self.validator.validate(var_n)?;
-        let var_n = self.replace_reference(var_n.clone())?;
+        let var_n = if self.config.replace_reference {
+            self.replace_reference(var_n.clone())?
+        } else {
+            var_n.clone()
+        };
         if let HgvsVariant::TxVariant {
             accession,
             gene_symbol,
@@ -678,7 +701,11 @@ impl Mapper {
         {
             self.validator.validate(var_c)?;
 
-            let var_c = self.replace_reference(var_c.clone())?;
+            let var_c = if self.config.replace_reference {
+                self.replace_reference(var_c.clone())?
+            } else {
+                var_c.clone()
+            };
 
             let reference_data = RefTranscriptData::new(
                 self.provider.clone(),
