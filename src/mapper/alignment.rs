@@ -198,7 +198,8 @@ impl Mapper {
                     ));
                 }
 
-                let cigar_mapper = CigarMapper::new(&build_tx_cigar(&tx_exons, strand)?);
+                let cigar = build_tx_cigar(&tx_exons, strand)?;
+                let cigar_mapper = CigarMapper::new(&cigar);
                 let tgt_len = cigar_mapper.tgt_len;
 
                 (
