@@ -580,12 +580,10 @@ impl Mapper {
         match var_t {
             HgvsVariant::TxVariant { .. } => self.n_to_g(&var_t, alt_ac, alt_aln_method),
             HgvsVariant::CdsVariant { .. } => self.c_to_g(&var_t, alt_ac, alt_aln_method),
-            _ => {
-                Err(anyhow::anyhow!(
-                    "Expected transcript or CDS variant but received {}",
-                    &var_t
-                ))
-            }
+            _ => Err(anyhow::anyhow!(
+                "Expected transcript or CDS variant but received {}",
+                &var_t
+            )),
         }
     }
 
