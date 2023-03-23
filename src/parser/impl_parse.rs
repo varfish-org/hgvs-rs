@@ -927,13 +927,11 @@ mod test {
             let inputs = if in_type == "list" {
                 in_string
                     .split('|')
-                    .into_iter()
                     .map(|s| s.to_string())
                     .collect::<Vec<_>>()
             } else if in_type == "string" {
                 in_string
                     .chars()
-                    .into_iter()
                     .map(|c| c.to_string())
                     .collect::<Vec<_>>()
             } else if in_type == "one" {

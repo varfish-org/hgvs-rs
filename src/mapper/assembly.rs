@@ -105,7 +105,6 @@ impl Mapper {
             .get_assembly_map(config.assembly)
             .keys()
             .clone()
-            .into_iter()
             .map(|s| s.to_string())
             .collect::<HashSet<_>>();
         let asm_map = HashMap::from_iter(
@@ -262,7 +261,7 @@ impl Mapper {
                     .map(|rec| rec.tx_ac)
                     .collect::<Vec<_>>())
             }
-            _ => return Err(anyhow::anyhow!("Not a GenomeVariant: {}", &var_g)),
+            _ => Err(anyhow::anyhow!("Not a GenomeVariant: {}", &var_g)),
         }
     }
 

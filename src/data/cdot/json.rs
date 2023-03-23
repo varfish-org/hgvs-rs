@@ -460,7 +460,7 @@ pub mod models {
         D: Deserializer<'de>,
     {
         Option::<WrappedString>::deserialize(deserializer).map(|opt_wrapped| {
-            opt_wrapped.map(|wrapped| wrapped.0.split(',').into_iter().map(str_to_tag).collect())
+            opt_wrapped.map(|wrapped| wrapped.0.split(',').map(str_to_tag).collect())
         })
     }
 
@@ -470,7 +470,7 @@ pub mod models {
     {
         let buf = Option::<String>::deserialize(deserializer)?;
 
-        Ok(buf.map(|s| s.split(", ").into_iter().map(|s| s.to_string()).collect()))
+        Ok(buf.map(|s| s.split(", ").map(|s| s.to_string()).collect()))
     }
 
     fn str_to_biotype(s: &str) -> BioType {
@@ -523,7 +523,7 @@ pub mod models {
             if buf.is_empty() {
                 Vec::new()
             } else {
-                buf.split(',').into_iter().map(str_to_biotype).collect()
+                buf.split(',').map(str_to_biotype).collect()
             }
         }))
     }
@@ -606,7 +606,6 @@ impl TxProvider {
         let start = Instant::now();
         c_genes
             .values()
-            .into_iter()
             .filter(|gene| {
                 gene.gene_symbol.is_some()
                     && !gene.gene_symbol.as_ref().unwrap().is_empty()
@@ -622,7 +621,6 @@ impl TxProvider {
             });
         c_txs
             .values()
-            .into_iter()
             .filter(|tx| tx.gene_name.is_some() && !tx.gene_name.as_ref().unwrap().is_empty())
             .for_each(|tx| {
                 let gene_name = tx.gene_name.as_ref().unwrap();
@@ -876,7 +874,6 @@ impl TxProvider {
                 let genome_alignment = tx
                     .genome_builds
                     .values()
-                    .into_iter()
                     .find(|genome_alignment| genome_alignment.contig == alt_ac);
                 if let Some(genome_alignment) = genome_alignment {
                     let tx_start = genome_alignment.exons.first().unwrap().alt_start_i;
@@ -979,7 +976,6 @@ impl TxProvider {
         Ok(tx
             .genome_builds
             .values()
-            .into_iter()
             .map(|genome_alignment| TxMappingOptionsRecord {
                 tx_ac: tx_ac.to_string(),
                 alt_ac: genome_alignment.contig.clone(),
