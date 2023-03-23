@@ -157,9 +157,9 @@ impl Mapper {
         self.validator.validate(var_g)?;
         let mapper = self.build_alignment_mapper(tx_ac, var_g.accession(), alt_aln_method)?;
         if mapper.is_coding_transcript() {
-            self.g_to_c(&var_g, tx_ac, alt_aln_method)
+            self.g_to_c(var_g, tx_ac, alt_aln_method)
         } else {
-            self.g_to_n(&var_g, tx_ac, alt_aln_method)
+            self.g_to_n(var_g, tx_ac, alt_aln_method)
         }
     }
 
@@ -585,12 +585,10 @@ impl Mapper {
         match var_t {
             HgvsVariant::TxVariant { .. } => self.n_to_g(&var_t, alt_ac, alt_aln_method),
             HgvsVariant::CdsVariant { .. } => self.c_to_g(&var_t, alt_ac, alt_aln_method),
-            _ => {
-                return Err(anyhow::anyhow!(
-                    "Expected transcript or CDS variant but received {}",
-                    &var_t
-                ))
-            }
+            _ => Err(anyhow::anyhow!(
+                "Expected transcript or CDS variant but received {}",
+                &var_t
+            )),
         }
     }
 

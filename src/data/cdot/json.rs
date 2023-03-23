@@ -27,10 +27,10 @@ pub struct Config {
     pub seqrepo_path: String,
 }
 
-/// This provider provides information from a UTA and a SeqRepo.
+/// This provider provides information from a cDOT JSON and a SeqRepo.
 ///
-/// Transcripts from a UTA Postgres database, sequences comes from a SeqRepo.  This makes
-/// genome contig information available in contrast to `data::uta::Provider`.
+/// Transcripts from a cDOT JSON Postgres database, sequences comes from a SeqRepo.
+/// This makes genome contig information available.
 ///
 /// # Remarks
 ///
@@ -432,7 +432,7 @@ pub mod models {
                         cigar: if let Some(gap) = gap {
                             gap_to_cigar(&gap)
                         } else {
-                            format!("{}M", alt_end_i - alt_start_i + 1)
+                            format!("{}M", alt_end_i - alt_start_i)
                         },
                     }
                 },
@@ -460,7 +460,7 @@ pub mod models {
         D: Deserializer<'de>,
     {
         Option::<WrappedString>::deserialize(deserializer).map(|opt_wrapped| {
-            opt_wrapped.map(|wrapped| wrapped.0.split(',').into_iter().map(str_to_tag).collect())
+            opt_wrapped.map(|wrapped| wrapped.0.split(',').map(str_to_tag).collect())
         })
     }
 
@@ -470,7 +470,7 @@ pub mod models {
     {
         let buf = Option::<String>::deserialize(deserializer)?;
 
-        Ok(buf.map(|s| s.split(", ").into_iter().map(|s| s.to_string()).collect()))
+        Ok(buf.map(|s| s.split(", ").map(|s| s.to_string()).collect()))
     }
 
     fn str_to_biotype(s: &str) -> BioType {
@@ -523,7 +523,7 @@ pub mod models {
             if buf.is_empty() {
                 Vec::new()
             } else {
-                buf.split(',').into_iter().map(str_to_biotype).collect()
+                buf.split(',').map(str_to_biotype).collect()
             }
         }))
     }
@@ -606,7 +606,6 @@ impl TxProvider {
         let start = Instant::now();
         c_genes
             .values()
-            .into_iter()
             .filter(|gene| {
                 gene.gene_symbol.is_some()
                     && !gene.gene_symbol.as_ref().unwrap().is_empty()
@@ -622,7 +621,6 @@ impl TxProvider {
             });
         c_txs
             .values()
-            .into_iter()
             .filter(|tx| tx.gene_name.is_some() && !tx.gene_name.as_ref().unwrap().is_empty())
             .for_each(|tx| {
                 let gene_name = tx.gene_name.as_ref().unwrap();
@@ -876,7 +874,6 @@ impl TxProvider {
                 let genome_alignment = tx
                     .genome_builds
                     .values()
-                    .into_iter()
                     .find(|genome_alignment| genome_alignment.contig == alt_ac);
                 if let Some(genome_alignment) = genome_alignment {
                     let tx_start = genome_alignment.exons.first().unwrap().alt_start_i;
@@ -979,7 +976,6 @@ impl TxProvider {
         Ok(tx
             .genome_builds
             .values()
-            .into_iter()
             .map(|genome_alignment| TxMappingOptionsRecord {
                 tx_ac: tx_ac.to_string(),
                 alt_ac: genome_alignment.contig.clone(),
@@ -989,22 +985,64 @@ impl TxProvider {
     }
 }
 
+pub mod test_helpers {
+    use std::rc::Rc;
+
+    use crate::data::uta_sr::test_helpers::build_writing_sr;
+
+    use super::{Config, Provider};
+    use seqrepo::{CacheReadingSeqRepo, Interface as SeqRepoInterface};
+
+    pub fn build_provider() -> Result<Provider, anyhow::Error> {
+        let sr_cache_mode = std::env::var("TEST_SEQREPO_CACHE_MODE")
+            .expect("Environment variable TEST_SEQREPO_CACHE_MODE undefined!");
+        let sr_cache_path = std::env::var("TEST_SEQREPO_CACHE_PATH")
+            .expect("Environment variable TEST_SEQREPO_CACHE_PATH undefined!");
+
+        log::debug!("building provider...");
+        let seqrepo = if sr_cache_mode == "read" {
+            log::debug!("reading provider...");
+            let seqrepo: Rc<dyn SeqRepoInterface> =
+                Rc::new(CacheReadingSeqRepo::new(sr_cache_path)?);
+            log::debug!("construction done...");
+            seqrepo
+        } else if sr_cache_mode == "write" {
+            log::debug!("writing provider...");
+            build_writing_sr(sr_cache_path)?.0
+        } else {
+            panic!("Invalid cache mode {}", &sr_cache_mode);
+        };
+        log::debug!("now returning provider...");
+
+        let config = Config {
+            json_paths: vec![String::from(
+                "tests/data/data/cdot/cdot-0.2.12.refseq.grch37_grch38.brca1.json",
+            )],
+            seqrepo_path: String::from("nonexisting"),
+        };
+        // Note that we don't actually use the seqrepo instance except for initializing the provider.
+        Provider::with_seqrepo(config, seqrepo)
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use std::rc::Rc;
+    use std::str::FromStr;
 
     use chrono::NaiveDateTime;
     use pretty_assertions::assert_eq;
     use test_log::test;
 
     use super::models::{gap_to_cigar, Container};
-    use super::{Config, Provider};
+    use super::test_helpers::build_provider;
     use crate::data::interface::{
         GeneInfoRecord, Provider as ProviderInterface, TxExonsRecord, TxForRegionRecord,
         TxInfoRecord, TxMappingOptionsRecord, TxSimilarityRecord,
     };
+    use crate::mapper::assembly::{Config as AssemblyMapperConfig, Mapper};
+    use crate::parser::HgvsVariant;
     use crate::static_data::Assembly;
-    use seqrepo::{CacheReadingSeqRepo, Interface as SeqRepoInterface};
 
     #[test]
     fn deserialize_brca1() -> Result<(), anyhow::Error> {
@@ -1050,19 +1088,6 @@ pub mod tests {
         println!("Reading refseq: {:?}", before.elapsed());
 
         Ok(())
-    }
-
-    fn build_provider() -> Result<Provider, anyhow::Error> {
-        let config = Config {
-            json_paths: vec![String::from(
-                "tests/data/data/cdot/cdot-0.2.12.refseq.grch37_grch38.brca1.json",
-            )],
-            seqrepo_path: String::from("nonexisting"),
-        };
-        // Note that we don't actually use the seqrepo instance except for initializing the provider.
-        let seqrepo: Rc<dyn SeqRepoInterface> =
-            Rc::new(CacheReadingSeqRepo::new("tests/data/seqrepo_cache.fasta")?);
-        Provider::with_seqrepo(config, seqrepo)
     }
 
     #[test]
@@ -1177,7 +1202,7 @@ pub mod tests {
                 tx_end_i: 7207,
                 alt_start_i: 41196311,
                 alt_end_i: 41197819,
-                cigar: String::from("1509M"),
+                cigar: String::from("1508M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1197,7 +1222,7 @@ pub mod tests {
                 tx_end_i: 5699,
                 alt_start_i: 41199659,
                 alt_end_i: 41199720,
-                cigar: String::from("62M"),
+                cigar: String::from("61M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1217,7 +1242,7 @@ pub mod tests {
                 tx_end_i: 5638,
                 alt_start_i: 41201137,
                 alt_end_i: 41201211,
-                cigar: String::from("75M"),
+                cigar: String::from("74M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1237,7 +1262,7 @@ pub mod tests {
                 tx_end_i: 5564,
                 alt_start_i: 41203079,
                 alt_end_i: 41203134,
-                cigar: String::from("56M"),
+                cigar: String::from("55M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1257,7 +1282,7 @@ pub mod tests {
                 tx_end_i: 5509,
                 alt_start_i: 41209068,
                 alt_end_i: 41209152,
-                cigar: String::from("85M"),
+                cigar: String::from("84M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1277,7 +1302,7 @@ pub mod tests {
                 tx_end_i: 5425,
                 alt_start_i: 41215349,
                 alt_end_i: 41215390,
-                cigar: String::from("42M"),
+                cigar: String::from("41M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1297,7 +1322,7 @@ pub mod tests {
                 tx_end_i: 5384,
                 alt_start_i: 41215890,
                 alt_end_i: 41215968,
-                cigar: String::from("79M"),
+                cigar: String::from("78M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1317,7 +1342,7 @@ pub mod tests {
                 tx_end_i: 5306,
                 alt_start_i: 41219624,
                 alt_end_i: 41219712,
-                cigar: String::from("89M"),
+                cigar: String::from("88M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1337,7 +1362,7 @@ pub mod tests {
                 tx_end_i: 5218,
                 alt_start_i: 41222944,
                 alt_end_i: 41223255,
-                cigar: String::from("312M"),
+                cigar: String::from("311M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1357,7 +1382,7 @@ pub mod tests {
                 tx_end_i: 4907,
                 alt_start_i: 41226347,
                 alt_end_i: 41226538,
-                cigar: String::from("192M"),
+                cigar: String::from("191M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1377,7 +1402,7 @@ pub mod tests {
                 tx_end_i: 4716,
                 alt_start_i: 41228504,
                 alt_end_i: 41228631,
-                cigar: String::from("128M"),
+                cigar: String::from("127M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1397,7 +1422,7 @@ pub mod tests {
                 tx_end_i: 4589,
                 alt_start_i: 41234420,
                 alt_end_i: 41234592,
-                cigar: String::from("173M"),
+                cigar: String::from("172M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1417,7 +1442,7 @@ pub mod tests {
                 tx_end_i: 4417,
                 alt_start_i: 41242960,
                 alt_end_i: 41243049,
-                cigar: String::from("90M"),
+                cigar: String::from("89M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1437,7 +1462,7 @@ pub mod tests {
                 tx_end_i: 4328,
                 alt_start_i: 41243451,
                 alt_end_i: 41246877,
-                cigar: String::from("3427M"),
+                cigar: String::from("3426M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1457,7 +1482,7 @@ pub mod tests {
                 tx_end_i: 902,
                 alt_start_i: 41247862,
                 alt_end_i: 41247939,
-                cigar: String::from("78M"),
+                cigar: String::from("77M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1477,7 +1502,7 @@ pub mod tests {
                 tx_end_i: 825,
                 alt_start_i: 41249260,
                 alt_end_i: 41249306,
-                cigar: String::from("47M"),
+                cigar: String::from("46M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1497,7 +1522,7 @@ pub mod tests {
                 tx_end_i: 779,
                 alt_start_i: 41251791,
                 alt_end_i: 41251897,
-                cigar: String::from("107M"),
+                cigar: String::from("106M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1517,7 +1542,7 @@ pub mod tests {
                 tx_end_i: 673,
                 alt_start_i: 41256138,
                 alt_end_i: 41256278,
-                cigar: String::from("141M"),
+                cigar: String::from("140M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1537,7 +1562,7 @@ pub mod tests {
                 tx_end_i: 533,
                 alt_start_i: 41256884,
                 alt_end_i: 41256973,
-                cigar: String::from("90M"),
+                cigar: String::from("89M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1557,7 +1582,7 @@ pub mod tests {
                 tx_end_i: 444,
                 alt_start_i: 41258472,
                 alt_end_i: 41258550,
-                cigar: String::from("79M"),
+                cigar: String::from("78M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1577,7 +1602,7 @@ pub mod tests {
                 tx_end_i: 366,
                 alt_start_i: 41267742,
                 alt_end_i: 41267796,
-                cigar: String::from("55M"),
+                cigar: String::from("54M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1597,7 +1622,7 @@ pub mod tests {
                 tx_end_i: 312,
                 alt_start_i: 41276033,
                 alt_end_i: 41276132,
-                cigar: String::from("100M"),
+                cigar: String::from("99M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -1617,7 +1642,7 @@ pub mod tests {
                 tx_end_i: 213,
                 alt_start_i: 41277287,
                 alt_end_i: 41277500,
-                cigar: String::from("214M"),
+                cigar: String::from("213M"),
                 tx_aseq: None,
                 alt_aseq: None,
                 tx_exon_set_id: 2147483647,
@@ -2083,6 +2108,33 @@ pub mod tests {
         ];
 
         assert_eq!(result, expected);
+
+        Ok(())
+    }
+
+    fn build_mapper_37(normalize: bool) -> Result<Mapper, anyhow::Error> {
+        let provider = Rc::new(build_provider()?);
+        let config = AssemblyMapperConfig {
+            assembly: Assembly::Grch37,
+            normalize,
+            ..Default::default()
+        };
+        Ok(Mapper::new(config, provider))
+    }
+
+    #[test]
+    fn mapper_brca1_g_c() -> Result<(), anyhow::Error> {
+        let mapper = build_mapper_37(false)?;
+        let hgvs_g = "NC_000017.10:g.41197701G>C";
+        let hgvs_c = "NM_007294.4:c.5586C>G";
+        let hgvs_p = "NP_009225.1:p.His1862Gln";
+
+        let var_g = HgvsVariant::from_str(hgvs_g)?;
+        let var_c = mapper.g_to_c(&var_g, "NM_007294.4")?;
+        let var_p = mapper.c_to_p(&var_c)?;
+
+        assert_eq!(format!("{var_c}"), hgvs_c);
+        assert_eq!(format!("{var_p}"), hgvs_p);
 
         Ok(())
     }
