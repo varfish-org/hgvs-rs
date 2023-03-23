@@ -187,7 +187,7 @@ impl<'a> Normalizer<'a> {
         if let Some(var_loc_range) = var.loc_range() {
             if var_loc_range.start < 0
                 || !is_genome
-                    && valid_seq_len(
+                    && !valid_seq_len(
                         self.provider.as_ref(),
                         var.accession(),
                         var_loc_range.end as usize,
