@@ -96,18 +96,13 @@ impl Validateable for CdsLocEdit {
         };
 
         match self.edit.inner() {
-            NaEdit::RefAlt { reference, .. }
-            | NaEdit::DelRef { reference }
-            | NaEdit::Dup { reference }
-            | NaEdit::InvRef { reference } => {
-                if !reference.is_empty() && range.len() != reference.len() {
-                    Err(anyhow::anyhow!(
-                        "Length implied by coordinates must equal reference sequence length ({})",
-                        &self
-                    ))
-                } else {
-                    Ok(())
-                }
+            NaEdit::RefAlt { .. }
+            | NaEdit::DelRef { .. }
+            | NaEdit::Dup { .. }
+            | NaEdit::InvRef { .. } => {
+                // We cannot make assumptions about reference length as we can have positon
+                // offsets.
+                Ok(())
             }
             NaEdit::Ins { .. } => {
                 if range.len() != 2 {
