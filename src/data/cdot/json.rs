@@ -2126,13 +2126,16 @@ pub mod tests {
     fn mapper_brca1_g_c() -> Result<(), anyhow::Error> {
         let mapper = build_mapper_37(false)?;
         let hgvs_g = "NC_000017.10:g.41197701G>C";
+        let hgvs_n = "NM_007294.4:n.5699C>G";
         let hgvs_c = "NM_007294.4:c.5586C>G";
         let hgvs_p = "NP_009225.1:p.His1862Gln";
 
         let var_g = HgvsVariant::from_str(hgvs_g)?;
+        let var_n = mapper.g_to_n(&var_g, "NM_007294.4")?;
         let var_c = mapper.g_to_c(&var_g, "NM_007294.4")?;
         let var_p = mapper.c_to_p(&var_c)?;
 
+        assert_eq!(format!("{var_n}"), hgvs_n);
         assert_eq!(format!("{var_c}"), hgvs_c);
         assert_eq!(format!("{var_p}"), hgvs_p);
 
