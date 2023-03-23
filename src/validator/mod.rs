@@ -125,6 +125,7 @@ impl ExtrinsicValidator {
             prevalidation_level: ValidationLevel::Null,
             add_gene_symbol: false,
             strict_bounds: true,
+            renormalize_g: false,
         };
         Self {
             strict,

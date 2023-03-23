@@ -27,6 +27,9 @@ pub struct Config {
     pub prevalidation_level: ValidationLevel,
     pub add_gene_symbol: bool,
     pub strict_bounds: bool,
+    /// Re-normalize out of bounds genome variants on minus strand.  This can be
+    /// switched off so genome sequence does not have to be available in provider.
+    pub renormalize_g: bool,
 }
 
 impl Default for Config {
@@ -37,6 +40,7 @@ impl Default for Config {
             prevalidation_level: ValidationLevel::Full,
             add_gene_symbol: false,
             strict_bounds: true,
+            renormalize_g: true,
         }
     }
 }
@@ -189,6 +193,7 @@ impl Mapper {
             let var_g = if mapper.strand == -1
                 && !self.config.strict_bounds
                 && !mapper.is_g_interval_in_bounds(loc_edit.loc.inner())
+                && self.config.renormalize_g
             {
                 info!("Renormalizing out-of-bounds minus strand variant on genomic sequenc");
                 self.normalizer()?.normalize(&var_g)?
