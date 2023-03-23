@@ -27,10 +27,10 @@ pub struct Config {
     pub seqrepo_path: String,
 }
 
-/// This provider provides information from a UTA and a SeqRepo.
+/// This provider provides information from a cDOT JSON and a SeqRepo.
 ///
-/// Transcripts from a UTA Postgres database, sequences comes from a SeqRepo.  This makes
-/// genome contig information available in contrast to `data::uta::Provider`.
+/// Transcripts from a cDOT JSON Postgres database, sequences comes from a SeqRepo.
+/// This makes genome contig information available.
 ///
 /// # Remarks
 ///
@@ -989,22 +989,64 @@ impl TxProvider {
     }
 }
 
+pub mod test_helpers {
+    use std::rc::Rc;
+
+    use crate::data::uta_sr::test_helpers::build_writing_sr;
+
+    use super::{Config, Provider};
+    use seqrepo::{CacheReadingSeqRepo, Interface as SeqRepoInterface};
+
+    pub fn build_provider() -> Result<Provider, anyhow::Error> {
+        let sr_cache_mode = std::env::var("TEST_SEQREPO_CACHE_MODE")
+            .expect("Environment variable TEST_SEQREPO_CACHE_MODE undefined!");
+        let sr_cache_path = std::env::var("TEST_SEQREPO_CACHE_PATH")
+            .expect("Environment variable TEST_SEQREPO_CACHE_PATH undefined!");
+
+        log::debug!("building provider...");
+        let seqrepo = if sr_cache_mode == "read" {
+            log::debug!("reading provider...");
+            let seqrepo: Rc<dyn SeqRepoInterface> =
+                Rc::new(CacheReadingSeqRepo::new(sr_cache_path)?);
+            log::debug!("construction done...");
+            seqrepo
+        } else if sr_cache_mode == "write" {
+            log::debug!("writing provider...");
+            build_writing_sr(sr_cache_path)?.0
+        } else {
+            panic!("Invalid cache mode {}", &sr_cache_mode);
+        };
+        log::debug!("now returning provider...");
+
+        let config = Config {
+            json_paths: vec![String::from(
+                "tests/data/data/cdot/cdot-0.2.12.refseq.grch37_grch38.brca1.json",
+            )],
+            seqrepo_path: String::from("nonexisting"),
+        };
+        // Note that we don't actually use the seqrepo instance except for initializing the provider.
+        Provider::with_seqrepo(config, seqrepo)
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use std::rc::Rc;
+    use std::str::FromStr;
 
     use chrono::NaiveDateTime;
     use pretty_assertions::assert_eq;
     use test_log::test;
 
     use super::models::{gap_to_cigar, Container};
-    use super::{Config, Provider};
+    use super::test_helpers::build_provider;
     use crate::data::interface::{
         GeneInfoRecord, Provider as ProviderInterface, TxExonsRecord, TxForRegionRecord,
         TxInfoRecord, TxMappingOptionsRecord, TxSimilarityRecord,
     };
+    use crate::mapper::assembly::{Config as AssemblyMapperConfig, Mapper};
+    use crate::parser::HgvsVariant;
     use crate::static_data::Assembly;
-    use seqrepo::{CacheReadingSeqRepo, Interface as SeqRepoInterface};
 
     #[test]
     fn deserialize_brca1() -> Result<(), anyhow::Error> {
@@ -1050,19 +1092,6 @@ pub mod tests {
         println!("Reading refseq: {:?}", before.elapsed());
 
         Ok(())
-    }
-
-    fn build_provider() -> Result<Provider, anyhow::Error> {
-        let config = Config {
-            json_paths: vec![String::from(
-                "tests/data/data/cdot/cdot-0.2.12.refseq.grch37_grch38.brca1.json",
-            )],
-            seqrepo_path: String::from("nonexisting"),
-        };
-        // Note that we don't actually use the seqrepo instance except for initializing the provider.
-        let seqrepo: Rc<dyn SeqRepoInterface> =
-            Rc::new(CacheReadingSeqRepo::new("tests/data/seqrepo_cache.fasta")?);
-        Provider::with_seqrepo(config, seqrepo)
     }
 
     #[test]
@@ -2083,6 +2112,33 @@ pub mod tests {
         ];
 
         assert_eq!(result, expected);
+
+        Ok(())
+    }
+
+    fn build_mapper_37(normalize: bool) -> Result<Mapper, anyhow::Error> {
+        let provider = Rc::new(build_provider()?);
+        let config = AssemblyMapperConfig {
+            assembly: Assembly::Grch37,
+            normalize,
+            ..Default::default()
+        };
+        Ok(Mapper::new(config, provider))
+    }
+
+    #[test]
+    fn mapper_brca1_g_c() -> Result<(), anyhow::Error> {
+        let mapper = build_mapper_37(false)?;
+        let hgvs_g = "NC_000017.10:g.41197701G>C";
+        let hgvs_c = "NM_007294.4:c.5586C>G";
+        let hgvs_p = "NP_009225.1:p.His1862Gln";
+
+        let var_g = HgvsVariant::from_str(hgvs_g)?;
+        let var_c = mapper.g_to_c(&var_g, "NM_007294.3")?;
+        let var_p = mapper.c_to_p(&var_c)?;
+
+        assert_eq!(format!("{var_c}"), hgvs_c);
+        assert_eq!(format!("{var_p}"), hgvs_p);
 
         Ok(())
     }

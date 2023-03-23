@@ -229,7 +229,7 @@ pub mod test_helpers {
     }
 
     /// Helper that builds the cache writing SeqRepo with inner stock SeqRepo.
-    fn build_writing_sr(
+    pub fn build_writing_sr(
         sr_cache_path: String,
     ) -> Result<(Rc<dyn SeqRepoInterface>, String), anyhow::Error> {
         let seqrepo_path = std::env::var("TEST_SEQREPO_PATH")
