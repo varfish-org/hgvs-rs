@@ -324,12 +324,16 @@ impl AltSeqBuilder {
             _ => panic!("invalid variant"),
         }
 
+        let seq = self.reference_data.transcript_sequence.to_owned();
+        let start = std::cmp::min(start_end[0], seq.len());
+        let end = std::cmp::min(start_end[1] + 1, seq.len());
+
         (
-            self.reference_data.transcript_sequence.to_owned(),
+            seq,
             self.reference_data.cds_start,
             self.reference_data.cds_stop,
-            start_end[0],
-            start_end[1] + 1,
+            start,
+            end,
         )
     }
 
