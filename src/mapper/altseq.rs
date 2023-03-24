@@ -943,6 +943,15 @@ impl AltSeqToHgvsp {
     ) -> Result<HgvsVariant, anyhow::Error> {
         assert!(start.is_some() == end.is_some());
 
+        // If the `alternative` contains a stop codon (`*`/`X`) then we have to truncate
+        // after it.
+        let alternative = if let Some(pos) = alternative.find('*').or_else(|| alternative.find('X'))
+        {
+            &alternative[..=pos]
+        } else {
+            alternative
+        };
+
         let loc_edit = if is_init_met {
             ProtLocEdit::InitiationUncertain
         } else if is_ambiguous {
