@@ -628,7 +628,7 @@ impl TryFrom<CdsInterval> for Range<i32> {
 
 /// Specifies whether the CDS position is relative to the CDS start or
 /// CDS end.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CdsFrom {
     Start,
     End,

@@ -8,7 +8,7 @@ use crate::mapper::variant::{Config as VariantMapperConfig, Mapper as VariantMap
 use crate::parser::HgvsVariant;
 use crate::{data::interface::Provider, static_data::Assembly, validator::ValidationLevel};
 
-#[derive(Debug, PartialEq, Eq, Default)]
+#[derive(Debug, PartialEq, Eq, Default, Clone, Copy)]
 pub enum InParAssume {
     #[default]
     X,
