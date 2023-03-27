@@ -99,21 +99,11 @@ impl Validateable for CdsLocEdit {
             NaEdit::RefAlt { .. }
             | NaEdit::DelRef { .. }
             | NaEdit::Dup { .. }
+            | NaEdit::Ins { .. }
             | NaEdit::InvRef { .. } => {
                 // We cannot make assumptions about reference length as we can have positon
                 // offsets.
                 Ok(())
-            }
-            NaEdit::Ins { .. } => {
-                if range.len() != 2 {
-                    Err(anyhow::anyhow!(
-                        "Locus length must be 1 for insertions ({}, {:?})",
-                        &self,
-                        &range
-                    ))
-                } else {
-                    Ok(())
-                }
             }
             NaEdit::DelNum { count } | NaEdit::NumAlt { count, .. } | NaEdit::InvNum { count } => {
                 if range.len() as i32 != *count {
