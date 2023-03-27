@@ -782,7 +782,11 @@ impl AltSeqToHgvsp {
             aa_end = aa_start.clone();
 
             reference = "".to_owned();
-            alternative = insertion.chars().next().unwrap().to_string();
+            alternative = insertion
+                .chars()
+                .next()
+                .map(|c| c.to_string())
+                .unwrap_or_default();
             is_ext = true;
         } else if *is_frameshift {
             // frameshift
@@ -793,7 +797,11 @@ impl AltSeqToHgvsp {
             aa_end = aa_start.clone();
 
             reference = "".to_owned();
-            alternative = insertion.chars().next().unwrap().to_string();
+            alternative = insertion
+                .chars()
+                .next()
+                .map(|c| c.to_string())
+                .unwrap_or_default();
 
             fsext_len = insertion
                 .find('*')

@@ -541,12 +541,14 @@ pub fn aa_to_aa3(seq: &str) -> Result<String, anyhow::Error> {
 #[allow(dead_code)]
 pub fn aa1_to_aa3(seq: &str) -> Result<String, anyhow::Error> {
     let mut result = String::new();
+    if seq.is_empty() {
+        return Ok(result);
+    }
 
     for i in 0..seq.len() {
-        let aa3 = AA1_TO_AA3_LUT.get(&seq[i..(i + 1)]).ok_or(anyhow::anyhow!(
-            "Invalid 1-letter amino acid: {}",
-            &seq[i..(i + 1)]
-        ))?;
+        let aa3 = AA1_TO_AA3_LUT
+            .get(&seq[i..(i + 1)])
+            .ok_or_else(|| anyhow::anyhow!("Invalid 1-letter amino acid: {}", &seq[i..(i + 1)]))?;
         result.push_str(aa3);
     }
 
