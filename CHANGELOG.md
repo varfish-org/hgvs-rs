@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.4.0](https://github.com/bihealth/hgvs-rs/compare/v0.3.1...v0.4.0) (2023-03-27)
+
+
+### Features
+
+* allow for disabling renormalization ([#53](https://github.com/bihealth/hgvs-rs/issues/53)) ([b2f5dbe](https://github.com/bihealth/hgvs-rs/commit/b2f5dbeb9904fd70494a030eab37bcf1edb8845a))
+* improved normalizer configuration ([#52](https://github.com/bihealth/hgvs-rs/issues/52)) ([2db5e92](https://github.com/bihealth/hgvs-rs/commit/2db5e92316930e76d4b58d47ccc1d2ba2c1010fe))
+* make sequences module public ([#54](https://github.com/bihealth/hgvs-rs/issues/54)) ([cfbb134](https://github.com/bihealth/hgvs-rs/commit/cfbb134b38d853273d734db7bdb7ce1beafa9ad8))
+* more comprehensive clone for field-less enums ([#58](https://github.com/bihealth/hgvs-rs/issues/58)) ([3ada6b2](https://github.com/bihealth/hgvs-rs/commit/3ada6b2a21e24fea2feeb8fb89888710072d4b52))
+
+
+### Bug Fixes
+
+* cases of empty sequence ([#61](https://github.com/bihealth/hgvs-rs/issues/61)) ([0a6a109](https://github.com/bihealth/hgvs-rs/commit/0a6a1094f7387daa92c7bbcbb1c08e2c0c3620aa))
+* fixing projection issues with cdot::json::Provider ([#55](https://github.com/bihealth/hgvs-rs/issues/55)) ([edd0de9](https://github.com/bihealth/hgvs-rs/commit/edd0de9e12e781a3fbeb8fc49d623b8d66484e8d))
+* fixing wrong validation assumption about insertions ([#62](https://github.com/bihealth/hgvs-rs/issues/62)) ([bf027dc](https://github.com/bihealth/hgvs-rs/commit/bf027dc3cdef0b07af4cc234f79499b9146426cf))
+* interpret replace_reference condition ([#49](https://github.com/bihealth/hgvs-rs/issues/49)) ([8326a55](https://github.com/bihealth/hgvs-rs/commit/8326a558eeee75defe8c466ec996ba02f81116cd))
+* issue with out of bounds deletion ([#59](https://github.com/bihealth/hgvs-rs/issues/59)) ([475398d](https://github.com/bihealth/hgvs-rs/commit/475398d0e831afa43abc53327abb14135df40aea))
+* remove ref length validation ([#57](https://github.com/bihealth/hgvs-rs/issues/57)) ([763b7a3](https://github.com/bihealth/hgvs-rs/commit/763b7a38f69f1c1b87472fa655099a988c424294))
+* truncate AA insertion at stop codon ([#60](https://github.com/bihealth/hgvs-rs/issues/60)) ([54231b9](https://github.com/bihealth/hgvs-rs/commit/54231b983b1cbc4480631bde05ab55e2a668ed72))
+
 ## [0.3.1](https://github.com/bihealth/hgvs-rs/compare/v0.3.0...v0.3.1) (2023-03-13)
 
 
