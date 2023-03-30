@@ -130,7 +130,11 @@ impl AltTranscriptData {
         let transcript_sequence = seq.to_owned();
         let aa_sequence = if !seq.is_empty() {
             let seq_cds = &transcript_sequence[((cds_start - 1) as usize)..];
-            let seq_aa = translate_cds(seq_cds, false, "X", TranslationTable::Standard)?;
+            let seq_aa = if let Some(_) = variant_start_aa {
+                translate_cds(seq_cds, false, "X", TranslationTable::Standard)?
+            } else {
+                ref_aa_sequence.to_owned()
+            };
             // Compute original protein/amino acid chain length.  We need this further down to
             // handle the case of transcripts without stop codons (this happens for some bad
             // transcripts from ENSEMBL, e.g., ENST00000420031.2).  In this case, we will
