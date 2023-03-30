@@ -123,6 +123,7 @@ impl AltTranscriptData {
         is_frameshift: bool,
         variant_start_aa: Option<i32>,
         protein_accession: &str,
+        ref_aa_sequence: &str,
         is_substitution: bool,
         is_ambiguous: bool,
     ) -> Result<Self, anyhow::Error> {
@@ -130,13 +131,25 @@ impl AltTranscriptData {
         let aa_sequence = if !seq.is_empty() {
             let seq_cds = &transcript_sequence[((cds_start - 1) as usize)..];
             let seq_aa = translate_cds(seq_cds, false, "X", TranslationTable::Standard)?;
-            let stop_pos = seq_aa[..((cds_stop - cds_start + 1) as usize / 3)]
+            // Compute original protein/amino acid chain length.  We need this further down to
+            // handle the case of transcripts without stop codons (this happens for some bad
+            // transcripts from ENSEMBL, e.g., ENST00000420031.2).  In this case, we will
+            // artificially cut down the amino acid sequence to this length.
+            let orig_aa_len = (cds_stop - cds_start + 1) as usize / 3;
+            let stop_pos = seq_aa[..orig_aa_len]
                 .rfind('*')
                 .or_else(|| seq_aa.find('*'));
             if let Some(stop_pos) = stop_pos {
                 seq_aa[..(stop_pos + 1)].to_owned()
             } else {
-                seq_aa
+                // Double-check whether we have a stop codon in the reference AA sequence.
+                // If this is not the case then use the original CDS.  Otherwise, we fall
+                // back to the full alternative sequence in `seq_aa`.
+                if let Some(_pos) = ref_aa_sequence.find('*') {
+                    seq_aa
+                } else {
+                    seq_aa[..orig_aa_len].to_owned()
+                }
             }
         } else {
             "".to_owned()
@@ -212,7 +225,7 @@ impl AltSeqBuilder {
     ///
     /// Variant sequence data.
     pub fn build_altseq(&self) -> Result<Vec<AltTranscriptData>, anyhow::Error> {
-        // NB: the following common is from the original Python code.
+        // NB: the following comment is from the original Python code.
         // Should loop over each allele rather than assume only 1 variant; return a list for now.
 
         let na_edit = self.var_c.na_edit().expect("Invalid CdsVariant");
@@ -407,6 +420,7 @@ impl AltSeqBuilder {
             is_frameshift,
             Some(variant_start_aa),
             &self.reference_data.protein_accession,
+            &self.reference_data.aa_sequence,
             is_substitution,
             self.ref_has_multiple_stops,
         )
@@ -438,6 +452,7 @@ impl AltSeqBuilder {
             is_frameshift,
             Some(variant_start_aa),
             &self.reference_data.protein_accession,
+            &self.reference_data.aa_sequence,
             false,
             self.ref_has_multiple_stops,
         )
@@ -468,6 +483,7 @@ impl AltSeqBuilder {
             false,
             Some(variant_start_aa),
             &self.reference_data.protein_accession,
+            &self.reference_data.aa_sequence,
             false,
             self.ref_has_multiple_stops,
         )
@@ -482,6 +498,7 @@ impl AltSeqBuilder {
             false,
             None,
             &self.reference_data.protein_accession,
+            &self.reference_data.aa_sequence,
             false,
             true,
         )
@@ -496,6 +513,7 @@ impl AltSeqBuilder {
             false,
             None,
             &self.reference_data.protein_accession,
+            &self.reference_data.aa_sequence,
             false,
             false,
         )
@@ -1030,6 +1048,9 @@ impl AltSeqToHgvsp {
 
     /// Helper to identity an insertion as a duplicate.
     fn check_if_ins_is_dup(&self, start: i32, insertion: &str) -> (bool, i32) {
+        if insertion.len() + 1 >= start as usize {
+            return (false, -1);
+        }
         let dup_cand_start = start as usize - insertion.len() - 1;
         let dup_cand = &self.ref_seq()[dup_cand_start..dup_cand_start + insertion.len()];
         if insertion == dup_cand {
