@@ -272,7 +272,10 @@ impl<'a> Normalizer<'a> {
                 .find(|(idx, _x)| {
                     loc_range.start >= exon_starts[*idx] && loc_range.start < exon_ends[*idx]
                 })
-                .unwrap()
+                .ok_or(anyhow::anyhow!(
+                    "Cannot find exon for normalization of start of {}",
+                    &var
+                ))?
                 .0;
             let j = exon_starts
                 .iter()
@@ -280,7 +283,10 @@ impl<'a> Normalizer<'a> {
                 .find(|(idx, _x)| {
                     loc_range.end > exon_starts[*idx] && loc_range.end - 1 < exon_ends[*idx]
                 })
-                .unwrap()
+                .ok_or(anyhow::anyhow!(
+                    "Cannot find exon for normalization of end of {}",
+                    &var
+                ))?
                 .0;
 
             if i != j {
