@@ -41,6 +41,9 @@ pub struct Config {
     /// Re-normalize out of bounds genome variants on minus strand.  This can be
     /// switched off so genome sequence does not have to be available in provider.
     pub renormalize_g: bool,
+    /// Use the genome sequence in case of uncertain g-to-n projections.  This
+    /// can be switched off so genome sequence does not have to be available.
+    pub genome_seq_available: bool,
 }
 
 impl Default for Config {
@@ -56,6 +59,7 @@ impl Default for Config {
             strict_bounds: true,
             add_gene_symbol: false,
             renormalize_g: true,
+            genome_seq_available: true,
         }
     }
 }
@@ -103,6 +107,7 @@ impl Mapper {
             add_gene_symbol: config.add_gene_symbol,
             strict_bounds: config.strict_bounds,
             renormalize_g: config.renormalize_g,
+            genome_seq_available: config.genome_seq_available,
         };
         let inner = VariantMapper::new(&inner_config, provider.clone());
         let asm_accessions = provider

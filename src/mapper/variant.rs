@@ -30,6 +30,9 @@ pub struct Config {
     /// Re-normalize out of bounds genome variants on minus strand.  This can be
     /// switched off so genome sequence does not have to be available in provider.
     pub renormalize_g: bool,
+    /// Use the genome sequence in case of uncertain g-to-n projections.  This
+    /// can be switched off so genome sequence does not have to be available.
+    pub genome_seq_available: bool,
 }
 
 impl Default for Config {
@@ -41,6 +44,7 @@ impl Default for Config {
             add_gene_symbol: false,
             strict_bounds: true,
             renormalize_g: true,
+            genome_seq_available: true,
         }
     }
 }
@@ -206,7 +210,11 @@ impl Mapper {
                 pos_n.inner(),
                 loc_edit.loc.is_certain() && pos_n.is_certain(),
             );
-            let (pos_n, edit_n) = if let Mu::Certain(pos_n) = pos_n {
+            // The original Python code falls back to the genome for uncertain positions.  This
+            // cannot be done if we do not have the original genome sequence.
+            let pos_n_certain = pos_n.is_certain();
+            let pos_n = pos_n.inner();
+            let (pos_n, edit_n) = if pos_n_certain || !self.config.genome_seq_available {
                 let edit_n = self.convert_edit_check_strand(mapper.strand, &loc_edit.edit)?;
                 if let NaEdit::Ins { alternative } = edit_n.inner() {
                     if pos_n.start.offset.is_none()
@@ -236,7 +244,9 @@ impl Mapper {
                     (Mu::Certain((*pos_n).clone()), edit_n)
                 }
             } else {
-                let pos_g = mapper.n_to_g(pos_n.inner())?;
+                // This is the how the original code handles uncertain positions.  We will reach
+                // here if the position is uncertain and we have the genome sequence.
+                let pos_g = mapper.n_to_g(pos_n)?;
                 let edit_n = NaEdit::RefAlt {
                     reference: "".to_string(),
                     alternative: self.get_altered_sequence(
@@ -245,7 +255,7 @@ impl Mapper {
                         &var_g,
                     )?,
                 };
-                (Mu::Certain((*pos_n.inner()).clone()), Mu::Certain(edit_n))
+                (Mu::Certain((*pos_n).clone()), Mu::Certain(edit_n))
             };
 
             // the following is not needed?

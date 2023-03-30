@@ -126,6 +126,7 @@ impl ExtrinsicValidator {
             add_gene_symbol: false,
             strict_bounds: true,
             renormalize_g: false,
+            genome_seq_available: true,
         };
         Self {
             strict,
