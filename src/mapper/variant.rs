@@ -731,7 +731,7 @@ impl Mapper {
             let builder = AltSeqBuilder::new(var_c, reference_data.clone());
 
             // NB: the following comment is from the original code.
-            // TODO: handle case where you get 2+ alt sequences back;  currently get lis tof 1 element
+            // TODO: handle case where you get 2+ alt sequences back;  currently get list of 1 element
             // loop structure implemented to handle this, but doesn't really do anything currently.
 
             let var_ps: Result<Vec<_>, anyhow::Error> = builder

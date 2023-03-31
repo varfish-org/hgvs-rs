@@ -50,7 +50,7 @@ impl RefTranscriptData {
             &transcript_sequence[((cds_start - 1) as usize)..(cds_stop as usize)];
         if tx_seq_to_translate.len() % 3 != 0 {
             return Err(anyhow::anyhow!(
-                "Transcript {} is not supported because its sequence length of {} is not divible by 3.",
+                "Transcript {} is not supported because its sequence length of {} is not multiple of 3.",
                 tx_ac,
                 tx_seq_to_translate.len()));
         }
@@ -130,7 +130,11 @@ impl AltTranscriptData {
         let transcript_sequence = seq.to_owned();
         let aa_sequence = if !seq.is_empty() {
             let seq_cds = &transcript_sequence[((cds_start - 1) as usize)..];
-            let seq_aa = translate_cds(seq_cds, false, "X", TranslationTable::Standard)?;
+            let seq_aa = if let Some(_) = variant_start_aa {
+                translate_cds(seq_cds, false, "X", TranslationTable::Standard)?
+            } else {
+                ref_aa_sequence.to_owned()
+            };
             // Compute original protein/amino acid chain length.  We need this further down to
             // handle the case of transcripts without stop codons (this happens for some bad
             // transcripts from ENSEMBL, e.g., ENST00000420031.2).  In this case, we will

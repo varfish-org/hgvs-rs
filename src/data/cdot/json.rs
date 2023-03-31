@@ -239,10 +239,10 @@ pub mod models {
         /// Identifier of corresponding protein, e.g., `"NP_009225.1"` for `"NM_007294.3"` of BRCA1.
         #[serde(default)]
         pub protein: Option<String>,
-        /// Start codon of transcript, e.g., `232` for `"NM_007294.3"` of BRCA1.
+        /// 0-based position of codon of transcript, e.g., `232` for `"NM_007294.3"` of BRCA1.
         #[serde(default)]
         pub start_codon: Option<i32>,
-        /// Stop codon of transcript, e.g., `232` for `"NM_007294.3"` of BRCA1.
+        /// End position of stop codon of transcript, e.g., `5824` for `"NM_007294.3"` of BRCA1.
         #[serde(default)]
         pub stop_codon: Option<i32>,
         /// Tags of the transcript.
