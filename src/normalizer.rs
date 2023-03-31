@@ -256,7 +256,11 @@ impl<'a> Normalizer<'a> {
             exon_starts.sort();
             let mut exon_ends = exon_info.iter().map(|r| r.tx_end_i).collect::<Vec<_>>();
             exon_ends.sort();
-            exon_starts.push(*exon_ends.last().unwrap());
+            exon_starts.push(
+                *exon_ends
+                    .last()
+                    .expect("should not happen; must have at least one exon"),
+            );
             exon_ends.push(std::i32::MAX);
 
             // Find the end pos of the exon where the var locates.
@@ -265,7 +269,9 @@ impl<'a> Normalizer<'a> {
 
             // NB: the following content is from the original Python code.
             // TODO: #242: implement methods to find tx regions
-            let loc_range = var.loc_range().unwrap();
+            let loc_range = var
+                .loc_range()
+                .expect("location must have a concrete position");
             let i = exon_starts
                 .iter()
                 .enumerate()
@@ -370,8 +376,13 @@ impl<'a> Normalizer<'a> {
     ) -> Result<(i32, i32, String, String), anyhow::Error> {
         let mut reference = reference;
         let mut alternative = alternative;
-        let loc_range = var.loc_range().unwrap();
-        let (mut base, mut start, mut stop) = match var.na_edit().unwrap() {
+        let loc_range = var
+            .loc_range()
+            .expect("must have a concrete base pair location");
+        let (mut base, mut start, mut stop) = match var
+            .na_edit()
+            .expect("should not happen; must have a NAEdit")
+        {
             NaEdit::Ins { .. } => (loc_range.start + 1, 1, 1),
             NaEdit::Dup { .. } => (loc_range.end, 1, 1),
             _ => (loc_range.start + 1, 0, loc_range.end - loc_range.start),
@@ -421,9 +432,14 @@ impl<'a> Normalizer<'a> {
     ) -> Result<(i32, i32, String, String), anyhow::Error> {
         let mut reference = reference;
         let mut alternative = alternative;
-        let loc_range = var.loc_range().unwrap();
+        let loc_range = var
+            .loc_range()
+            .expect("must have a concrete base pair location");
         let mut base = std::cmp::max(loc_range.start + 1 - win_size, 1);
-        let (mut start, mut stop) = match var.na_edit().unwrap() {
+        let (mut start, mut stop) = match var
+            .na_edit()
+            .expect("should not happen; must have a NAEdit")
+        {
             NaEdit::Ins { .. } => (loc_range.end - base, loc_range.end - base),
             NaEdit::Dup { .. } => (loc_range.end - base + 1, loc_range.end - base + 1),
             _ => (loc_range.start + 1 - base, loc_range.end - base + 1),
@@ -822,23 +838,33 @@ impl<'a> Normalizer<'a> {
         boundary: &Range<i32>,
     ) -> Result<(String, String), anyhow::Error> {
         // Get reference allele.
-        let reference = match var.na_edit().unwrap() {
+        let reference = match var
+            .na_edit()
+            .expect("should not happen; must have a NAEdit")
+        {
             NaEdit::Ins { .. } | NaEdit::Dup { .. } => "".to_string(),
             NaEdit::RefAlt { .. } | NaEdit::InvRef { .. } | NaEdit::DelRef { .. } => {
-                let loc_range = var.loc_range().unwrap();
+                let loc_range = var
+                    .loc_range()
+                    .expect("must have a concrete base pair location");
                 self.fetch_bounded_seq(var, loc_range.start, loc_range.end, 0, boundary)?
             }
             _ => panic!("Cannot work with NumAlt,DelNum/InvNum"),
         };
 
         // Get alternative allele.
-        let alternative = match var.na_edit().unwrap() {
+        let alternative = match var
+            .na_edit()
+            .expect("should not happen; must have a NAEdit")
+        {
             NaEdit::DelRef { .. } => "".to_string(),
             NaEdit::RefAlt { alternative, .. } | NaEdit::Ins { alternative } => {
                 alternative.to_string()
             }
             NaEdit::Dup { .. } => {
-                let loc_range = var.loc_range().unwrap();
+                let loc_range = var
+                    .loc_range()
+                    .expect("must have a concrete base pair location");
                 self.fetch_bounded_seq(var, loc_range.start, loc_range.end, 0, boundary)?
             }
             NaEdit::InvRef { .. } => revcomp(&reference),

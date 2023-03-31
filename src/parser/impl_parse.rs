@@ -893,22 +893,32 @@ mod test {
                 }
 
                 // setup input
-                let inputs = split_inputs(row.get(1).unwrap(), row.get(3).unwrap())?;
+                let inputs = split_inputs(
+                    row.get(1).expect("problem with test input file"),
+                    row.get(3).expect("problem with test input file"),
+                )?;
                 let expected_results = if row.get(4).is_some() && row.get(4) != Some("") {
-                    split_inputs(row.get(4).unwrap(), row.get(3).unwrap())?
+                    split_inputs(
+                        row.get(4).expect("problem with test input file"),
+                        row.get(3).expect("problem with test input file"),
+                    )?
                 } else {
                     inputs.clone()
                 };
-                let is_valid = row.get(2).unwrap().to_lowercase() == "true";
+                let is_valid = row
+                    .get(2)
+                    .expect("problem with test input file")
+                    .to_lowercase()
+                    == "true";
 
                 for (input, expected) in inputs.into_iter().zip(expected_results.into_iter()) {
-                    let func = row.get(0).unwrap();
+                    let func = row.get(0).expect("problem with test input file");
                     match func {
                         "accn" => {
                             let x = input.clone();
                             let res = all_consuming(Accession::parse)(&x);
                             if is_valid {
-                                let (r, acc) = res.unwrap();
+                                let (r, acc) = res.expect("problem with test input file");
                                 assert_eq!(r, "");
                                 assert_eq!(acc.as_str(), expected);
                             } else {

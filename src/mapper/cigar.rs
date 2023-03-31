@@ -89,15 +89,20 @@ impl Display for CigarElement {
 }
 
 impl CigarElement {
-    fn from_strs(count: &str, op: &str) -> CigarElement {
-        CigarElement {
+    fn from_strs(count: &str, op: &str) -> Result<CigarElement, anyhow::Error> {
+        Ok(CigarElement {
             count: if count.is_empty() {
                 1
             } else {
-                str::parse(count).unwrap()
+                str::parse(count).map_err(|_e| anyhow::anyhow!("Invalid CIGAR count {}", count))?
             },
-            op: op.chars().next().unwrap().try_into().unwrap(),
-        }
+            op: op
+                .chars()
+                .next()
+                .expect("CIGAR op is empty")
+                .try_into()
+                .map_err(|_e| anyhow::anyhow!("Invalid CIGAR op {}", op))?,
+        })
     }
 }
 
@@ -155,7 +160,12 @@ pub mod parse {
             "cigar_element",
             pair(digit0, take_while_m_n(1, 1, is_cigar_op_char)),
         )(input)
-        .map(|(rest, (count, op))| (rest, CigarElement::from_strs(count, op)))
+        .map(|(rest, (count, op))| {
+            (
+                rest,
+                CigarElement::from_strs(count, op).expect("CIGAR parsing failed"),
+            )
+        })
     }
 }
 
@@ -202,8 +212,8 @@ impl CigarMapper {
 
         Self {
             cigar_string: cigar_string.clone(),
-            ref_len: *ref_pos.last().unwrap(),
-            tgt_len: *tgt_pos.last().unwrap(),
+            ref_len: *ref_pos.last().expect("no reference positions?"),
+            tgt_len: *tgt_pos.last().expect("no target positions?"),
             ref_pos,
             tgt_pos,
             cigar_op,
@@ -266,7 +276,9 @@ impl CigarMapper {
         end: &str,
         strict_bounds: bool,
     ) -> Result<CigarMapperResult, anyhow::Error> {
-        if strict_bounds && (pos < 0 || pos > *from_pos.last().unwrap()) {
+        if strict_bounds
+            && (pos < 0 || pos > *from_pos.last().ok_or(anyhow::anyhow!("no last position"))?)
+        {
             return Err(anyhow::anyhow!(
                 "Position is beyond the bounds of transcript record (pos={}, from_pos={:?}, to_pos={:?}]",
                 pos,

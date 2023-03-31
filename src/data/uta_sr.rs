@@ -51,7 +51,7 @@ impl Provider {
                 &config.seqrepo_path
             ))?
             .to_str()
-            .unwrap()
+            .expect("problem with path to string conversion")
             .to_string();
         let instance = seqrepo
             .file_name()
@@ -60,7 +60,7 @@ impl Provider {
                 &config.seqrepo_path
             ))?
             .to_str()
-            .unwrap()
+            .expect("problem with path to string conversion")
             .to_string();
 
         Ok(Self {
@@ -242,7 +242,7 @@ pub mod test_helpers {
                 &seqrepo_path
             ))?
             .to_str()
-            .unwrap()
+            .expect("problem with path to string conversion")
             .to_string();
         let instance = path_buf
             .file_name()
@@ -251,7 +251,7 @@ pub mod test_helpers {
                 &seqrepo_path
             ))?
             .to_str()
-            .unwrap()
+            .expect("problem with path to string conversion")
             .to_string();
         let seqrepo: Rc<dyn SeqRepoInterface> = Rc::new(CacheWritingSeqRepo::new(
             SeqRepo::new(path, &instance)?,

@@ -54,7 +54,7 @@ impl Provider {
                 &config.seqrepo_path
             ))?
             .to_str()
-            .unwrap()
+            .expect("problem with path to string conversion")
             .to_string();
         let instance = seqrepo
             .file_name()
@@ -63,7 +63,7 @@ impl Provider {
                 &config.seqrepo_path
             ))?
             .to_str()
-            .unwrap()
+            .expect("problem with path to string conversion")
             .to_string();
 
         Ok(Self {
@@ -608,12 +608,24 @@ impl TxProvider {
             .values()
             .filter(|gene| {
                 gene.gene_symbol.is_some()
-                    && !gene.gene_symbol.as_ref().unwrap().is_empty()
+                    && !gene
+                        .gene_symbol
+                        .as_ref()
+                        .expect("should not happen; empty gene symbol filtered out")
+                        .is_empty()
                     && gene.map_location.is_some()
-                    && !gene.map_location.as_ref().unwrap().is_empty()
+                    && !gene
+                        .map_location
+                        .as_ref()
+                        .expect("should not happen; empty location filtered out")
+                        .is_empty()
             })
             .for_each(|gene| {
-                let gene_symbol = gene.gene_symbol.as_ref().unwrap().clone();
+                let gene_symbol = gene
+                    .gene_symbol
+                    .as_ref()
+                    .expect("should not happen; empty gene symbol filtered out")
+                    .clone();
                 transcript_ids_for_gene
                     .entry(gene_symbol.clone())
                     .or_insert(Vec::new());
@@ -621,9 +633,19 @@ impl TxProvider {
             });
         c_txs
             .values()
-            .filter(|tx| tx.gene_name.is_some() && !tx.gene_name.as_ref().unwrap().is_empty())
+            .filter(|tx| {
+                tx.gene_name.is_some()
+                    && !tx
+                        .gene_name
+                        .as_ref()
+                        .expect("should not happen; empty gene name filtered out")
+                        .is_empty()
+            })
             .for_each(|tx| {
-                let gene_name = tx.gene_name.as_ref().unwrap();
+                let gene_name = tx
+                    .gene_name
+                    .as_ref()
+                    .expect("should not happen; empty gene name filtered out");
                 transcript_ids_for_gene
                     .get_mut(gene_name)
                     .unwrap_or_else(|| panic!("tx {:?} for unknown gene {:?}", tx.id, gene_name))
@@ -645,20 +667,22 @@ impl TxProvider {
             for genome_alignment in transcript.genome_builds.values() {
                 let contig = &genome_alignment.contig;
                 result.entry(contig.clone()).or_insert(IntervalTree::new());
-                let tree = result.get_mut(contig).unwrap();
+                let tree = result
+                    .get_mut(contig)
+                    .expect("should not happen; just inserted");
                 let alt_start_i = genome_alignment
                     .exons
                     .iter()
                     .map(|exon| exon.alt_start_i)
                     .min()
-                    .unwrap()
+                    .expect("should not happen; must have at least one exon")
                     - 1;
                 let alt_end_i = genome_alignment
                     .exons
                     .iter()
                     .map(|exon| exon.alt_end_i)
                     .max()
-                    .unwrap();
+                    .expect("should not happen; must have at least one exon");
                 tree.insert(alt_start_i..alt_end_i, transcript.id.clone());
             }
         }
@@ -822,13 +846,24 @@ impl TxProvider {
         if let Some(tx_acs) = self.transcript_ids_for_gene.get(gene) {
             let mut tmp = Vec::new();
             for tx_ac in tx_acs {
-                let tx = self.transcripts.get(tx_ac).unwrap();
+                let tx = self
+                    .transcripts
+                    .get(tx_ac)
+                    .expect("should not happen by construction");
                 let cds_start_i = tx.start_codon;
                 let cds_end_i = tx.stop_codon;
                 for genome_alignment in tx.genome_builds.values() {
                     let contig = &genome_alignment.contig;
-                    let tx_start = genome_alignment.exons.first().unwrap().alt_start_i;
-                    let tx_end = genome_alignment.exons.last().unwrap().alt_end_i;
+                    let tx_start = genome_alignment
+                        .exons
+                        .first()
+                        .expect("should not happen; must have at least one exon")
+                        .alt_start_i;
+                    let tx_end = genome_alignment
+                        .exons
+                        .last()
+                        .expect("should not happen; must have at least one exon")
+                        .alt_end_i;
                     let length = tx_end - tx_start;
                     let rec = TxInfoRecord {
                         hgnc: gene.to_string(),
@@ -870,14 +905,25 @@ impl TxProvider {
 
             for entry in contig_itv_tree.find((start_i - 1)..(end_i)) {
                 let tx_ac = entry.data();
-                let tx = self.transcripts.get(tx_ac).unwrap();
+                let tx = self
+                    .transcripts
+                    .get(tx_ac)
+                    .expect("should not happen by construction");
                 let genome_alignment = tx
                     .genome_builds
                     .values()
                     .find(|genome_alignment| genome_alignment.contig == alt_ac);
                 if let Some(genome_alignment) = genome_alignment {
-                    let tx_start = genome_alignment.exons.first().unwrap().alt_start_i;
-                    let tx_end = genome_alignment.exons.last().unwrap().alt_end_i;
+                    let tx_start = genome_alignment
+                        .exons
+                        .first()
+                        .expect("should not happen; must have at least one exon")
+                        .alt_start_i;
+                    let tx_end = genome_alignment
+                        .exons
+                        .last()
+                        .expect("should not happen; must have at least one exon")
+                        .alt_end_i;
                     let length = tx_end - tx_start;
 
                     let rec = TxForRegionRecord {
@@ -920,7 +966,7 @@ impl TxProvider {
             .genome_builds
             .values()
             .next()
-            .unwrap()
+            .expect("should not happen; must have at least one alignment remaining")
             .exons
             .iter()
             .map(|exon| (exon.ord, exon.alt_cds_end_i + 1 - exon.alt_cds_start_i))

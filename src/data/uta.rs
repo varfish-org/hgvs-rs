@@ -215,8 +215,10 @@ impl Provider {
     pub fn with_config(config: &Config) -> Result<Self, anyhow::Error> {
         let config = config.clone();
         let conn = Mutex::new(Client::connect(&config.db_url, NoTls)?);
-        let schema_version =
-            Self::fetch_schema_version(&mut conn.lock().unwrap(), &config.db_schema)?;
+        let schema_version = Self::fetch_schema_version(
+            &mut conn.lock().expect("cannot obtain connection lock"),
+            &config.db_schema,
+        )?;
         Ok(Self {
             config,
             conn,
@@ -262,7 +264,7 @@ impl ProviderInterface for Provider {
         let result: GeneInfoRecord = self
             .conn
             .lock()
-            .unwrap()
+            .expect("cannot obtain connection lock")
             .query_one(&sql, &[&hgnc])?
             .try_into()?;
 
@@ -282,9 +284,13 @@ impl ProviderInterface for Provider {
             WHERE tx_ac = $1 ORDER BY pro_ac DESC",
             self.config.db_schema
         );
-        if let Some(row) = (self.conn.lock().unwrap().query(&sql, &[&tx_ac])?)
-            .into_iter()
-            .next()
+        if let Some(row) = (self
+            .conn
+            .lock()
+            .expect("cannot obtain connection lock")
+            .query(&sql, &[&tx_ac])?)
+        .into_iter()
+        .next()
         {
             let result = Some(row.try_get("pro_ac")?);
             self.caches
@@ -313,7 +319,7 @@ impl ProviderInterface for Provider {
         let seq_id: String = self
             .conn
             .lock()
-            .unwrap()
+            .expect("cannot obtain connection lock")
             .query_one(&sql, &[&ac])?
             .try_get("seq_id")?;
 
@@ -324,7 +330,7 @@ impl ProviderInterface for Provider {
         let seq: String = self
             .conn
             .lock()
-            .unwrap()
+            .expect("cannot obtain connection lock")
             .query_one(&sql, &[&seq_id])?
             .try_get("seq")?;
 
@@ -346,7 +352,12 @@ impl ProviderInterface for Provider {
             self.config.db_schema
         );
         let mut result = Vec::new();
-        for row in self.conn.lock().unwrap().query(&sql, &[&md5])? {
+        for row in self
+            .conn
+            .lock()
+            .expect("cannot obtain connection lock")
+            .query(&sql, &[&md5])?
+        {
             result.push(row.get(0));
         }
         // Add sentinel sequence.
@@ -373,7 +384,12 @@ impl ProviderInterface for Provider {
             self.config.db_schema
         );
         let mut result = Vec::new();
-        for row in self.conn.lock().unwrap().query(&sql, &[&tx_ac])? {
+        for row in self
+            .conn
+            .lock()
+            .expect("cannot obtain connection lock")
+            .query(&sql, &[&tx_ac])?
+        {
             result.push(row.try_into()?);
         }
 
@@ -408,7 +424,7 @@ impl ProviderInterface for Provider {
         for row in self
             .conn
             .lock()
-            .unwrap()
+            .expect("cannot obtain connection lock")
             .query(&sql, &[&tx_ac, &alt_ac, &alt_aln_method])?
         {
             result.push(row.try_into()?);
@@ -440,7 +456,12 @@ impl ProviderInterface for Provider {
             self.config.db_schema, self.config.db_schema,
         );
         let mut result = Vec::new();
-        for row in self.conn.lock().unwrap().query(&sql, &[&gene])? {
+        for row in self
+            .conn
+            .lock()
+            .expect("cannot obtain connection lock")
+            .query(&sql, &[&gene])?
+        {
             result.push(row.try_into()?);
         }
 
@@ -482,7 +503,7 @@ impl ProviderInterface for Provider {
         for row in self
             .conn
             .lock()
-            .unwrap()
+            .expect("cannot obtain connection lock")
             .query(&sql, &[&alt_ac, &start_i, &end_i])?
         {
             let record: TxForRegionRecord = row.try_into()?;
@@ -512,7 +533,7 @@ impl ProviderInterface for Provider {
         let result: TxIdentityInfo = self
             .conn
             .lock()
-            .unwrap()
+            .expect("cannot obtain connection lock")
             .query_one(&sql, &[&tx_ac])?
             .try_into()?;
 
@@ -548,7 +569,7 @@ impl ProviderInterface for Provider {
         let result: TxInfoRecord = self
             .conn
             .lock()
-            .unwrap()
+            .expect("cannot obtain connection lock")
             .query_one(&sql, &[&tx_ac, &alt_ac, &alt_aln_method])?
             .try_into()?;
 
@@ -572,7 +593,12 @@ impl ProviderInterface for Provider {
             self.config.db_schema
         );
         let mut result = Vec::new();
-        for row in self.conn.lock().unwrap().query(&sql, &[&tx_ac])? {
+        for row in self
+            .conn
+            .lock()
+            .expect("cannot obtain connection lock")
+            .query(&sql, &[&tx_ac])?
+        {
             result.push(row.try_into()?);
         }
 

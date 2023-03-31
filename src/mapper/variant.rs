@@ -535,7 +535,12 @@ impl Mapper {
                     gene_symbol: var_c.gene_symbol().clone(),
                     loc_edit: TxLocEdit {
                         loc: pos_n.clone(),
-                        edit: Mu::Certain(var_c.na_edit().unwrap().clone()),
+                        edit: Mu::Certain(
+                            var_c
+                                .na_edit()
+                                .ok_or(anyhow::anyhow!("no NAEdit in HGVS.c variant"))?
+                                .clone(),
+                        ),
                     },
                 };
                 let edit_n = NaEdit::RefAlt {
@@ -742,7 +747,10 @@ impl Mapper {
                     builder.build_hgvsp()
                 })
                 .collect();
-            let var_p = var_ps?.into_iter().next().unwrap();
+            let var_p = var_ps?
+                .into_iter()
+                .next()
+                .ok_or(anyhow::anyhow!("could not construct HGVS.p variant"))?;
 
             let var_p = if let HgvsVariant::ProtVariant {
                 accession,
@@ -1703,13 +1711,13 @@ mod test {
             let prot_ac = record
                 .hgvs_p
                 .as_ref()
-                .unwrap()
+                .expect("problem with result in test")
                 .split(':')
                 .next()
                 .map(|s| s.to_string());
             let var_p = mapper.c_to_p(&var_c, prot_ac.as_deref())?;
             let result = format!("{}", &var_p);
-            let expected = &record.hgvs_p.unwrap();
+            let expected = &record.hgvs_p.expect("problem with result in test");
 
             let expected = if &result != expected {
                 expected.replace('*', "Ter")
@@ -1731,7 +1739,7 @@ mod test {
             } else {
                 format!("{var}")
             };
-            let re = Regex::new(r"del\w+ins").unwrap();
+            let re = Regex::new(r"del\w+ins").expect("problem with regex in test");
             re.replace(&tmp, "delins").to_string()
         }
 
@@ -1820,7 +1828,7 @@ mod test {
                 let mut hgvs_p_test = format!("{}", &var_p_test);
 
                 if hgvs_p_exp.ends_with("Ter") {
-                    let re = Regex::new(r"Ter\d+$").unwrap();
+                    let re = Regex::new(r"Ter\d+$").expect("problem with regex in test");
                     hgvs_p_test = re.replace(&hgvs_p_test, "Ter").to_string();
                 }
 
