@@ -50,7 +50,7 @@ impl RefTranscriptData {
             &transcript_sequence[((cds_start - 1) as usize)..(cds_stop as usize)];
         if tx_seq_to_translate.len() % 3 != 0 {
             return Err(anyhow::anyhow!(
-                "Transcript {} is not supported because its sequence length of {} is not divible by 3.",
+                "Transcript {} is not supported because its sequence length of {} is not multiple of 3.",
                 tx_ac,
                 tx_seq_to_translate.len()));
         }
