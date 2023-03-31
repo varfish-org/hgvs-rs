@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.0](https://github.com/bihealth/hgvs-rs/compare/v0.4.0...v0.5.0) (2023-03-31)
+
+
+### Features
+
+* allow configuring that there is no genome sequence ([#65](https://github.com/bihealth/hgvs-rs/issues/65)) ([cd5b7bb](https://github.com/bihealth/hgvs-rs/commit/cd5b7bb0f04369b34f4d8857d558915ae2ddccbb))
+* replacing usages of unwrap() with expect or Result ([#70](https://github.com/bihealth/hgvs-rs/issues/70)) ([#73](https://github.com/bihealth/hgvs-rs/issues/73)) ([94d6f88](https://github.com/bihealth/hgvs-rs/commit/94d6f88f44f1f574dad7ca3015c2dba2852b869e))
+
+
+### Bug Fixes
+
+* case of missing stop codon (in particular ENSEMBL) ([#72](https://github.com/bihealth/hgvs-rs/issues/72)) ([a44e28c](https://github.com/bihealth/hgvs-rs/commit/a44e28c3ea57bea66cf9354c17b0f93e9a920636))
+* fixing wrong validation assumption about insertions ([#64](https://github.com/bihealth/hgvs-rs/issues/64)) ([f58ff53](https://github.com/bihealth/hgvs-rs/commit/f58ff53ad017c65968afef64ad50c532be64f605))
+* issue with transcripts missing stop codon ([#67](https://github.com/bihealth/hgvs-rs/issues/67)) ([f70bb91](https://github.com/bihealth/hgvs-rs/commit/f70bb91bba07f41110f32bc7da62f0cbc873e85d))
+* return error if problem in normalization ([#71](https://github.com/bihealth/hgvs-rs/issues/71)) ([b656d2a](https://github.com/bihealth/hgvs-rs/commit/b656d2ae87e0cfbbb08a7ae6b055f2d9ce13f1bc))
+* return error in normalization instead of unwrap() ([#68](https://github.com/bihealth/hgvs-rs/issues/68)) ([8144db6](https://github.com/bihealth/hgvs-rs/commit/8144db60b74bb5fa2ff625cfef73be2297ddfd0f))
+
 ## [0.4.0](https://github.com/bihealth/hgvs-rs/compare/v0.3.1...v0.4.0) (2023-03-27)
 
 
