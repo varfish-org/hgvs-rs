@@ -312,7 +312,10 @@ impl Mapper {
         }
 
         if alt_acs.len() == 1 {
-            Ok(alt_acs.first().unwrap().to_owned())
+            Ok(alt_acs
+                .first()
+                .expect("should not happen; checked for one alt_ac above")
+                .to_owned())
         } else {
             // alt_acs.len() > 1
             // Perform sanity check on result if more than one contig is returned.
@@ -320,7 +323,7 @@ impl Mapper {
                 .iter()
                 .map(|ac| self.asm_map.get(ac))
                 .filter(|x| x.is_some())
-                .map(|x| x.unwrap().clone())
+                .map(|x| x.expect("should not happen; empty alt_ac").clone())
                 .collect::<Vec<_>>();
             alts.sort();
             if alts.join("") != "XY" {
@@ -360,7 +363,10 @@ impl Mapper {
                     alt_acs.len()
                 ))
             } else {
-                Ok(alt_acs.first().unwrap().to_owned())
+                Ok(alt_acs
+                    .first()
+                    .expect("should not happen; checked for exactly one alt_ac above")
+                    .to_owned())
             }
         }
     }
@@ -939,10 +945,10 @@ mod test {
 
             for row in rdr.records() {
                 let row = row?;
-                let disc_type = row.get(0).unwrap();
-                let loc_type = row.get(1).unwrap();
-                let variant = row.get(2).unwrap();
-                let expected = row.get(3).unwrap();
+                let disc_type = row.get(0).expect("problem in test TSV file");
+                let loc_type = row.get(1).expect("problem in test TSV file");
+                let variant = row.get(2).expect("problem in test TSV file");
+                let expected = row.get(3).expect("problem in test TSV file");
 
                 let var_n = HgvsVariant::from_str(variant)?;
                 let var_g = mapper.n_to_g(&var_n)?;

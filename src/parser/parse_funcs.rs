@@ -204,7 +204,10 @@ pub mod protein_edit {
                     ProteinEdit::Fs {
                         alternative: alternative.map(str::to_owned),
                         terminal: Some(terminal.to_string()),
-                        length: UncertainLengthChange::Known(str::parse::<i32>(count).unwrap()),
+                        length: UncertainLengthChange::Known(
+                            str::parse::<i32>(count)
+                            .expect("should not happen; previous parsing should guarantee string with digits")
+                        ),
                     },
                 ))
             }
@@ -231,7 +234,9 @@ pub mod protein_edit {
             ProteinEdit::Ext {
                 aa_ext: aa_ext.map(str::to_owned),
                 ext_aa: ext_aa.map(str::to_owned),
-                change: UncertainLengthChange::Known(-str::parse::<i32>(offset).unwrap()),
+                change: UncertainLengthChange::Known(-str::parse::<i32>(offset).expect(
+                    "should not happen; previous parsing should guarantee string with digits",
+                )),
             },
         ))
     }
@@ -251,7 +256,7 @@ pub mod protein_edit {
                     change: if offset == "?" {
                         UncertainLengthChange::Unknown
                     } else {
-                        UncertainLengthChange::Known(str::parse::<i32>(offset).unwrap())
+                        UncertainLengthChange::Known(str::parse::<i32>(offset).expect("should not happen; previous parsing should guarantee string with digits"))
                     },
                 },
             ))
@@ -352,7 +357,8 @@ pub mod na_edit {
 
     pub fn del_num(input: &str) -> IResult<&str, NaEdit> {
         map(tuple((tag("del"), digit1)), |(_, count)| NaEdit::DelNum {
-            count: str::parse::<i32>(count).unwrap(),
+            count: str::parse::<i32>(count)
+                .expect("should not happen; previous parsing should guarantee string with digits"),
         })(input)
     }
 
@@ -374,7 +380,9 @@ pub mod na_edit {
         Ok((
             rest,
             NaEdit::NumAlt {
-                count: count.parse::<i32>().unwrap(),
+                count: count.parse::<i32>().expect(
+                    "should not happen; previous parsing should guarantee string with digits",
+                ),
                 alternative: alternative.to_string(),
             },
         ))
@@ -405,7 +413,9 @@ pub mod na_edit {
         Ok((
             rest,
             NaEdit::InvNum {
-                count: count.parse::<i32>().unwrap(),
+                count: count.parse::<i32>().expect(
+                    "should not happen; previous parsing should guarantee string with digits",
+                ),
             },
         ))
     }
@@ -440,8 +450,14 @@ pub mod cds_pos {
         Ok((
             rest,
             CdsPos {
-                base: str::parse::<i32>(base).unwrap(),
-                offset: offset.map(|offset| str::parse::<i32>(offset).unwrap()),
+                base: str::parse::<i32>(base).expect(
+                    "should not happen; previous parsing should guarantee string with digits",
+                ),
+                offset: offset.map(|offset| {
+                    str::parse::<i32>(offset).expect(
+                        "should not happen; previous parsing should guarantee string with digits",
+                    )
+                }),
                 cds_from: CdsFrom::Start,
             },
         ))
@@ -454,8 +470,14 @@ pub mod cds_pos {
         Ok((
             rest,
             CdsPos {
-                base: str::parse::<i32>(base).unwrap(),
-                offset: offset.map(|offset| str::parse::<i32>(offset).unwrap()),
+                base: str::parse::<i32>(base).expect(
+                    "should not happen; previous parsing should guarantee string with digits",
+                ),
+                offset: offset.map(|offset| {
+                    str::parse::<i32>(offset).expect(
+                        "should not happen; previous parsing should guarantee string with digits",
+                    )
+                }),
                 cds_from: CdsFrom::End,
             },
         ))
@@ -495,7 +517,9 @@ pub mod genome_pos {
             if value == "?" {
                 None
             } else {
-                Some(str::parse::<i32>(value).unwrap())
+                Some(str::parse::<i32>(value).expect(
+                    "should not happen; previous parsing should guarantee string with digits",
+                ))
             }
         })(input)
     }
@@ -531,7 +555,9 @@ pub mod mt_pos {
             if value == "?" {
                 None
             } else {
-                Some(str::parse::<i32>(value).unwrap())
+                Some(str::parse::<i32>(value).expect(
+                    "should not happen; previous parsing should guarantee string with digits",
+                ))
             }
         })(input)
     }
@@ -573,8 +599,14 @@ pub mod tx_pos {
         Ok((
             rest,
             TxPos {
-                base: str::parse::<i32>(base).unwrap(),
-                offset: offset.map(|offset| str::parse::<i32>(offset).unwrap()),
+                base: str::parse::<i32>(base).expect(
+                    "should not happen; previous parsing should guarantee string with digits",
+                ),
+                offset: offset.map(|offset| {
+                    str::parse::<i32>(offset).expect(
+                        "should not happen; previous parsing should guarantee string with digits",
+                    )
+                }),
             },
         ))
     }
@@ -614,8 +646,14 @@ pub mod rna_pos {
         Ok((
             rest,
             RnaPos {
-                base: str::parse::<i32>(base).unwrap(),
-                offset: offset.map(|offset| str::parse::<i32>(offset).unwrap()),
+                base: str::parse::<i32>(base).expect(
+                    "should not happen; previous parsing should guarantee string with digits",
+                ),
+                offset: offset.map(|offset| {
+                    str::parse::<i32>(offset).expect(
+                        "should not happen; previous parsing should guarantee string with digits",
+                    )
+                }),
             },
         ))
     }
@@ -657,7 +695,9 @@ pub mod prot_pos {
             rest,
             ProtPos {
                 aa: aa.to_string(),
-                number: str::parse::<i32>(number).unwrap(),
+                number: str::parse::<i32>(number).expect(
+                    "should not happen; previous parsing should guarantee string with digits",
+                ),
             },
         ))
     }

@@ -27,8 +27,10 @@ impl Assembly {
         };
         let mut d = GzDecoder::new(payload);
         let mut grch37_json = String::new();
-        d.read_to_string(&mut grch37_json).unwrap();
-        serde_json::from_str::<AssemblyInfo>(&grch37_json).unwrap()
+        d.read_to_string(&mut grch37_json)
+            .expect("should not happen; invalid gzip in embedded data");
+        serde_json::from_str::<AssemblyInfo>(&grch37_json)
+            .expect("should not happen; invalid JSON in embedded data")
     }
 }
 

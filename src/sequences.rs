@@ -58,7 +58,7 @@ pub fn trim_common_suffixes(reference: &str, alternative: &str) -> (usize, Strin
 /// Reverse complementing shortcut.
 pub fn revcomp(seq: &str) -> String {
     std::str::from_utf8(&bio::alphabets::dna::revcomp(seq.as_bytes()))
-        .unwrap()
+        .expect("invalid utf-8 encoding")
         .to_string()
 }
 
@@ -726,7 +726,8 @@ pub fn seq_md5(seq: &str, normalize: bool) -> Result<String, anyhow::Error> {
     hasher.update(seq);
     let hash = hasher.finalize();
     let mut buf = [0u8; 64];
-    let checksum = base16ct::lower::encode_str(&hash, &mut buf).unwrap();
+    let checksum =
+        base16ct::lower::encode_str(&hash, &mut buf).expect("cannot perform base16 encoding");
     Ok(checksum.to_owned())
 }
 

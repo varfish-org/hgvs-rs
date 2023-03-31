@@ -72,7 +72,9 @@ impl RefTranscriptData {
                 .get_acs_for_protein_seq(&aa_sequence)?
                 .into_iter()
                 .next()
-                .unwrap()
+                .expect(
+                    "get_acs_for_protein_seq() should always return at least the MD5_ accession",
+                )
         };
 
         Ok(Self {
@@ -130,7 +132,7 @@ impl AltTranscriptData {
         let transcript_sequence = seq.to_owned();
         let aa_sequence = if !seq.is_empty() {
             let seq_cds = &transcript_sequence[((cds_start - 1) as usize)..];
-            let seq_aa = if let Some(_) = variant_start_aa {
+            let seq_aa = if variant_start_aa.is_some() {
                 translate_cds(seq_cds, false, "X", TranslationTable::Standard)?
             } else {
                 ref_aa_sequence.to_owned()
@@ -569,7 +571,9 @@ impl AltSeqToHgvsp {
                             .ref_seq()
                             .chars()
                             .nth(start as usize - 1)
-                            .unwrap()
+                            .ok_or(anyhow::anyhow!(
+                                "start pos out of range in reference sequence"
+                            ))?
                             .to_string();
                         AdHocRecord {
                             start,
@@ -599,13 +603,23 @@ impl AltSeqToHgvsp {
                     })
                     .collect::<Vec<_>>();
                 if diff_records.len() == 1 {
-                    records.push(diff_records.drain(..).next().unwrap());
+                    records.push(
+                        diff_records
+                            .drain(..)
+                            .next()
+                            .expect("must have at least one diff. record"),
+                    );
                     do_delins = false;
                 }
             }
 
             if do_delins {
-                let mut start = self.alt_data.variant_start_aa.unwrap() as usize - 1;
+                let mut start = self
+                    .alt_data
+                    .variant_start_aa
+                    .expect("should not happen; must have start AA set")
+                    as usize
+                    - 1;
                 while self.ref_seq().chars().nth(start) == self.alt_seq().chars().nth(start) {
                     start += 1;
                 }
@@ -669,7 +683,10 @@ impl AltSeqToHgvsp {
                         diff_indices
                     };
                     let (deletion, insertion) = if !diff_indices.is_empty() {
-                        let max_diff = diff_indices.last().unwrap() + 1;
+                        let max_diff = diff_indices
+                            .last()
+                            .expect("should not happen; checked for being non-empty above")
+                            + 1;
                         (
                             format!("{}{}", deletion, &ref_sub[..max_diff]),
                             format!("{}{}", insertion, &alt_sub[..max_diff]),
@@ -782,7 +799,11 @@ impl AltSeqToHgvsp {
         if insertion.starts_with('*') {
             // stop codon at variant position
             aa_start = Some(ProtPos {
-                aa: deletion.chars().next().unwrap().to_string(),
+                aa: deletion
+                    .chars()
+                    .next()
+                    .ok_or(anyhow::anyhow!("deletion sequence should not be empty"))?
+                    .to_string(),
                 number: *start,
             });
             aa_end = aa_start.clone();
@@ -813,7 +834,11 @@ impl AltSeqToHgvsp {
         } else if *is_frameshift {
             // frameshift
             aa_start = Some(ProtPos {
-                aa: deletion.chars().next().unwrap().to_string(),
+                aa: deletion
+                    .chars()
+                    .next()
+                    .ok_or(anyhow::anyhow!("deletion sequence should not be empty"))?
+                    .to_string(),
                 number: *start,
             });
             aa_end = aa_start.clone();
@@ -858,14 +883,22 @@ impl AltSeqToHgvsp {
             let end = start + deletion.len() as i32 - 1;
 
             aa_start = Some(ProtPos {
-                aa: deletion.chars().next().unwrap().to_string(),
+                aa: deletion
+                    .chars()
+                    .next()
+                    .ok_or(anyhow::anyhow!("deletion sequence should not be empty"))?
+                    .to_string(),
                 number: *start,
             });
             if !insertion.is_empty() {
                 // delins
                 aa_end = if end > *start {
                     Some(ProtPos {
-                        aa: deletion.chars().last().unwrap().to_string(),
+                        aa: deletion
+                            .chars()
+                            .last()
+                            .ok_or(anyhow::anyhow!("deletion sequence should not be empty"))?
+                            .to_string(),
                         number: end,
                     })
                 } else {
@@ -884,7 +917,11 @@ impl AltSeqToHgvsp {
                     // deletion
                     aa_end = if end > *start {
                         Some(ProtPos {
-                            aa: deletion.chars().last().unwrap().to_string(),
+                            aa: deletion
+                                .chars()
+                                .last()
+                                .ok_or(anyhow::anyhow!("deletion sequence should not be empty"))?
+                                .to_string(),
                             number: end,
                         })
                     } else {
@@ -902,11 +939,19 @@ impl AltSeqToHgvsp {
                 // is duplication
                 let dup_end = dup_start + insertion.len() as i32 - 1;
                 aa_start = Some(ProtPos {
-                    aa: insertion.chars().next().unwrap().to_string(),
+                    aa: insertion
+                        .chars()
+                        .next()
+                        .ok_or(anyhow::anyhow!("insertion sequence should not be empty"))?
+                        .to_string(),
                     number: dup_start,
                 });
                 aa_end = Some(ProtPos {
-                    aa: insertion.chars().last().unwrap().to_string(),
+                    aa: insertion
+                        .chars()
+                        .last()
+                        .ok_or(anyhow::anyhow!("insertion sequence should not be empty"))?
+                        .to_string(),
                     number: dup_end,
                 });
                 reference = "".to_string();
@@ -921,7 +966,7 @@ impl AltSeqToHgvsp {
                         .ref_seq()
                         .chars()
                         .nth(start as usize - 1)
-                        .unwrap()
+                        .ok_or(anyhow::anyhow!("start position out of range in reference"))?
                         .to_string(),
                     number: start,
                 });
@@ -930,7 +975,7 @@ impl AltSeqToHgvsp {
                         .ref_seq()
                         .chars()
                         .nth(end as usize - 1)
-                        .unwrap()
+                        .ok_or(anyhow::anyhow!("end position out of range in reference"))?
                         .to_string(),
                     number: end,
                 });
