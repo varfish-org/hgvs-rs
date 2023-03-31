@@ -1,3 +1,6 @@
+[![Crates.io](https://img.shields.io/crates/d/hgvs.svg)](https://crates.io/crates/hgvs)
+[![Crates.io](https://img.shields.io/crates/v/hgvs.svg)](https://crates.io/crates/hgvs)
+[![Crates.io](https://img.shields.io/crates/l/hgvs.svg)](https://crates.io/crates/hgvs)
 [![CI](https://github.com/bihealth/hgvs-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/bihealth/hgvs-rs/actions/workflows/rust.yml)
 [![codecov](https://codecov.io/gh/bihealth/hgvs-rs/branch/main/graph/badge.svg?token=aZchhLWdzt)](https://codecov.io/gh/bihealth/hgvs-rs)
 
