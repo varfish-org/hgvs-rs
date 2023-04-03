@@ -1,3 +1,5 @@
+perf.*
+
 /target
 /Cargo.lock
 
