@@ -151,32 +151,6 @@ lazy_static::lazy_static! {
         ("Sec", "U"),
     ];
 
-    static ref AA1_TO_AA3_LUT_VEC: Vec<(&'static str, &'static str)> = vec![
-        ("A", "Ala"),
-        ("R", "Arg"),
-        ("N", "Asn"),
-        ("D", "Asp"),
-        ("C", "Cys"),
-        ("Q", "Gln"),
-        ("E", "Glu"),
-        ("G", "Gly"),
-        ("H", "His"),
-        ("I", "Ile"),
-        ("L", "Leu"),
-        ("K", "Lys"),
-        ("M", "Met"),
-        ("F", "Phe"),
-        ("P", "Pro"),
-        ("S", "Ser"),
-        ("T", "Thr"),
-        ("W", "Trp"),
-        ("Y", "Tyr"),
-        ("V", "Val"),
-        ("X", "Xaa"),
-        ("*", "Ter"),
-        ("U", "Sec"),
-    ];
-
     /// NCBI standard translation table.
     static ref DNA_TO_AA1_LUT_VEC: Vec<(&'static str, &'static str)> = vec![
         ("AAA", "K"),
@@ -543,7 +517,7 @@ lazy_static::lazy_static! {
 
     static ref AA1_TO_AA3_LUT: FxHashMap<&'static [u8], &'static str> = {
         let mut m = FxHashMap::default();
-        for (aa1, aa3) in AA1_TO_AA3_LUT_VEC.iter() {
+        for (aa3, aa1) in AA3_TO_AA1_LUT_VEC.iter() {
             m.insert(aa1.as_bytes(), *aa3);
         }
         m
@@ -1056,6 +1030,27 @@ mod test {
         assert!(normalize_sequence("ACGT1").is_err());
 
         Ok(())
+    }
+
+    #[test]
+    fn exercise_lazy_ds() {
+        assert!(DNA_ASCII_MAP[0] == b'\0');
+        assert!(DNA_ASCII_TO_2BIT[b'A' as usize] == 0);
+        assert!(AA3_TO_AA1_LUT_VEC[0] == ("Ala", "A"));
+        assert!(DNA_TO_AA1_LUT_VEC[0] == ("AAA", "K"));
+        assert!(DNA_TO_AA1_SEC_VEC[0] == ("AAA", "K"));
+    }
+
+    #[test]
+    fn codon_to_aa1_lut_2bit() {
+        assert_eq!(codon_to_aa1_lut(b"AAA"), Some(b'K'));
+        assert_eq!(codon_to_aa1_lut(b"AAR"), Some(b'K'));
+    }
+
+    #[test]
+    fn codon_to_aa1_sec_2bit() {
+        assert_eq!(codon_to_aa1_sec(b"AAA"), Some(b'K'));
+        assert_eq!(codon_to_aa1_sec(b"AAR"), Some(b'K'));
     }
 }
 
