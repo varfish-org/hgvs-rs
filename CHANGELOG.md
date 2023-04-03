@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/bihealth/hgvs-rs/compare/v0.5.0...v0.5.1) (2023-04-03)
+
+
+### Performance Improvements
+
+* tune translate_cds implementation ([#80](https://github.com/bihealth/hgvs-rs/issues/80)) ([#81](https://github.com/bihealth/hgvs-rs/issues/81)) ([a608ba1](https://github.com/bihealth/hgvs-rs/commit/a608ba1a62892b9b49e85c06d02665db94c4e4ad))
+
 ## [0.5.0](https://github.com/bihealth/hgvs-rs/compare/v0.4.0...v0.5.0) (2023-03-31)
 
 
