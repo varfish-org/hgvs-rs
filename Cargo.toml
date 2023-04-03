@@ -24,10 +24,10 @@ linked-hash-map = { version = "0.5.6", features = ["serde", "serde_impl"] }
 log = "0.4.17"
 md-5 = "0.10.5"
 nom = "7.1.3"
-phf = { version = "0.11.1", features = ["macros"] }
 postgres = { version = "0.19.4", features = ["with-chrono-0_4"] }
 quick_cache = "0.2.2"
 regex = "1.7.1"
+rustc-hash = "1.1.0"
 seqrepo = { version = "0.3.0" }
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = "1.0.93"
