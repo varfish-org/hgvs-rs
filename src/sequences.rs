@@ -3,7 +3,7 @@
 //! Partially ported over from `bioutils.sequences`.
 
 use md5::{Digest, Md5};
-use phf::phf_map;
+use rustc_hash::FxHashMap;
 
 pub fn trim_common_prefixes(reference: &str, alternative: &str) -> (usize, String, String) {
     if reference.is_empty() || alternative.is_empty() {
@@ -62,423 +62,543 @@ pub fn revcomp(seq: &str) -> String {
         .to_string()
 }
 
-static AA3_TO_AA1_LUT: phf::Map<&'static str, &'static str> = phf_map! {
-    "Ala" => "A",
-    "Arg" => "R",
-    "Asn" => "N",
-    "Asp" => "D",
-    "Cys" => "C",
-    "Gln" => "Q",
-    "Glu" => "E",
-    "Gly" => "G",
-    "His" => "H",
-    "Ile" => "I",
-    "Leu" => "L",
-    "Lys" => "K",
-    "Met" => "M",
-    "Phe" => "F",
-    "Pro" => "P",
-    "Ser" => "S",
-    "Thr" => "T",
-    "Trp" => "W",
-    "Tyr" => "Y",
-    "Val" => "V",
-    "Xaa" => "X",
-    "Ter" => "*",
-    "Sec" => "U",
-};
+lazy_static::lazy_static! {
+    /// Mapping for DNA characters for normalization.
+    static ref DNA_ASCII_MAP: [u8; 256] = {
+        let mut result = [0; 256];
 
-static AA1_TO_AA3_LUT: phf::Map<&'static str, &'static str> = phf_map! {
-    "A" => "Ala",
-    "R" => "Arg",
-    "N" => "Asn",
-    "D" => "Asp",
-    "C" => "Cys",
-    "Q" => "Gln",
-    "E" => "Glu",
-    "G" => "Gly",
-    "H" => "His",
-    "I" => "Ile",
-    "L" => "Leu",
-    "K" => "Lys",
-    "M" => "Met",
-    "F" => "Phe",
-    "P" => "Pro",
-    "S" => "Ser",
-    "T" => "Thr",
-    "W" => "Trp",
-    "Y" => "Tyr",
-    "V" => "Val",
-    "X" => "Xaa",
-    "*" => "Ter",
-    "U" => "Sec",
-};
+        for c in 0..=255 {
+            if c == b'u' || c == b'U' {
+                result[c as usize] = b'T';
+            } else if c.is_ascii_lowercase() {
+                result[c as usize] = c.to_ascii_uppercase();
+            } else {
+                result[c as usize] = c;
+            }
+        }
 
-/// NCBI standard translation table.
-static DNA_TO_AA1_LUT: phf::Map<&'static str, &'static str> = phf_map! {
-    "AAA" => "K",
-    "AAC" => "N",
-    "AAG" => "K",
-    "AAT" => "N",
-    "ACA" => "T",
-    "ACC" => "T",
-    "ACG" => "T",
-    "ACT" => "T",
-    "AGA" => "R",
-    "AGC" => "S",
-    "AGG" => "R",
-    "AGT" => "S",
-    "ATA" => "I",
-    "ATC" => "I",
-    "ATG" => "M",
-    "ATT" => "I",
-    "CAA" => "Q",
-    "CAC" => "H",
-    "CAG" => "Q",
-    "CAT" => "H",
-    "CCA" => "P",
-    "CCC" => "P",
-    "CCG" => "P",
-    "CCT" => "P",
-    "CGA" => "R",
-    "CGC" => "R",
-    "CGG" => "R",
-    "CGT" => "R",
-    "CTA" => "L",
-    "CTC" => "L",
-    "CTG" => "L",
-    "CTT" => "L",
-    "GAA" => "E",
-    "GAC" => "D",
-    "GAG" => "E",
-    "GAT" => "D",
-    "GCA" => "A",
-    "GCC" => "A",
-    "GCG" => "A",
-    "GCT" => "A",
-    "GGA" => "G",
-    "GGC" => "G",
-    "GGG" => "G",
-    "GGT" => "G",
-    "GTA" => "V",
-    "GTC" => "V",
-    "GTG" => "V",
-    "GTT" => "V",
-    "TAA" => "*",
-    "TAC" => "Y",
-    "TAG" => "*",
-    "TAT" => "Y",
-    "TCA" => "S",
-    "TCC" => "S",
-    "TCG" => "S",
-    "TCT" => "S",
-    // caveat lector
-    "TGA" => "*",
-    "TGC" => "C",
-    "TGG" => "W",
-    "TGT" => "C",
-    "TTA" => "L",
-    "TTC" => "F",
-    "TTG" => "L",
-    "TTT" => "F",
-    // degenerate codons
-    "AAR" => "K",
-    "AAY" => "N",
-    "ACB" => "T",
-    "ACD" => "T",
-    "ACH" => "T",
-    "ACK" => "T",
-    "ACM" => "T",
-    "ACN" => "T",
-    "ACR" => "T",
-    "ACS" => "T",
-    "ACV" => "T",
-    "ACW" => "T",
-    "ACY" => "T",
-    "AGR" => "R",
-    "AGY" => "S",
-    "ATH" => "I",
-    "ATM" => "I",
-    "ATW" => "I",
-    "ATY" => "I",
-    "CAR" => "Q",
-    "CAY" => "H",
-    "CCB" => "P",
-    "CCD" => "P",
-    "CCH" => "P",
-    "CCK" => "P",
-    "CCM" => "P",
-    "CCN" => "P",
-    "CCR" => "P",
-    "CCS" => "P",
-    "CCV" => "P",
-    "CCW" => "P",
-    "CCY" => "P",
-    "CGB" => "R",
-    "CGD" => "R",
-    "CGH" => "R",
-    "CGK" => "R",
-    "CGM" => "R",
-    "CGN" => "R",
-    "CGR" => "R",
-    "CGS" => "R",
-    "CGV" => "R",
-    "CGW" => "R",
-    "CGY" => "R",
-    "CTB" => "L",
-    "CTD" => "L",
-    "CTH" => "L",
-    "CTK" => "L",
-    "CTM" => "L",
-    "CTN" => "L",
-    "CTR" => "L",
-    "CTS" => "L",
-    "CTV" => "L",
-    "CTW" => "L",
-    "CTY" => "L",
-    "GAR" => "E",
-    "GAY" => "D",
-    "GCB" => "A",
-    "GCD" => "A",
-    "GCH" => "A",
-    "GCK" => "A",
-    "GCM" => "A",
-    "GCN" => "A",
-    "GCR" => "A",
-    "GCS" => "A",
-    "GCV" => "A",
-    "GCW" => "A",
-    "GCY" => "A",
-    "GGB" => "G",
-    "GGD" => "G",
-    "GGH" => "G",
-    "GGK" => "G",
-    "GGM" => "G",
-    "GGN" => "G",
-    "GGR" => "G",
-    "GGS" => "G",
-    "GGV" => "G",
-    "GGW" => "G",
-    "GGY" => "G",
-    "GTB" => "V",
-    "GTD" => "V",
-    "GTH" => "V",
-    "GTK" => "V",
-    "GTM" => "V",
-    "GTN" => "V",
-    "GTR" => "V",
-    "GTS" => "V",
-    "GTV" => "V",
-    "GTW" => "V",
-    "GTY" => "V",
-    "MGA" => "R",
-    "MGG" => "R",
-    "MGR" => "R",
-    "TAR" => "*",
-    "TAY" => "Y",
-    "TCB" => "S",
-    "TCD" => "S",
-    "TCH" => "S",
-    "TCK" => "S",
-    "TCM" => "S",
-    "TCN" => "S",
-    "TCR" => "S",
-    "TCS" => "S",
-    "TCV" => "S",
-    "TCW" => "S",
-    "TCY" => "S",
-    "TGY" => "C",
-    "TRA" => "*",
-    "TTR" => "L",
-    "TTY" => "F",
-    "YTA" => "L",
-    "YTG" => "L",
-    "YTR" => "L",
-};
+        result
+    };
+}
 
-/// Translation table for selenocysteine.
-static DNA_TO_AA1_SEC: phf::Map<&'static str, &'static str> = phf_map! {
-    "AAA" => "K",
-    "AAC" => "N",
-    "AAG" => "K",
-    "AAT" => "N",
-    "ACA" => "T",
-    "ACC" => "T",
-    "ACG" => "T",
-    "ACT" => "T",
-    "AGA" => "R",
-    "AGC" => "S",
-    "AGG" => "R",
-    "AGT" => "S",
-    "ATA" => "I",
-    "ATC" => "I",
-    "ATG" => "M",
-    "ATT" => "I",
-    "CAA" => "Q",
-    "CAC" => "H",
-    "CAG" => "Q",
-    "CAT" => "H",
-    "CCA" => "P",
-    "CCC" => "P",
-    "CCG" => "P",
-    "CCT" => "P",
-    "CGA" => "R",
-    "CGC" => "R",
-    "CGG" => "R",
-    "CGT" => "R",
-    "CTA" => "L",
-    "CTC" => "L",
-    "CTG" => "L",
-    "CTT" => "L",
-    "GAA" => "E",
-    "GAC" => "D",
-    "GAG" => "E",
-    "GAT" => "D",
-    "GCA" => "A",
-    "GCC" => "A",
-    "GCG" => "A",
-    "GCT" => "A",
-    "GGA" => "G",
-    "GGC" => "G",
-    "GGG" => "G",
-    "GGT" => "G",
-    "GTA" => "V",
-    "GTC" => "V",
-    "GTG" => "V",
-    "GTT" => "V",
-    "TAA" => "*",
-    "TAC" => "Y",
-    "TAG" => "*",
-    "TAT" => "Y",
-    "TCA" => "S",
-    "TCC" => "S",
-    "TCG" => "S",
-    "TCT" => "S",
-    // caveat lector
-    "TGA" => "U",
-    "TGC" => "C",
-    "TGG" => "W",
-    "TGT" => "C",
-    "TTA" => "L",
-    "TTC" => "F",
-    "TTG" => "L",
-    "TTT" => "F",
-    // degenerate codons
-    "AAR" => "K",
-    "AAY" => "N",
-    "ACB" => "T",
-    "ACD" => "T",
-    "ACH" => "T",
-    "ACK" => "T",
-    "ACM" => "T",
-    "ACN" => "T",
-    "ACR" => "T",
-    "ACS" => "T",
-    "ACV" => "T",
-    "ACW" => "T",
-    "ACY" => "T",
-    "AGR" => "R",
-    "AGY" => "S",
-    "ATH" => "I",
-    "ATM" => "I",
-    "ATW" => "I",
-    "ATY" => "I",
-    "CAR" => "Q",
-    "CAY" => "H",
-    "CCB" => "P",
-    "CCD" => "P",
-    "CCH" => "P",
-    "CCK" => "P",
-    "CCM" => "P",
-    "CCN" => "P",
-    "CCR" => "P",
-    "CCS" => "P",
-    "CCV" => "P",
-    "CCW" => "P",
-    "CCY" => "P",
-    "CGB" => "R",
-    "CGD" => "R",
-    "CGH" => "R",
-    "CGK" => "R",
-    "CGM" => "R",
-    "CGN" => "R",
-    "CGR" => "R",
-    "CGS" => "R",
-    "CGV" => "R",
-    "CGW" => "R",
-    "CGY" => "R",
-    "CTB" => "L",
-    "CTD" => "L",
-    "CTH" => "L",
-    "CTK" => "L",
-    "CTM" => "L",
-    "CTN" => "L",
-    "CTR" => "L",
-    "CTS" => "L",
-    "CTV" => "L",
-    "CTW" => "L",
-    "CTY" => "L",
-    "GAR" => "E",
-    "GAY" => "D",
-    "GCB" => "A",
-    "GCD" => "A",
-    "GCH" => "A",
-    "GCK" => "A",
-    "GCM" => "A",
-    "GCN" => "A",
-    "GCR" => "A",
-    "GCS" => "A",
-    "GCV" => "A",
-    "GCW" => "A",
-    "GCY" => "A",
-    "GGB" => "G",
-    "GGD" => "G",
-    "GGH" => "G",
-    "GGK" => "G",
-    "GGM" => "G",
-    "GGN" => "G",
-    "GGR" => "G",
-    "GGS" => "G",
-    "GGV" => "G",
-    "GGW" => "G",
-    "GGY" => "G",
-    "GTB" => "V",
-    "GTD" => "V",
-    "GTH" => "V",
-    "GTK" => "V",
-    "GTM" => "V",
-    "GTN" => "V",
-    "GTR" => "V",
-    "GTS" => "V",
-    "GTV" => "V",
-    "GTW" => "V",
-    "GTY" => "V",
-    "MGA" => "R",
-    "MGG" => "R",
-    "MGR" => "R",
-    "TAR" => "*",
-    "TAY" => "Y",
-    "TCB" => "S",
-    "TCD" => "S",
-    "TCH" => "S",
-    "TCK" => "S",
-    "TCM" => "S",
-    "TCN" => "S",
-    "TCR" => "S",
-    "TCS" => "S",
-    "TCV" => "S",
-    "TCW" => "S",
-    "TCY" => "S",
-    "TGY" => "C",
-    "TRA" => "*",
-    "TTR" => "L",
-    "TTY" => "F",
-    "YTA" => "L",
-    "YTG" => "L",
-    "YTR" => "L",
-};
+/// Helper function to extract normalized codon.
+fn normalize_codon(codon: &[u8], result: &mut Vec<u8>) {
+    result.resize(3, 0);
+    for (i, c) in codon.iter().enumerate() {
+        result[i] = DNA_ASCII_MAP[*c as usize];
+    }
+}
 
-static IUPAC_AMBIGUITY_CODES: &str = "BDHVNUWSMKRYZ";
+lazy_static::lazy_static! {
+    static ref DNA_ASCII_TO_2BIT: [u8; 256] = {
+        let mut result = [255; 256];
+
+        result[b'A' as usize] = 0;
+        result[b'a' as usize] = 0;
+
+        result[b'C' as usize] = 1;
+        result[b'c' as usize] = 1;
+
+        result[b'G' as usize] = 2;
+        result[b'g' as usize] = 2;
+
+        result[b'T' as usize] = 3;
+        result[b't' as usize] = 3;
+        result[b'U' as usize] = 3;
+        result[b'u' as usize] = 3;
+
+        result
+    };
+}
+
+fn dna3_to_2bit(c: &[u8]) -> Option<u8> {
+    let mut result = 0;
+    for i in 0..3 {
+        result <<= 2;
+        let tmp = DNA_ASCII_TO_2BIT[c[i] as usize];
+        if tmp == 255 {
+            return None;
+        }
+        result |= tmp;
+    }
+    Some(result)
+}
+
+lazy_static::lazy_static! {
+    static ref AA3_TO_AA1_LUT_VEC: Vec<(&'static str, &'static str)> = vec![
+        ("Ala", "A"),
+        ("Arg", "R"),
+        ("Asn", "N"),
+        ("Asp", "D"),
+        ("Cys", "C"),
+        ("Gln", "Q"),
+        ("Glu", "E"),
+        ("Gly", "G"),
+        ("His", "H"),
+        ("Ile", "I"),
+        ("Leu", "L"),
+        ("Lys", "K"),
+        ("Met", "M"),
+        ("Phe", "F"),
+        ("Pro", "P"),
+        ("Ser", "S"),
+        ("Thr", "T"),
+        ("Trp", "W"),
+        ("Tyr", "Y"),
+        ("Val", "V"),
+        ("Xaa", "X"),
+        ("Ter", "*"),
+        ("Sec", "U"),
+    ];
+
+    /// NCBI standard translation table.
+    static ref DNA_TO_AA1_LUT_VEC: Vec<(&'static str, &'static str)> = vec![
+        ("AAA", "K"),
+        ("AAC", "N"),
+        ("AAG", "K"),
+        ("AAT", "N"),
+        ("ACA", "T"),
+        ("ACC", "T"),
+        ("ACG", "T"),
+        ("ACT", "T"),
+        ("AGA", "R"),
+        ("AGC", "S"),
+        ("AGG", "R"),
+        ("AGT", "S"),
+        ("ATA", "I"),
+        ("ATC", "I"),
+        ("ATG", "M"),
+        ("ATT", "I"),
+        ("CAA", "Q"),
+        ("CAC", "H"),
+        ("CAG", "Q"),
+        ("CAT", "H"),
+        ("CCA", "P"),
+        ("CCC", "P"),
+        ("CCG", "P"),
+        ("CCT", "P"),
+        ("CGA", "R"),
+        ("CGC", "R"),
+        ("CGG", "R"),
+        ("CGT", "R"),
+        ("CTA", "L"),
+        ("CTC", "L"),
+        ("CTG", "L"),
+        ("CTT", "L"),
+        ("GAA", "E"),
+        ("GAC", "D"),
+        ("GAG", "E"),
+        ("GAT", "D"),
+        ("GCA", "A"),
+        ("GCC", "A"),
+        ("GCG", "A"),
+        ("GCT", "A"),
+        ("GGA", "G"),
+        ("GGC", "G"),
+        ("GGG", "G"),
+        ("GGT", "G"),
+        ("GTA", "V"),
+        ("GTC", "V"),
+        ("GTG", "V"),
+        ("GTT", "V"),
+        ("TAA", "*"),
+        ("TAC", "Y"),
+        ("TAG", "*"),
+        ("TAT", "Y"),
+        ("TCA", "S"),
+        ("TCC", "S"),
+        ("TCG", "S"),
+        ("TCT", "S"),
+        // caveat lector
+        ("TGA", "*"),
+        ("TGC", "C"),
+        ("TGG", "W"),
+        ("TGT", "C"),
+        ("TTA", "L"),
+        ("TTC", "F"),
+        ("TTG", "L"),
+        ("TTT", "F"),
+        // degenerate codons
+        ("AAR", "K"),
+        ("AAY", "N"),
+        ("ACB", "T"),
+        ("ACD", "T"),
+        ("ACH", "T"),
+        ("ACK", "T"),
+        ("ACM", "T"),
+        ("ACN", "T"),
+        ("ACR", "T"),
+        ("ACS", "T"),
+        ("ACV", "T"),
+        ("ACW", "T"),
+        ("ACY", "T"),
+        ("AGR", "R"),
+        ("AGY", "S"),
+        ("ATH", "I"),
+        ("ATM", "I"),
+        ("ATW", "I"),
+        ("ATY", "I"),
+        ("CAR", "Q"),
+        ("CAY", "H"),
+        ("CCB", "P"),
+        ("CCD", "P"),
+        ("CCH", "P"),
+        ("CCK", "P"),
+        ("CCM", "P"),
+        ("CCN", "P"),
+        ("CCR", "P"),
+        ("CCS", "P"),
+        ("CCV", "P"),
+        ("CCW", "P"),
+        ("CCY", "P"),
+        ("CGB", "R"),
+        ("CGD", "R"),
+        ("CGH", "R"),
+        ("CGK", "R"),
+        ("CGM", "R"),
+        ("CGN", "R"),
+        ("CGR", "R"),
+        ("CGS", "R"),
+        ("CGV", "R"),
+        ("CGW", "R"),
+        ("CGY", "R"),
+        ("CTB", "L"),
+        ("CTD", "L"),
+        ("CTH", "L"),
+        ("CTK", "L"),
+        ("CTM", "L"),
+        ("CTN", "L"),
+        ("CTR", "L"),
+        ("CTS", "L"),
+        ("CTV", "L"),
+        ("CTW", "L"),
+        ("CTY", "L"),
+        ("GAR", "E"),
+        ("GAY", "D"),
+        ("GCB", "A"),
+        ("GCD", "A"),
+        ("GCH", "A"),
+        ("GCK", "A"),
+        ("GCM", "A"),
+        ("GCN", "A"),
+        ("GCR", "A"),
+        ("GCS", "A"),
+        ("GCV", "A"),
+        ("GCW", "A"),
+        ("GCY", "A"),
+        ("GGB", "G"),
+        ("GGD", "G"),
+        ("GGH", "G"),
+        ("GGK", "G"),
+        ("GGM", "G"),
+        ("GGN", "G"),
+        ("GGR", "G"),
+        ("GGS", "G"),
+        ("GGV", "G"),
+        ("GGW", "G"),
+        ("GGY", "G"),
+        ("GTB", "V"),
+        ("GTD", "V"),
+        ("GTH", "V"),
+        ("GTK", "V"),
+        ("GTM", "V"),
+        ("GTN", "V"),
+        ("GTR", "V"),
+        ("GTS", "V"),
+        ("GTV", "V"),
+        ("GTW", "V"),
+        ("GTY", "V"),
+        ("MGA", "R"),
+        ("MGG", "R"),
+        ("MGR", "R"),
+        ("TAR", "*"),
+        ("TAY", "Y"),
+        ("TCB", "S"),
+        ("TCD", "S"),
+        ("TCH", "S"),
+        ("TCK", "S"),
+        ("TCM", "S"),
+        ("TCN", "S"),
+        ("TCR", "S"),
+        ("TCS", "S"),
+        ("TCV", "S"),
+        ("TCW", "S"),
+        ("TCY", "S"),
+        ("TGY", "C"),
+        ("TRA", "*"),
+        ("TTR", "L"),
+        ("TTY", "F"),
+        ("YTA", "L"),
+        ("YTG", "L"),
+        ("YTR", "L"),
+    ];
+
+    /// Translation table for selenocysteine.
+    static ref DNA_TO_AA1_SEC_VEC: Vec<(&'static str, &'static str)> = vec![
+        ("AAA", "K"),
+        ("AAC", "N"),
+        ("AAG", "K"),
+        ("AAT", "N"),
+        ("ACA", "T"),
+        ("ACC", "T"),
+        ("ACG", "T"),
+        ("ACT", "T"),
+        ("AGA", "R"),
+        ("AGC", "S"),
+        ("AGG", "R"),
+        ("AGT", "S"),
+        ("ATA", "I"),
+        ("ATC", "I"),
+        ("ATG", "M"),
+        ("ATT", "I"),
+        ("CAA", "Q"),
+        ("CAC", "H"),
+        ("CAG", "Q"),
+        ("CAT", "H"),
+        ("CCA", "P"),
+        ("CCC", "P"),
+        ("CCG", "P"),
+        ("CCT", "P"),
+        ("CGA", "R"),
+        ("CGC", "R"),
+        ("CGG", "R"),
+        ("CGT", "R"),
+        ("CTA", "L"),
+        ("CTC", "L"),
+        ("CTG", "L"),
+        ("CTT", "L"),
+        ("GAA", "E"),
+        ("GAC", "D"),
+        ("GAG", "E"),
+        ("GAT", "D"),
+        ("GCA", "A"),
+        ("GCC", "A"),
+        ("GCG", "A"),
+        ("GCT", "A"),
+        ("GGA", "G"),
+        ("GGC", "G"),
+        ("GGG", "G"),
+        ("GGT", "G"),
+        ("GTA", "V"),
+        ("GTC", "V"),
+        ("GTG", "V"),
+        ("GTT", "V"),
+        ("TAA", "*"),
+        ("TAC", "Y"),
+        ("TAG", "*"),
+        ("TAT", "Y"),
+        ("TCA", "S"),
+        ("TCC", "S"),
+        ("TCG", "S"),
+        ("TCT", "S"),
+        // caveat lector
+        ("TGA", "U"),
+        ("TGC", "C"),
+        ("TGG", "W"),
+        ("TGT", "C"),
+        ("TTA", "L"),
+        ("TTC", "F"),
+        ("TTG", "L"),
+        ("TTT", "F"),
+        // degenerate codons
+        ("AAR", "K"),
+        ("AAY", "N"),
+        ("ACB", "T"),
+        ("ACD", "T"),
+        ("ACH", "T"),
+        ("ACK", "T"),
+        ("ACM", "T"),
+        ("ACN", "T"),
+        ("ACR", "T"),
+        ("ACS", "T"),
+        ("ACV", "T"),
+        ("ACW", "T"),
+        ("ACY", "T"),
+        ("AGR", "R"),
+        ("AGY", "S"),
+        ("ATH", "I"),
+        ("ATM", "I"),
+        ("ATW", "I"),
+        ("ATY", "I"),
+        ("CAR", "Q"),
+        ("CAY", "H"),
+        ("CCB", "P"),
+        ("CCD", "P"),
+        ("CCH", "P"),
+        ("CCK", "P"),
+        ("CCM", "P"),
+        ("CCN", "P"),
+        ("CCR", "P"),
+        ("CCS", "P"),
+        ("CCV", "P"),
+        ("CCW", "P"),
+        ("CCY", "P"),
+        ("CGB", "R"),
+        ("CGD", "R"),
+        ("CGH", "R"),
+        ("CGK", "R"),
+        ("CGM", "R"),
+        ("CGN", "R"),
+        ("CGR", "R"),
+        ("CGS", "R"),
+        ("CGV", "R"),
+        ("CGW", "R"),
+        ("CGY", "R"),
+        ("CTB", "L"),
+        ("CTD", "L"),
+        ("CTH", "L"),
+        ("CTK", "L"),
+        ("CTM", "L"),
+        ("CTN", "L"),
+        ("CTR", "L"),
+        ("CTS", "L"),
+        ("CTV", "L"),
+        ("CTW", "L"),
+        ("CTY", "L"),
+        ("GAR", "E"),
+        ("GAY", "D"),
+        ("GCB", "A"),
+        ("GCD", "A"),
+        ("GCH", "A"),
+        ("GCK", "A"),
+        ("GCM", "A"),
+        ("GCN", "A"),
+        ("GCR", "A"),
+        ("GCS", "A"),
+        ("GCV", "A"),
+        ("GCW", "A"),
+        ("GCY", "A"),
+        ("GGB", "G"),
+        ("GGD", "G"),
+        ("GGH", "G"),
+        ("GGK", "G"),
+        ("GGM", "G"),
+        ("GGN", "G"),
+        ("GGR", "G"),
+        ("GGS", "G"),
+        ("GGV", "G"),
+        ("GGW", "G"),
+        ("GGY", "G"),
+        ("GTB", "V"),
+        ("GTD", "V"),
+        ("GTH", "V"),
+        ("GTK", "V"),
+        ("GTM", "V"),
+        ("GTN", "V"),
+        ("GTR", "V"),
+        ("GTS", "V"),
+        ("GTV", "V"),
+        ("GTW", "V"),
+        ("GTY", "V"),
+        ("MGA", "R"),
+        ("MGG", "R"),
+        ("MGR", "R"),
+        ("TAR", "*"),
+        ("TAY", "Y"),
+        ("TCB", "S"),
+        ("TCD", "S"),
+        ("TCH", "S"),
+        ("TCK", "S"),
+        ("TCM", "S"),
+        ("TCN", "S"),
+        ("TCR", "S"),
+        ("TCS", "S"),
+        ("TCV", "S"),
+        ("TCW", "S"),
+        ("TCY", "S"),
+        ("TGY", "C"),
+        ("TRA", "*"),
+        ("TTR", "L"),
+        ("TTY", "F"),
+        ("YTA", "L"),
+        ("YTG", "L"),
+        ("YTR", "L"),
+    ];
+
+    static ref AA1_TO_AA3_LUT: FxHashMap<&'static [u8], &'static str> = {
+        let mut m = FxHashMap::default();
+        for (aa3, aa1) in AA3_TO_AA1_LUT_VEC.iter() {
+            m.insert(aa1.as_bytes(), *aa3);
+        }
+        m
+    };
+
+    static ref AA3_TO_AA1_LUT: FxHashMap<&'static [u8], &'static str> = {
+        let mut m = FxHashMap::default();
+        for (aa3, aa1) in AA3_TO_AA1_LUT_VEC.iter() {
+            m.insert(aa3.as_bytes(), *aa1);
+        }
+        m
+    };
+
+    static ref DNA_TO_AA1_LUT: FxHashMap<&'static [u8], u8> = {
+        let mut m = FxHashMap::default();
+        for (dna, aa1) in DNA_TO_AA1_LUT_VEC.iter() {
+            m.insert(dna.as_bytes(), aa1.as_bytes()[0]);
+        }
+        m
+    };
+
+    static ref DNA_TO_AA1_SEC: FxHashMap<&'static [u8], u8> = {
+        let mut m = FxHashMap::default();
+        for (dna, aa1) in DNA_TO_AA1_SEC_VEC.iter() {
+            m.insert(dna.as_bytes(), aa1.as_bytes()[0]);
+        }
+        m
+    };
+
+    static ref CODON_2BIT_TO_AA1_LUT: [u8; 64] = {
+        let mut result = [0; 64];
+        for (i, (dna3, aa1)) in DNA_TO_AA1_LUT_VEC.iter().enumerate() {
+            if i > 63 {
+                break;  // skip degenerate codons
+            }
+            let dna3_2bit = dna3_to_2bit(dna3.as_bytes()).expect("invalid dna3");
+            result[dna3_2bit as usize] = aa1.as_bytes()[0];
+        }
+        result
+    };
+
+    static ref CODON_2BIT_TO_AA1_SEC: [u8; 64] = {
+        let mut result = [0; 64];
+        for (i, (dna3, aa1)) in DNA_TO_AA1_SEC_VEC.iter().enumerate() {
+            if i > 63 {
+                break;  // skip degenerate codons
+            }
+            let dna3_2bit = dna3_to_2bit(dna3.as_bytes()).expect("invalid dna3");
+            result[dna3_2bit as usize] = aa1.as_bytes()[0];
+        }
+        result
+    };
+}
+
+fn codon_to_aa1_lut(codon: &[u8]) -> Option<u8> {
+    if let Some(val) = dna3_to_2bit(codon) {
+        let tmp = CODON_2BIT_TO_AA1_LUT[val as usize];
+        if tmp == 0 {
+            None
+        } else {
+            Some(tmp)
+        }
+    } else {
+        DNA_TO_AA1_LUT.get(codon).copied()
+    }
+}
+
+fn codon_to_aa1_sec(codon: &[u8]) -> Option<u8> {
+    if let Some(val) = dna3_to_2bit(codon) {
+        let tmp = CODON_2BIT_TO_AA1_SEC[val as usize];
+        if tmp == 0 {
+            None
+        } else {
+            Some(tmp)
+        }
+    } else {
+        DNA_TO_AA1_SEC.get(codon).copied()
+    }
+}
+
+static IUPAC_AMBIGUITY_CODES: &[u8] = b"BDHVNUWSMKRYZ";
 
 /// Allow selection of translation table.
 pub enum TranslationTable {
@@ -540,15 +660,16 @@ pub fn aa_to_aa3(seq: &str) -> Result<String, anyhow::Error> {
 /// The sequence as 3-letter amino acids.
 #[allow(dead_code)]
 pub fn aa1_to_aa3(seq: &str) -> Result<String, anyhow::Error> {
-    let mut result = String::new();
     if seq.is_empty() {
-        return Ok(result);
+        return Ok(String::new());
     }
 
-    for i in 0..seq.len() {
-        let aa3 = AA1_TO_AA3_LUT
-            .get(&seq[i..(i + 1)])
-            .ok_or_else(|| anyhow::anyhow!("Invalid 1-letter amino acid: {}", &seq[i..(i + 1)]))?;
+    let mut result = String::with_capacity(seq.len() * 3);
+
+    for (i, aa1) in seq.as_bytes().chunks(1).enumerate() {
+        let aa3 = AA1_TO_AA3_LUT.get(aa1).ok_or_else(|| {
+            anyhow::anyhow!("Invalid 1-letter amino acid: {:?} at {}", aa1, i + 1)
+        })?;
         result.push_str(aa3);
     }
 
@@ -574,13 +695,14 @@ pub fn aa3_to_aa1(seq: &str) -> Result<String, anyhow::Error> {
         ));
     }
 
-    let mut result = String::new();
+    let mut result = String::with_capacity(seq.len() / 3);
 
-    for i in 0..(seq.len() / 3) {
-        let aa3 = &seq[(i * 3)..((i + 1) * 3)];
-        let aa1 = AA3_TO_AA1_LUT
-            .get(aa3)
-            .ok_or(anyhow::anyhow!("Invalid 3-letter amino acid: {}", &aa3,))?;
+    for (i, aa3) in seq.as_bytes().chunks(3).enumerate() {
+        let aa1 = AA3_TO_AA1_LUT.get(aa3).ok_or(anyhow::anyhow!(
+            "Invalid 3-letter amino acid: {:?} at {}",
+            &aa3,
+            i + 1
+        ))?;
         result.push_str(aa1);
     }
 
@@ -633,24 +755,23 @@ pub fn translate_cds(
         ));
     }
 
-    let translation_table = match translation_table {
-        TranslationTable::Standard => &DNA_TO_AA1_LUT,
-        TranslationTable::Selenocysteine => &DNA_TO_AA1_SEC,
-    };
+    let mut codon = Vec::with_capacity(3);
 
-    let seq = seq.replace('u', "t").replace('U', "T").to_uppercase();
+    let mut result = String::with_capacity(seq.len() / 3);
+    for (i, chunk) in seq.as_bytes().chunks_exact(3).enumerate() {
+        normalize_codon(chunk, &mut codon);
+        let aa = match translation_table {
+            TranslationTable::Standard => codon_to_aa1_lut(&codon),
+            TranslationTable::Selenocysteine => codon_to_aa1_sec(&codon),
+        };
 
-    let mut result = String::new();
-    for i in 0..(seq.len() / 3) {
-        let codon = &seq[(i * 3)..((i + 1) * 3)];
-        let aa = translation_table.get(codon);
         if let Some(aa) = aa {
-            result.push_str(aa);
+            result.push(char::from(aa));
         } else {
             // If this contains an ambiguous code, set aa to X, otherwise, throw error
             let mut ok = false;
-            for i in 0..codon.len() {
-                if IUPAC_AMBIGUITY_CODES.contains(&codon[i..(i + 1)]) {
+            for c in codon.iter() {
+                if IUPAC_AMBIGUITY_CODES.contains(c) {
                     ok = true;
                     result.push('X');
                     break;
@@ -658,10 +779,9 @@ pub fn translate_cds(
             }
             if !ok {
                 return Err(anyhow::anyhow!(
-                    "Codon {} at position {}..{} is undefined in codon table",
-                    codon,
-                    i + 1,
-                    i + 3
+                    "Codon {:?} at 1-based position {} is undefined in codon table",
+                    std::str::from_utf8(&codon).unwrap(),
+                    i + 1
                 ));
             }
         }
@@ -910,6 +1030,27 @@ mod test {
         assert!(normalize_sequence("ACGT1").is_err());
 
         Ok(())
+    }
+
+    #[test]
+    fn exercise_lazy_ds() {
+        assert!(DNA_ASCII_MAP[0] == b'\0');
+        assert!(DNA_ASCII_TO_2BIT[b'A' as usize] == 0);
+        assert!(AA3_TO_AA1_LUT_VEC[0] == ("Ala", "A"));
+        assert!(DNA_TO_AA1_LUT_VEC[0] == ("AAA", "K"));
+        assert!(DNA_TO_AA1_SEC_VEC[0] == ("AAA", "K"));
+    }
+
+    #[test]
+    fn codon_to_aa1_lut_2bit() {
+        assert_eq!(codon_to_aa1_lut(b"AAA"), Some(b'K'));
+        assert_eq!(codon_to_aa1_lut(b"AAR"), Some(b'K'));
+    }
+
+    #[test]
+    fn codon_to_aa1_sec_2bit() {
+        assert_eq!(codon_to_aa1_sec(b"AAA"), Some(b'K'));
+        assert_eq!(codon_to_aa1_sec(b"AAR"), Some(b'K'));
     }
 }
 

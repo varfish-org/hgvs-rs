@@ -1,3 +1,4 @@
+*.fasta filter=lfs diff=lfs merge=lfs -text
 tests/data/*.gz filter=lfs diff=lfs merge=lfs -text
 tests/data/*/*.gz filter=lfs diff=lfs merge=lfs -text
 tests/data/*.fasta filter=lfs diff=lfs merge=lfs -text
