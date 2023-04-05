@@ -117,7 +117,7 @@ fn dna3_to_2bit(c: &[u8]) -> Option<u8> {
 }
 
 lazy_static::lazy_static! {
-    static ref AA3_TO_AA1_VEC: Vec<(&'static str, &'static str)> = vec![
+    pub static ref AA3_TO_AA1_VEC: Vec<(&'static str, &'static str)> = vec![
         ("Ala", "A"),
         ("Arg", "R"),
         ("Asn", "N"),
@@ -144,7 +144,7 @@ lazy_static::lazy_static! {
     ];
 
     /// NCBI standard translation table.
-    static ref DNA_TO_AA1_LUT_VEC: Vec<(&'static str, &'static str)> = vec![
+    pub static ref DNA_TO_AA1_LUT_VEC: Vec<(&'static str, &'static str)> = vec![
         ("AAA", "K"),
         ("AAC", "N"),
         ("AAG", "K"),
@@ -326,7 +326,7 @@ lazy_static::lazy_static! {
     ];
 
     /// Translation table for selenocysteine.
-    static ref DNA_TO_AA1_SEC_VEC: Vec<(&'static str, &'static str)> = vec![
+    pub static ref DNA_TO_AA1_SEC_VEC: Vec<(&'static str, &'static str)> = vec![
         ("AAA", "K"),
         ("AAC", "N"),
         ("AAG", "K"),
