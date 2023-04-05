@@ -117,7 +117,7 @@ fn dna3_to_2bit(c: &[u8]) -> Option<u8> {
 }
 
 lazy_static::lazy_static! {
-    static ref AA3_TO_AA1_LUT_VEC: Vec<(&'static str, &'static str)> = vec![
+    static ref AA3_TO_AA1_VEC: Vec<(&'static str, &'static str)> = vec![
         ("Ala", "A"),
         ("Arg", "R"),
         ("Asn", "N"),
@@ -507,17 +507,17 @@ lazy_static::lazy_static! {
         ("YTR", "L"),
     ];
 
-    static ref AA1_TO_AA3_LUT: FxHashMap<&'static [u8], &'static str> = {
+    static ref AA1_TO_AA3: FxHashMap<&'static [u8], &'static str> = {
         let mut m = FxHashMap::default();
-        for (aa3, aa1) in AA3_TO_AA1_LUT_VEC.iter() {
+        for (aa3, aa1) in AA3_TO_AA1_VEC.iter() {
             m.insert(aa1.as_bytes(), *aa3);
         }
         m
     };
 
-    static ref AA3_TO_AA1_LUT: FxHashMap<&'static [u8], &'static str> = {
+    static ref AA3_TO_AA1: FxHashMap<&'static [u8], &'static str> = {
         let mut m = FxHashMap::default();
-        for (aa3, aa1) in AA3_TO_AA1_LUT_VEC.iter() {
+        for (aa3, aa1) in AA3_TO_AA1_VEC.iter() {
             m.insert(aa3.as_bytes(), *aa1);
         }
         m
@@ -633,7 +633,7 @@ pub fn aa1_to_aa3(seq: &str) -> Result<String, anyhow::Error> {
     let mut result = String::with_capacity(seq.len() * 3);
 
     for (i, aa1) in seq.as_bytes().chunks(1).enumerate() {
-        let aa3 = AA1_TO_AA3_LUT.get(aa1).ok_or_else(|| {
+        let aa3 = AA1_TO_AA3.get(aa1).ok_or_else(|| {
             anyhow::anyhow!("Invalid 1-letter amino acid: {:?} at {}", aa1, i + 1)
         })?;
         result.push_str(aa3);
@@ -664,7 +664,7 @@ pub fn aa3_to_aa1(seq: &str) -> Result<String, anyhow::Error> {
     let mut result = String::with_capacity(seq.len() / 3);
 
     for (i, aa3) in seq.as_bytes().chunks(3).enumerate() {
-        let aa1 = AA3_TO_AA1_LUT.get(aa3).ok_or(anyhow::anyhow!(
+        let aa1 = AA3_TO_AA1.get(aa3).ok_or(anyhow::anyhow!(
             "Invalid 3-letter amino acid: {:?} at {}",
             &aa3,
             i + 1
@@ -1086,7 +1086,7 @@ mod test {
     fn exercise_lazy_ds() {
         assert!(DNA_ASCII_MAP[0] == b'\0');
         assert!(DNA_ASCII_TO_2BIT[b'A' as usize] == 0);
-        assert!(AA3_TO_AA1_LUT_VEC[0] == ("Ala", "A"));
+        assert!(AA3_TO_AA1_VEC[0] == ("Ala", "A"));
         assert!(DNA_TO_AA1_LUT_VEC[0] == ("AAA", "K"));
         assert!(DNA_TO_AA1_SEC_VEC[0] == ("AAA", "K"));
     }
