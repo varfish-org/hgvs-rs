@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/bihealth/hgvs-rs/compare/v0.5.2...v0.6.0) (2023-04-05)
+
+
+### Features
+
+* make some tables visible in `hgvs::sequences` ([#87](https://github.com/bihealth/hgvs-rs/issues/87)) ([d81bf8c](https://github.com/bihealth/hgvs-rs/commit/d81bf8c5ee8548471972828b2985fe99be94eccc))
+
 ## [0.5.2](https://github.com/bihealth/hgvs-rs/compare/v0.5.1...v0.5.2) (2023-04-04)
 
 
