@@ -445,11 +445,11 @@ impl AltSeqBuilder {
 
         let is_frameshift = (end - start) % 3 != 0;
 
-        let loc_range = self
-            .var_c
-            .loc_range()
-            .expect("Could not determine insertion location");
-        let variant_start_aa = ((loc_range.end + 1) as f64 / 3.0).ceil() as i32;
+        let loc_end = match &self.var_c {
+            HgvsVariant::CdsVariant { loc_edit, .. } => loc_edit.loc.inner().end.base,
+            _ => panic!("can only work on CDS variants"),
+        };
+        let variant_start_aa = ((loc_end + 1) as f64 / 3.0).ceil() as i32;
 
         AltTranscriptData::new(
             &seq,
@@ -475,12 +475,12 @@ impl AltSeqBuilder {
             &seq[end..]
         );
 
-        let loc_range = self
-            .var_c
-            .loc_range()
-            .expect("Could not determine insertion location");
-        let variant_start_aa =
-            std::cmp::max((((loc_range.start + 1) as f64) / 3.0).ceil() as i32, 1);
+        let loc_start = match &self.var_c {
+            HgvsVariant::CdsVariant { loc_edit, .. } => loc_edit.loc.inner().start.base,
+            _ => panic!("can only work on CDS variants"),
+        };
+
+        let variant_start_aa = std::cmp::max(((loc_start as f64) / 3.0).ceil() as i32, 1);
 
         AltTranscriptData::new(
             &seq,

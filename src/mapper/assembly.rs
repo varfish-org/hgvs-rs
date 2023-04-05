@@ -595,7 +595,7 @@ mod test {
             assert_eq!(
                 format!("{}", &crate::parser::NoRef(&actual)),
                 hgvs_p,
-                "gene={gene}"
+                "gene={gene}, hgvs_c={hgvs_c}, hgvs_p={hgvs_p}"
             );
 
             Ok(())
