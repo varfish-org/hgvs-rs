@@ -715,7 +715,7 @@ impl CodonTranslator {
         Self {
             dna_ascii_map: &DNA_ASCII_MAP,
             dna_ascii_to_2bit: &DNA_ASCII_TO_2BIT,
-            iupac_ambiguity_codes: &IUPAC_AMBIGUITY_CODES,
+            iupac_ambiguity_codes: IUPAC_AMBIGUITY_CODES,
 
             codon_2bit_to_aa1: match table {
                 TranslationTable::Standard => &CODON_2BIT_TO_AA1_LUT,
@@ -748,7 +748,7 @@ impl CodonTranslator {
         }
         if let Some(aa) = self.full_dna_to_aa1.get(&self.codon) {
             // Fast translation fails, but slower hash map succeeded.
-            return Ok(*aa);
+            Ok(*aa)
         } else {
             // If this contains an ambiguous code, set aa to X, otherwise, throw error
             for c in codon.iter() {
@@ -758,16 +758,16 @@ impl CodonTranslator {
             }
             anyhow::bail!(
                 "Codon {:?} is undefined in codon table",
-                std::str::from_utf8(&codon).unwrap(),
+                std::str::from_utf8(codon).unwrap(),
             )
         }
     }
 
     fn dna3_to_2bit(&self, c: &[u8]) -> Option<u8> {
         let mut result = 0;
-        for i in 0..3 {
+        for i in c.iter().take(3) {
             result <<= 2;
-            let tmp = self.dna_ascii_to_2bit[c[i] as usize];
+            let tmp = self.dna_ascii_to_2bit[*i as usize];
             if tmp == 255 {
                 return None;
             }
