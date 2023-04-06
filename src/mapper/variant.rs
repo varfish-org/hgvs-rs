@@ -1904,6 +1904,12 @@ mod test {
         run_gxp_test("tests/data/mapper/gcp/real.tsv", false)
     }
 
+    /// Check for issues with variants affecting `Met1` leading to `p.Met1?`.
+    #[test]
+    fn real_met1() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/real-met1.tsv", false)
+    }
+
     #[test]
     fn noncoding() -> Result<(), anyhow::Error> {
         run_gxp_test("tests/data/mapper/gcp/noncoding.tsv", false)

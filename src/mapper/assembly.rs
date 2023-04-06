@@ -442,7 +442,9 @@ mod test {
             let hgvs_c = "NM_000059.3:c.7790delAAG";
             let var_c = HgvsVariant::from_str(hgvs_c)?;
 
-            assert!(mapper.c_to_p(&var_c).is_err());
+            let result = mapper.c_to_p(&var_c);
+            println!("{:?}", &result);
+            assert!(result.is_err());
 
             Ok(())
         }

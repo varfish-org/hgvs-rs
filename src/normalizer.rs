@@ -1386,7 +1386,9 @@ mod test {
             // gene BRCA2
             let raw = HgvsVariant::from_str("NM_000059.3:c.7790delAAG")?;
             // with self.assertRaises(HGVSInvalidVariantError):
-            assert!(norm.normalize(&raw).is_err());
+            let result = norm.normalize(&raw);
+            println!("{:?}", &result);
+            assert!(result.is_err());
         }
 
         Ok(())
