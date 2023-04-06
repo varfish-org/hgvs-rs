@@ -142,6 +142,7 @@ impl AltTranscriptData {
             // transcripts from ENSEMBL, e.g., ENST00000420031.2).  In this case, we will
             // artificially cut down the amino acid sequence to this length.
             let orig_aa_len = (cds_stop - cds_start + 1) as usize / 3;
+            let orig_aa_len = std::cmp::min(orig_aa_len, seq_aa.len());
             let stop_pos = seq_aa[..orig_aa_len]
                 .rfind('*')
                 .or_else(|| seq_aa.find('*'));
