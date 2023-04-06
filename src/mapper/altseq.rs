@@ -266,7 +266,8 @@ impl AltSeqBuilder {
                 NaEdit::RefAlt {.. } => {
                     log::warn!("The whole-gene variant {} is not a clean deletion. Assuming whole gene deletion.", self.var_c);
                     EditType::WholeGeneDeleted
-                }
+                },
+                _ => panic!("Invalid combination of whole gene variant location and NaEdit {na_edit:?}"),
             },
         };
 
