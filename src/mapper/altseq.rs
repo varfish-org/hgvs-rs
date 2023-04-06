@@ -263,7 +263,10 @@ impl AltSeqBuilder {
                     log::warn!("Whole-gene inversion; consequence assumed to not affected protein product");
                     EditType::NotCds
                 },
-                _ => panic!("Invalid combination of whole gene variant location and NaEdit {na_edit:?}"),
+                NaEdit::RefAlt {.. } => {
+                    log::warn!("The whole-gene variant {} is not a clean deletion. Assuming whole gene deletion.", self.var_c);
+                    EditType::WholeGeneDeleted
+                }
             },
         };
 
