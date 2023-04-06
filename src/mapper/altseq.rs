@@ -963,26 +963,16 @@ impl AltSeqToHgvsp {
                 alternative = reference.clone();
             } else {
                 // is non-dup insertion
-                let start = start - 1;
-                let end = start + 1;
+                let start = *start as usize - 1;
+                let end = start as usize + 1;
 
                 aa_start = Some(ProtPos {
-                    aa: self
-                        .ref_seq()
-                        .chars()
-                        .nth(start as usize - 1)
-                        .ok_or(anyhow::anyhow!("start position out of range in reference"))?
-                        .to_string(),
-                    number: start,
+                    aa: self.ref_seq()[(start - 1)..start].to_owned(),
+                    number: start as i32,
                 });
                 aa_end = Some(ProtPos {
-                    aa: self
-                        .ref_seq()
-                        .chars()
-                        .nth(end as usize - 1)
-                        .ok_or(anyhow::anyhow!("end position out of range in reference"))?
-                        .to_string(),
-                    number: end,
+                    aa: self.ref_seq()[(end - 1)..end].to_owned(),
+                    number: end as i32,
                 });
                 reference = "".to_string();
                 alternative = insertion.clone();
