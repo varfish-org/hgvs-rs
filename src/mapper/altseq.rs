@@ -780,7 +780,7 @@ impl AltSeqToHgvsp {
         // Handle the case of the variant being after the end of the protein sequence.  This can
         // happen when the variant is 5'-to-3' shifted beyond the stop codon.  In this case, we
         // can simply return `ProtLocEdit::NoChange` which will display as `p.=`.
-        if *start as usize >= self.ref_seq().len() {
+        if *start as usize > self.ref_seq().len() {
             return Ok(HgvsVariant::ProtVariant {
                 accession: Accession::new(protein_accession),
                 gene_symbol: None,
