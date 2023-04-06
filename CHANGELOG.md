@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.1](https://github.com/bihealth/hgvs-rs/compare/v0.6.0...v0.6.1) (2023-04-06)
+
+
+### Bug Fixes
+
+* cases where dup/inv goes beyond CDS ([#89](https://github.com/bihealth/hgvs-rs/issues/89)) ([5d951b1](https://github.com/bihealth/hgvs-rs/commit/5d951b131a1295fc6e83be2676834e5b1ea34244))
+* only warn on combining RefAlt with whole gene deletion ([#92](https://github.com/bihealth/hgvs-rs/issues/92)) ([bff6c72](https://github.com/bihealth/hgvs-rs/commit/bff6c725ab10d56acb1f01809e7f4926f4a08d2e))
+* out of bound panic in case of long deletions ([#91](https://github.com/bihealth/hgvs-rs/issues/91)) ([f0bcaa6](https://github.com/bihealth/hgvs-rs/commit/f0bcaa6a7aeaf70212cb7d6b8e49b5ace1aeeb92))
+* out of bounds issue for protein sequence creation ([#93](https://github.com/bihealth/hgvs-rs/issues/93)) ([a40a5f5](https://github.com/bihealth/hgvs-rs/commit/a40a5f547406feefc9f952b209838914721857fd))
+* out of bounds issue on 5'-to-3' shifting beyond CDS ([#94](https://github.com/bihealth/hgvs-rs/issues/94)) ([4fccdb8](https://github.com/bihealth/hgvs-rs/commit/4fccdb826fea15539b59630b2f9d742271aac3c4))
+* problem with variants in multi-stop codon txs ([#95](https://github.com/bihealth/hgvs-rs/issues/95)) ([#96](https://github.com/bihealth/hgvs-rs/issues/96)) ([f25658c](https://github.com/bihealth/hgvs-rs/commit/f25658c7ada6483970c46d0cf43bf53fd7a2b791))
+
 ## [0.6.0](https://github.com/bihealth/hgvs-rs/compare/v0.5.2...v0.6.0) (2023-04-05)
 
 
