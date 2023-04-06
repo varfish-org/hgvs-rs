@@ -1632,7 +1632,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_multiple_stop_codons() -> Result<(), anyhow::Error> {
         let hgvsc = "NM_999992.1:c.4G>A";
-        let hgvsp_expected = "MOCK:p.Gly2Arg";
+        let hgvsp_expected = "MOCK:p.?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
