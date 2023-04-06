@@ -413,7 +413,7 @@ impl<'a> Normalizer<'a> {
             if stop < ref_seq.len().try_into()? || start == orig_start {
                 break;
             }
-            // If stop at the end of the window, try to extend teh shuffling to the right.
+            // If stop at the end of the window, try to extend the shuffling to the right.
             base += start - orig_start;
             stop -= start - orig_start;
             start = orig_start;
