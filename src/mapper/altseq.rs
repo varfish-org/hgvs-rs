@@ -206,6 +206,10 @@ pub struct AltSeqBuilder {
     pub reference_data: RefTranscriptData,
     /// Whether the transcript reference amino acid sequence has multiple stop codons.
     pub ref_has_multiple_stops: bool,
+    /// Position of the first stop codon in the reference amino acid.  It is difficult
+    /// to handle transcripts with multiple stop codons, but we can make a reasonable
+    /// prediction up to the first stop codon.  This rescues changes to the `p.Met1`.
+    pub first_stop_pos: Option<usize>,
 }
 
 impl AltSeqBuilder {
@@ -214,11 +218,13 @@ impl AltSeqBuilder {
             panic!("Must initialize with HgvsVariant::CdsVariant");
         }
         let ref_has_multiple_stops = reference_data.aa_sequence.matches('*').count() > 1;
+        let first_stop_pos = reference_data.aa_sequence.find('*');
 
         Self {
             var_c,
             reference_data,
             ref_has_multiple_stops,
+            first_stop_pos,
         }
     }
 
@@ -433,7 +439,7 @@ impl AltSeqBuilder {
             &self.reference_data.protein_accession,
             &self.reference_data.aa_sequence,
             is_substitution,
-            self.ref_has_multiple_stops,
+            self.ref_has_multiple_stops && self.first_stop_pos.map(|p| p <= start).unwrap_or(false),
         )
     }
 
@@ -465,7 +471,7 @@ impl AltSeqBuilder {
             &self.reference_data.protein_accession,
             &self.reference_data.aa_sequence,
             false,
-            self.ref_has_multiple_stops,
+            self.ref_has_multiple_stops && self.first_stop_pos.map(|p| p <= start).unwrap_or(false),
         )
     }
 
@@ -496,7 +502,7 @@ impl AltSeqBuilder {
             &self.reference_data.protein_accession,
             &self.reference_data.aa_sequence,
             false,
-            self.ref_has_multiple_stops,
+            self.ref_has_multiple_stops && self.first_stop_pos.map(|p| p <= start).unwrap_or(false),
         )
     }
 
@@ -975,7 +981,7 @@ impl AltSeqToHgvsp {
             } else {
                 // is non-dup insertion
                 let start = *start as usize - 1;
-                let end = start as usize + 1;
+                let end = start + 1;
 
                 aa_start = Some(ProtPos {
                     aa: self.ref_seq()[(start - 1)..start].to_owned(),

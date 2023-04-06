@@ -1626,6 +1626,9 @@ mod test {
         Ok(())
     }
 
+    /// Check the case with multiple stop codons.  We introduced a change in hgvs-rs
+    /// that does not handle multiple stop codons in the transcript sequence as
+    /// conservatively as the Python version.
     #[test]
     fn hgvs_c_to_p_multiple_stop_codons() -> Result<(), anyhow::Error> {
         let hgvsc = "NM_999992.1:c.4G>A";
@@ -1902,6 +1905,12 @@ mod test {
     #[test]
     fn real() -> Result<(), anyhow::Error> {
         run_gxp_test("tests/data/mapper/gcp/real.tsv", false)
+    }
+
+    /// Check for issues with variants affecting `Met1` leading to `p.Met1?`.
+    #[test]
+    fn real_met1() -> Result<(), anyhow::Error> {
+        run_gxp_test("tests/data/mapper/gcp/real-met1.tsv", false)
     }
 
     #[test]
