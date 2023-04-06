@@ -437,14 +437,15 @@ mod test {
         }
 
         #[test]
-        fn test_fail_c_to_p_brca2() -> Result<(), anyhow::Error> {
+        fn test_c_to_p_brca2() -> Result<(), anyhow::Error> {
             let mapper = build_mapper_38(true)?;
             let hgvs_c = "NM_000059.3:c.7790delAAG";
             let var_c = HgvsVariant::from_str(hgvs_c)?;
 
-            let result = mapper.c_to_p(&var_c);
-            println!("{:?}", &result);
-            assert!(result.is_err());
+            // NB: this used to fail in Python hgvs but works here now as we do not
+            // perform comprehensive validation yet (1 bp interval/position, but 3bp
+            // deleted).
+            assert_eq!("NP_000050.2:p.Glu2598LysfsTer50", format!("{}", mapper.c_to_p(&var_c)?));
 
             Ok(())
         }
