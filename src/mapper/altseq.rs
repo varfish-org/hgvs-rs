@@ -205,8 +205,16 @@ pub struct AltSeqBuilder {
     /// Information about the transcript reference.
     pub reference_data: RefTranscriptData,
     /// Whether the transcript reference amino acid sequence has multiple stop codons.
+    /// Also see `MULTIPLE_STOPS_PROBLEMATIC`.
     pub ref_has_multiple_stops: bool,
 }
+
+/// Switch between considering multiple stop codons as problematic.  The behaviour as
+/// configured here is probably the desired behaviour in the future.  Also see
+///
+/// - https://github.com/bihealth/hgvs-rs/issues/95
+/// - https://github.com/biocommons/hgvs/issues/651
+pub const MULTIPLE_STOPS_PROBLEMATIC: bool = false;
 
 impl AltSeqBuilder {
     pub fn new(var_c: HgvsVariant, reference_data: RefTranscriptData) -> Self {
@@ -433,7 +441,7 @@ impl AltSeqBuilder {
             &self.reference_data.protein_accession,
             &self.reference_data.aa_sequence,
             is_substitution,
-            self.ref_has_multiple_stops,
+            !MULTIPLE_STOPS_PROBLEMATIC || self.ref_has_multiple_stops,
         )
     }
 
@@ -465,7 +473,7 @@ impl AltSeqBuilder {
             &self.reference_data.protein_accession,
             &self.reference_data.aa_sequence,
             false,
-            self.ref_has_multiple_stops,
+            !MULTIPLE_STOPS_PROBLEMATIC || self.ref_has_multiple_stops,
         )
     }
 
@@ -496,7 +504,7 @@ impl AltSeqBuilder {
             &self.reference_data.protein_accession,
             &self.reference_data.aa_sequence,
             false,
-            self.ref_has_multiple_stops,
+            !MULTIPLE_STOPS_PROBLEMATIC || self.ref_has_multiple_stops,
         )
     }
 

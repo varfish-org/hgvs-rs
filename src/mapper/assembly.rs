@@ -445,7 +445,10 @@ mod test {
             // NB: this used to fail in Python hgvs but works here now as we do not
             // perform comprehensive validation yet (1 bp interval/position, but 3bp
             // deleted).
-            assert_eq!("NP_000050.2:p.Glu2598LysfsTer50", format!("{}", mapper.c_to_p(&var_c)?));
+            assert_eq!(
+                "NP_000050.2:p.Glu2598LysfsTer50",
+                format!("{}", mapper.c_to_p(&var_c)?)
+            );
 
             Ok(())
         }

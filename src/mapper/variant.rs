@@ -1626,10 +1626,13 @@ mod test {
         Ok(())
     }
 
+    /// Check the case with multiple stop codons.  We introduced a change in hgvs-rs
+    /// that does not handle multiple stop codons in the transcript sequence as
+    /// conservatively as the Python version.
     #[test]
     fn hgvs_c_to_p_multiple_stop_codons() -> Result<(), anyhow::Error> {
         let hgvsc = "NM_999992.1:c.4G>A";
-        let hgvsp_expected = "MOCK:p.?";
+        let hgvsp_expected = "MOCK:p.Gly2Arg";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
