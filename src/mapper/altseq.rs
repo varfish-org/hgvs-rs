@@ -441,7 +441,7 @@ impl AltSeqBuilder {
             &self.reference_data.protein_accession,
             &self.reference_data.aa_sequence,
             is_substitution,
-            !MULTIPLE_STOPS_PROBLEMATIC || self.ref_has_multiple_stops,
+            MULTIPLE_STOPS_PROBLEMATIC && self.ref_has_multiple_stops,
         )
     }
 
@@ -473,7 +473,7 @@ impl AltSeqBuilder {
             &self.reference_data.protein_accession,
             &self.reference_data.aa_sequence,
             false,
-            !MULTIPLE_STOPS_PROBLEMATIC || self.ref_has_multiple_stops,
+            MULTIPLE_STOPS_PROBLEMATIC && self.ref_has_multiple_stops,
         )
     }
 
@@ -504,7 +504,7 @@ impl AltSeqBuilder {
             &self.reference_data.protein_accession,
             &self.reference_data.aa_sequence,
             false,
-            !MULTIPLE_STOPS_PROBLEMATIC || self.ref_has_multiple_stops,
+            MULTIPLE_STOPS_PROBLEMATIC && self.ref_has_multiple_stops,
         )
     }
 
