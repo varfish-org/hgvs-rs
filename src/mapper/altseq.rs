@@ -980,7 +980,7 @@ impl AltSeqToHgvsp {
                 alternative = reference.clone();
             } else {
                 // is non-dup insertion
-                let start = *start as usize - 1;
+                let start = std::cmp::max(2, *start as usize) - 1;
                 let end = start + 1;
 
                 aa_start = Some(ProtPos {
