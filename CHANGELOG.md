@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/bihealth/hgvs-rs/compare/v0.6.1...v0.6.2) (2023-04-18)
+
+
+### Bug Fixes
+
+* issue with non-dup insertion at start of protein ([#99](https://github.com/bihealth/hgvs-rs/issues/99)) ([#100](https://github.com/bihealth/hgvs-rs/issues/100)) ([bc5b5cf](https://github.com/bihealth/hgvs-rs/commit/bc5b5cf4cd77e56b96be879eb8c939d29e0c58e0))
+
 ## [0.6.1](https://github.com/bihealth/hgvs-rs/compare/v0.6.0...v0.6.1) (2023-04-06)
 
 
