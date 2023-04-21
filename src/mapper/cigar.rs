@@ -2,6 +2,7 @@
 
 use std::fmt::Display;
 
+use crate::mapper::Error;
 use nom::{combinator::all_consuming, multi::many0};
 
 /// CIGAR operation as parsed from UTA.
@@ -48,7 +49,7 @@ impl TryFrom<char> for CigarOp {
             'M' => Self::Match,
             'N' => Self::Skip,
             'X' => Self::Mismatch,
-            _ => return Err(anyhow::anyhow!("Invalid CIGAR character {}", value)),
+            _ => return Err(Error::InvalidCigarValue(value)),
         })
     }
 }
@@ -94,14 +95,14 @@ impl CigarElement {
             count: if count.is_empty() {
                 1
             } else {
-                str::parse(count).map_err(|_e| anyhow::anyhow!("Invalid CIGAR count {}", count))?
+                str::parse(count).map_err(|_e| Error::InvalidCigarCount(count.to_string()))?
             },
             op: op
                 .chars()
                 .next()
                 .expect("CIGAR op is empty")
                 .try_into()
-                .map_err(|_e| anyhow::anyhow!("Invalid CIGAR op {}", op))?,
+                .map_err(|_e| Error::InvalidCigarOp(op.to_string()))?,
         })
     }
 }

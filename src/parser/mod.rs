@@ -60,6 +60,7 @@ impl FromStr for CdsInterval {
 
 #[cfg(test)]
 mod test {
+    use anyhow::Error;
     use std::{
         fs::File,
         io::{BufRead, BufReader},

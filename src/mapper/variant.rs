@@ -7,6 +7,7 @@ use log::{debug, info};
 use super::alignment::{Config as AlignmentConfig, Mapper as AlignmentMapper};
 use crate::{
     data::interface::Provider,
+    mapper::Error,
     normalizer::{self, Config as NormalizerConfig, Normalizer},
     parser::{
         Accession, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval, GenomeLocEdit,
@@ -281,10 +282,7 @@ impl Mapper {
 
             Ok(var_n)
         } else {
-            Err(anyhow::anyhow!(
-                "Expected a GenomeVariant but received {}",
-                &var_g
-            ))
+            Err(Error::ExpectedGenomeVariant(format!("{}", &var_g)))
         }
     }
 
@@ -373,10 +371,7 @@ impl Mapper {
 
             Ok(var_g)
         } else {
-            Err(anyhow::anyhow!(
-                "Expected a TxVariant but received {}",
-                &var_n
-            ))
+            Err(Error::ExpectedTxVariant(format!("{}", &var_n)))
         }
     }
 
@@ -467,10 +462,7 @@ impl Mapper {
 
             Ok(var_c)
         } else {
-            Err(anyhow::anyhow!(
-                "Expected a GenomeVariant but received {}",
-                &var_g
-            ))
+            Err(Error::ExpectedGenomeVariant(format!("{}", &var_g)))
         }
     }
 
@@ -538,7 +530,7 @@ impl Mapper {
                         edit: Mu::Certain(
                             var_c
                                 .na_edit()
-                                .ok_or(anyhow::anyhow!("no NAEdit in HGVS.c variant"))?
+                                .ok_or(Error::NoNAEditInHgvsC(format!("{}", &var_c)))?
                                 .clone(),
                         ),
                     },
@@ -571,10 +563,7 @@ impl Mapper {
 
             Ok(var_g)
         } else {
-            Err(anyhow::anyhow!(
-                "Expected a CdsVariant but received {}",
-                &var_c
-            ))
+            Err(Error::ExpectedCdsVariant(format!("{}", &var_c)))
         }
     }
 
@@ -600,10 +589,7 @@ impl Mapper {
         match var_t {
             HgvsVariant::TxVariant { .. } => self.n_to_g(&var_t, alt_ac, alt_aln_method),
             HgvsVariant::CdsVariant { .. } => self.c_to_g(&var_t, alt_ac, alt_aln_method),
-            _ => Err(anyhow::anyhow!(
-                "Expected transcript or CDS variant but received {}",
-                &var_t
-            )),
+            _ => Err(Error::ExpectedCdsVariant(format!("{}", &var_t))),
         }
     }
 
@@ -648,10 +634,7 @@ impl Mapper {
             log::debug!("c_to_n({}) = {}", var_c, &var_n);
             Ok(var_n)
         } else {
-            Err(anyhow::anyhow!(
-                "Expected a CdsVariant but received {}",
-                &var_c
-            ))
+            Err(Error::ExpectedCdsVariant(format!("{}", &var_c)))
         }
     }
 
@@ -694,10 +677,7 @@ impl Mapper {
 
             Ok(var_c)
         } else {
-            Err(anyhow::anyhow!(
-                "Expected a TxVariant but received {}",
-                &var_n
-            ))
+            Err(Error::ExpectedTxVariant(format!("{}", &var_n)))
         }
     }
 
@@ -746,7 +726,7 @@ impl Mapper {
             let var_p = var_ps?
                 .into_iter()
                 .next()
-                .ok_or(anyhow::anyhow!("could not construct HGVS.p variant"))?;
+                .ok_or(Error::ProtVariantConstructionFailed)?;
 
             let var_p = if let HgvsVariant::ProtVariant {
                 accession,
@@ -761,17 +741,12 @@ impl Mapper {
                     loc_edit,
                 }
             } else {
-                return Err(anyhow::anyhow!(
-                    "This cannot happen; must have ProtVariant here."
-                ));
+                return Err(Error::NotProtVariant);
             };
 
             Ok(var_p)
         } else {
-            Err(anyhow::anyhow!(
-                "Expected a CdsVariant but received {}",
-                &var_c
-            ))
+            Err(Error::ExpectedCdsVariant(format!("{}", &var_c)))
         }
     }
 
@@ -787,14 +762,12 @@ impl Mapper {
             Some(interval.end.try_into()?),
         )?;
 
-        let r = var.loc_range().ok_or(anyhow::anyhow!(
-            "Cannot get altered sequence for missing positions"
-        ))?;
+        let r = var
+            .loc_range()
+            .ok_or(Error::NoAlteredSequenceForMissingPositions)?;
         let r = ((r.start - interval.start) as usize)..((r.end - interval.start) as usize);
 
-        let na_edit = var
-            .na_edit()
-            .ok_or(anyhow::anyhow!("Variant is missing nucleic acid edit"))?;
+        let na_edit = var.na_edit().ok_or(Error::NaEditMissing)?;
 
         match na_edit {
             NaEdit::RefAlt { alternative, .. } | NaEdit::NumAlt { alternative, .. } => {
@@ -860,9 +833,7 @@ impl Mapper {
     /// Fetch reference sequence for variant and return updated `HgvsVariant` if necessary.
     pub fn replace_reference(&self, var: HgvsVariant) -> Result<HgvsVariant, Error> {
         match &var {
-            HgvsVariant::ProtVariant { .. } => Err(anyhow::anyhow!(
-                "Can only update reference for c, g, m, n, r"
-            )),
+            HgvsVariant::ProtVariant { .. } => Err(Error::CannotUpdateReference),
             _ => Ok(()),
         }?;
 
@@ -962,7 +933,7 @@ impl Mapper {
 
 #[cfg(test)]
 mod test {
-    use lazy_static::__Deref;
+    use anyhow::Error;
     use pretty_assertions::assert_eq;
     use regex::Regex;
     use std::{
@@ -1107,6 +1078,7 @@ mod test {
         };
 
         use crate::data::interface::Provider as ProviderInterface;
+        use crate::mapper::Error;
         use crate::{
             data::interface::TxIdentityInfo,
             mapper::variant::{Config, Mapper},
@@ -1661,6 +1633,7 @@ mod test {
     }
 
     mod gcp_tests {
+        use crate::mapper::Error;
         use std::path::Path;
 
         #[derive(Debug, serde::Deserialize)]

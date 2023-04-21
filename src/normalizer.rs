@@ -20,6 +20,8 @@ mod error {
     pub enum Error {
         #[error("integer conversion failed")]
         IntegerConversion(#[from] std::num::TryFromIntError),
+        #[error("validation error")]
+        ValidationFailed(#[from] crate::validator::Error),
         #[error("validation failed in normalization: {0}")]
         Validation(String),
         #[error("cannot normalize protein-level variant: {0}")]
@@ -1023,6 +1025,7 @@ fn normalize_alleles_right(
 mod test {
     use test_log::test;
 
+    use anyhow::Error;
     use std::{rc::Rc, str::FromStr};
 
     use pretty_assertions::assert_eq;
@@ -1031,7 +1034,6 @@ mod test {
     use crate::{
         data::uta_sr::test_helpers::build_provider,
         mapper::variant::Mapper,
-        normalizer::Error,
         parser::{HgvsVariant, NoRef},
         validator::IntrinsicValidator,
     };
