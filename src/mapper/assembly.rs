@@ -139,7 +139,7 @@ impl Mapper {
     ///
     /// * `var_g` -- `HgvsVariant::GenomeVariant` to project
     /// * `tx_ac` -- accession of transcript to project to
-    pub fn g_to_n(&self, var_g: &HgvsVariant, tx_ac: &str) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn g_to_n(&self, var_g: &HgvsVariant, tx_ac: &str) -> Result<HgvsVariant, Error> {
         let var = self
             .inner
             .g_to_n(var_g, tx_ac, &self.config.alt_aln_method)?;
@@ -152,7 +152,7 @@ impl Mapper {
     ///
     /// * `var_g` -- `HgvsVariant::GenomeVariant` to project
     /// * `tx_ac` -- accession of transcript to project to
-    pub fn g_to_c(&self, var_g: &HgvsVariant, tx_ac: &str) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn g_to_c(&self, var_g: &HgvsVariant, tx_ac: &str) -> Result<HgvsVariant, Error> {
         let var = self
             .inner
             .g_to_c(var_g, tx_ac, &self.config.alt_aln_method)?;
@@ -165,7 +165,7 @@ impl Mapper {
     ///
     /// * `var_g` -- `HgvsVariant::GenomeVariant` to project
     /// * `tx_ac` -- accession of transcript to project to
-    pub fn g_to_t(&self, var_g: &HgvsVariant, tx_ac: &str) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn g_to_t(&self, var_g: &HgvsVariant, tx_ac: &str) -> Result<HgvsVariant, Error> {
         let var = self
             .inner
             .g_to_t(var_g, tx_ac, &self.config.alt_aln_method)?;
@@ -177,7 +177,7 @@ impl Mapper {
     /// # Args
     ///
     /// * `var_n` -- `HgvsVariant::TxVariant` to project
-    pub fn n_to_g(&self, var_n: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn n_to_g(&self, var_n: &HgvsVariant) -> Result<HgvsVariant, Error> {
         let alt_ac = self.alt_ac_for_tx_ac(var_n.accession())?;
         let var = self
             .inner
@@ -192,7 +192,7 @@ impl Mapper {
     /// * `var_c` -- `HgvsVariant::CdsVariant` to project
     /// * `alt_ac` -- alternative contig accession
     /// * `alt_al_method` -- alignment method, e.g., `"splign"`
-    pub fn c_to_g(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn c_to_g(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, Error> {
         let alt_ac = self.alt_ac_for_tx_ac(var_c.accession())?;
         let var = self
             .inner
@@ -207,7 +207,7 @@ impl Mapper {
     /// * `var_t` -- `HgvsVariant::TxVariant` or `HgvsVariant::CdsVariant` to project
     /// * `alt_ac` -- accession of alternativ esequence
     /// * `alt_al_method` -- alignment method, e.g., `"splign"`
-    pub fn t_to_g(&self, var_t: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn t_to_g(&self, var_t: &HgvsVariant) -> Result<HgvsVariant, Error> {
         let alt_ac = self.alt_ac_for_tx_ac(var_t.accession())?;
         let var = self
             .inner
@@ -220,7 +220,7 @@ impl Mapper {
     /// # Args
     ///
     /// * `var_c` -- `HgvsVariant::CdsVariant` to project
-    pub fn c_to_n(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn c_to_n(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, Error> {
         let var = self.inner.c_to_n(var_c)?;
         self.maybe_normalize(&var)
     }
@@ -230,7 +230,7 @@ impl Mapper {
     /// # Args
     ///
     /// * `var_n` -- `HgvsVariant::TxVariant` to project
-    pub fn n_to_c(&self, var_n: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn n_to_c(&self, var_n: &HgvsVariant) -> Result<HgvsVariant, Error> {
         let var = self.inner.n_to_c(var_n)?;
         self.maybe_normalize(&var)
     }
@@ -240,7 +240,7 @@ impl Mapper {
     /// # Args
     ///
     /// * `var_c` -- `HgvsVariant::TxVariant` to project
-    pub fn c_to_p(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn c_to_p(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, Error> {
         let var = self.inner.c_to_p(var_c, None)?;
         self.maybe_normalize(&var)
     }
@@ -254,7 +254,7 @@ impl Mapper {
     /// # Returns
     ///
     /// `Vec` of relevant transcript accessions.
-    pub fn relevant_transcripts(&self, var_g: &HgvsVariant) -> Result<Vec<String>, anyhow::Error> {
+    pub fn relevant_transcripts(&self, var_g: &HgvsVariant) -> Result<Vec<String>, Error> {
         match var_g {
             HgvsVariant::GenomeVariant { loc_edit, .. } => {
                 let r: Range<i32> = loc_edit.loc.inner().clone().try_into()?;
@@ -278,7 +278,7 @@ impl Mapper {
     /// Normalize variant if requested and ignore errors.  This is better than checking whether
     /// the variant is intronic because future UTAs will support LRG, which will enable checking
     /// intronic variants.
-    fn maybe_normalize(&self, var: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
+    fn maybe_normalize(&self, var: &HgvsVariant) -> Result<HgvsVariant, Error> {
         if self.config.normalize {
             let normalizer = self.inner.normalizer()?;
             normalizer.normalize(var).or_else(|_| {
@@ -292,7 +292,7 @@ impl Mapper {
 
     /// Return chromosomal accession for the given transcript accession and the assembly and
     /// aln_method from configuration.
-    fn alt_ac_for_tx_ac(&self, tx_ac: &str) -> Result<String, anyhow::Error> {
+    fn alt_ac_for_tx_ac(&self, tx_ac: &str) -> Result<String, Error> {
         let mut alt_acs = Vec::new();
         for record in self.provider.get_tx_mapping_options(tx_ac)? {
             if record.alt_aln_method == self.config.alt_aln_method
@@ -371,7 +371,7 @@ impl Mapper {
         }
     }
 
-    pub fn replace_reference(&self, var: HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn replace_reference(&self, var: HgvsVariant) -> Result<HgvsVariant, Error> {
         self.inner.replace_reference(var)
     }
 }
@@ -382,7 +382,7 @@ mod test {
 
     use super::{Config, Mapper};
 
-    fn build_mapper_38(normalize: bool) -> Result<Mapper, anyhow::Error> {
+    fn build_mapper_38(normalize: bool) -> Result<Mapper, Error> {
         let provider = build_provider()?;
         let config = Config {
             assembly: Assembly::Grch38,
@@ -392,7 +392,7 @@ mod test {
         Ok(Mapper::new(config, provider))
     }
 
-    fn build_mapper_37(normalize: bool) -> Result<Mapper, anyhow::Error> {
+    fn build_mapper_37(normalize: bool) -> Result<Mapper, Error> {
         let provider = build_provider()?;
         let config = Config {
             assembly: Assembly::Grch37,
@@ -403,7 +403,7 @@ mod test {
     }
 
     #[test]
-    fn smoke() -> Result<(), anyhow::Error> {
+    fn smoke() -> Result<(), Error> {
         build_mapper_38(true)?;
         Ok(())
     }
@@ -420,7 +420,7 @@ mod test {
         use super::{build_mapper_37, build_mapper_38};
 
         #[test]
-        fn test_quick_aoah() -> Result<(), anyhow::Error> {
+        fn test_quick_aoah() -> Result<(), Error> {
             let mapper = build_mapper_38(true)?;
             let hgvs_g = "NC_000007.13:g.36561662C>T";
             let hgvs_c = "NM_001637.3:c.1582G>A";
@@ -437,7 +437,7 @@ mod test {
         }
 
         #[test]
-        fn test_c_to_p_brca2() -> Result<(), anyhow::Error> {
+        fn test_c_to_p_brca2() -> Result<(), Error> {
             let mapper = build_mapper_38(true)?;
             let hgvs_c = "NM_000059.3:c.7790delAAG";
             let var_c = HgvsVariant::from_str(hgvs_c)?;
@@ -482,7 +482,7 @@ mod test {
             #[case] hgvs_x: &str,
             #[case] gene: &str,
             #[case] build: i32,
-        ) -> Result<(), anyhow::Error> {
+        ) -> Result<(), Error> {
             let mapper = if build == 38 {
                 build_mapper_38(true)?
             } else {
@@ -539,7 +539,7 @@ mod test {
             #[case] hgvs_rhs: &str,
             #[case] gene: &str,
             #[case] build: i32,
-        ) -> Result<(), anyhow::Error> {
+        ) -> Result<(), Error> {
             let mapper = if build == 38 {
                 build_mapper_38(true)?
             } else {
@@ -592,7 +592,7 @@ mod test {
             #[case] hgvs_c: &str,
             #[case] hgvs_p: &str,
             #[case] gene: &str,
-        ) -> Result<(), anyhow::Error> {
+        ) -> Result<(), Error> {
             let mapper = build_mapper_38(true)?;
             let var_c = HgvsVariant::from_str(hgvs_c)?;
 
@@ -844,7 +844,7 @@ mod test {
             #[case] hgvs_g: &str,
             #[case] hgvs_n: &str,
             #[case] gene: &str,
-        ) -> Result<(), anyhow::Error> {
+        ) -> Result<(), Error> {
             let mapper = build_mapper_38(true)?;
             let var_c = HgvsVariant::from_str(hgvs_c)?;
             let var_g = HgvsVariant::from_str(hgvs_g)?;
@@ -880,7 +880,7 @@ mod test {
             hgvs_c: &str,
             hgvs_n: &str,
             hgvs_p: &str,
-        ) -> Result<(), anyhow::Error> {
+        ) -> Result<(), Error> {
             let mapper = build_mapper_37(false)?;
 
             let var_g = HgvsVariant::from_str(hgvs_g)?;
@@ -912,7 +912,7 @@ mod test {
         }
 
         #[test]
-        fn snv() -> Result<(), anyhow::Error> {
+        fn snv() -> Result<(), Error> {
             test_projections(
                 "NC_000007.13:g.36561662C>T",
                 "NM_001637.3:c.1582G>A",
@@ -922,7 +922,7 @@ mod test {
         }
 
         #[test]
-        fn intronic() -> Result<(), anyhow::Error> {
+        fn intronic() -> Result<(), Error> {
             test_projections(
                 "NC_000010.10:g.89711873A>C",
                 "NM_000314.4:c.493-2A>C",
@@ -941,7 +941,7 @@ mod test {
         use super::build_mapper_38;
 
         #[test]
-        fn run() -> Result<(), anyhow::Error> {
+        fn run() -> Result<(), Error> {
             let mapper = build_mapper_38(false)?;
             let mut rdr = csv::ReaderBuilder::new()
                 .delimiter(b'\t')

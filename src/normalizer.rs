@@ -2,6 +2,7 @@
 
 use std::{cmp::Ordering, ops::Range, rc::Rc};
 
+pub use crate::normalizer::error::Error;
 use crate::{
     data::interface::Provider,
     mapper::variant::Mapper as VariantMapper,
@@ -12,6 +13,33 @@ use crate::{
     sequences::{revcomp, trim_common_prefixes, trim_common_suffixes},
     validator::Validator,
 };
+
+mod error {
+    /// Error type for normalization of HGVS expressins.
+    #[derive(thiserror::Error, Debug)]
+    pub enum Error {
+        #[error("integer conversion failed")]
+        IntegerConversion(#[from] std::num::TryFromIntError),
+        #[error("validation failed in normalization: {0}")]
+        Validation(String),
+        #[error("cannot normalize protein-level variant: {0}")]
+        ProteinVariant(String),
+        #[error("cannot normalize intronic variant: {0}")]
+        IntronicVariant(String),
+        #[error("coordinates are out of bound in: {0}")]
+        CoordinatesOutOfBounds(String),
+        #[error("cannot find exon for normalization of start of: {0}")]
+        ExonNotFoundForStart(String),
+        #[error("cannot find exon for normalization of end of: {0}")]
+        ExonNotFoundForEnd(String),
+        #[error("normalization unsupported when spanning exon-intron boundary: {0}")]
+        ExonIntronBoundary(String),
+        #[error("normalization unsupported when spanning UTR-exon boundary: {0}")]
+        UtrExonBoundary(String),
+        #[error("variant span is outside of sequence bounds: {0}")]
+        VariantSpanOutsideSequenceBounds(String),
+    }
+}
 
 /// A direction with respect to a sequence.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -77,7 +105,7 @@ impl<'a> Normalizer<'a> {
         }
     }
 
-    pub fn normalize(&self, var: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn normalize(&self, var: &HgvsVariant) -> Result<HgvsVariant, Error> {
         let is_genome = matches!(&var, HgvsVariant::GenomeVariant { .. });
 
         // Run the pre-normalization checks (a) whether trying to normalize the variant is an
@@ -110,9 +138,11 @@ impl<'a> Normalizer<'a> {
         &self,
         orig_var: &HgvsVariant,
         is_genome: bool,
-    ) -> Result<CheckAndGuardResult, anyhow::Error> {
+    ) -> Result<CheckAndGuardResult, Error> {
         let var = orig_var.clone();
-        self.validator.validate(&var)?;
+        self.validator
+            .validate(&var)
+            .map_err(|e| Error::Validation(e.to_string()))?;
 
         // Bail out if we cannot reliably normalize.
         if var.mu_na_edit().map(|e| !e.is_certain()).unwrap_or(true)
@@ -127,10 +157,7 @@ impl<'a> Normalizer<'a> {
 
         // Guard against unsupported normalizations.
         if let HgvsVariant::ProtVariant { .. } = var {
-            return Err(anyhow::anyhow!(
-                "Unsupported normalization of protein level variant: {}",
-                &var
-            ));
+            return Err(Error::ProteinVariant(format!("{}", var)));
         }
 
         // NB: once we support gene conversions, guard against this here as well.
@@ -164,9 +191,7 @@ impl<'a> Normalizer<'a> {
         match &var {
             HgvsVariant::TxVariant { .. } | HgvsVariant::RnaVariant { .. } => {
                 if var.spans_intron() {
-                    Err(anyhow::anyhow!(
-                        "Normalization of intronic variants is not supported"
-                    ))
+                    Err(Error::IntronicVariant(format!("{}", &var)))
                 } else {
                     Ok(())
                 }
@@ -174,11 +199,7 @@ impl<'a> Normalizer<'a> {
             _ => Ok(()),
         }?;
 
-        fn valid_seq_len(
-            provider: &dyn Provider,
-            ac: &str,
-            len: usize,
-        ) -> Result<bool, anyhow::Error> {
+        fn valid_seq_len(provider: &dyn Provider, ac: &str, len: usize) -> Result<bool, Error> {
             let res = provider.get_seq_part(ac, Some(len - 1), Some(len))?;
             Ok(!res.is_empty())
         }
@@ -193,7 +214,7 @@ impl<'a> Normalizer<'a> {
                         var_loc_range.end as usize,
                     )?
             {
-                return Err(anyhow::anyhow!("Coordinates are out of bound: {}", var));
+                return Err(Error::CoordinatesOutOfBounds(format!("{}", &var)));
             }
         } else {
             panic!("Cannot happen; guarded against above")
@@ -219,7 +240,7 @@ impl<'a> Normalizer<'a> {
     }
 
     /// Obtain position of exon-intron boundary for the current variant.
-    fn get_boundary(&self, var: &HgvsVariant) -> Result<Range<i32>, anyhow::Error> {
+    fn get_boundary(&self, var: &HgvsVariant) -> Result<Range<i32>, Error> {
         if !self.config.cross_boundaries
             && matches!(
                 &var,
@@ -278,10 +299,7 @@ impl<'a> Normalizer<'a> {
                 .find(|(idx, _x)| {
                     loc_range.start >= exon_starts[*idx] && loc_range.start < exon_ends[*idx]
                 })
-                .ok_or(anyhow::anyhow!(
-                    "Cannot find exon for normalization of start of {}",
-                    &var
-                ))?
+                .ok_or(Error::ExonNotFoundForStart(format!("{}", &var)))?
                 .0;
             let j = exon_starts
                 .iter()
@@ -289,17 +307,11 @@ impl<'a> Normalizer<'a> {
                 .find(|(idx, _x)| {
                     loc_range.end > exon_starts[*idx] && loc_range.end - 1 < exon_ends[*idx]
                 })
-                .ok_or(anyhow::anyhow!(
-                    "Cannot find exon for normalization of end of {}",
-                    &var
-                ))?
+                .ok_or(Error::ExonNotFoundForEnd(format!("{}", &var)))?
                 .0;
 
             if i != j {
-                return Err(anyhow::anyhow!(
-                    "Unsupported normalization of variants spanning the exon-intron boundary: {}",
-                    var
-                ));
+                return Err(Error::ExonIntronBoundary(format!("{}", &var)));
             }
 
             let mut left = exon_starts[i];
@@ -311,10 +323,7 @@ impl<'a> Normalizer<'a> {
                 } else if loc_range.start >= cds_start {
                     left = std::cmp::max(left, cds_start);
                 } else {
-                    return Err(anyhow::anyhow!(
-                        "Unsupported normalization of variants spanning the UTR-exon boundary: {}",
-                        var
-                    ));
+                    return Err(Error::UtrExonBoundary(format!("{}", &var)));
                 }
             }
 
@@ -324,10 +333,7 @@ impl<'a> Normalizer<'a> {
                 } else if loc_range.end - 1 < cds_end {
                     right = std::cmp::min(right, cds_end);
                 } else {
-                    return Err(anyhow::anyhow!(
-                        "Unsupported normalization of variants spanning the UTR-exon boundary: {}",
-                        var
-                    ));
+                    return Err(Error::UtrExonBoundary(format!("{}", &var)));
                 }
             }
 
@@ -343,7 +349,7 @@ impl<'a> Normalizer<'a> {
         &self,
         var: &HgvsVariant,
         boundary: Range<i32>,
-    ) -> Result<(i32, i32, String, String), anyhow::Error> {
+    ) -> Result<(i32, i32, String, String), Error> {
         let (reference, alternative) = self.get_ref_alt(var, &boundary)?;
         let win_size = self.config.window_size;
 
@@ -373,7 +379,7 @@ impl<'a> Normalizer<'a> {
         win_size: i32,
         var: &HgvsVariant,
         boundary: Range<i32>,
-    ) -> Result<(i32, i32, String, String), anyhow::Error> {
+    ) -> Result<(i32, i32, String, String), Error> {
         let mut reference = reference;
         let mut alternative = alternative;
         let loc_range = var
@@ -429,7 +435,7 @@ impl<'a> Normalizer<'a> {
         win_size: i32,
         var: &HgvsVariant,
         boundary: Range<i32>,
-    ) -> Result<(i32, i32, String, String), anyhow::Error> {
+    ) -> Result<(i32, i32, String, String), Error> {
         let mut reference = reference;
         let mut alternative = alternative;
         let loc_range = var
@@ -489,7 +495,7 @@ impl<'a> Normalizer<'a> {
         alternative: String,
         boundary: Range<i32>,
         cds_to_tx: bool,
-    ) -> Result<HgvsVariant, anyhow::Error> {
+    ) -> Result<HgvsVariant, Error> {
         let ref_len = reference.len() as i32;
         let alt_len = alternative.len() as i32;
 
@@ -559,7 +565,7 @@ impl<'a> Normalizer<'a> {
         ref_end: i32,
         edit: NaEdit,
         cds_to_tx: bool,
-    ) -> Result<HgvsVariant, anyhow::Error> {
+    ) -> Result<HgvsVariant, Error> {
         Ok(match var {
             HgvsVariant::GenomeVariant {
                 accession,
@@ -656,7 +662,7 @@ impl<'a> Normalizer<'a> {
         boundary: &Range<i32>,
         alternative: &String,
         reference: &str,
-    ) -> Result<(i32, i32, NaEdit), anyhow::Error> {
+    ) -> Result<(i32, i32, NaEdit), Error> {
         Ok(if ref_len == 0 {
             let adj_seq = if self.config.shuffle_direction == Direction::FiveToThree {
                 self.fetch_bounded_seq(var, start - alt_len - 1, end - 1, 0, boundary)?
@@ -792,7 +798,7 @@ impl<'a> Normalizer<'a> {
         end: i32,
         window_size: i32,
         boundary: &Range<i32>,
-    ) -> Result<String, anyhow::Error> {
+    ) -> Result<String, Error> {
         let var_len = end - start - window_size;
 
         let start = std::cmp::max(start, boundary.start);
@@ -809,16 +815,13 @@ impl<'a> Normalizer<'a> {
         let seq_len: i32 = seq.len().try_into()?;
 
         if seq_len < end - start && seq_len < var_len {
-            Err(anyhow::anyhow!(
-                "Variant span is outside of sequence bounds: {}",
-                &var
-            ))
+            Err(Error::VariantSpanOutsideSequenceBounds(format!("{}", &var)))
         } else {
             Ok(seq)
         }
     }
 
-    fn get_tgt_len(&self, var: &HgvsVariant) -> Result<i32, anyhow::Error> {
+    fn get_tgt_len(&self, var: &HgvsVariant) -> Result<i32, Error> {
         Ok(
             if matches!(
                 var,
@@ -836,7 +839,7 @@ impl<'a> Normalizer<'a> {
         &self,
         var: &HgvsVariant,
         boundary: &Range<i32>,
-    ) -> Result<(String, String), anyhow::Error> {
+    ) -> Result<(String, String), Error> {
         // Get reference allele.
         let reference = match var
             .na_edit()
@@ -885,7 +888,7 @@ fn normalize_alleles(
     bound: usize,
     ref_step: i32,
     left: bool,
-) -> Result<(i32, i32, String, String), anyhow::Error> {
+) -> Result<(i32, i32, String, String), Error> {
     if left {
         normalize_alleles_left(
             ref_seq,
@@ -917,7 +920,7 @@ fn normalize_alleles_left(
     alternative: String,
     bound: usize,
     ref_step: usize,
-) -> Result<(i32, i32, String, String), anyhow::Error> {
+) -> Result<(i32, i32, String, String), Error> {
     // Step 1: Trim common suffix./
     let (trimmed, reference, alternative) = trim_common_suffixes(&reference, &alternative);
     let mut stop = stop - trimmed;
@@ -970,7 +973,7 @@ fn normalize_alleles_right(
     alternative: String,
     bound: usize,
     ref_step: usize,
-) -> Result<(i32, i32, String, String), anyhow::Error> {
+) -> Result<(i32, i32, String, String), Error> {
     // Step 1: Trim common prefix.
     let (trimmed, reference, alternative) = trim_common_prefixes(&reference, &alternative);
     let mut start = start + trimmed;
@@ -1028,13 +1031,14 @@ mod test {
     use crate::{
         data::uta_sr::test_helpers::build_provider,
         mapper::variant::Mapper,
+        normalizer::Error,
         parser::{HgvsVariant, NoRef},
         validator::IntrinsicValidator,
     };
 
     fn normalizers(
         mapper: &Mapper,
-    ) -> Result<(Normalizer, Normalizer, Normalizer, Normalizer), anyhow::Error> {
+    ) -> Result<(Normalizer, Normalizer, Normalizer, Normalizer), Error> {
         let provider = mapper.provider();
         let validator = Rc::new(IntrinsicValidator::new(true));
 
@@ -1083,7 +1087,7 @@ mod test {
     }
 
     #[test]
-    fn normalize_cds_3_prime_shuffling() -> Result<(), anyhow::Error> {
+    fn normalize_cds_3_prime_shuffling() -> Result<(), Error> {
         let mapper = Mapper::new(&Default::default(), build_provider()?);
         let (norm, _norm5, _normc, _norm5c) = normalizers(&mapper)?;
 
@@ -1130,7 +1134,7 @@ mod test {
     }
 
     #[test]
-    fn normalize_cds_5_prime_shuffling() -> Result<(), anyhow::Error> {
+    fn normalize_cds_5_prime_shuffling() -> Result<(), Error> {
         let mapper = Mapper::new(&Default::default(), build_provider()?);
         let (_norm, norm5, _normc, _norm5c) = normalizers(&mapper)?;
 
@@ -1175,7 +1179,7 @@ mod test {
     }
 
     #[test]
-    fn normalize_cds_around_exon_intron_boundary() -> Result<(), anyhow::Error> {
+    fn normalize_cds_around_exon_intron_boundary() -> Result<(), Error> {
         let mapper = Mapper::new(&Default::default(), build_provider()?);
         let (_norm, _norm5, normc, norm5c) = normalizers(&mapper)?;
 
@@ -1232,7 +1236,7 @@ mod test {
     }
 
     #[test]
-    fn normalize_cds_utr_variant() -> Result<(), anyhow::Error> {
+    fn normalize_cds_utr_variant() -> Result<(), Error> {
         let mapper = Mapper::new(&Default::default(), build_provider()?);
         let (norm, norm5, normc, _norm5c) = normalizers(&mapper)?;
 
@@ -1399,7 +1403,7 @@ mod test {
     }
 
     #[test]
-    fn normalize_genome_3_prime_shuffling() -> Result<(), anyhow::Error> {
+    fn normalize_genome_3_prime_shuffling() -> Result<(), Error> {
         let mapper = Mapper::new(&Default::default(), build_provider()?);
         let (norm, _norm5, _normc, _norm5c) = normalizers(&mapper)?;
 
@@ -1526,7 +1530,7 @@ mod test {
     }
 
     #[test]
-    fn normalize_genome_5_prime_shuffling() -> Result<(), anyhow::Error> {
+    fn normalize_genome_5_prime_shuffling() -> Result<(), Error> {
         let mapper = Mapper::new(&Default::default(), build_provider()?);
         let (norm, norm5, _normc, _norm5c) = normalizers(&mapper)?;
 
@@ -1662,7 +1666,7 @@ mod test {
     }
 
     #[test]
-    fn normalize_near_tx_start_end() -> Result<(), anyhow::Error> {
+    fn normalize_near_tx_start_end() -> Result<(), Error> {
         let mapper = Mapper::new(&Default::default(), build_provider()?);
         let (norm, norm5, normc, norm5c) = normalizers(&mapper)?;
 

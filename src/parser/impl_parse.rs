@@ -877,7 +877,7 @@ mod test {
         use crate::parser::{impl_parse::Parseable, Accession};
 
         #[test]
-        fn parser_grammar() -> Result<(), anyhow::Error> {
+        fn parser_grammar() -> Result<(), Error> {
             let path = "tests/data/parser/grammar_test.tsv";
             let mut rdr = csv::ReaderBuilder::new()
                 .delimiter(b'\t')
@@ -933,7 +933,7 @@ mod test {
             Ok(())
         }
 
-        fn split_inputs(in_string: &str, in_type: &str) -> Result<Vec<String>, anyhow::Error> {
+        fn split_inputs(in_string: &str, in_type: &str) -> Result<Vec<String>, Error> {
             let inputs = if in_type == "list" {
                 in_string
                     .split('|')

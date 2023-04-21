@@ -38,9 +38,9 @@ impl CigarOp {
 }
 
 impl TryFrom<char> for CigarOp {
-    type Error = anyhow::Error;
+    type Error = Error;
 
-    fn try_from(value: char) -> Result<Self, anyhow::Error> {
+    fn try_from(value: char) -> Result<Self, Error> {
         Ok(match value {
             '=' => Self::Eq,
             'D' => Self::Del,
@@ -89,7 +89,7 @@ impl Display for CigarElement {
 }
 
 impl CigarElement {
-    fn from_strs(count: &str, op: &str) -> Result<CigarElement, anyhow::Error> {
+    fn from_strs(count: &str, op: &str) -> Result<CigarElement, Error> {
         Ok(CigarElement {
             count: if count.is_empty() {
                 1
@@ -170,7 +170,7 @@ pub mod parse {
 }
 
 /// Parse a CIGAR `str` into a real one.
-pub fn parse_cigar_string(input: &str) -> Result<CigarString, anyhow::Error> {
+pub fn parse_cigar_string(input: &str) -> Result<CigarString, Error> {
     Ok(CigarString::from(
         all_consuming(many0(parse::cigar_element))(input)
             .map_err(|e| anyhow::anyhow!("Problem with parsing: {:?}", e))?
@@ -252,7 +252,7 @@ impl CigarMapper {
         pos: i32,
         end: &str,
         strict_bounds: bool,
-    ) -> Result<CigarMapperResult, anyhow::Error> {
+    ) -> Result<CigarMapperResult, Error> {
         self.map(&self.ref_pos, &self.tgt_pos, pos, end, strict_bounds)
     }
 
@@ -261,7 +261,7 @@ impl CigarMapper {
         pos: i32,
         end: &str,
         strict_bounds: bool,
-    ) -> Result<CigarMapperResult, anyhow::Error> {
+    ) -> Result<CigarMapperResult, Error> {
         self.map(&self.tgt_pos, &self.ref_pos, pos, end, strict_bounds)
     }
 
@@ -275,7 +275,7 @@ impl CigarMapper {
         pos: i32,
         end: &str,
         strict_bounds: bool,
-    ) -> Result<CigarMapperResult, anyhow::Error> {
+    ) -> Result<CigarMapperResult, Error> {
         if strict_bounds
             && (pos < 0 || pos > *from_pos.last().ok_or(anyhow::anyhow!("no last position"))?)
         {
@@ -345,7 +345,7 @@ mod test {
     use super::{parse_cigar_string, CigarElement, CigarMapper, CigarMapperResult, CigarOp};
 
     #[test]
-    fn parse_cigar_string_simple() -> Result<(), anyhow::Error> {
+    fn parse_cigar_string_simple() -> Result<(), Error> {
         // assert_eq!(parse_cigar_string("")?, vec![]);
         assert_eq!(
             parse_cigar_string("M")?.elems,
@@ -413,7 +413,7 @@ mod test {
     }
 
     #[test]
-    fn cigar_mapper_simple() -> Result<(), anyhow::Error> {
+    fn cigar_mapper_simple() -> Result<(), Error> {
         // 0   1   2           3   4   5               6       7   8   9  tgt
         // =   =   =   N   N   =   X   =   N   N   N   =   I   =   D   =
         // 0   1   2   3   4   5   6   7   8   9  10  11  12  13      14  ref
@@ -523,7 +523,7 @@ mod test {
     }
 
     #[test]
-    fn cigar_mapper_strict_bounds() -> Result<(), anyhow::Error> {
+    fn cigar_mapper_strict_bounds() -> Result<(), Error> {
         // 0   1   2           3   4   5               6       7   8   9  tgt
         // =   =   =   N   N   =   X   =   N   N   N   =   I   =   D   =
         // 0   1   2   3   4   5   6   7   8   9  10  11  12  13      14  ref

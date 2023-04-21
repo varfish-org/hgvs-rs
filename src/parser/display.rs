@@ -643,7 +643,7 @@ mod test {
     use pretty_assertions::assert_eq;
 
     use crate::parser::{
-        Accession, CdsFrom, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval,
+        Accession, CdsFrom, CdsInterval, CdsLocEdit, CdsPos, Error, GeneSymbol, GenomeInterval,
         GenomeLocEdit, HgvsVariant, MtInterval, MtLocEdit, Mu, NaEdit, ProtInterval, ProtLocEdit,
         ProtPos, ProteinEdit, RnaInterval, RnaLocEdit, RnaPos, TxInterval, TxLocEdit, TxPos,
         UncertainLengthChange,
@@ -2099,7 +2099,7 @@ mod test {
 
     // This test uses the "gauntlet" file from the hgvs package for round-tripping.
     #[test]
-    fn roundtrip_hgvs_gauntlet() -> Result<(), anyhow::Error> {
+    fn roundtrip_hgvs_gauntlet() -> Result<(), Error> {
         let reader = BufReader::new(File::open("tests/data/parser/gauntlet")?);
 
         for line in reader.lines() {

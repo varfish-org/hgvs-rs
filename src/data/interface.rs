@@ -199,7 +199,7 @@ pub trait Provider {
     /// # Arguments
     ///
     /// * `hgnc` - HGNC gene name
-    fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, anyhow::Error>;
+    fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, Error>;
 
     /// Return the (single) associated protein accession for a given transcript accession,
     /// or None if not found.
@@ -207,14 +207,14 @@ pub trait Provider {
     /// # Arguments
     ///
     /// * `tx_ac` -- transcript accession with version (e.g., 'NM_000051.3')
-    fn get_pro_ac_for_tx_ac(&self, tx_ac: &str) -> Result<Option<String>, anyhow::Error>;
+    fn get_pro_ac_for_tx_ac(&self, tx_ac: &str) -> Result<Option<String>, Error>;
 
     /// Return full sequence for the given accession.
     ///
     /// # Arguments
     ///
     /// * `ac` -- accession
-    fn get_seq(&self, ac: &str) -> Result<String, anyhow::Error> {
+    fn get_seq(&self, ac: &str) -> Result<String, Error> {
         self.get_seq_part(ac, None, None)
     }
 
@@ -230,13 +230,13 @@ pub trait Provider {
         ac: &str,
         begin: Option<usize>,
         end: Option<usize>,
-    ) -> Result<String, anyhow::Error>;
+    ) -> Result<String, Error>;
 
     /// Returns a list of protein accessions for a given sequence.
     ///
     /// The list is guaranteed to contain at least one element with the MD5-based accession
     /// (MD5_01234abc..def56789) at the end of the list.
-    fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, anyhow::Error>;
+    fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, Error>;
 
     /// Return a list of transcripts that are similar to the given transcript, with relevant
     /// similarity criteria.
@@ -244,10 +244,7 @@ pub trait Provider {
     /// # Arguments
     ///
     /// * `tx_ac` -- transcript accession with version (e.g., 'NM_000051.3')
-    fn get_similar_transcripts(
-        &self,
-        tx_ac: &str,
-    ) -> Result<Vec<TxSimilarityRecord>, anyhow::Error>;
+    fn get_similar_transcripts(&self, tx_ac: &str) -> Result<Vec<TxSimilarityRecord>, Error>;
 
     /// Return transcript exon info for supplied accession (tx_ac, alt_ac, alt_aln_method),
     /// or empty `Vec` if not found.
@@ -262,14 +259,14 @@ pub trait Provider {
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<Vec<TxExonsRecord>, anyhow::Error>;
+    ) -> Result<Vec<TxExonsRecord>, Error>;
 
     /// Return transcript info records for supplied gene, in order of decreasing length.
     ///
     /// # Arguments
     ///
     /// * `gene` - HGNC gene name
-    fn get_tx_for_gene(&self, gene: &str) -> Result<Vec<TxInfoRecord>, anyhow::Error>;
+    fn get_tx_for_gene(&self, gene: &str) -> Result<Vec<TxInfoRecord>, Error>;
 
     /// Return transcripts that overlap given region.
     ///
@@ -285,14 +282,14 @@ pub trait Provider {
         alt_aln_method: &str,
         start_i: i32,
         end_i: i32,
-    ) -> Result<Vec<TxForRegionRecord>, anyhow::Error>;
+    ) -> Result<Vec<TxForRegionRecord>, Error>;
 
     /// Return features associated with a single transcript.
     ///
     /// # Arguments
     ///
     /// * `tx_ac` -- transcript accession with version (e.g., 'NM_199425.2')
-    fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, anyhow::Error>;
+    fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, Error>;
 
     /// Return a single transcript info for supplied accession (tx_ac, alt_ac, alt_aln_method), or None if not found.
     ///
@@ -306,7 +303,7 @@ pub trait Provider {
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<TxInfoRecord, anyhow::Error>;
+    ) -> Result<TxInfoRecord, Error>;
 
     /// Return all transcript alignment sets for a given transcript accession (tx_ac).
     ///
@@ -316,10 +313,7 @@ pub trait Provider {
     /// # Arguments
     ///
     /// * `tx_ac` -- transcript accession with version (e.g., 'NM_000051.3')
-    fn get_tx_mapping_options(
-        &self,
-        tx_ac: &str,
-    ) -> Result<Vec<TxMappingOptionsRecord>, anyhow::Error>;
+    fn get_tx_mapping_options(&self, tx_ac: &str) -> Result<Vec<TxMappingOptionsRecord>, Error>;
 }
 
 // <LICENSE>

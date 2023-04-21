@@ -37,7 +37,7 @@ impl RefTranscriptData {
         provider: Rc<dyn Provider>,
         tx_ac: &str,
         pro_ac: Option<&str>,
-    ) -> Result<Self, anyhow::Error> {
+    ) -> Result<Self, Error> {
         let tx_info = provider.as_ref().get_tx_identity_info(tx_ac)?;
         let transcript_sequence = provider.as_ref().get_seq(tx_ac)?;
 
@@ -128,7 +128,7 @@ impl AltTranscriptData {
         ref_aa_sequence: &str,
         is_substitution: bool,
         is_ambiguous: bool,
-    ) -> Result<Self, anyhow::Error> {
+    ) -> Result<Self, Error> {
         let transcript_sequence = seq.to_owned();
         let aa_sequence = if !seq.is_empty() {
             let seq_cds = &transcript_sequence[((cds_start - 1) as usize)..];
@@ -237,7 +237,7 @@ impl AltSeqBuilder {
     /// # Returns
     ///
     /// Variant sequence data.
-    pub fn build_altseq(&self) -> Result<Vec<AltTranscriptData>, anyhow::Error> {
+    pub fn build_altseq(&self) -> Result<Vec<AltTranscriptData>, Error> {
         // NB: the following comment is from the original Python code.
         // Should loop over each allele rather than assume only 1 variant; return a list for now.
 
@@ -380,7 +380,7 @@ impl AltSeqBuilder {
         }
     }
 
-    fn incorporate_delins(&self) -> Result<AltTranscriptData, anyhow::Error> {
+    fn incorporate_delins(&self) -> Result<AltTranscriptData, Error> {
         let (mut seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
         let loc_range_start;
 
@@ -443,7 +443,7 @@ impl AltSeqBuilder {
         )
     }
 
-    fn incorporate_dup(&self) -> Result<AltTranscriptData, anyhow::Error> {
+    fn incorporate_dup(&self) -> Result<AltTranscriptData, Error> {
         let (seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
 
         let seq = format!(
@@ -476,7 +476,7 @@ impl AltSeqBuilder {
     }
 
     /// Incorporate inversion into sequence.
-    fn incorporate_inv(&self) -> Result<AltTranscriptData, anyhow::Error> {
+    fn incorporate_inv(&self) -> Result<AltTranscriptData, Error> {
         let (seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
 
         let seq = format!(
@@ -507,7 +507,7 @@ impl AltSeqBuilder {
     }
 
     /// Create an alt seq that matches the reference (for non-CDS variants).
-    fn create_alt_equals_ref_noncds(&self) -> Result<AltTranscriptData, anyhow::Error> {
+    fn create_alt_equals_ref_noncds(&self) -> Result<AltTranscriptData, Error> {
         AltTranscriptData::new(
             &self.reference_data.transcript_sequence,
             self.reference_data.cds_start,
@@ -522,7 +522,7 @@ impl AltSeqBuilder {
     }
 
     /// Create a no-protein result.
-    fn create_no_protein(&self) -> Result<AltTranscriptData, anyhow::Error> {
+    fn create_no_protein(&self) -> Result<AltTranscriptData, Error> {
         AltTranscriptData::new(
             "",
             -1,
@@ -568,7 +568,7 @@ impl AltSeqToHgvsp {
     }
 
     /// Compare two amino acid sequences and generate a HGVS tag from the output.
-    pub fn build_hgvsp(&self) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn build_hgvsp(&self) -> Result<HgvsVariant, Error> {
         let mut records = Vec::new();
 
         if !self.alt_data.is_ambiguous && !self.alt_seq().is_empty() {
@@ -775,7 +775,7 @@ impl AltSeqToHgvsp {
         &self,
         record: AdHocRecord,
         protein_accession: &str,
-    ) -> Result<HgvsVariant, anyhow::Error> {
+    ) -> Result<HgvsVariant, Error> {
         let AdHocRecord {
             start,
             ins: insertion,
@@ -1031,7 +1031,7 @@ impl AltSeqToHgvsp {
         is_no_protein: bool,
         is_init_met: bool,
         is_frameshift: bool,
-    ) -> Result<HgvsVariant, anyhow::Error> {
+    ) -> Result<HgvsVariant, Error> {
         assert!(start.is_some() == end.is_some());
 
         // If the `alternative` contains a stop codon (`*`/`X`) then we have to truncate

@@ -39,7 +39,7 @@ impl Default for Config {
 }
 
 impl TryFrom<Row> for GeneInfoRecord {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
         let aliases: String = row.try_get("aliases")?;
@@ -56,7 +56,7 @@ impl TryFrom<Row> for GeneInfoRecord {
 }
 
 impl TryFrom<Row> for TxSimilarityRecord {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
         Ok(Self {
@@ -72,7 +72,7 @@ impl TryFrom<Row> for TxSimilarityRecord {
 }
 
 impl TryFrom<Row> for TxExonsRecord {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
         Ok(Self {
@@ -99,7 +99,7 @@ impl TryFrom<Row> for TxExonsRecord {
 }
 
 impl TryFrom<Row> for TxForRegionRecord {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
         Ok(Self {
@@ -114,7 +114,7 @@ impl TryFrom<Row> for TxForRegionRecord {
 }
 
 impl TryFrom<Row> for TxIdentityInfo {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
         Ok(Self {
@@ -130,7 +130,7 @@ impl TryFrom<Row> for TxIdentityInfo {
 }
 
 impl TryFrom<Row> for TxInfoRecord {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
         Ok(Self {
@@ -145,7 +145,7 @@ impl TryFrom<Row> for TxInfoRecord {
 }
 
 impl TryFrom<Row> for TxMappingOptionsRecord {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
         Ok(Self {
@@ -212,7 +212,7 @@ impl Debug for Provider {
 }
 
 impl Provider {
-    pub fn with_config(config: &Config) -> Result<Self, anyhow::Error> {
+    pub fn with_config(config: &Config) -> Result<Self, Error> {
         let config = config.clone();
         let conn = Mutex::new(Client::connect(&config.db_url, NoTls)?);
         let schema_version = Self::fetch_schema_version(
@@ -227,7 +227,7 @@ impl Provider {
         })
     }
 
-    fn fetch_schema_version(conn: &mut Client, db_schema: &str) -> Result<String, anyhow::Error> {
+    fn fetch_schema_version(conn: &mut Client, db_schema: &str) -> Result<String, Error> {
         let sql = format!("select key, value from {db_schema}.meta where key = 'schema_version'");
         let row = conn.query_one(&sql, &[])?;
         Ok(row.get("value"))
@@ -252,7 +252,7 @@ impl ProviderInterface for Provider {
         )
     }
 
-    fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, anyhow::Error> {
+    fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, Error> {
         if let Some(result) = self.caches.get_gene_info.get(hgnc) {
             return Ok(result);
         }
@@ -274,7 +274,7 @@ impl ProviderInterface for Provider {
         Ok(result)
     }
 
-    fn get_pro_ac_for_tx_ac(&self, tx_ac: &str) -> Result<Option<String>, anyhow::Error> {
+    fn get_pro_ac_for_tx_ac(&self, tx_ac: &str) -> Result<Option<String>, Error> {
         if let Some(result) = self.caches.get_pro_ac_for_tx_ac.get(tx_ac) {
             return Ok(result);
         }
@@ -310,7 +310,7 @@ impl ProviderInterface for Provider {
         ac: &str,
         begin: Option<usize>,
         end: Option<usize>,
-    ) -> Result<String, anyhow::Error> {
+    ) -> Result<String, Error> {
         // NB: no caching
         let sql = format!(
             "SELECT seq_id FROM {}.seq_anno WHERE ac = $1",
@@ -341,7 +341,7 @@ impl ProviderInterface for Provider {
         Ok(seq[begin..end].into())
     }
 
-    fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, anyhow::Error> {
+    fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, Error> {
         let md5 = seq_md5(seq, true)?;
         if let Some(result) = self.caches.get_acs_for_protein_seq.get(&md5) {
             return Ok(result);
@@ -369,10 +369,7 @@ impl ProviderInterface for Provider {
         Ok(result)
     }
 
-    fn get_similar_transcripts(
-        &self,
-        tx_ac: &str,
-    ) -> Result<Vec<TxSimilarityRecord>, anyhow::Error> {
+    fn get_similar_transcripts(&self, tx_ac: &str) -> Result<Vec<TxSimilarityRecord>, Error> {
         if let Some(result) = self.caches.get_similar_transcripts.get(tx_ac) {
             return Ok(result);
         }
@@ -404,7 +401,7 @@ impl ProviderInterface for Provider {
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<Vec<TxExonsRecord>, anyhow::Error> {
+    ) -> Result<Vec<TxExonsRecord>, Error> {
         let key = (
             tx_ac.to_string(),
             alt_ac.to_string(),
@@ -442,7 +439,7 @@ impl ProviderInterface for Provider {
         }
     }
 
-    fn get_tx_for_gene(&self, gene: &str) -> Result<Vec<TxInfoRecord>, anyhow::Error> {
+    fn get_tx_for_gene(&self, gene: &str) -> Result<Vec<TxInfoRecord>, Error> {
         if let Some(result) = self.caches.get_tx_for_gene.get(gene) {
             return Ok(result);
         }
@@ -477,7 +474,7 @@ impl ProviderInterface for Provider {
         alt_aln_method: &str,
         start_i: i32,
         end_i: i32,
-    ) -> Result<Vec<TxForRegionRecord>, anyhow::Error> {
+    ) -> Result<Vec<TxForRegionRecord>, Error> {
         let key = (
             alt_ac.to_string(),
             alt_aln_method.to_string(),
@@ -517,7 +514,7 @@ impl ProviderInterface for Provider {
         Ok(result)
     }
 
-    fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, anyhow::Error> {
+    fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, Error> {
         if let Some(result) = self.caches.get_tx_identity_info.get(tx_ac) {
             return Ok(result);
         }
@@ -548,7 +545,7 @@ impl ProviderInterface for Provider {
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<TxInfoRecord, anyhow::Error> {
+    ) -> Result<TxInfoRecord, Error> {
         let key = (
             tx_ac.to_string(),
             alt_ac.to_string(),
@@ -577,10 +574,7 @@ impl ProviderInterface for Provider {
         Ok(result)
     }
 
-    fn get_tx_mapping_options(
-        &self,
-        tx_ac: &str,
-    ) -> Result<Vec<TxMappingOptionsRecord>, anyhow::Error> {
+    fn get_tx_mapping_options(&self, tx_ac: &str) -> Result<Vec<TxMappingOptionsRecord>, Error> {
         if let Some(result) = self.caches.get_tx_mapping_options.get(tx_ac) {
             return Ok(result);
         }
@@ -625,7 +619,7 @@ mod test {
     }
 
     #[test]
-    fn construction() -> Result<(), anyhow::Error> {
+    fn construction() -> Result<(), Error> {
         let config = get_config();
         let provider = Provider::with_config(&config)?;
 
@@ -636,7 +630,7 @@ mod test {
     }
 
     #[test]
-    fn get_assembly_map() -> Result<(), anyhow::Error> {
+    fn get_assembly_map() -> Result<(), Error> {
         let provider = Provider::with_config(&get_config())?;
 
         let am37 = provider.get_assembly_map(Assembly::Grch37);
@@ -651,7 +645,7 @@ mod test {
     }
 
     #[test]
-    fn get_gene_info() -> Result<(), anyhow::Error> {
+    fn get_gene_info() -> Result<(), Error> {
         let provider = Provider::with_config(&get_config())?;
 
         assert_eq!(
@@ -666,7 +660,7 @@ mod test {
     }
 
     #[test]
-    fn get_pro_ac_for_tx_ac() -> Result<(), anyhow::Error> {
+    fn get_pro_ac_for_tx_ac() -> Result<(), Error> {
         let provider = Provider::with_config(&get_config())?;
 
         assert_eq!(
@@ -679,7 +673,7 @@ mod test {
     }
 
     #[test]
-    fn get_seq() -> Result<(), anyhow::Error> {
+    fn get_seq() -> Result<(), Error> {
         let provider = Provider::with_config(&get_config())?;
 
         assert_eq!(provider.get_seq("NM_001354664.1")?.len(), 6386);
@@ -688,7 +682,7 @@ mod test {
     }
 
     #[test]
-    fn get_seq_part() -> Result<(), anyhow::Error> {
+    fn get_seq_part() -> Result<(), Error> {
         let provider = Provider::with_config(&get_config())?;
 
         assert_eq!(
@@ -702,7 +696,7 @@ mod test {
     }
 
     #[test]
-    fn get_similar_transcripts() -> Result<(), anyhow::Error> {
+    fn get_similar_transcripts() -> Result<(), Error> {
         let provider = Provider::with_config(&get_config())?;
 
         let records = provider.get_similar_transcripts("NM_001354664.1")?;
@@ -719,7 +713,7 @@ mod test {
     }
 
     #[test]
-    fn get_tx_exons() -> Result<(), anyhow::Error> {
+    fn get_tx_exons() -> Result<(), Error> {
         let provider = Provider::with_config(&get_config())?;
 
         let records = provider.get_tx_exons("NM_001354664.1", "NC_000003.11", "splign")?;
@@ -739,7 +733,7 @@ mod test {
     }
 
     #[test]
-    fn get_tx_for_gene() -> Result<(), anyhow::Error> {
+    fn get_tx_for_gene() -> Result<(), Error> {
         let provider = Provider::with_config(&get_config())?;
 
         let records = provider.get_tx_for_gene("OMA1")?;
@@ -756,7 +750,7 @@ mod test {
     }
 
     #[test]
-    fn get_tx_for_region() -> Result<(), anyhow::Error> {
+    fn get_tx_for_region() -> Result<(), Error> {
         let provider = Provider::with_config(&get_config())?;
 
         let records = provider.get_tx_for_region("NC_000001.10", "splign", 58946391, 59012446)?;
@@ -773,7 +767,7 @@ mod test {
     }
 
     #[test]
-    fn get_tx_identity_info() -> Result<(), anyhow::Error> {
+    fn get_tx_identity_info() -> Result<(), Error> {
         let provider = Provider::with_config(&get_config())?;
 
         let record = provider.get_tx_identity_info("ENST00000421528")?;
@@ -789,7 +783,7 @@ mod test {
     }
 
     #[test]
-    fn get_tx_info() -> Result<(), anyhow::Error> {
+    fn get_tx_info() -> Result<(), Error> {
         let provider = Provider::with_config(&get_config())?;
 
         let record = provider.get_tx_info("ENST00000421528", "NC_000001.10", "genebuild")?;
@@ -805,7 +799,7 @@ mod test {
     }
 
     #[test]
-    fn get_tx_mapping_options() -> Result<(), anyhow::Error> {
+    fn get_tx_mapping_options() -> Result<(), Error> {
         let provider = Provider::with_config(&get_config())?;
 
         let records = provider.get_tx_mapping_options("ENST00000421528")?;

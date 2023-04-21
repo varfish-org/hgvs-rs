@@ -2,6 +2,7 @@
 
 use std::ops::Range;
 
+use crate::validator::Error;
 use crate::validator::Validateable;
 
 use super::{
@@ -10,28 +11,23 @@ use super::{
 };
 
 impl Validateable for NaEdit {
-    fn validate(&self) -> Result<(), anyhow::Error> {
+    fn validate(&self) -> Result<(), Error> {
         match &self {
             NaEdit::RefAlt {
                 reference,
                 alternative,
             } => {
                 if reference.is_empty() && alternative.is_empty() {
-                    Err(anyhow::anyhow!("Reference or alternative must be non-empty; use DelRef or Ins otherwise ({}/{})", reference, alternative))
+                    Err(Error::RefOrAltMustBeNonEmpty(format!("{:?}", self)))
                 } else {
                     Ok(())
                 }
             }
             NaEdit::NumAlt { count, alternative } => {
                 if *count < 1 {
-                    Err(anyhow::anyhow!(
-                        "Number of deleted bases must be >=1 but was {}",
-                        count
-                    ))
+                    Err(Error::NumDelBasesNotPositive(format!("{:?}", self)))
                 } else if alternative.is_empty() {
-                    Err(anyhow::anyhow!(
-                        "Number of alternative bases must non-empty",
-                    ))
+                    Err(Error::NumAltBasesEmpty(format!("{:?}", self)))
                 } else {
                     Ok(())
                 }
@@ -39,10 +35,7 @@ impl Validateable for NaEdit {
             NaEdit::DelRef { reference: _ } => Ok(()),
             NaEdit::DelNum { count } => {
                 if *count < 1 {
-                    Err(anyhow::anyhow!(
-                        "Number of deleted bases must be >=1 but was {}",
-                        count
-                    ))
+                    Err(Error::NumDelBasesNotPositive(format!("{:?}", self)))
                 } else {
                     Ok(())
                 }
@@ -52,10 +45,7 @@ impl Validateable for NaEdit {
             NaEdit::InvRef { reference: _ } => Ok(()),
             NaEdit::InvNum { count } => {
                 if *count < 1 {
-                    Err(anyhow::anyhow!(
-                        "Number of inverted bases must be >=1 but was {}",
-                        count
-                    ))
+                    Err(Error::NumInvBasesNotPositive(format!("{:?}", self)))
                 } else {
                     Ok(())
                 }
@@ -65,7 +55,7 @@ impl Validateable for NaEdit {
 }
 
 impl Validateable for HgvsVariant {
-    fn validate(&self) -> Result<(), anyhow::Error> {
+    fn validate(&self) -> Result<(), Error> {
         // NB: we only need to validate `self.loc_edit`.  The cases that the Python library
         // considers are fended off by the Rust type system.
         match &self {
@@ -80,7 +70,7 @@ impl Validateable for HgvsVariant {
 }
 
 impl Validateable for CdsLocEdit {
-    fn validate(&self) -> Result<(), anyhow::Error> {
+    fn validate(&self) -> Result<(), Error> {
         let loc = self.loc.inner();
         loc.validate()?;
 
@@ -107,10 +97,7 @@ impl Validateable for CdsLocEdit {
             }
             NaEdit::DelNum { count } | NaEdit::NumAlt { count, .. } | NaEdit::InvNum { count } => {
                 if range.len() as i32 != *count {
-                    Err(anyhow::anyhow!(
-                        "Length implied by coordinates must equal count ({})",
-                        &self
-                    ))
+                    Err(Error::ImpliedLengthMismatch(format!("{:?}", self)))
                 } else {
                     Ok(())
                 }
@@ -120,37 +107,33 @@ impl Validateable for CdsLocEdit {
 }
 
 impl Validateable for CdsInterval {
-    fn validate(&self) -> Result<(), anyhow::Error> {
+    fn validate(&self) -> Result<(), Error> {
         Ok(()) // TODO
     }
 }
 
 impl Validateable for GenomeLocEdit {
-    fn validate(&self) -> Result<(), anyhow::Error> {
+    fn validate(&self) -> Result<(), Error> {
         self.loc.inner().validate()?;
         self.edit.inner().validate()
     }
 }
 
 impl Validateable for GenomeInterval {
-    fn validate(&self) -> Result<(), anyhow::Error> {
+    fn validate(&self) -> Result<(), Error> {
         if let Some(start) = self.start {
             if start < 1 {
-                return Err(anyhow::anyhow!("Start must be >= 1 but was {}", start));
+                return Err(Error::StartMustBePositive(format!("{:?}", self)));
             }
         }
         if let Some(end) = self.end {
             if end < 1 {
-                return Err(anyhow::anyhow!("End must be >= 1 but was {}", end));
+                return Err(Error::EndMustBePositive(format!("{:?}", self)));
             }
         }
         if let (Some(start), Some(end)) = (self.start, self.end) {
             if start > end {
-                return Err(anyhow::anyhow!(
-                    "Start must be <= end position but was {} > {}",
-                    start,
-                    end
-                ));
+                return Err(Error::StartMustBeLessThanEnd(format!("{:?}", self)));
             }
         }
 
@@ -159,35 +142,38 @@ impl Validateable for GenomeInterval {
 }
 
 impl Validateable for MtLocEdit {
-    fn validate(&self) -> Result<(), anyhow::Error> {
+    fn validate(&self) -> Result<(), Error> {
         Ok(()) // TODO
     }
 }
 
 impl Validateable for TxLocEdit {
-    fn validate(&self) -> Result<(), anyhow::Error> {
+    fn validate(&self) -> Result<(), Error> {
         Ok(()) // TODO
     }
 }
 
 impl Validateable for RnaLocEdit {
-    fn validate(&self) -> Result<(), anyhow::Error> {
+    fn validate(&self) -> Result<(), Error> {
         Ok(()) // TODO
     }
 }
 
 impl Validateable for ProtLocEdit {
-    fn validate(&self) -> Result<(), anyhow::Error> {
+    fn validate(&self) -> Result<(), Error> {
         Ok(()) // TODO
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{parser::GenomeInterval, validator::Validateable};
+    use crate::{
+        parser::GenomeInterval,
+        validator::{Error, Validateable},
+    };
 
     #[test]
-    fn validate_genomeinterval() -> Result<(), anyhow::Error> {
+    fn validate_genomeinterval() -> Result<(), Error> {
         let g_interval = GenomeInterval {
             start: Some(1),
             end: Some(2),

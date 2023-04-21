@@ -42,7 +42,7 @@ impl Provider {
     ///
     /// This uses `seqrepo::SeqRepo` for the sequence repository.  You can inject any
     /// `seqrepo::Interface` implementation using `Provider::with_seqrepo`.
-    pub fn new(config: Config) -> Result<Provider, anyhow::Error> {
+    pub fn new(config: Config) -> Result<Provider, Error> {
         let seqrepo = PathBuf::from(&config.seqrepo_path);
         let path = seqrepo
             .parent()
@@ -76,7 +76,7 @@ impl Provider {
     pub fn with_seqrepo(
         config: Config,
         seqrepo: Rc<dyn SeqRepoInterface>,
-    ) -> Result<Provider, anyhow::Error> {
+    ) -> Result<Provider, Error> {
         Ok(Self {
             inner: UtaProvider::with_config(&UtaConfig {
                 db_url: config.db_url.clone(),
@@ -103,11 +103,11 @@ impl ProviderInterface for Provider {
         self.inner.get_assembly_map(assembly)
     }
 
-    fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, anyhow::Error> {
+    fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, Error> {
         self.inner.get_gene_info(hgnc)
     }
 
-    fn get_pro_ac_for_tx_ac(&self, tx_ac: &str) -> Result<Option<String>, anyhow::Error> {
+    fn get_pro_ac_for_tx_ac(&self, tx_ac: &str) -> Result<Option<String>, Error> {
         self.inner.get_pro_ac_for_tx_ac(tx_ac)
     }
 
@@ -116,7 +116,7 @@ impl ProviderInterface for Provider {
         ac: &str,
         begin: Option<usize>,
         end: Option<usize>,
-    ) -> Result<String, anyhow::Error> {
+    ) -> Result<String, Error> {
         let aos = AliasOrSeqId::Alias {
             value: ac.to_owned(),
             namespace: None,
@@ -124,14 +124,11 @@ impl ProviderInterface for Provider {
         self.seqrepo.fetch_sequence_part(&aos, begin, end)
     }
 
-    fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, anyhow::Error> {
+    fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, Error> {
         self.inner.get_acs_for_protein_seq(seq)
     }
 
-    fn get_similar_transcripts(
-        &self,
-        tx_ac: &str,
-    ) -> Result<Vec<TxSimilarityRecord>, anyhow::Error> {
+    fn get_similar_transcripts(&self, tx_ac: &str) -> Result<Vec<TxSimilarityRecord>, Error> {
         self.inner.get_similar_transcripts(tx_ac)
     }
 
@@ -140,11 +137,11 @@ impl ProviderInterface for Provider {
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<Vec<TxExonsRecord>, anyhow::Error> {
+    ) -> Result<Vec<TxExonsRecord>, Error> {
         self.inner.get_tx_exons(tx_ac, alt_ac, alt_aln_method)
     }
 
-    fn get_tx_for_gene(&self, gene: &str) -> Result<Vec<TxInfoRecord>, anyhow::Error> {
+    fn get_tx_for_gene(&self, gene: &str) -> Result<Vec<TxInfoRecord>, Error> {
         self.inner.get_tx_for_gene(gene)
     }
 
@@ -154,12 +151,12 @@ impl ProviderInterface for Provider {
         alt_aln_method: &str,
         start_i: i32,
         end_i: i32,
-    ) -> Result<Vec<TxForRegionRecord>, anyhow::Error> {
+    ) -> Result<Vec<TxForRegionRecord>, Error> {
         self.inner
             .get_tx_for_region(alt_ac, alt_aln_method, start_i, end_i)
     }
 
-    fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, anyhow::Error> {
+    fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, Error> {
         self.inner.get_tx_identity_info(tx_ac)
     }
 
@@ -168,14 +165,11 @@ impl ProviderInterface for Provider {
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<TxInfoRecord, anyhow::Error> {
+    ) -> Result<TxInfoRecord, Error> {
         self.inner.get_tx_info(tx_ac, alt_ac, alt_aln_method)
     }
 
-    fn get_tx_mapping_options(
-        &self,
-        tx_ac: &str,
-    ) -> Result<Vec<TxMappingOptionsRecord>, anyhow::Error> {
+    fn get_tx_mapping_options(&self, tx_ac: &str) -> Result<Vec<TxMappingOptionsRecord>, Error> {
         self.inner.get_tx_mapping_options(tx_ac)
     }
 }
@@ -193,7 +187,7 @@ pub mod test_helpers {
     /// Setup a UTA Provider with data source depending on environment variables.
     ///
     /// See README.md for information on environment variable setup.
-    pub fn build_provider() -> Result<Rc<dyn ProviderInterface>, anyhow::Error> {
+    pub fn build_provider() -> Result<Rc<dyn ProviderInterface>, Error> {
         log::debug!("building provider...");
         let db_url = std::env::var("TEST_UTA_DATABASE_URL")
             .expect("Environment variable TEST_UTA_DATABASE_URL undefined!");
@@ -231,7 +225,7 @@ pub mod test_helpers {
     /// Helper that builds the cache writing SeqRepo with inner stock SeqRepo.
     pub fn build_writing_sr(
         sr_cache_path: String,
-    ) -> Result<(Rc<dyn SeqRepoInterface>, String), anyhow::Error> {
+    ) -> Result<(Rc<dyn SeqRepoInterface>, String), Error> {
         let seqrepo_path = std::env::var("TEST_SEQREPO_PATH")
             .expect("Environment variable TEST_SEQREPO_PATH undefined!");
         let path_buf = PathBuf::from(seqrepo_path.clone());
