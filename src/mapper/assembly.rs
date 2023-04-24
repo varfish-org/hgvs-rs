@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::rc::Rc;
 
+use crate::mapper::error::Error;
 use crate::mapper::variant::{Config as VariantMapperConfig, Mapper as VariantMapper};
 use crate::parser::HgvsVariant;
 use crate::{data::interface::Provider, static_data::Assembly, validator::ValidationLevel};
@@ -271,7 +272,7 @@ impl Mapper {
                     .map(|rec| rec.tx_ac)
                     .collect::<Vec<_>>())
             }
-            _ => Err(anyhow::anyhow!("Not a GenomeVariant: {}", &var_g)),
+            _ => Err(Error::NotGenomeVariant(format!("{0}", var_g))),
         }
     }
 
@@ -303,11 +304,10 @@ impl Mapper {
         }
 
         if alt_acs.is_empty() {
-            return Err(anyhow::anyhow!(
-                "No alignments for {} in {:?} using {}",
-                tx_ac,
-                self.config.assembly,
-                self.config.alt_aln_method
+            return Err(Error::NoAlignments(
+                tx_ac.to_string(),
+                format!("{:?}", self.config.assembly),
+                self.config.alt_aln_method.clone(),
             ));
         }
 
@@ -327,24 +327,20 @@ impl Mapper {
                 .collect::<Vec<_>>();
             alts.sort();
             if alts.join("") != "XY" {
-                return Err(anyhow::anyhow!(
-                    "Multiple chromosomal alignments for {} in {:?} using {} \
-                    (non-pseudoautosomal region) [{:?}]",
-                    tx_ac,
-                    self.config.assembly,
-                    self.config.alt_aln_method,
-                    &alts
+                return Err(Error::MultipleChromAlignsNonPar(
+                    tx_ac.to_string(),
+                    format!("{:?}", self.config.assembly),
+                    self.config.alt_aln_method.to_string(),
+                    format!("{:?}", &alts),
                 ));
             }
 
             // Assume PAR
             if self.config.in_par_assume == InParAssume::None {
-                return Err(anyhow::anyhow!(
-                    "Multiple chromosomal alignments for {} in {:?} using {} \
-                    (likely pseudoautosomal region)",
-                    tx_ac,
-                    self.config.assembly,
-                    self.config.alt_aln_method,
+                return Err(Error::MultipleChromAlignsLikelyPar(
+                    tx_ac.to_string(),
+                    format!("{:?}", self.config.assembly),
+                    self.config.alt_aln_method.to_string(),
                 ));
             }
 
@@ -353,14 +349,12 @@ impl Mapper {
                 .filter(|ac| ac == self.config.in_par_assume.chrom_name())
                 .collect::<Vec<_>>();
             if alt_acs.len() != 1 {
-                Err(anyhow::anyhow!(
-                    "Multiple chromosomal alignments for {} in {:?} using {} \
-                    (in_par_assume={:?} selected {} of them)",
-                    tx_ac,
-                    self.config.assembly,
-                    self.config.alt_aln_method,
-                    self.config.in_par_assume,
-                    alt_acs.len()
+                Err(Error::MultipleChromAlignsInParAssume(
+                    tx_ac.to_string(),
+                    format!("{:?}", self.config.assembly),
+                    self.config.alt_aln_method.to_string(),
+                    format!("{:?}", self.config.in_par_assume),
+                    alt_acs.len(),
                 ))
             } else {
                 Ok(alt_acs
@@ -379,6 +373,7 @@ impl Mapper {
 #[cfg(test)]
 mod test {
     use crate::{data::uta_sr::test_helpers::build_provider, static_data::Assembly};
+    use anyhow::Error;
 
     use super::{Config, Mapper};
 
@@ -411,6 +406,7 @@ mod test {
     /// The following is a port of `Test_VariantMapper` in
     /// `test_hgvs_variantmapper_near_discrepancies.py` (sic!)
     mod cases {
+        use anyhow::Error;
         use std::str::FromStr;
 
         use rstest::rstest;
@@ -611,6 +607,7 @@ mod test {
     /// The following is a port of the `Test_RefReplacement` in
     /// `test_hgvs_variantmapper_near_discrepancies.py` (sic!)
     mod ref_replacement {
+        use anyhow::Error;
         use std::str::FromStr;
 
         use rstest::rstest;
@@ -869,6 +866,7 @@ mod test {
     /// The following is a port of `Test_AssemblyMapper` in
     /// `test_hgvs_variantmapper_near_discrepancies.py` (sic!)
     mod projections {
+        use anyhow::Error;
         use std::str::FromStr;
 
         use crate::parser::HgvsVariant;
@@ -934,6 +932,7 @@ mod test {
 
     /// The following is a port of the `test_hgvs_variantmapper_near_discrepancies.py` (sic!)
     mod near_discrepancies {
+        use anyhow::Error;
         use std::str::FromStr;
 
         use crate::parser::{HgvsVariant, NoRef};

@@ -4,6 +4,7 @@ use std::{cmp::Ordering, rc::Rc};
 
 use crate::{
     data::interface::Provider,
+    mapper::error::Error,
     parser::{
         Accession, CdsFrom, HgvsVariant, Mu, NaEdit, ProtInterval, ProtLocEdit, ProtPos,
         ProteinEdit, UncertainLengthChange,
@@ -49,10 +50,10 @@ impl RefTranscriptData {
         let tx_seq_to_translate =
             &transcript_sequence[((cds_start - 1) as usize)..(cds_stop as usize)];
         if tx_seq_to_translate.len() % 3 != 0 {
-            return Err(anyhow::anyhow!(
-                "Transcript {} is not supported because its sequence length of {} is not multiple of 3.",
-                tx_ac,
-                tx_seq_to_translate.len()));
+            return Err(Error::TranscriptLengthInvalid(
+                tx_ac.to_string(),
+                tx_seq_to_translate.len(),
+            ));
         }
 
         let aa_sequence =
@@ -582,9 +583,7 @@ impl AltSeqToHgvsp {
                             .ref_seq()
                             .chars()
                             .nth(start as usize - 1)
-                            .ok_or(anyhow::anyhow!(
-                                "start pos out of range in reference sequence"
-                            ))?
+                            .ok_or(Error::StartPosOutOfRange)?
                             .to_string();
                         AdHocRecord {
                             start,
@@ -751,7 +750,7 @@ impl AltSeqToHgvsp {
         } else if let Some(var) = records.drain(..).next() {
             Ok(self.convert_to_hgvs_variant(var, self.protein_accession())?)
         } else {
-            Err(anyhow::anyhow!("Got multiple AA variants - not supported!"))
+            Err(Error::MultipleAAVariants)
         }
     }
 
@@ -824,7 +823,7 @@ impl AltSeqToHgvsp {
                 aa: deletion
                     .chars()
                     .next()
-                    .ok_or(anyhow::anyhow!("deletion sequence should not be empty"))?
+                    .ok_or(Error::DeletionSequenceEmpty)?
                     .to_string(),
                 number: *start,
             });
@@ -859,7 +858,7 @@ impl AltSeqToHgvsp {
                 aa: deletion
                     .chars()
                     .next()
-                    .ok_or(anyhow::anyhow!("deletion sequence should not be empty"))?
+                    .ok_or(Error::DeletionSequenceEmpty)?
                     .to_string(),
                 number: *start,
             });
@@ -908,7 +907,7 @@ impl AltSeqToHgvsp {
                 aa: deletion
                     .chars()
                     .next()
-                    .ok_or(anyhow::anyhow!("deletion sequence should not be empty"))?
+                    .ok_or(Error::DeletionSequenceEmpty)?
                     .to_string(),
                 number: *start,
             });
@@ -919,7 +918,7 @@ impl AltSeqToHgvsp {
                         aa: deletion
                             .chars()
                             .last()
-                            .ok_or(anyhow::anyhow!("deletion sequence should not be empty"))?
+                            .ok_or(Error::DeletionSequenceEmpty)?
                             .to_string(),
                         number: end,
                     })
@@ -942,7 +941,7 @@ impl AltSeqToHgvsp {
                             aa: deletion
                                 .chars()
                                 .last()
-                                .ok_or(anyhow::anyhow!("deletion sequence should not be empty"))?
+                                .ok_or(Error::DeletionSequenceEmpty)?
                                 .to_string(),
                             number: end,
                         })
@@ -964,7 +963,7 @@ impl AltSeqToHgvsp {
                     aa: insertion
                         .chars()
                         .next()
-                        .ok_or(anyhow::anyhow!("insertion sequence should not be empty"))?
+                        .ok_or(Error::InsertionSequenceEmpty)?
                         .to_string(),
                     number: dup_start,
                 });
@@ -972,7 +971,7 @@ impl AltSeqToHgvsp {
                     aa: insertion
                         .chars()
                         .last()
-                        .ok_or(anyhow::anyhow!("insertion sequence should not be empty"))?
+                        .ok_or(Error::InsertionSequenceEmpty)?
                         .to_string(),
                     number: dup_end,
                 });

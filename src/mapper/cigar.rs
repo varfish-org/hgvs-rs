@@ -174,7 +174,7 @@ pub mod parse {
 pub fn parse_cigar_string(input: &str) -> Result<CigarString, Error> {
     Ok(CigarString::from(
         all_consuming(many0(parse::cigar_element))(input)
-            .map_err(|e| anyhow::anyhow!("Problem with parsing: {:?}", e))?
+            .map_err(|e| Error::InvalidCigarString(e.to_string()))?
             .1,
     ))
 }
@@ -277,14 +277,11 @@ impl CigarMapper {
         end: &str,
         strict_bounds: bool,
     ) -> Result<CigarMapperResult, Error> {
-        if strict_bounds
-            && (pos < 0 || pos > *from_pos.last().ok_or(anyhow::anyhow!("no last position"))?)
-        {
-            return Err(anyhow::anyhow!(
-                "Position is beyond the bounds of transcript record (pos={}, from_pos={:?}, to_pos={:?}]",
+        if strict_bounds && (pos < 0 || pos > *from_pos.last().expect("no last position")) {
+            return Err(Error::PositionBeyondTranscriptBounds(
                 pos,
-                from_pos,
-                to_pos,
+                format!("{:?}", from_pos),
+                format!("{:?}", to_pos),
             ));
         }
 
@@ -334,13 +331,14 @@ impl CigarMapper {
                 })
             }
         } else {
-            Err(anyhow::anyhow!("Algorithm error in CIGAR mapper"))
+            Err(Error::CigarMapperError)
         }
     }
 }
 
 #[cfg(test)]
 mod test {
+    use anyhow::Error;
     use pretty_assertions::assert_eq;
 
     use super::{parse_cigar_string, CigarElement, CigarMapper, CigarMapperResult, CigarOp};

@@ -634,6 +634,7 @@ impl<'a> Display for NoRef<'a, HgvsVariant> {
 
 #[cfg(test)]
 mod test {
+    use anyhow::Error;
     use std::{
         fs::File,
         io::{BufRead, BufReader},
@@ -643,7 +644,7 @@ mod test {
     use pretty_assertions::assert_eq;
 
     use crate::parser::{
-        Accession, CdsFrom, CdsInterval, CdsLocEdit, CdsPos, Error, GeneSymbol, GenomeInterval,
+        Accession, CdsFrom, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval,
         GenomeLocEdit, HgvsVariant, MtInterval, MtLocEdit, Mu, NaEdit, ProtInterval, ProtLocEdit,
         ProtPos, ProteinEdit, RnaInterval, RnaLocEdit, RnaPos, TxInterval, TxLocEdit, TxPos,
         UncertainLengthChange,

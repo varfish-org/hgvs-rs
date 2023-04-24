@@ -872,6 +872,7 @@ mod test {
     /// Expected: expected result (if stringifying input does not return the same answer, e,g. "+1" -> "1")
     /// - if expected is left blank, then it is assumed that stringifying the parsed input returns the same answer.
     mod grammar_full {
+        use anyhow::Error;
         use nom::combinator::all_consuming;
 
         use crate::parser::{impl_parse::Parseable, Accession};

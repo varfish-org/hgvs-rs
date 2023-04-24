@@ -26,6 +26,7 @@ use std::rc::Rc;
 
 use crate::{
     data::interface::{Provider, TxExonsRecord},
+    mapper::Error,
     parser::{CdsInterval, CdsPos, GenomeInterval, Mu, TxInterval, TxPos},
 };
 
@@ -58,9 +59,7 @@ fn hgvs_to_zbc(i: i32) -> i32 {
 /// in transcript order.
 pub fn build_tx_cigar(exons: &Vec<TxExonsRecord>, strand: i16) -> Result<CigarString, Error> {
     if exons.is_empty() {
-        return Err(anyhow::anyhow!(
-            "Cannot build CIGAR string from empty exons"
-        ));
+        return Err(Error::EmptyExons);
     }
 
     // Parse CIGAR string and flip if on reverse strand.
@@ -152,11 +151,10 @@ impl Mapper {
             let tx_exons = {
                 let tx_exons = provider.get_tx_exons(tx_ac, alt_ac, alt_aln_method)?;
                 if tx_exons.is_empty() {
-                    return Err(anyhow::anyhow!(
-                        "Found no exons for tx_ac={}, alt_ac={}, alt_aln_method={}",
-                        tx_ac,
-                        alt_ac,
-                        alt_aln_method
+                    return Err(Error::NoExons(
+                        tx_ac.to_string(),
+                        alt_ac.to_string(),
+                        alt_aln_method.to_string(),
                     ));
                 }
 
@@ -174,12 +172,11 @@ impl Mapper {
                     })
                     .collect::<Vec<_>>();
                 if !offenders.is_empty() {
-                    return Err(anyhow::anyhow!(
-                        "Non-adjacent exons for tx_acc={}, alt_acc={}, alt_aln_method={}: {:#?}",
-                        tx_ac,
-                        alt_ac,
-                        alt_aln_method,
-                        &offenders
+                    return Err(Error::NonAdjacentExons(
+                        tx_ac.to_string(),
+                        alt_ac.to_string(),
+                        alt_aln_method.to_string(),
+                        format!("{:?}", offenders),
                     ));
                 }
 
@@ -192,9 +189,7 @@ impl Mapper {
             let cds_end_i = tx_info.cds_end_i;
 
             if cds_start_i.is_none() != cds_end_i.is_none() {
-                return Err(anyhow::anyhow!(
-                    "CDS start and end must both be defined or undefined"
-                ));
+                return Err(Error::InconsistentCdsStartEnd);
             }
 
             let cigar = build_tx_cigar(&tx_exons, strand)?;
@@ -228,9 +223,7 @@ impl Mapper {
         };
 
         if cds_start_i.is_none() != cds_end_i.is_none() {
-            return Err(anyhow::anyhow!(
-                "CDs start and end position but be both or neither defined."
-            ));
+            return Err(Error::InconsistentCdsStartEnd);
         }
 
         Ok(Mapper {
@@ -308,10 +301,10 @@ impl Mapper {
             };
             Ok(result)
         } else {
-            Err(anyhow::anyhow!(
-                "Cannot project genome interval with missing start or end position: {}",
+            Err(Error::MissingGenomeIntervalPosition(format!(
+                "{}",
                 g_interval
-            ))
+            )))
         }
     }
 
@@ -387,18 +380,13 @@ impl Mapper {
     /// Convert a transcript (n.) interval to a CDS (c.) interval.
     pub fn n_to_c(&self, n_interval: &TxInterval) -> Result<CdsInterval, Error> {
         if self.cds_start_i.is_none() {
-            return Err(anyhow::anyhow!(
-                "CDS is undefined for {}; cannot map to c. coordinate (non-coding transcript?)",
-                self.tx_ac
-            ));
+            return Err(Error::CdsUndefined(self.tx_ac.to_string()));
         }
 
         if self.config.strict_bounds
             && (n_interval.start.base <= 0 || n_interval.end.base > self.tgt_len)
         {
-            return Err(anyhow::anyhow!(
-                "The given coordinate is outside the bounds of the reference sequence."
-            ));
+            return Err(Error::CoordinateOutsideReference);
         }
 
         Ok(CdsInterval {
@@ -436,7 +424,7 @@ impl Mapper {
         };
 
         if (n <= 0 || n > self.tgt_len) && self.config.strict_bounds {
-            Err(anyhow::anyhow!("c.{:?} coordinate is out of boounds", pos))
+            Err(Error::CoordinateOutOfBounds(format!("{:?}", pos)))
         } else {
             Ok(TxPos {
                 base: n,
@@ -448,10 +436,7 @@ impl Mapper {
     /// Convert a a CDS (c.) interval to a transcript (n.) interval.
     pub fn c_to_n(&self, c_interval: &CdsInterval) -> Result<TxInterval, Error> {
         if self.cds_start_i.is_none() {
-            return Err(anyhow::anyhow!(
-                "CDS is undefined for {}; cannot map to c. coordinate (non-coding transcript?)",
-                self.tx_ac
-            ));
+            return Err(Error::CdsUndefined(self.tx_ac.to_string()));
         }
 
         let n_start = self.pos_c_to_n(&c_interval.start);
@@ -502,6 +487,7 @@ impl Mapper {
 
 #[cfg(test)]
 mod test {
+    use anyhow::Error;
     use std::str::FromStr;
 
     use pretty_assertions::assert_eq;

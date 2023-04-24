@@ -1072,13 +1072,13 @@ mod test {
     /// in the `sanity_mock` module.
 
     mod sanity_mock {
+        use anyhow::Error;
         use std::{
             path::{Path, PathBuf},
             rc::Rc,
         };
 
         use crate::data::interface::Provider as ProviderInterface;
-        use crate::mapper::Error;
         use crate::{
             data::interface::TxIdentityInfo,
             mapper::variant::{Config, Mapper},
@@ -1633,7 +1633,7 @@ mod test {
     }
 
     mod gcp_tests {
-        use crate::mapper::Error;
+        use anyhow::Error;
         use std::path::Path;
 
         #[derive(Debug, serde::Deserialize)]
@@ -1787,7 +1787,7 @@ mod test {
             if let Some(var_p) = &var_p {
                 // c -> p
                 let hgvs_p_exp = format!("{var_p}");
-                let var_p_test = mapper.c_to_p(&var_x, Some(var_p.accession().deref()))?;
+                let var_p_test = mapper.c_to_p(&var_x, Some(var_p.accession()))?;
 
                 // TODO: if expected value isn't uncertain, strip uncertain from test
                 // if var_p.posedit and not var_p.posedit.uncertain:

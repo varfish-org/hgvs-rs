@@ -28,7 +28,7 @@ postgres = { version = "0.19.4", features = ["with-chrono-0_4"] }
 quick_cache = "0.2.2"
 regex = "1.7.1"
 rustc-hash = "1.1.0"
-seqrepo = { version = "0.3.0" }
+seqrepo = { version = "0.4.0" }
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = "1.0.93"
 thiserror = "1.0"

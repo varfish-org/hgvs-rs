@@ -22,6 +22,12 @@ mod error {
         IntegerConversion(#[from] std::num::TryFromIntError),
         #[error("validation error")]
         ValidationFailed(#[from] crate::validator::Error),
+        #[error("replacing reference failed: {0}")]
+        ReplaceReferenceFailed(String),
+        #[error("c_to_n mapping failed for {0}")]
+        CToNMappingFailed(String),
+        #[error("n_to_c mapping failed for {0}")]
+        NToCMappingFailed(String),
         #[error("validation failed in normalization: {0}")]
         Validation(String),
         #[error("cannot normalize protein-level variant: {0}")]
@@ -165,7 +171,9 @@ impl<'a> Normalizer<'a> {
         // NB: once we support gene conversions, guard against this here as well.
 
         let var = if self.config.replace_reference {
-            self.mapper.replace_reference(var)?
+            self.mapper
+                .replace_reference(var)
+                .map_err(|e| Error::ReplaceReferenceFailed(format!("{}", var)))?
         } else {
             var
         };
@@ -184,7 +192,12 @@ impl<'a> Normalizer<'a> {
         // For CDS variants, first convert to transcript variatn and perform normalization on this
         // level.  Then, convert normalized variant back.
         let (var, cds_to_tx) = if let HgvsVariant::CdsVariant { .. } = var {
-            (self.mapper.c_to_n(&var)?, true)
+            (
+                self.mapper
+                    .c_to_n(&var)
+                    .map_err(|e| Error::CToNMappingFailed(format!("{}", var)))?,
+                true,
+            )
         } else {
             (var, false)
         };
@@ -623,7 +636,9 @@ impl<'a> Normalizer<'a> {
                 };
 
                 if cds_to_tx {
-                    self.mapper.n_to_c(&var_t)?
+                    self.mapper
+                        .n_to_c(&var_t)
+                        .map_err(|e| Error::NToCMappingFailed(format!("{}", var_t)))?
                 } else {
                     var_t
                 }
