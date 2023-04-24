@@ -25,6 +25,8 @@ pub enum Error {
     NoGeneFound(String),
     #[error("no transcript found for {0}")]
     NoTranscriptFound(String),
-    #[error("no alignment founnd for {0} to {1}")]
+    #[error("no alignment found for {0} to {1}")]
     NoAlignmentFound(String, String),
+    #[error("found no sequence record for accession {0}")]
+    NoSequenceRecord(String),
 }

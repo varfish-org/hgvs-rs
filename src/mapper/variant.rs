@@ -1170,7 +1170,9 @@ mod test {
                         };
                     }
                 }
-                Err(anyhow::anyhow!("Found no record for accession {}", &tx_ac))
+                Err(crate::data::error::Error::NoSequenceRecord(
+                    tx_ac.to_string(),
+                ))
             }
 
             fn get_acs_for_protein_seq(
@@ -1234,7 +1236,9 @@ mod test {
                         });
                     }
                 }
-                Err(anyhow::anyhow!("Found no record for accession {}", &tx_ac))
+                Err(crate::data::error::Error::NoSequenceRecord(
+                    tx_ac.to_string(),
+                ))
             }
 
             fn get_tx_info(
