@@ -22,6 +22,8 @@ mod error {
         IntegerConversion(#[from] std::num::TryFromIntError),
         #[error("validation error")]
         ValidationFailed(#[from] crate::validator::Error),
+        #[error("problem accessing data")]
+        DataError(#[from] crate::data::error::Error),
         #[error("replacing reference failed: {0}")]
         ReplaceReferenceFailed(String),
         #[error("c_to_n mapping failed for {0}")]
@@ -172,8 +174,8 @@ impl<'a> Normalizer<'a> {
 
         let var = if self.config.replace_reference {
             self.mapper
-                .replace_reference(var)
-                .map_err(|e| Error::ReplaceReferenceFailed(format!("{}", var)))?
+                .replace_reference(var.clone())
+                .map_err(|_e| Error::ReplaceReferenceFailed(format!("{}", var)))?
         } else {
             var
         };

@@ -5,6 +5,7 @@
 use std::{collections::HashMap, path::PathBuf, rc::Rc, time::Instant};
 
 use crate::{
+    data::error::Error,
     data::interface::{
         GeneInfoRecord, Provider as ProviderInterface, TxExonsRecord, TxForRegionRecord,
         TxIdentityInfo, TxInfoRecord, TxMappingOptionsRecord, TxSimilarityRecord,
@@ -49,19 +50,13 @@ impl Provider {
         let seqrepo = PathBuf::from(&config.seqrepo_path);
         let path = seqrepo
             .parent()
-            .ok_or(anyhow::anyhow!(
-                "Could not get parent from {}",
-                &config.seqrepo_path
-            ))?
+            .ok_or(Error::PathParent(config.seqrepo_path.clone()))?
             .to_str()
             .expect("problem with path to string conversion")
             .to_string();
         let instance = seqrepo
             .file_name()
-            .ok_or(anyhow::anyhow!(
-                "Could not get basename from {}",
-                &config.seqrepo_path
-            ))?
+            .ok_or(Error::PathBasename(config.seqrepo_path.clone()))?
             .to_str()
             .expect("problem with path to string conversion")
             .to_string();
@@ -128,14 +123,16 @@ impl ProviderInterface for Provider {
         begin: Option<usize>,
         end: Option<usize>,
     ) -> Result<String, Error> {
-        self.seqrepo.fetch_sequence_part(
-            &seqrepo::AliasOrSeqId::Alias {
-                value: ac.to_string(),
-                namespace: None,
-            },
-            begin,
-            end,
-        )
+        self.seqrepo
+            .fetch_sequence_part(
+                &seqrepo::AliasOrSeqId::Alias {
+                    value: ac.to_string(),
+                    namespace: None,
+                },
+                begin,
+                end,
+            )
+            .map_err(|e| Error::SeqRepoError(e))
     }
 
     fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, Error> {
@@ -585,10 +582,16 @@ impl TxProvider {
             ..
         } = if json_path.ends_with(".gz") {
             serde_json::from_reader(flate2::bufread::GzDecoder::new(std::io::BufReader::new(
-                std::fs::File::open(json_path)?,
-            )))?
+                std::fs::File::open(json_path)
+                    .map_err(|_e| Error::CdotJsonOpen(json_path.to_string()))?,
+            )))
+            .map_err(|_e| Error::CdotJsonParse(json_path.to_string()))?
         } else {
-            serde_json::from_reader(std::io::BufReader::new(std::fs::File::open(json_path)?))?
+            serde_json::from_reader(std::io::BufReader::new(
+                std::fs::File::open(json_path)
+                    .map_err(|_e| Error::CdotJsonOpen(json_path.to_string()))?,
+            ))
+            .map_err(|_e| Error::CdotJsonParse(json_path.to_string()))?
         };
         log::debug!(
             "loading / deserializing {} genes and {} transcripts from cdot took {:?}",
@@ -719,7 +722,7 @@ impl TxProvider {
         let gene = self
             .genes
             .get(hgnc)
-            .ok_or(anyhow::anyhow!("No gene found for {:?}", hgnc))?;
+            .ok_or(Error::NoGeneFound(hgnc.to_string()))?;
 
         Ok(GeneInfoRecord {
             hgnc: gene
@@ -747,7 +750,7 @@ impl TxProvider {
         let transcript = self
             .transcripts
             .get(tx_ac)
-            .ok_or(anyhow::anyhow!("No transcript found for {:?}", &tx_ac))?;
+            .ok_or(Error::NoTranscriptFound(tx_ac.to_string()))?;
         Ok(transcript.protein.clone())
     }
 
@@ -783,10 +786,10 @@ impl TxProvider {
         alt_ac: &str,
         alt_aln_method: &str,
     ) -> Result<Vec<TxExonsRecord>, Error> {
-        let tx = self.transcripts.get(tx_ac).ok_or(anyhow::anyhow!(
-            "Could not find transcript for {:?}",
-            &tx_ac
-        ))?;
+        let tx = self
+            .transcripts
+            .get(tx_ac)
+            .ok_or(Error::NoTranscriptFound(tx_ac.to_string()))?;
 
         let genome_alignment = tx
             .genome_builds
@@ -825,10 +828,9 @@ impl TxProvider {
                 })
                 .collect())
         } else {
-            Err(anyhow::anyhow!(
-                "Could not find alignment of {:?} to {:?}",
-                tx_ac,
-                alt_ac
+            Err(Error::NoAlignmentFound(
+                tx_ac.to_string(),
+                alt_ac.to_string(),
             ))
         }
     }
@@ -942,10 +944,10 @@ impl TxProvider {
     }
 
     fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, Error> {
-        let tx = self.transcripts.get(tx_ac).ok_or(anyhow::anyhow!(
-            "Could not find transcript for {:?}",
-            &tx_ac
-        ))?;
+        let tx = self
+            .transcripts
+            .get(tx_ac)
+            .ok_or(Error::NoTranscriptFound(tx_ac.to_string()))?;
 
         let hgnc = tx
             .gene_name
@@ -982,10 +984,10 @@ impl TxProvider {
         alt_ac: &str,
         alt_aln_method: &str,
     ) -> Result<TxInfoRecord, Error> {
-        let tx = self.transcripts.get(tx_ac).ok_or(anyhow::anyhow!(
-            "Could not find transcript for {:?}",
-            &tx_ac
-        ))?;
+        let tx = self
+            .transcripts
+            .get(tx_ac)
+            .ok_or(Error::NoTranscriptFound(tx_ac.to_string()))?;
 
         Ok(TxInfoRecord {
             hgnc: tx
@@ -1002,10 +1004,10 @@ impl TxProvider {
     }
 
     fn get_tx_mapping_options(&self, tx_ac: &str) -> Result<Vec<TxMappingOptionsRecord>, Error> {
-        let tx = self.transcripts.get(tx_ac).ok_or(anyhow::anyhow!(
-            "Could not find transcript for {:?}",
-            &tx_ac
-        ))?;
+        let tx = self
+            .transcripts
+            .get(tx_ac)
+            .ok_or(Error::NoTranscriptFound(tx_ac.to_string()))?;
 
         Ok(tx
             .genome_builds
@@ -1019,7 +1021,9 @@ impl TxProvider {
     }
 }
 
+#[cfg(test)]
 pub mod test_helpers {
+    use anyhow::Error;
     use std::rc::Rc;
 
     use crate::data::uta_sr::test_helpers::build_writing_sr;
@@ -1055,12 +1059,13 @@ pub mod test_helpers {
             seqrepo_path: String::from("nonexisting"),
         };
         // Note that we don't actually use the seqrepo instance except for initializing the provider.
-        Provider::with_seqrepo(config, seqrepo)
+        Provider::with_seqrepo(config, seqrepo).map_err(|e| anyhow::anyhow!(e))
     }
 }
 
 #[cfg(test)]
 pub mod tests {
+    use anyhow::Error;
     use std::rc::Rc;
     use std::str::FromStr;
 

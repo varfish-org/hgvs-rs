@@ -758,8 +758,18 @@ impl Mapper {
     ) -> Result<String, Error> {
         let mut seq = self.provider.as_ref().get_seq_part(
             var.accession(),
-            Some(interval.start.try_into()?),
-            Some(interval.end.try_into()?),
+            Some(
+                interval
+                    .start
+                    .try_into()
+                    .map_err(|_e| Error::CannotConvertIntervalStart(interval.start))?,
+            ),
+            Some(
+                interval
+                    .end
+                    .try_into()
+                    .map_err(|_e| Error::CannotConvertIntervalEnd(interval.end))?,
+            ),
         )?;
 
         let r = var
@@ -1131,11 +1141,15 @@ mod test {
             fn get_gene_info(
                 &self,
                 _hgnc: &str,
-            ) -> Result<crate::data::interface::GeneInfoRecord, Error> {
+            ) -> Result<crate::data::interface::GeneInfoRecord, crate::data::error::Error>
+            {
                 panic!("for test use only");
             }
 
-            fn get_pro_ac_for_tx_ac(&self, _tx_ac: &str) -> Result<Option<String>, Error> {
+            fn get_pro_ac_for_tx_ac(
+                &self,
+                _tx_ac: &str,
+            ) -> Result<Option<String>, crate::data::error::Error> {
                 panic!("for test use only");
             }
 
@@ -1144,7 +1158,7 @@ mod test {
                 tx_ac: &str,
                 begin: Option<usize>,
                 end: Option<usize>,
-            ) -> Result<String, Error> {
+            ) -> Result<String, crate::data::error::Error> {
                 for record in &self.records {
                     if record.accession == tx_ac {
                         let seq = &record.transcript_sequence;
@@ -1159,14 +1173,18 @@ mod test {
                 Err(anyhow::anyhow!("Found no record for accession {}", &tx_ac))
             }
 
-            fn get_acs_for_protein_seq(&self, _seq: &str) -> Result<Vec<String>, Error> {
+            fn get_acs_for_protein_seq(
+                &self,
+                _seq: &str,
+            ) -> Result<Vec<String>, crate::data::error::Error> {
                 panic!("for test use only");
             }
 
             fn get_similar_transcripts(
                 &self,
                 _tx_ac: &str,
-            ) -> Result<Vec<crate::data::interface::TxSimilarityRecord>, Error> {
+            ) -> Result<Vec<crate::data::interface::TxSimilarityRecord>, crate::data::error::Error>
+            {
                 panic!("for test use only");
             }
 
@@ -1175,14 +1193,16 @@ mod test {
                 _tx_ac: &str,
                 _alt_ac: &str,
                 _alt_aln_method: &str,
-            ) -> Result<Vec<crate::data::interface::TxExonsRecord>, Error> {
+            ) -> Result<Vec<crate::data::interface::TxExonsRecord>, crate::data::error::Error>
+            {
                 todo!()
             }
 
             fn get_tx_for_gene(
                 &self,
                 _gene: &str,
-            ) -> Result<Vec<crate::data::interface::TxInfoRecord>, Error> {
+            ) -> Result<Vec<crate::data::interface::TxInfoRecord>, crate::data::error::Error>
+            {
                 panic!("for test use only");
             }
 
@@ -1192,11 +1212,15 @@ mod test {
                 _alt_aln_method: &str,
                 _start_i: i32,
                 _end_i: i32,
-            ) -> Result<Vec<crate::data::interface::TxForRegionRecord>, Error> {
+            ) -> Result<Vec<crate::data::interface::TxForRegionRecord>, crate::data::error::Error>
+            {
                 panic!("for test use only");
             }
 
-            fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, Error> {
+            fn get_tx_identity_info(
+                &self,
+                tx_ac: &str,
+            ) -> Result<TxIdentityInfo, crate::data::error::Error> {
                 for record in &self.records {
                     if record.accession == tx_ac {
                         return Ok(TxIdentityInfo {
@@ -1218,14 +1242,18 @@ mod test {
                 _tx_ac: &str,
                 _alt_ac: &str,
                 _alt_aln_method: &str,
-            ) -> Result<crate::data::interface::TxInfoRecord, Error> {
+            ) -> Result<crate::data::interface::TxInfoRecord, crate::data::error::Error>
+            {
                 panic!("for test use only");
             }
 
             fn get_tx_mapping_options(
                 &self,
                 _tx_ac: &str,
-            ) -> Result<Vec<crate::data::interface::TxMappingOptionsRecord>, Error> {
+            ) -> Result<
+                Vec<crate::data::interface::TxMappingOptionsRecord>,
+                crate::data::error::Error,
+            > {
                 panic!("for test use only");
             }
         }

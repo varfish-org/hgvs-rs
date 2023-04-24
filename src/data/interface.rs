@@ -3,6 +3,7 @@
 use chrono::NaiveDateTime;
 use linked_hash_map::LinkedHashMap;
 
+use crate::data::error::Error;
 use crate::static_data::Assembly;
 
 /// Information about a gene.

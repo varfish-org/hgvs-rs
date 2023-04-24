@@ -11,8 +11,10 @@ pub enum Error {
     NormalizationFailed(#[from] crate::normalizer::Error),
     #[error("parsing failed")]
     ParsingFailed(#[from] crate::parser::Error),
-    #[error("sequence manipulation failed")]
-    SequenceManipFailed(#[from] crate::sequences::Error),
+    #[error("sequence operation failed")]
+    SequenceOperationFailed(#[from] crate::sequences::Error),
+    #[error("problem accessing data")]
+    DataError(#[from] crate::data::error::Error),
     #[error("expected a GenomeVariant but received {0}")]
     ExpectedGenomeVariant(String),
     #[error("expected a TxVariant but received {0}")]
@@ -93,4 +95,8 @@ pub enum Error {
     CoordinateOutsideReference,
     #[error("c.{0} coordinate is out of bounds")]
     CoordinateOutOfBounds(String),
+    #[error("cannot convert interval start: {0} to usize")]
+    CannotConvertIntervalStart(i32),
+    #[error("cannot convert interval end: {0} to usize")]
+    CannotConvertIntervalEnd(i32),
 }

@@ -12,9 +12,9 @@ use crate::sequences::seq_md5;
 use crate::static_data::{Assembly, ASSEMBLY_INFOS};
 
 use crate::data::{
-    interface::GeneInfoRecord, interface::Provider as ProviderInterface, interface::TxExonsRecord,
-    interface::TxForRegionRecord, interface::TxIdentityInfo, interface::TxInfoRecord,
-    interface::TxMappingOptionsRecord, interface::TxSimilarityRecord,
+    error::Error, interface::GeneInfoRecord, interface::Provider as ProviderInterface,
+    interface::TxExonsRecord, interface::TxForRegionRecord, interface::TxIdentityInfo,
+    interface::TxInfoRecord, interface::TxMappingOptionsRecord, interface::TxSimilarityRecord,
 };
 
 /// Configuration for the `data::uta::Provider`.
@@ -427,11 +427,10 @@ impl ProviderInterface for Provider {
             result.push(row.try_into()?);
         }
         if result.is_empty() {
-            Err(anyhow::anyhow!(
-                "No tx_exons for tx_ac={}, alt_ac={}, alt_aln_method={}",
-                &tx_ac,
-                &alt_ac,
-                &alt_aln_method
+            Err(Error::NoTxExons(
+                tx_ac.to_string(),
+                alt_ac.to_string(),
+                alt_aln_method.to_string(),
             ))
         } else {
             self.caches.get_tx_exons.insert(key, result.clone());
@@ -606,6 +605,7 @@ impl ProviderInterface for Provider {
 #[cfg(test)]
 mod test {
     use crate::{data::interface::Provider as ProviderInterface, static_data::Assembly};
+    use anyhow::Error;
 
     use super::{Config, Provider};
 

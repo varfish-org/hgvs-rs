@@ -9,9 +9,9 @@ use std::rc::Rc;
 
 use crate::data::uta::{Config as UtaConfig, Provider as UtaProvider};
 use crate::data::{
-    interface::GeneInfoRecord, interface::Provider as ProviderInterface, interface::TxExonsRecord,
-    interface::TxForRegionRecord, interface::TxIdentityInfo, interface::TxInfoRecord,
-    interface::TxMappingOptionsRecord, interface::TxSimilarityRecord,
+    error::Error, interface::GeneInfoRecord, interface::Provider as ProviderInterface,
+    interface::TxExonsRecord, interface::TxForRegionRecord, interface::TxIdentityInfo,
+    interface::TxInfoRecord, interface::TxMappingOptionsRecord, interface::TxSimilarityRecord,
 };
 use seqrepo::{AliasOrSeqId, Interface as SeqRepoInterface, SeqRepo};
 
@@ -46,19 +46,13 @@ impl Provider {
         let seqrepo = PathBuf::from(&config.seqrepo_path);
         let path = seqrepo
             .parent()
-            .ok_or(anyhow::anyhow!(
-                "Could not get parent from {}",
-                &config.seqrepo_path
-            ))?
+            .ok_or(Error::PathParent(config.seqrepo_path.clone()))?
             .to_str()
             .expect("problem with path to string conversion")
             .to_string();
         let instance = seqrepo
             .file_name()
-            .ok_or(anyhow::anyhow!(
-                "Could not get basename from {}",
-                &config.seqrepo_path
-            ))?
+            .ok_or(Error::PathBasename(config.seqrepo_path.clone()))?
             .to_str()
             .expect("problem with path to string conversion")
             .to_string();
@@ -121,7 +115,9 @@ impl ProviderInterface for Provider {
             value: ac.to_owned(),
             namespace: None,
         };
-        self.seqrepo.fetch_sequence_part(&aos, begin, end)
+        self.seqrepo
+            .fetch_sequence_part(&aos, begin, end)
+            .map_err(|e| Error::SeqRepoError(e))
     }
 
     fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, Error> {
@@ -175,7 +171,9 @@ impl ProviderInterface for Provider {
 }
 
 /// Code for helping setup of UTA providers, e.g., for setting up caching of SeqRepo results.
+#[cfg(test)]
 pub mod test_helpers {
+    use anyhow::Error;
     use std::{path::PathBuf, rc::Rc};
 
     use seqrepo::{
