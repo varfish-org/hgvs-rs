@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/bihealth/hgvs-rs/compare/v0.6.2...v0.7.0) (2023-04-24)
+
+
+### Features
+
+* proper error handling with enums and thiserror ([#69](https://github.com/bihealth/hgvs-rs/issues/69)) ([#103](https://github.com/bihealth/hgvs-rs/issues/103)) ([add8248](https://github.com/bihealth/hgvs-rs/commit/add8248cabe25d1f19993e7041b1e97279e18bdd))
+
 ## [0.6.2](https://github.com/bihealth/hgvs-rs/compare/v0.6.1...v0.6.2) (2023-04-18)
 
 
