@@ -4,6 +4,7 @@ use std::{cmp::Ordering, rc::Rc};
 
 use crate::{
     data::interface::Provider,
+    mapper::error::Error,
     parser::{
         Accession, CdsFrom, HgvsVariant, Mu, NaEdit, ProtInterval, ProtLocEdit, ProtPos,
         ProteinEdit, UncertainLengthChange,
@@ -37,7 +38,7 @@ impl RefTranscriptData {
         provider: Rc<dyn Provider>,
         tx_ac: &str,
         pro_ac: Option<&str>,
-    ) -> Result<Self, anyhow::Error> {
+    ) -> Result<Self, Error> {
         let tx_info = provider.as_ref().get_tx_identity_info(tx_ac)?;
         let transcript_sequence = provider.as_ref().get_seq(tx_ac)?;
 
@@ -49,10 +50,10 @@ impl RefTranscriptData {
         let tx_seq_to_translate =
             &transcript_sequence[((cds_start - 1) as usize)..(cds_stop as usize)];
         if tx_seq_to_translate.len() % 3 != 0 {
-            return Err(anyhow::anyhow!(
-                "Transcript {} is not supported because its sequence length of {} is not multiple of 3.",
-                tx_ac,
-                tx_seq_to_translate.len()));
+            return Err(Error::TranscriptLengthInvalid(
+                tx_ac.to_string(),
+                tx_seq_to_translate.len(),
+            ));
         }
 
         let aa_sequence =
@@ -128,7 +129,7 @@ impl AltTranscriptData {
         ref_aa_sequence: &str,
         is_substitution: bool,
         is_ambiguous: bool,
-    ) -> Result<Self, anyhow::Error> {
+    ) -> Result<Self, Error> {
         let transcript_sequence = seq.to_owned();
         let aa_sequence = if !seq.is_empty() {
             let seq_cds = &transcript_sequence[((cds_start - 1) as usize)..];
@@ -237,7 +238,7 @@ impl AltSeqBuilder {
     /// # Returns
     ///
     /// Variant sequence data.
-    pub fn build_altseq(&self) -> Result<Vec<AltTranscriptData>, anyhow::Error> {
+    pub fn build_altseq(&self) -> Result<Vec<AltTranscriptData>, Error> {
         // NB: the following comment is from the original Python code.
         // Should loop over each allele rather than assume only 1 variant; return a list for now.
 
@@ -380,7 +381,7 @@ impl AltSeqBuilder {
         }
     }
 
-    fn incorporate_delins(&self) -> Result<AltTranscriptData, anyhow::Error> {
+    fn incorporate_delins(&self) -> Result<AltTranscriptData, Error> {
         let (mut seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
         let loc_range_start;
 
@@ -443,7 +444,7 @@ impl AltSeqBuilder {
         )
     }
 
-    fn incorporate_dup(&self) -> Result<AltTranscriptData, anyhow::Error> {
+    fn incorporate_dup(&self) -> Result<AltTranscriptData, Error> {
         let (seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
 
         let seq = format!(
@@ -476,7 +477,7 @@ impl AltSeqBuilder {
     }
 
     /// Incorporate inversion into sequence.
-    fn incorporate_inv(&self) -> Result<AltTranscriptData, anyhow::Error> {
+    fn incorporate_inv(&self) -> Result<AltTranscriptData, Error> {
         let (seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
 
         let seq = format!(
@@ -507,7 +508,7 @@ impl AltSeqBuilder {
     }
 
     /// Create an alt seq that matches the reference (for non-CDS variants).
-    fn create_alt_equals_ref_noncds(&self) -> Result<AltTranscriptData, anyhow::Error> {
+    fn create_alt_equals_ref_noncds(&self) -> Result<AltTranscriptData, Error> {
         AltTranscriptData::new(
             &self.reference_data.transcript_sequence,
             self.reference_data.cds_start,
@@ -522,7 +523,7 @@ impl AltSeqBuilder {
     }
 
     /// Create a no-protein result.
-    fn create_no_protein(&self) -> Result<AltTranscriptData, anyhow::Error> {
+    fn create_no_protein(&self) -> Result<AltTranscriptData, Error> {
         AltTranscriptData::new(
             "",
             -1,
@@ -568,7 +569,7 @@ impl AltSeqToHgvsp {
     }
 
     /// Compare two amino acid sequences and generate a HGVS tag from the output.
-    pub fn build_hgvsp(&self) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn build_hgvsp(&self) -> Result<HgvsVariant, Error> {
         let mut records = Vec::new();
 
         if !self.alt_data.is_ambiguous && !self.alt_seq().is_empty() {
@@ -582,9 +583,7 @@ impl AltSeqToHgvsp {
                             .ref_seq()
                             .chars()
                             .nth(start as usize - 1)
-                            .ok_or(anyhow::anyhow!(
-                                "start pos out of range in reference sequence"
-                            ))?
+                            .ok_or(Error::StartPosOutOfRange)?
                             .to_string();
                         AdHocRecord {
                             start,
@@ -751,7 +750,7 @@ impl AltSeqToHgvsp {
         } else if let Some(var) = records.drain(..).next() {
             Ok(self.convert_to_hgvs_variant(var, self.protein_accession())?)
         } else {
-            Err(anyhow::anyhow!("Got multiple AA variants - not supported!"))
+            Err(Error::MultipleAAVariants)
         }
     }
 
@@ -775,7 +774,7 @@ impl AltSeqToHgvsp {
         &self,
         record: AdHocRecord,
         protein_accession: &str,
-    ) -> Result<HgvsVariant, anyhow::Error> {
+    ) -> Result<HgvsVariant, Error> {
         let AdHocRecord {
             start,
             ins: insertion,
@@ -824,7 +823,7 @@ impl AltSeqToHgvsp {
                 aa: deletion
                     .chars()
                     .next()
-                    .ok_or(anyhow::anyhow!("deletion sequence should not be empty"))?
+                    .ok_or(Error::DeletionSequenceEmpty)?
                     .to_string(),
                 number: *start,
             });
@@ -859,7 +858,7 @@ impl AltSeqToHgvsp {
                 aa: deletion
                     .chars()
                     .next()
-                    .ok_or(anyhow::anyhow!("deletion sequence should not be empty"))?
+                    .ok_or(Error::DeletionSequenceEmpty)?
                     .to_string(),
                 number: *start,
             });
@@ -908,7 +907,7 @@ impl AltSeqToHgvsp {
                 aa: deletion
                     .chars()
                     .next()
-                    .ok_or(anyhow::anyhow!("deletion sequence should not be empty"))?
+                    .ok_or(Error::DeletionSequenceEmpty)?
                     .to_string(),
                 number: *start,
             });
@@ -919,7 +918,7 @@ impl AltSeqToHgvsp {
                         aa: deletion
                             .chars()
                             .last()
-                            .ok_or(anyhow::anyhow!("deletion sequence should not be empty"))?
+                            .ok_or(Error::DeletionSequenceEmpty)?
                             .to_string(),
                         number: end,
                     })
@@ -942,7 +941,7 @@ impl AltSeqToHgvsp {
                             aa: deletion
                                 .chars()
                                 .last()
-                                .ok_or(anyhow::anyhow!("deletion sequence should not be empty"))?
+                                .ok_or(Error::DeletionSequenceEmpty)?
                                 .to_string(),
                             number: end,
                         })
@@ -964,7 +963,7 @@ impl AltSeqToHgvsp {
                     aa: insertion
                         .chars()
                         .next()
-                        .ok_or(anyhow::anyhow!("insertion sequence should not be empty"))?
+                        .ok_or(Error::InsertionSequenceEmpty)?
                         .to_string(),
                     number: dup_start,
                 });
@@ -972,7 +971,7 @@ impl AltSeqToHgvsp {
                     aa: insertion
                         .chars()
                         .last()
-                        .ok_or(anyhow::anyhow!("insertion sequence should not be empty"))?
+                        .ok_or(Error::InsertionSequenceEmpty)?
                         .to_string(),
                     number: dup_end,
                 });
@@ -1031,7 +1030,7 @@ impl AltSeqToHgvsp {
         is_no_protein: bool,
         is_init_met: bool,
         is_frameshift: bool,
-    ) -> Result<HgvsVariant, anyhow::Error> {
+    ) -> Result<HgvsVariant, Error> {
         assert!(start.is_some() == end.is_some());
 
         // If the `alternative` contains a stop codon (`*`/`X`) then we have to truncate

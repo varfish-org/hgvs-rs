@@ -7,6 +7,7 @@ use log::{debug, info};
 use super::alignment::{Config as AlignmentConfig, Mapper as AlignmentMapper};
 use crate::{
     data::interface::Provider,
+    mapper::Error,
     normalizer::{self, Config as NormalizerConfig, Normalizer},
     parser::{
         Accession, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval, GenomeLocEdit,
@@ -119,7 +120,7 @@ impl Mapper {
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<AlignmentMapper, anyhow::Error> {
+    ) -> Result<AlignmentMapper, Error> {
         // TODO: implement caching
         AlignmentMapper::new(
             &AlignmentConfig {
@@ -133,7 +134,7 @@ impl Mapper {
     }
 
     /// Construct a new normalizer for the variant mapper.
-    pub fn normalizer(&self) -> Result<Normalizer, anyhow::Error> {
+    pub fn normalizer(&self) -> Result<Normalizer, Error> {
         Ok(Normalizer::new(
             self,
             self.provider.clone(),
@@ -157,7 +158,7 @@ impl Mapper {
         var_g: &HgvsVariant,
         tx_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<HgvsVariant, anyhow::Error> {
+    ) -> Result<HgvsVariant, Error> {
         self.validator.validate(var_g)?;
         let mapper = self.build_alignment_mapper(tx_ac, var_g.accession(), alt_aln_method)?;
         if mapper.is_coding_transcript() {
@@ -179,7 +180,7 @@ impl Mapper {
         var_g: &HgvsVariant,
         tx_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<HgvsVariant, anyhow::Error> {
+    ) -> Result<HgvsVariant, Error> {
         self.validator.validate(var_g)?;
         let var_g = if self.config.replace_reference {
             self.replace_reference(var_g.clone())?
@@ -281,10 +282,7 @@ impl Mapper {
 
             Ok(var_n)
         } else {
-            Err(anyhow::anyhow!(
-                "Expected a GenomeVariant but received {}",
-                &var_g
-            ))
+            Err(Error::ExpectedGenomeVariant(format!("{}", &var_g)))
         }
     }
 
@@ -300,7 +298,7 @@ impl Mapper {
         var_n: &HgvsVariant,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<HgvsVariant, anyhow::Error> {
+    ) -> Result<HgvsVariant, Error> {
         self.validator.validate(var_n)?;
         let var_n = self.replace_reference(var_n.clone())?;
         if let HgvsVariant::TxVariant {
@@ -373,10 +371,7 @@ impl Mapper {
 
             Ok(var_g)
         } else {
-            Err(anyhow::anyhow!(
-                "Expected a TxVariant but received {}",
-                &var_n
-            ))
+            Err(Error::ExpectedTxVariant(format!("{}", &var_n)))
         }
     }
 
@@ -392,7 +387,7 @@ impl Mapper {
         var_g: &HgvsVariant,
         tx_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<HgvsVariant, anyhow::Error> {
+    ) -> Result<HgvsVariant, Error> {
         self.validator.validate(var_g)?;
         let var_g = if self.config.replace_reference {
             self.replace_reference(var_g.clone())?
@@ -467,10 +462,7 @@ impl Mapper {
 
             Ok(var_c)
         } else {
-            Err(anyhow::anyhow!(
-                "Expected a GenomeVariant but received {}",
-                &var_g
-            ))
+            Err(Error::ExpectedGenomeVariant(format!("{}", &var_g)))
         }
     }
 
@@ -486,7 +478,7 @@ impl Mapper {
         var_c: &HgvsVariant,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<HgvsVariant, anyhow::Error> {
+    ) -> Result<HgvsVariant, Error> {
         self.validator.validate(var_c)?;
         let var_c = if self.config.replace_reference {
             self.replace_reference(var_c.clone())?
@@ -538,7 +530,7 @@ impl Mapper {
                         edit: Mu::Certain(
                             var_c
                                 .na_edit()
-                                .ok_or(anyhow::anyhow!("no NAEdit in HGVS.c variant"))?
+                                .ok_or(Error::NoNAEditInHgvsC(format!("{}", &var_c)))?
                                 .clone(),
                         ),
                     },
@@ -571,10 +563,7 @@ impl Mapper {
 
             Ok(var_g)
         } else {
-            Err(anyhow::anyhow!(
-                "Expected a CdsVariant but received {}",
-                &var_c
-            ))
+            Err(Error::ExpectedCdsVariant(format!("{}", &var_c)))
         }
     }
 
@@ -590,7 +579,7 @@ impl Mapper {
         var_t: &HgvsVariant,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<HgvsVariant, anyhow::Error> {
+    ) -> Result<HgvsVariant, Error> {
         self.validator.validate(var_t)?;
         let var_t = if self.config.replace_reference {
             self.replace_reference(var_t.clone())?
@@ -600,10 +589,7 @@ impl Mapper {
         match var_t {
             HgvsVariant::TxVariant { .. } => self.n_to_g(&var_t, alt_ac, alt_aln_method),
             HgvsVariant::CdsVariant { .. } => self.c_to_g(&var_t, alt_ac, alt_aln_method),
-            _ => Err(anyhow::anyhow!(
-                "Expected transcript or CDS variant but received {}",
-                &var_t
-            )),
+            _ => Err(Error::ExpectedCdsVariant(format!("{}", &var_t))),
         }
     }
 
@@ -612,7 +598,7 @@ impl Mapper {
     /// # Args
     ///
     /// * `var_c` -- `HgvsVariant::CdsVariant` to project
-    pub fn c_to_n(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn c_to_n(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, Error> {
         log::debug!("c_to_n({})", var_c);
         self.validator.validate(var_c)?;
         let var_c = if self.config.replace_reference {
@@ -648,10 +634,7 @@ impl Mapper {
             log::debug!("c_to_n({}) = {}", var_c, &var_n);
             Ok(var_n)
         } else {
-            Err(anyhow::anyhow!(
-                "Expected a CdsVariant but received {}",
-                &var_c
-            ))
+            Err(Error::ExpectedCdsVariant(format!("{}", &var_c)))
         }
     }
 
@@ -660,7 +643,7 @@ impl Mapper {
     /// # Args
     ///
     /// * `var_n` -- `HgvsVariant::TxVariant` to project
-    pub fn n_to_c(&self, var_n: &HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn n_to_c(&self, var_n: &HgvsVariant) -> Result<HgvsVariant, Error> {
         self.validator.validate(var_n)?;
         let var_n = if self.config.replace_reference {
             self.replace_reference(var_n.clone())?
@@ -694,10 +677,7 @@ impl Mapper {
 
             Ok(var_c)
         } else {
-            Err(anyhow::anyhow!(
-                "Expected a TxVariant but received {}",
-                &var_n
-            ))
+            Err(Error::ExpectedTxVariant(format!("{}", &var_n)))
         }
     }
 
@@ -707,11 +687,7 @@ impl Mapper {
     ///
     /// * `var_c` -- `HgvsVariant::TxVariant` to project
     /// * `pro_ac` -- Protein accession
-    pub fn c_to_p(
-        &self,
-        var_c: &HgvsVariant,
-        prot_ac: Option<&str>,
-    ) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn c_to_p(&self, var_c: &HgvsVariant, prot_ac: Option<&str>) -> Result<HgvsVariant, Error> {
         use super::altseq::*;
 
         if let HgvsVariant::CdsVariant {
@@ -739,7 +715,7 @@ impl Mapper {
             // TODO: handle case where you get 2+ alt sequences back;  currently get list of 1 element
             // loop structure implemented to handle this, but doesn't really do anything currently.
 
-            let var_ps: Result<Vec<_>, anyhow::Error> = builder
+            let var_ps: Result<Vec<_>, Error> = builder
                 .build_altseq()?
                 .into_iter()
                 .map(|alt_data| {
@@ -750,7 +726,7 @@ impl Mapper {
             let var_p = var_ps?
                 .into_iter()
                 .next()
-                .ok_or(anyhow::anyhow!("could not construct HGVS.p variant"))?;
+                .ok_or(Error::ProtVariantConstructionFailed)?;
 
             let var_p = if let HgvsVariant::ProtVariant {
                 accession,
@@ -765,17 +741,12 @@ impl Mapper {
                     loc_edit,
                 }
             } else {
-                return Err(anyhow::anyhow!(
-                    "This cannot happen; must have ProtVariant here."
-                ));
+                return Err(Error::NotProtVariant);
             };
 
             Ok(var_p)
         } else {
-            Err(anyhow::anyhow!(
-                "Expected a CdsVariant but received {}",
-                &var_c
-            ))
+            Err(Error::ExpectedCdsVariant(format!("{}", &var_c)))
         }
     }
 
@@ -784,21 +755,29 @@ impl Mapper {
         strand: i16,
         interval: Range<i32>,
         var: &HgvsVariant,
-    ) -> Result<String, anyhow::Error> {
+    ) -> Result<String, Error> {
         let mut seq = self.provider.as_ref().get_seq_part(
             var.accession(),
-            Some(interval.start.try_into()?),
-            Some(interval.end.try_into()?),
+            Some(
+                interval
+                    .start
+                    .try_into()
+                    .map_err(|_e| Error::CannotConvertIntervalStart(interval.start))?,
+            ),
+            Some(
+                interval
+                    .end
+                    .try_into()
+                    .map_err(|_e| Error::CannotConvertIntervalEnd(interval.end))?,
+            ),
         )?;
 
-        let r = var.loc_range().ok_or(anyhow::anyhow!(
-            "Cannot get altered sequence for missing positions"
-        ))?;
+        let r = var
+            .loc_range()
+            .ok_or(Error::NoAlteredSequenceForMissingPositions)?;
         let r = ((r.start - interval.start) as usize)..((r.end - interval.start) as usize);
 
-        let na_edit = var
-            .na_edit()
-            .ok_or(anyhow::anyhow!("Variant is missing nucleic acid edit"))?;
+        let na_edit = var.na_edit().ok_or(Error::NaEditMissing)?;
 
         match na_edit {
             NaEdit::RefAlt { alternative, .. } | NaEdit::NumAlt { alternative, .. } => {
@@ -826,7 +805,7 @@ impl Mapper {
         &self,
         strand: i16,
         edit: &Mu<NaEdit>,
-    ) -> Result<Mu<NaEdit>, anyhow::Error> {
+    ) -> Result<Mu<NaEdit>, Error> {
         let result = if strand == 1 {
             edit.inner().clone()
         } else {
@@ -862,11 +841,9 @@ impl Mapper {
     }
 
     /// Fetch reference sequence for variant and return updated `HgvsVariant` if necessary.
-    pub fn replace_reference(&self, var: HgvsVariant) -> Result<HgvsVariant, anyhow::Error> {
+    pub fn replace_reference(&self, var: HgvsVariant) -> Result<HgvsVariant, Error> {
         match &var {
-            HgvsVariant::ProtVariant { .. } => Err(anyhow::anyhow!(
-                "Can only update reference for c, g, m, n, r"
-            )),
+            HgvsVariant::ProtVariant { .. } => Err(Error::CannotUpdateReference),
             _ => Ok(()),
         }?;
 
@@ -948,7 +925,7 @@ impl Mapper {
         &self,
         tx_ac: &str,
         gene_symbol: &Option<GeneSymbol>,
-    ) -> Result<Option<GeneSymbol>, anyhow::Error> {
+    ) -> Result<Option<GeneSymbol>, Error> {
         if !self.config.add_gene_symbol {
             Ok(gene_symbol.clone())
         } else if let Some(gene_symbol) = gene_symbol {
@@ -966,7 +943,7 @@ impl Mapper {
 
 #[cfg(test)]
 mod test {
-    use lazy_static::__Deref;
+    use anyhow::Error;
     use pretty_assertions::assert_eq;
     use regex::Regex;
     use std::{
@@ -982,14 +959,14 @@ mod test {
 
     use super::{Config, Mapper};
 
-    fn build_mapper() -> Result<Mapper, anyhow::Error> {
+    fn build_mapper() -> Result<Mapper, Error> {
         let provider = build_provider()?;
         let config = Config::default();
         Ok(Mapper::new(&config, provider))
     }
 
     #[test]
-    fn fail_for_invalid_variant_types() -> Result<(), anyhow::Error> {
+    fn fail_for_invalid_variant_types() -> Result<(), Error> {
         let mapper = build_mapper()?;
 
         let hgvs_g = "NC_000007.13:g.36561662C>T";
@@ -1011,7 +988,7 @@ mod test {
     }
 
     #[test]
-    fn fail_c_to_p_on_invalid_nm_accession() -> Result<(), anyhow::Error> {
+    fn fail_c_to_p_on_invalid_nm_accession() -> Result<(), Error> {
         let mapper = build_mapper()?;
 
         let hgvs_g = "NC_000007.13:g.36561662C>T";
@@ -1023,7 +1000,7 @@ mod test {
     }
 
     #[test]
-    fn fail_on_undefined_cds() -> Result<(), anyhow::Error> {
+    fn fail_on_undefined_cds() -> Result<(), Error> {
         let mapper = build_mapper()?;
 
         let hgvs_n = "NR_111984.1:n.44G>A"; // legit
@@ -1042,7 +1019,7 @@ mod test {
     }
 
     #[test]
-    fn map_var_of_unsupported_validation() -> Result<(), anyhow::Error> {
+    fn map_var_of_unsupported_validation() -> Result<(), Error> {
         let mapper = build_mapper()?;
         let hgvs_c = "NM_003777.3:c.13552_*36del57"; // gene DNAH11
         let var_c = HgvsVariant::from_str(hgvs_c)?;
@@ -1057,7 +1034,7 @@ mod test {
     }
 
     #[test]
-    fn map_to_unknown_p_effect() -> Result<(), anyhow::Error> {
+    fn map_to_unknown_p_effect() -> Result<(), Error> {
         let mapper = build_mapper()?;
         let hgvs_c = "NM_020975.4:c.625+9C>T"; // gene RET
         let var_c = HgvsVariant::from_str(hgvs_c)?;
@@ -1069,7 +1046,7 @@ mod test {
 
     // TODO(#17): Need to implement validation.
     // #[test]
-    // fn map_of_c_out_of_cds_bound() -> Result<(), anyhow::Error> {
+    // fn map_of_c_out_of_cds_bound() -> Result<(), Error> {
     //     let mapper = build_mapper()?;
     //     let hgvs_c = "NM_145901.2:c.343T>C"; // gene HMGA1
     //     let var_c = HgvsVariant::from_str(hgvs_c)?;
@@ -1079,7 +1056,7 @@ mod test {
     // }
 
     #[test]
-    fn map_of_dup_at_cds_end() -> Result<(), anyhow::Error> {
+    fn map_of_dup_at_cds_end() -> Result<(), Error> {
         let mapper = build_mapper()?;
         let hgvs_c = "NM_001051.2:c.1257dupG"; // gene SSTR3
         let var_c = HgvsVariant::from_str(hgvs_c)?;
@@ -1091,7 +1068,7 @@ mod test {
 
     // TODO(#17): Need to implement validation.
     // #[test]
-    // fn map_of_c_out_of_reference_bound() -> Result<(), anyhow::Error> {
+    // fn map_of_c_out_of_reference_bound() -> Result<(), Error> {
     //     let mapper = build_mapper()?;
     //     let hgvs_c = "NM_000249.3:c.-73960_*46597del"; // gene MLH1
     //     let var_c = HgvsVariant::from_str(hgvs_c)?;
@@ -1105,6 +1082,7 @@ mod test {
     /// in the `sanity_mock` module.
 
     mod sanity_mock {
+        use anyhow::Error;
         use std::{
             path::{Path, PathBuf},
             rc::Rc,
@@ -1129,7 +1107,7 @@ mod test {
         }
 
         impl Provider {
-            pub fn new(path: &Path) -> Result<Self, anyhow::Error> {
+            pub fn new(path: &Path) -> Result<Self, Error> {
                 let mut records = Vec::new();
 
                 let mut rdr = csv::ReaderBuilder::new()
@@ -1163,11 +1141,15 @@ mod test {
             fn get_gene_info(
                 &self,
                 _hgnc: &str,
-            ) -> Result<crate::data::interface::GeneInfoRecord, anyhow::Error> {
+            ) -> Result<crate::data::interface::GeneInfoRecord, crate::data::error::Error>
+            {
                 panic!("for test use only");
             }
 
-            fn get_pro_ac_for_tx_ac(&self, _tx_ac: &str) -> Result<Option<String>, anyhow::Error> {
+            fn get_pro_ac_for_tx_ac(
+                &self,
+                _tx_ac: &str,
+            ) -> Result<Option<String>, crate::data::error::Error> {
                 panic!("for test use only");
             }
 
@@ -1176,7 +1158,7 @@ mod test {
                 tx_ac: &str,
                 begin: Option<usize>,
                 end: Option<usize>,
-            ) -> Result<String, anyhow::Error> {
+            ) -> Result<String, crate::data::error::Error> {
                 for record in &self.records {
                     if record.accession == tx_ac {
                         let seq = &record.transcript_sequence;
@@ -1188,17 +1170,22 @@ mod test {
                         };
                     }
                 }
-                Err(anyhow::anyhow!("Found no record for accession {}", &tx_ac))
+                Err(crate::data::error::Error::NoSequenceRecord(
+                    tx_ac.to_string(),
+                ))
             }
 
-            fn get_acs_for_protein_seq(&self, _seq: &str) -> Result<Vec<String>, anyhow::Error> {
+            fn get_acs_for_protein_seq(
+                &self,
+                _seq: &str,
+            ) -> Result<Vec<String>, crate::data::error::Error> {
                 panic!("for test use only");
             }
 
             fn get_similar_transcripts(
                 &self,
                 _tx_ac: &str,
-            ) -> Result<Vec<crate::data::interface::TxSimilarityRecord>, anyhow::Error>
+            ) -> Result<Vec<crate::data::interface::TxSimilarityRecord>, crate::data::error::Error>
             {
                 panic!("for test use only");
             }
@@ -1208,14 +1195,16 @@ mod test {
                 _tx_ac: &str,
                 _alt_ac: &str,
                 _alt_aln_method: &str,
-            ) -> Result<Vec<crate::data::interface::TxExonsRecord>, anyhow::Error> {
+            ) -> Result<Vec<crate::data::interface::TxExonsRecord>, crate::data::error::Error>
+            {
                 todo!()
             }
 
             fn get_tx_for_gene(
                 &self,
                 _gene: &str,
-            ) -> Result<Vec<crate::data::interface::TxInfoRecord>, anyhow::Error> {
+            ) -> Result<Vec<crate::data::interface::TxInfoRecord>, crate::data::error::Error>
+            {
                 panic!("for test use only");
             }
 
@@ -1225,11 +1214,15 @@ mod test {
                 _alt_aln_method: &str,
                 _start_i: i32,
                 _end_i: i32,
-            ) -> Result<Vec<crate::data::interface::TxForRegionRecord>, anyhow::Error> {
+            ) -> Result<Vec<crate::data::interface::TxForRegionRecord>, crate::data::error::Error>
+            {
                 panic!("for test use only");
             }
 
-            fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, anyhow::Error> {
+            fn get_tx_identity_info(
+                &self,
+                tx_ac: &str,
+            ) -> Result<TxIdentityInfo, crate::data::error::Error> {
                 for record in &self.records {
                     if record.accession == tx_ac {
                         return Ok(TxIdentityInfo {
@@ -1243,7 +1236,9 @@ mod test {
                         });
                     }
                 }
-                Err(anyhow::anyhow!("Found no record for accession {}", &tx_ac))
+                Err(crate::data::error::Error::NoSequenceRecord(
+                    tx_ac.to_string(),
+                ))
             }
 
             fn get_tx_info(
@@ -1251,20 +1246,23 @@ mod test {
                 _tx_ac: &str,
                 _alt_ac: &str,
                 _alt_aln_method: &str,
-            ) -> Result<crate::data::interface::TxInfoRecord, anyhow::Error> {
+            ) -> Result<crate::data::interface::TxInfoRecord, crate::data::error::Error>
+            {
                 panic!("for test use only");
             }
 
             fn get_tx_mapping_options(
                 &self,
                 _tx_ac: &str,
-            ) -> Result<Vec<crate::data::interface::TxMappingOptionsRecord>, anyhow::Error>
-            {
+            ) -> Result<
+                Vec<crate::data::interface::TxMappingOptionsRecord>,
+                crate::data::error::Error,
+            > {
                 panic!("for test use only");
             }
         }
 
-        pub fn build_mapper(strict_bounds: bool) -> Result<Mapper, anyhow::Error> {
+        pub fn build_mapper(strict_bounds: bool) -> Result<Mapper, Error> {
             let path = PathBuf::from("tests/data/mapper/sanity_cp.tsv");
             let provider = Rc::new(Provider::new(&path)?);
             let config = Config {
@@ -1275,7 +1273,7 @@ mod test {
         }
     }
 
-    fn test_hgvs_c_to_p_conversion(hgvsc: &str, hgvsp_expected: &str) -> Result<(), anyhow::Error> {
+    fn test_hgvs_c_to_p_conversion(hgvsc: &str, hgvsp_expected: &str) -> Result<(), Error> {
         let mapper = sanity_mock::build_mapper(false)?;
 
         let var_c = HgvsVariant::from_str(hgvsc)?;
@@ -1290,7 +1288,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_silent() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_silent() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.6A>G";
         let hgvsp_expected = "MOCK:p.Lys2=";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1299,7 +1297,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_substitution() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_substitution() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.6A>T";
         let hgvsp_expected = "MOCK:p.Lys2Asn";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1308,7 +1306,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_substitution_introduces_stop_codon() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_substitution_introduces_stop_codon() -> Result<(), Error> {
         let hgvsc = "NM_999996.1:c.8C>A";
         let hgvsp_expected = "MOCK:p.Ser3Ter";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1317,7 +1315,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_substitution_removes_stop_codon() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_substitution_removes_stop_codon() -> Result<(), Error> {
         let hgvsc = "NM_999998.1:c.30G>T";
         let hgvsp_expected = "MOCK:p.Ter10TyrextTer3";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1327,7 +1325,7 @@ mod test {
 
     //xx
     #[test]
-    fn hgvs_c_to_p_insertion_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_insertion_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.6_7insGGG";
         let hgvsp_expected = "MOCK:p.Lys2_Ala3insGly";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1336,7 +1334,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_insertion_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_insertion_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.22_23insT";
         let hgvsp_expected = "MOCK:p.Ala8ValfsTer?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1345,7 +1343,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_adds_stop() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_adds_stop() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.8_9insTT";
         let hgvsp_expected = "MOCK:p.Lys4Ter";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1354,7 +1352,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_deletion_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_deletion_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.10_12del";
         let hgvsp_expected = "MOCK:p.Lys4del";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1363,7 +1361,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_deletion2_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_deletion2_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.4_15del";
         let hgvsp_expected = "MOCK:p.Lys2_Ala5del";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1372,7 +1370,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_deletion3_no_frameshift_c_term() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_deletion3_no_frameshift_c_term() -> Result<(), Error> {
         let hgvsc = "NM_999995.1:c.4_6del";
         let hgvsp_expected = "MOCK:p.Lys3del";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1381,7 +1379,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_deletion4_no_frameshift_c_term() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_deletion4_no_frameshift_c_term() -> Result<(), Error> {
         let hgvsc = "NM_999994.1:c.4_9del";
         let hgvsp_expected = "MOCK:p.Lys3_Lys4del";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1390,7 +1388,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_deletion5_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_deletion5_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999994.1:c.20_25del";
         let hgvsp_expected = "MOCK:p.Ala7_Arg9delinsGly";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1399,7 +1397,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_deletion6_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_deletion6_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.5_7del";
         let hgvsp_expected = "MOCK:p.Lys2_Ala3delinsThr";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1408,7 +1406,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_deletion7_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_deletion7_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999993.1:c.13_24del";
         let hgvsp_expected = "MOCK:p.Arg5_Ala8del";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1417,7 +1415,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_deletion_frameshift_nostop() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_deletion_frameshift_nostop() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.11_12del";
         let hgvsp_expected = "MOCK:p.Lys4SerfsTer?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1426,7 +1424,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_deletion_frameshift_adds_stop() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_deletion_frameshift_adds_stop() -> Result<(), Error> {
         let hgvsc = "NM_999997.1:c.7del";
         let hgvsp_expected = "MOCK:p.Ala3ArgfsTer6";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1435,8 +1433,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_deletion_no_frameshift_removes_stop_plus_previous() -> Result<(), anyhow::Error>
-    {
+    fn hgvs_c_to_p_deletion_no_frameshift_removes_stop_plus_previous() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.25_30del";
         let hgvsp_expected = "MOCK:p.Lys9_Ter10delinsGly";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1445,7 +1442,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_indel_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_indel_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.11_12delinsTCCCA";
         let hgvsp_expected = "MOCK:p.Lys4delinsIlePro";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1454,7 +1451,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_indel2_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_indel2_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.11_18delinsTCCCA";
         let hgvsp_expected = "MOCK:p.Lys4_Phe6delinsIlePro";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1463,7 +1460,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_indel_frameshift_nostop() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_indel_frameshift_nostop() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.8delinsGG";
         let hgvsp_expected = "MOCK:p.Ala3GlyfsTer?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1472,7 +1469,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_dup_1aa_no_frameshift_2() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_dup_1aa_no_frameshift_2() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.10_12dup";
         let hgvsp_expected = "MOCK:p.Lys4dup";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1481,7 +1478,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_dup_1aa_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_dup_1aa_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.16_18dup";
         let hgvsp_expected = "MOCK:p.Phe6dup";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1490,7 +1487,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_dup_2aa_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_dup_2aa_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.16_21dup";
         let hgvsp_expected = "MOCK:p.Phe6_Arg7dup";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1499,7 +1496,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_dup_2aa2_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_dup_2aa2_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999995.1:c.4_6dup";
         let hgvsp_expected = "MOCK:p.Lys3dup";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1508,7 +1505,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_3aa_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_3aa_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.16_24dup";
         let hgvsp_expected = "MOCK:p.Phe6_Ala8dup";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1517,7 +1514,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_dup_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_dup_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.12_13dup";
         let hgvsp_expected = "MOCK:p.Ala5GlufsTer?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1526,7 +1523,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_intron() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_intron() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.12+1G>A";
         let hgvsp_expected = "MOCK:p.?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1535,7 +1532,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_five_prime_utr() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_five_prime_utr() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.-2A>G";
         let hgvsp_expected = "MOCK:p.?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1544,7 +1541,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_three_prime_utr() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_three_prime_utr() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.*3G>A";
         let hgvsp_expected = "MOCK:p.?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1553,7 +1550,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_deletion_into_three_prime_utr_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_deletion_into_three_prime_utr_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.27_*3del";
         let hgvsp_expected = "MOCK:p.Lys9XaafsTer?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1562,7 +1559,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_deletion_into_three_prime_utr_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_deletion_into_three_prime_utr_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999995.1:c.28_*3del";
         let hgvsp_expected = "MOCK:p.Lys10_Ter11delinsArgGlnPheArg";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1571,7 +1568,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_delins_into_three_prime_utr_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_delins_into_three_prime_utr_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999995.1:c.28_*3delinsGGG";
         let hgvsp_expected = "MOCK:p.Lys10_Ter11delinsGlyArgGlnPheArg";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1582,7 +1579,7 @@ mod test {
     /// See recommendations re p.? (p.Met1?) at:
     /// http://varnomen.hgvs.org/recommendations/protein/variant/substitution/
     #[test]
-    fn hgvs_c_to_p_substitution_removes_start_codon() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_substitution_removes_start_codon() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.1A>G";
         let hgvsp_expected = "MOCK:p.Met1?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1591,7 +1588,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_deletion_from_five_prime_utr_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_deletion_from_five_prime_utr_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.-3_1del";
         let hgvsp_expected = "MOCK:p.Met1?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1600,7 +1597,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_deletion_from_five_prime_utr_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_deletion_from_five_prime_utr_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.-3_3del";
         let hgvsp_expected = "MOCK:p.Met1?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1609,7 +1606,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_delins_from_five_prime_utr_no_frameshift() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_delins_from_five_prime_utr_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.-3_3delinsAAA";
         let hgvsp_expected = "MOCK:p.Met1?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1618,7 +1615,7 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_delete_entire_gene() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_delete_entire_gene() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.-3_*1del";
         let hgvsp_expected = "MOCK:p.0?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1630,7 +1627,7 @@ mod test {
     /// that does not handle multiple stop codons in the transcript sequence as
     /// conservatively as the Python version.
     #[test]
-    fn hgvs_c_to_p_multiple_stop_codons() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_multiple_stop_codons() -> Result<(), Error> {
         let hgvsc = "NM_999992.1:c.4G>A";
         let hgvsp_expected = "MOCK:p.?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
@@ -1650,7 +1647,7 @@ mod test {
     //   the seqrepo are cached
 
     #[test]
-    fn hgvs_c_to_p_format() -> Result<(), anyhow::Error> {
+    fn hgvs_c_to_p_format() -> Result<(), Error> {
         let mapper = build_mapper()?;
         // gene SIL1
         let hgvs_c = "NM_022464.4:c.3G>A";
@@ -1668,6 +1665,7 @@ mod test {
     }
 
     mod gcp_tests {
+        use anyhow::Error;
         use std::path::Path;
 
         #[derive(Debug, serde::Deserialize)]
@@ -1683,7 +1681,7 @@ mod test {
             pub alternatives: Option<String>,
         }
 
-        pub fn load_records(path: &Path) -> Result<Vec<Record>, anyhow::Error> {
+        pub fn load_records(path: &Path) -> Result<Vec<Record>, Error> {
             let mut records = Vec::new();
 
             let mut rdr = csv::ReaderBuilder::new()
@@ -1704,7 +1702,7 @@ mod test {
     }
 
     #[test]
-    fn cp_real() -> Result<(), anyhow::Error> {
+    fn cp_real() -> Result<(), Error> {
         let mapper = build_mapper()?;
         let path = PathBuf::from("tests/data/mapper/real_cp.tsv");
         let records = gcp_tests::load_records(&path)?;
@@ -1735,7 +1733,7 @@ mod test {
 
     // The following tests correspond to those in `test_hgvs_variantmapper_gcp.py`.
 
-    fn run_gxp_test(path: &str, noref: bool) -> Result<(), anyhow::Error> {
+    fn run_gxp_test(path: &str, noref: bool) -> Result<(), Error> {
         fn rm_del_seq(var: &HgvsVariant, noref: bool) -> String {
             let tmp = if noref {
                 format!("{}", &NoRef(var))
@@ -1821,7 +1819,7 @@ mod test {
             if let Some(var_p) = &var_p {
                 // c -> p
                 let hgvs_p_exp = format!("{var_p}");
-                let var_p_test = mapper.c_to_p(&var_x, Some(var_p.accession().deref()))?;
+                let var_p_test = mapper.c_to_p(&var_x, Some(var_p.accession()))?;
 
                 // TODO: if expected value isn't uncertain, strip uncertain from test
                 // if var_p.posedit and not var_p.posedit.uncertain:
@@ -1847,79 +1845,79 @@ mod test {
     }
 
     #[test]
-    fn zcchc3_dbsnp() -> Result<(), anyhow::Error> {
+    fn zcchc3_dbsnp() -> Result<(), Error> {
         run_gxp_test("tests/data/mapper/gcp/ZCCHC3-dbSNP.tsv", false)
     }
 
     #[test]
-    fn orai1_dbsnp() -> Result<(), anyhow::Error> {
+    fn orai1_dbsnp() -> Result<(), Error> {
         run_gxp_test("tests/data/mapper/gcp/ORAI1-dbSNP.tsv", false)
     }
 
     #[test]
-    fn folr3_dbsnp() -> Result<(), anyhow::Error> {
+    fn folr3_dbsnp() -> Result<(), Error> {
         run_gxp_test("tests/data/mapper/gcp/FOLR3-dbSNP.tsv", false)
     }
 
     #[test]
-    fn adra2b_dbsnp() -> Result<(), anyhow::Error> {
+    fn adra2b_dbsnp() -> Result<(), Error> {
         run_gxp_test("tests/data/mapper/gcp/ADRA2B-dbSNP.tsv", false)
     }
 
     #[test]
-    fn jrk_dbsnp() -> Result<(), anyhow::Error> {
+    fn jrk_dbsnp() -> Result<(), Error> {
         run_gxp_test("tests/data/mapper/gcp/JRK-dbSNP.tsv", false)
     }
 
     #[test]
-    fn nefl_dbsnp() -> Result<(), anyhow::Error> {
+    fn nefl_dbsnp() -> Result<(), Error> {
         run_gxp_test("tests/data/mapper/gcp/NEFL-dbSNP.tsv", false)
     }
 
     #[test]
-    fn dnah11_hgmd() -> Result<(), anyhow::Error> {
+    fn dnah11_hgmd() -> Result<(), Error> {
         run_gxp_test("tests/data/mapper/gcp/DNAH11-HGMD.tsv", true)
     }
 
     #[test]
-    fn dnah11_dbsnp_nm_003777() -> Result<(), anyhow::Error> {
+    fn dnah11_dbsnp_nm_003777() -> Result<(), Error> {
         run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP-NM_003777.tsv", false)
     }
 
     #[test]
-    fn dnah11_db_snp_nm_001277115() -> Result<(), anyhow::Error> {
+    fn dnah11_db_snp_nm_001277115() -> Result<(), Error> {
         run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP-NM_001277115.tsv", false)
     }
 
     #[test]
-    fn regression() -> Result<(), anyhow::Error> {
+    fn regression() -> Result<(), Error> {
         run_gxp_test("tests/data/mapper/gcp/regression.tsv", false)
     }
 
     #[ignore]
     #[test]
-    fn dnah11_db_snp_full() -> Result<(), anyhow::Error> {
+    fn dnah11_db_snp_full() -> Result<(), Error> {
         run_gxp_test("tests/data/mapper/gcp/DNAH11-dbSNP.tsv", false)
     }
 
     #[test]
-    fn real() -> Result<(), anyhow::Error> {
+    fn real() -> Result<(), Error> {
         run_gxp_test("tests/data/mapper/gcp/real.tsv", false)
     }
 
     /// Check for issues with variants affecting `Met1` leading to `p.Met1?`.
     #[test]
-    fn real_met1() -> Result<(), anyhow::Error> {
+    fn real_met1() -> Result<(), Error> {
         run_gxp_test("tests/data/mapper/gcp/real-met1.tsv", false)
     }
 
     #[test]
-    fn noncoding() -> Result<(), anyhow::Error> {
+    fn noncoding() -> Result<(), Error> {
         run_gxp_test("tests/data/mapper/gcp/noncoding.tsv", false)
     }
 
     // #[test]
-    // fn case() -> Result<(), anyhow::Error> {
+    // fn case() -> Result<(), Error> {
     //     let mapper = build_mapper()?;
 
     //     let s_c = "NM_000425.3:c.3772dupT";

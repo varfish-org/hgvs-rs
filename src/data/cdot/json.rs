@@ -5,6 +5,7 @@
 use std::{collections::HashMap, path::PathBuf, rc::Rc, time::Instant};
 
 use crate::{
+    data::error::Error,
     data::interface::{
         GeneInfoRecord, Provider as ProviderInterface, TxExonsRecord, TxForRegionRecord,
         TxIdentityInfo, TxInfoRecord, TxMappingOptionsRecord, TxSimilarityRecord,
@@ -45,23 +46,17 @@ pub struct Provider {
 }
 
 impl Provider {
-    pub fn new(config: Config) -> Result<Self, anyhow::Error> {
+    pub fn new(config: Config) -> Result<Self, Error> {
         let seqrepo = PathBuf::from(&config.seqrepo_path);
         let path = seqrepo
             .parent()
-            .ok_or(anyhow::anyhow!(
-                "Could not get parent from {}",
-                &config.seqrepo_path
-            ))?
+            .ok_or(Error::PathParent(config.seqrepo_path.clone()))?
             .to_str()
             .expect("problem with path to string conversion")
             .to_string();
         let instance = seqrepo
             .file_name()
-            .ok_or(anyhow::anyhow!(
-                "Could not get basename from {}",
-                &config.seqrepo_path
-            ))?
+            .ok_or(Error::PathBasename(config.seqrepo_path.clone()))?
             .to_str()
             .expect("problem with path to string conversion")
             .to_string();
@@ -83,7 +78,7 @@ impl Provider {
     pub fn with_seqrepo(
         config: Config,
         seqrepo: Rc<dyn SeqRepoInterface>,
-    ) -> Result<Provider, anyhow::Error> {
+    ) -> Result<Provider, Error> {
         Ok(Self {
             inner: TxProvider::with_config(
                 config
@@ -114,11 +109,11 @@ impl ProviderInterface for Provider {
         self.inner.get_assembly_map(assembly)
     }
 
-    fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, anyhow::Error> {
+    fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, Error> {
         self.inner.get_gene_info(hgnc)
     }
 
-    fn get_pro_ac_for_tx_ac(&self, tx_ac: &str) -> Result<Option<String>, anyhow::Error> {
+    fn get_pro_ac_for_tx_ac(&self, tx_ac: &str) -> Result<Option<String>, Error> {
         self.inner.get_pro_ac_for_tx_ac(tx_ac)
     }
 
@@ -127,25 +122,24 @@ impl ProviderInterface for Provider {
         ac: &str,
         begin: Option<usize>,
         end: Option<usize>,
-    ) -> Result<String, anyhow::Error> {
-        self.seqrepo.fetch_sequence_part(
-            &seqrepo::AliasOrSeqId::Alias {
-                value: ac.to_string(),
-                namespace: None,
-            },
-            begin,
-            end,
-        )
+    ) -> Result<String, Error> {
+        self.seqrepo
+            .fetch_sequence_part(
+                &seqrepo::AliasOrSeqId::Alias {
+                    value: ac.to_string(),
+                    namespace: None,
+                },
+                begin,
+                end,
+            )
+            .map_err(Error::SeqRepoError)
     }
 
-    fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, anyhow::Error> {
+    fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, Error> {
         self.inner.get_acs_for_protein_seq(seq)
     }
 
-    fn get_similar_transcripts(
-        &self,
-        tx_ac: &str,
-    ) -> Result<Vec<TxSimilarityRecord>, anyhow::Error> {
+    fn get_similar_transcripts(&self, tx_ac: &str) -> Result<Vec<TxSimilarityRecord>, Error> {
         self.inner.get_similar_transcripts(tx_ac)
     }
 
@@ -154,11 +148,11 @@ impl ProviderInterface for Provider {
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<Vec<TxExonsRecord>, anyhow::Error> {
+    ) -> Result<Vec<TxExonsRecord>, Error> {
         self.inner.get_tx_exons(tx_ac, alt_ac, alt_aln_method)
     }
 
-    fn get_tx_for_gene(&self, gene: &str) -> Result<Vec<TxInfoRecord>, anyhow::Error> {
+    fn get_tx_for_gene(&self, gene: &str) -> Result<Vec<TxInfoRecord>, Error> {
         self.inner.get_tx_for_gene(gene)
     }
 
@@ -168,12 +162,12 @@ impl ProviderInterface for Provider {
         alt_aln_method: &str,
         start_i: i32,
         end_i: i32,
-    ) -> Result<Vec<TxForRegionRecord>, anyhow::Error> {
+    ) -> Result<Vec<TxForRegionRecord>, Error> {
         self.inner
             .get_tx_for_region(alt_ac, alt_aln_method, start_i, end_i)
     }
 
-    fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, anyhow::Error> {
+    fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, Error> {
         self.inner.get_tx_identity_info(tx_ac)
     }
 
@@ -182,14 +176,11 @@ impl ProviderInterface for Provider {
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<TxInfoRecord, anyhow::Error> {
+    ) -> Result<TxInfoRecord, Error> {
         self.inner.get_tx_info(tx_ac, alt_ac, alt_aln_method)
     }
 
-    fn get_tx_mapping_options(
-        &self,
-        tx_ac: &str,
-    ) -> Result<Vec<TxMappingOptionsRecord>, anyhow::Error> {
+    fn get_tx_mapping_options(&self, tx_ac: &str) -> Result<Vec<TxMappingOptionsRecord>, Error> {
         self.inner.get_tx_mapping_options(tx_ac)
     }
 }
@@ -546,7 +537,7 @@ struct TxProvider {
 
 /// "Normal" associated functions and methods.
 impl TxProvider {
-    fn with_config(json_paths: &[&str]) -> Result<Self, anyhow::Error> {
+    fn with_config(json_paths: &[&str]) -> Result<Self, Error> {
         let mut genes = HashMap::new();
         let mut transcripts = HashMap::new();
         let mut transcript_ids_for_gene = HashMap::new();
@@ -582,7 +573,7 @@ impl TxProvider {
         transcript_ids_for_gene: &mut HashMap<String, Vec<String>>,
         genes: &mut HashMap<String, models::Gene>,
         transcripts: &mut HashMap<String, models::Transcript>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), Error> {
         log::debug!("Loading cdot transcripts from {:?}", json_path);
         let start = Instant::now();
         let models::Container {
@@ -591,10 +582,16 @@ impl TxProvider {
             ..
         } = if json_path.ends_with(".gz") {
             serde_json::from_reader(flate2::bufread::GzDecoder::new(std::io::BufReader::new(
-                std::fs::File::open(json_path)?,
-            )))?
+                std::fs::File::open(json_path)
+                    .map_err(|_e| Error::CdotJsonOpen(json_path.to_string()))?,
+            )))
+            .map_err(|_e| Error::CdotJsonParse(json_path.to_string()))?
         } else {
-            serde_json::from_reader(std::io::BufReader::new(std::fs::File::open(json_path)?))?
+            serde_json::from_reader(std::io::BufReader::new(
+                std::fs::File::open(json_path)
+                    .map_err(|_e| Error::CdotJsonOpen(json_path.to_string()))?,
+            ))
+            .map_err(|_e| Error::CdotJsonParse(json_path.to_string()))?
         };
         log::debug!(
             "loading / deserializing {} genes and {} transcripts from cdot took {:?}",
@@ -721,11 +718,11 @@ impl TxProvider {
         )
     }
 
-    fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, anyhow::Error> {
+    fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, Error> {
         let gene = self
             .genes
             .get(hgnc)
-            .ok_or(anyhow::anyhow!("No gene found for {:?}", hgnc))?;
+            .ok_or(Error::NoGeneFound(hgnc.to_string()))?;
 
         Ok(GeneInfoRecord {
             hgnc: gene
@@ -749,11 +746,11 @@ impl TxProvider {
         })
     }
 
-    fn get_pro_ac_for_tx_ac(&self, tx_ac: &str) -> Result<Option<String>, anyhow::Error> {
+    fn get_pro_ac_for_tx_ac(&self, tx_ac: &str) -> Result<Option<String>, Error> {
         let transcript = self
             .transcripts
             .get(tx_ac)
-            .ok_or(anyhow::anyhow!("No transcript found for {:?}", &tx_ac))?;
+            .ok_or(Error::NoTranscriptFound(tx_ac.to_string()))?;
         Ok(transcript.protein.clone())
     }
 
@@ -762,7 +759,7 @@ impl TxProvider {
     /// This is not implemented. The only caller has comment: 'TODO: drop get_acs_for_protein_seq'
     /// And is only ever called as a backup when get_pro_ac_for_tx_ac fails
     #[allow(dead_code)]
-    fn get_acs_for_protein_seq(&self, _seq: &str) -> Result<Vec<String>, anyhow::Error> {
+    fn get_acs_for_protein_seq(&self, _seq: &str) -> Result<Vec<String>, Error> {
         log::warn!(
             "cdot::data::json::TxProvider::get_acs_for_protein_seq() \
             This has not been implemented"
@@ -775,10 +772,7 @@ impl TxProvider {
     /// UTA specific functionality that uses tx_similarity_v table
     /// This is not used by the HGVS library
     #[allow(dead_code)]
-    fn get_similar_transcripts(
-        &self,
-        _tx_ac: &str,
-    ) -> Result<Vec<TxSimilarityRecord>, anyhow::Error> {
+    fn get_similar_transcripts(&self, _tx_ac: &str) -> Result<Vec<TxSimilarityRecord>, Error> {
         log::warn!(
             "cdot::data::json::TxProvider::get_similar_transcripts() \
             This has not been implemented"
@@ -791,11 +785,11 @@ impl TxProvider {
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<Vec<TxExonsRecord>, anyhow::Error> {
-        let tx = self.transcripts.get(tx_ac).ok_or(anyhow::anyhow!(
-            "Could not find transcript for {:?}",
-            &tx_ac
-        ))?;
+    ) -> Result<Vec<TxExonsRecord>, Error> {
+        let tx = self
+            .transcripts
+            .get(tx_ac)
+            .ok_or(Error::NoTranscriptFound(tx_ac.to_string()))?;
 
         let genome_alignment = tx
             .genome_builds
@@ -834,15 +828,14 @@ impl TxProvider {
                 })
                 .collect())
         } else {
-            Err(anyhow::anyhow!(
-                "Could not find alignment of {:?} to {:?}",
-                tx_ac,
-                alt_ac
+            Err(Error::NoAlignmentFound(
+                tx_ac.to_string(),
+                alt_ac.to_string(),
             ))
         }
     }
 
-    fn get_tx_for_gene(&self, gene: &str) -> Result<Vec<TxInfoRecord>, anyhow::Error> {
+    fn get_tx_for_gene(&self, gene: &str) -> Result<Vec<TxInfoRecord>, Error> {
         if let Some(tx_acs) = self.transcript_ids_for_gene.get(gene) {
             let mut tmp = Vec::new();
             for tx_ac in tx_acs {
@@ -895,7 +888,7 @@ impl TxProvider {
         alt_aln_method: &str,
         start_i: i32,
         end_i: i32,
-    ) -> Result<Vec<TxForRegionRecord>, anyhow::Error> {
+    ) -> Result<Vec<TxForRegionRecord>, Error> {
         if alt_aln_method != NCBI_ALN_METHOD {
             return Ok(Vec::new());
         }
@@ -950,11 +943,11 @@ impl TxProvider {
         }
     }
 
-    fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, anyhow::Error> {
-        let tx = self.transcripts.get(tx_ac).ok_or(anyhow::anyhow!(
-            "Could not find transcript for {:?}",
-            &tx_ac
-        ))?;
+    fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, Error> {
+        let tx = self
+            .transcripts
+            .get(tx_ac)
+            .ok_or(Error::NoTranscriptFound(tx_ac.to_string()))?;
 
         let hgnc = tx
             .gene_name
@@ -990,11 +983,11 @@ impl TxProvider {
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<TxInfoRecord, anyhow::Error> {
-        let tx = self.transcripts.get(tx_ac).ok_or(anyhow::anyhow!(
-            "Could not find transcript for {:?}",
-            &tx_ac
-        ))?;
+    ) -> Result<TxInfoRecord, Error> {
+        let tx = self
+            .transcripts
+            .get(tx_ac)
+            .ok_or(Error::NoTranscriptFound(tx_ac.to_string()))?;
 
         Ok(TxInfoRecord {
             hgnc: tx
@@ -1010,14 +1003,11 @@ impl TxProvider {
         })
     }
 
-    fn get_tx_mapping_options(
-        &self,
-        tx_ac: &str,
-    ) -> Result<Vec<TxMappingOptionsRecord>, anyhow::Error> {
-        let tx = self.transcripts.get(tx_ac).ok_or(anyhow::anyhow!(
-            "Could not find transcript for {:?}",
-            &tx_ac
-        ))?;
+    fn get_tx_mapping_options(&self, tx_ac: &str) -> Result<Vec<TxMappingOptionsRecord>, Error> {
+        let tx = self
+            .transcripts
+            .get(tx_ac)
+            .ok_or(Error::NoTranscriptFound(tx_ac.to_string()))?;
 
         Ok(tx
             .genome_builds
@@ -1031,7 +1021,9 @@ impl TxProvider {
     }
 }
 
+#[cfg(test)]
 pub mod test_helpers {
+    use anyhow::Error;
     use std::rc::Rc;
 
     use crate::data::uta_sr::test_helpers::build_writing_sr;
@@ -1039,7 +1031,7 @@ pub mod test_helpers {
     use super::{Config, Provider};
     use seqrepo::{CacheReadingSeqRepo, Interface as SeqRepoInterface};
 
-    pub fn build_provider() -> Result<Provider, anyhow::Error> {
+    pub fn build_provider() -> Result<Provider, Error> {
         let sr_cache_mode = std::env::var("TEST_SEQREPO_CACHE_MODE")
             .expect("Environment variable TEST_SEQREPO_CACHE_MODE undefined!");
         let sr_cache_path = std::env::var("TEST_SEQREPO_CACHE_PATH")
@@ -1067,12 +1059,13 @@ pub mod test_helpers {
             seqrepo_path: String::from("nonexisting"),
         };
         // Note that we don't actually use the seqrepo instance except for initializing the provider.
-        Provider::with_seqrepo(config, seqrepo)
+        Provider::with_seqrepo(config, seqrepo).map_err(|e| anyhow::anyhow!(e))
     }
 }
 
 #[cfg(test)]
 pub mod tests {
+    use anyhow::Error;
     use std::rc::Rc;
     use std::str::FromStr;
 
@@ -1091,7 +1084,7 @@ pub mod tests {
     use crate::static_data::Assembly;
 
     #[test]
-    fn deserialize_brca1() -> Result<(), anyhow::Error> {
+    fn deserialize_brca1() -> Result<(), Error> {
         let json = std::fs::read_to_string(
             "tests/data/data/cdot/cdot-0.2.12.refseq.grch37_grch38.brca1.json",
         )?;
@@ -1116,7 +1109,7 @@ pub mod tests {
     /// Deserialization of the big cdot files for benchmarking.
     #[cfg(deserialization_tests)]
     #[test]
-    fn deserialize_big_files() -> Result<(), anyhow::Error> {
+    fn deserialize_big_files() -> Result<(), Error> {
         let before = std::time::Instant::now();
         println!("ensembl...");
         let _ensembl: Container =
@@ -1137,13 +1130,13 @@ pub mod tests {
     }
 
     #[test]
-    fn provider_brca1_smoke() -> Result<(), anyhow::Error> {
+    fn provider_brca1_smoke() -> Result<(), Error> {
         build_provider()?;
         Ok(())
     }
 
     #[test]
-    fn provider_versions() -> Result<(), anyhow::Error> {
+    fn provider_versions() -> Result<(), Error> {
         let provider = build_provider()?;
 
         assert_eq!(provider.data_version(), "1.1");
@@ -1153,7 +1146,7 @@ pub mod tests {
     }
 
     #[test]
-    fn provider_get_assembly_map() -> Result<(), anyhow::Error> {
+    fn provider_get_assembly_map() -> Result<(), Error> {
         let provider = build_provider()?;
         assert_eq!(provider.get_assembly_map(Assembly::Grch37p10).len(), 275);
         assert_eq!(provider.get_assembly_map(Assembly::Grch38).len(), 455);
@@ -1162,7 +1155,7 @@ pub mod tests {
     }
 
     #[test]
-    fn provider_get_gene_info() -> Result<(), anyhow::Error> {
+    fn provider_get_gene_info() -> Result<(), Error> {
         let provider = build_provider()?;
 
         assert!(provider.get_gene_info("BRCA2").is_err());
@@ -1193,7 +1186,7 @@ pub mod tests {
     }
 
     #[test]
-    fn provider_get_pro_ac_for_tx_ac() -> Result<(), anyhow::Error> {
+    fn provider_get_pro_ac_for_tx_ac() -> Result<(), Error> {
         let provider = build_provider()?;
 
         assert!(provider.get_pro_ac_for_tx_ac("NM_007294.0").is_err());
@@ -1207,7 +1200,7 @@ pub mod tests {
     }
 
     #[test]
-    fn provider_get_acs_for_protein_seq() -> Result<(), anyhow::Error> {
+    fn provider_get_acs_for_protein_seq() -> Result<(), Error> {
         let provider = build_provider()?;
 
         assert_eq!(
@@ -1219,7 +1212,7 @@ pub mod tests {
     }
 
     #[test]
-    fn provider_get_similar_transcripts() -> Result<(), anyhow::Error> {
+    fn provider_get_similar_transcripts() -> Result<(), Error> {
         let provider = build_provider()?;
 
         assert_eq!(
@@ -1231,7 +1224,7 @@ pub mod tests {
     }
 
     #[test]
-    fn provider_get_tx_exons() -> Result<(), anyhow::Error> {
+    fn provider_get_tx_exons() -> Result<(), Error> {
         let provider = build_provider()?;
 
         let result = provider.get_tx_exons("NM_007294.3", "NC_000017.10", "splign")?;
@@ -1705,7 +1698,7 @@ pub mod tests {
     }
 
     #[test]
-    fn provider_get_tx_for_gene() -> Result<(), anyhow::Error> {
+    fn provider_get_tx_for_gene() -> Result<(), Error> {
         let provider = build_provider()?;
 
         let result = provider.get_tx_for_gene("BRCA1")?;
@@ -1999,7 +1992,7 @@ pub mod tests {
     }
 
     #[test]
-    fn provider_get_tx_for_region_empty() -> Result<(), anyhow::Error> {
+    fn provider_get_tx_for_region_empty() -> Result<(), Error> {
         let provider = build_provider()?;
 
         let result =
@@ -2013,7 +2006,7 @@ pub mod tests {
     }
 
     #[test]
-    fn provider_get_tx_for_region_brca1() -> Result<(), anyhow::Error> {
+    fn provider_get_tx_for_region_brca1() -> Result<(), Error> {
         let provider = build_provider()?;
 
         let result = provider.get_tx_for_region("NC_000017.10", "splign", 41196311, 41197819)?;
@@ -2115,7 +2108,7 @@ pub mod tests {
     }
 
     #[test]
-    fn provider_get_tx_info() -> Result<(), anyhow::Error> {
+    fn provider_get_tx_info() -> Result<(), Error> {
         let provider = build_provider()?;
 
         let result = provider.get_tx_info("NM_007294.3", "NC_000017.10", "splign")?;
@@ -2135,7 +2128,7 @@ pub mod tests {
     }
 
     #[test]
-    fn provider_get_tx_mapping_options() -> Result<(), anyhow::Error> {
+    fn provider_get_tx_mapping_options() -> Result<(), Error> {
         let provider = build_provider()?;
 
         let result = provider.get_tx_mapping_options("NM_007294.3")?;
@@ -2158,7 +2151,7 @@ pub mod tests {
         Ok(())
     }
 
-    fn build_mapper_37(normalize: bool) -> Result<Mapper, anyhow::Error> {
+    fn build_mapper_37(normalize: bool) -> Result<Mapper, Error> {
         let provider = Rc::new(build_provider()?);
         let config = AssemblyMapperConfig {
             assembly: Assembly::Grch37,
@@ -2169,7 +2162,7 @@ pub mod tests {
     }
 
     #[test]
-    fn mapper_brca1_g_c() -> Result<(), anyhow::Error> {
+    fn mapper_brca1_g_c() -> Result<(), Error> {
         let mapper = build_mapper_37(false)?;
         let hgvs_g = "NC_000017.10:g.41197701G>C";
         let hgvs_n = "NM_007294.4:n.5699C>G";

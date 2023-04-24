@@ -2,6 +2,7 @@
 
 use std::ops::{Deref, Range};
 
+use crate::parser::error::Error;
 use log::warn;
 
 /// Expression of "maybe uncertain".
@@ -604,7 +605,7 @@ pub struct CdsInterval {
 }
 
 impl TryFrom<CdsInterval> for Range<i32> {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     /// The CDS interval will be converted from 1-based inclusive coordinates
     /// `[start, end]` to 0-based, half-open Rust range `[start - 1, end)`.
@@ -613,9 +614,7 @@ impl TryFrom<CdsInterval> for Range<i32> {
             warn!("Converting interval {:?} with offset to range!", &value);
         }
         if value.start.cds_from != value.end.cds_from {
-            Err(anyhow::anyhow!(
-                "Conversion of interval with different offsets (CDS start/end) is ill-defined"
-            ))
+            Err(Error::IllDefinedConversion(format!("{:?}", value)))
         } else {
             Ok(if value.start.base > 0 {
                 (value.start.base - 1)..value.end.base
@@ -688,7 +687,7 @@ pub struct GenomeInterval {
 }
 
 impl TryInto<Range<i32>> for GenomeInterval {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     /// The genome interval will be converted from 1-based inclusive coordinates
     /// `[start, end]` to 0-based, half-open Rust range `[start - 1, end)`.
@@ -696,10 +695,7 @@ impl TryInto<Range<i32>> for GenomeInterval {
         if let (Some(start), Some(end)) = (self.start, self.end) {
             Ok((start - 1)..end)
         } else {
-            Err(anyhow::anyhow!(
-                "Cannot convert interval with None position into range: {:?}",
-                self
-            ))
+            Err(Error::CannotNonePositionIntoRange(format!("{:?}", self)))
         }
     }
 }
@@ -746,7 +742,7 @@ pub struct MtInterval {
 }
 
 impl TryInto<Range<i32>> for MtInterval {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     /// The MT interval will be converted from 1-based inclusive coordinates
     /// `[start, end]` to 0-based, half-open Rust range `[start - 1, end)`.
@@ -754,10 +750,7 @@ impl TryInto<Range<i32>> for MtInterval {
         if let (Some(start), Some(end)) = (self.start, self.end) {
             Ok((start - 1)..end)
         } else {
-            Err(anyhow::anyhow!(
-                "Cannot convert interval with None position into range: {:?}",
-                self
-            ))
+            Err(Error::CannotNonePositionIntoRange(format!("{:?}", self)))
         }
     }
 }

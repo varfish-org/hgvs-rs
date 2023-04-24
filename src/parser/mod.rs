@@ -6,6 +6,7 @@
 
 mod display;
 mod ds;
+mod error;
 mod impl_parse;
 mod impl_validate;
 mod parse_funcs;
@@ -14,50 +15,52 @@ use std::str::FromStr;
 
 pub use crate::parser::display::*;
 pub use crate::parser::ds::*;
+pub use crate::parser::error::*;
 use crate::parser::impl_parse::*;
 
 impl FromStr for HgvsVariant {
-    type Err = anyhow::Error;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s)
-            .map_err(|e| anyhow::anyhow!("problem parsing HGVS string {:?}", &e))
+            .map_err(|_e| Error::InvalidHgvsVariant(s.to_string()))
             .map(|(_rest, variant)| variant)
     }
 }
 
 impl FromStr for GenomeInterval {
-    type Err = anyhow::Error;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s)
-            .map_err(|e| anyhow::anyhow!("problem with parsing HGVS genome interval: {:?}", &e))
+            .map_err(|_e| Error::InvalidGenomeInterval(s.to_string()))
             .map(|(_rest, g_interval)| g_interval)
     }
 }
 
 impl FromStr for TxInterval {
-    type Err = anyhow::Error;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s)
-            .map_err(|e| anyhow::anyhow!("problem with parsing HGVS transcript interval: {:?}", &e))
+            .map_err(|_e| Error::InvalidTxInterval(s.to_string()))
             .map(|(_rest, g_interval)| g_interval)
     }
 }
 
 impl FromStr for CdsInterval {
-    type Err = anyhow::Error;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s)
-            .map_err(|e| anyhow::anyhow!("problem with parsing HGVS CDS interval: {:?}", &e))
+            .map_err(|_e| Error::InvalidCdsInterval(s.to_string()))
             .map(|(_rest, g_interval)| g_interval)
     }
 }
 
 #[cfg(test)]
 mod test {
+    use anyhow::Error;
     use std::{
         fs::File,
         io::{BufRead, BufReader},
@@ -71,7 +74,7 @@ mod test {
     use super::HgvsVariant;
 
     #[test]
-    fn from_str_basic() -> Result<(), anyhow::Error> {
+    fn from_str_basic() -> Result<(), Error> {
         assert_eq!(
             HgvsVariant::from_str("NM_01234.5:c.22+1A>T")?,
             HgvsVariant::CdsVariant {
@@ -104,7 +107,7 @@ mod test {
     }
 
     #[test]
-    fn not_ok() -> Result<(), anyhow::Error> {
+    fn not_ok() -> Result<(), Error> {
         assert!(HgvsVariant::from_str("x").is_err());
 
         Ok(())
@@ -112,7 +115,7 @@ mod test {
 
     // This test uses the "gauntlet" file from the hgvs package.
     #[test]
-    fn hgvs_gauntlet() -> Result<(), anyhow::Error> {
+    fn hgvs_gauntlet() -> Result<(), Error> {
         let reader = BufReader::new(File::open("tests/data/parser/gauntlet")?);
 
         for line in reader.lines() {
@@ -129,7 +132,7 @@ mod test {
 
     // This test uses the "reject" file from the hgvs package.
     #[test]
-    fn hgvs_reject() -> Result<(), anyhow::Error> {
+    fn hgvs_reject() -> Result<(), Error> {
         let reader = BufReader::new(File::open("tests/data/parser/reject")?);
 
         for line in reader.lines() {
@@ -145,7 +148,7 @@ mod test {
 
     // Test genome interval parsing.
     #[test]
-    fn genome_interval_from_str() -> Result<(), anyhow::Error> {
+    fn genome_interval_from_str() -> Result<(), Error> {
         assert!(GenomeInterval::from_str("x").is_err());
         assert_eq!(
             GenomeInterval::from_str("1")?,

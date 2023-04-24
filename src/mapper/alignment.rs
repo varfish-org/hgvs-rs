@@ -26,6 +26,7 @@ use std::rc::Rc;
 
 use crate::{
     data::interface::{Provider, TxExonsRecord},
+    mapper::Error,
     parser::{CdsInterval, CdsPos, GenomeInterval, Mu, TxInterval, TxPos},
 };
 
@@ -56,18 +57,13 @@ fn hgvs_to_zbc(i: i32) -> i32 {
 ///
 /// The input exons are expected to be in transcript order, and the resulting CIGAR is also
 /// in transcript order.
-pub fn build_tx_cigar(
-    exons: &Vec<TxExonsRecord>,
-    strand: i16,
-) -> Result<CigarString, anyhow::Error> {
+pub fn build_tx_cigar(exons: &Vec<TxExonsRecord>, strand: i16) -> Result<CigarString, Error> {
     if exons.is_empty() {
-        return Err(anyhow::anyhow!(
-            "Cannot build CIGAR string from empty exons"
-        ));
+        return Err(Error::EmptyExons);
     }
 
     // Parse CIGAR string and flip if on reverse strand.
-    let exon_cigars: Result<Vec<CigarString>, anyhow::Error> = exons
+    let exon_cigars: Result<Vec<CigarString>, Error> = exons
         .iter()
         .map(|record| {
             let mut cigar = parse_cigar_string(&record.cigar)?;
@@ -146,7 +142,7 @@ impl Mapper {
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<Mapper, anyhow::Error> {
+    ) -> Result<Mapper, Error> {
         let config = config.clone();
         let (strand, gc_offset, cds_start_i, cds_end_i, tgt_len, cigar_mapper) = if alt_aln_method
             != "transcript"
@@ -155,11 +151,10 @@ impl Mapper {
             let tx_exons = {
                 let tx_exons = provider.get_tx_exons(tx_ac, alt_ac, alt_aln_method)?;
                 if tx_exons.is_empty() {
-                    return Err(anyhow::anyhow!(
-                        "Found no exons for tx_ac={}, alt_ac={}, alt_aln_method={}",
-                        tx_ac,
-                        alt_ac,
-                        alt_aln_method
+                    return Err(Error::NoExons(
+                        tx_ac.to_string(),
+                        alt_ac.to_string(),
+                        alt_aln_method.to_string(),
                     ));
                 }
 
@@ -177,12 +172,11 @@ impl Mapper {
                     })
                     .collect::<Vec<_>>();
                 if !offenders.is_empty() {
-                    return Err(anyhow::anyhow!(
-                        "Non-adjacent exons for tx_acc={}, alt_acc={}, alt_aln_method={}: {:#?}",
-                        tx_ac,
-                        alt_ac,
-                        alt_aln_method,
-                        &offenders
+                    return Err(Error::NonAdjacentExons(
+                        tx_ac.to_string(),
+                        alt_ac.to_string(),
+                        alt_aln_method.to_string(),
+                        format!("{:?}", offenders),
                     ));
                 }
 
@@ -195,9 +189,7 @@ impl Mapper {
             let cds_end_i = tx_info.cds_end_i;
 
             if cds_start_i.is_none() != cds_end_i.is_none() {
-                return Err(anyhow::anyhow!(
-                    "CDS start and end must both be defined or undefined"
-                ));
+                return Err(Error::InconsistentCdsStartEnd);
             }
 
             let cigar = build_tx_cigar(&tx_exons, strand)?;
@@ -231,9 +223,7 @@ impl Mapper {
         };
 
         if cds_start_i.is_none() != cds_end_i.is_none() {
-            return Err(anyhow::anyhow!(
-                "CDs start and end position but be both or neither defined."
-            ));
+            return Err(Error::InconsistentCdsStartEnd);
         }
 
         Ok(Mapper {
@@ -252,7 +242,7 @@ impl Mapper {
     }
 
     /// Convert a genomic (g.) interval to a transcript (n.) interval.
-    pub fn g_to_n(&self, g_interval: &GenomeInterval) -> Result<Mu<TxInterval>, anyhow::Error> {
+    pub fn g_to_n(&self, g_interval: &GenomeInterval) -> Result<Mu<TxInterval>, Error> {
         if let GenomeInterval {
             start: Some(begin),
             end: Some(end),
@@ -311,15 +301,15 @@ impl Mapper {
             };
             Ok(result)
         } else {
-            Err(anyhow::anyhow!(
-                "Cannot project genome interval with missing start or end position: {}",
+            Err(Error::MissingGenomeIntervalPosition(format!(
+                "{}",
                 g_interval
-            ))
+            )))
         }
     }
 
     /// Convert a transcript (n.) interval to a genomic (g.) interval.
-    pub fn n_to_g(&self, n_interval: &TxInterval) -> Result<Mu<GenomeInterval>, anyhow::Error> {
+    pub fn n_to_g(&self, n_interval: &TxInterval) -> Result<Mu<GenomeInterval>, Error> {
         let frs = hgvs_to_zbc(n_interval.start.base);
         let start_offset = n_interval.start.offset.unwrap_or(0);
         let fre = hgvs_to_zbc(n_interval.end.base);
@@ -388,20 +378,15 @@ impl Mapper {
     }
 
     /// Convert a transcript (n.) interval to a CDS (c.) interval.
-    pub fn n_to_c(&self, n_interval: &TxInterval) -> Result<CdsInterval, anyhow::Error> {
+    pub fn n_to_c(&self, n_interval: &TxInterval) -> Result<CdsInterval, Error> {
         if self.cds_start_i.is_none() {
-            return Err(anyhow::anyhow!(
-                "CDS is undefined for {}; cannot map to c. coordinate (non-coding transcript?)",
-                self.tx_ac
-            ));
+            return Err(Error::CdsUndefined(self.tx_ac.to_string()));
         }
 
         if self.config.strict_bounds
             && (n_interval.start.base <= 0 || n_interval.end.base > self.tgt_len)
         {
-            return Err(anyhow::anyhow!(
-                "The given coordinate is outside the bounds of the reference sequence."
-            ));
+            return Err(Error::CoordinateOutsideReference);
         }
 
         Ok(CdsInterval {
@@ -410,7 +395,7 @@ impl Mapper {
         })
     }
 
-    pub fn pos_c_to_n(&self, pos: &CdsPos) -> Result<TxPos, anyhow::Error> {
+    pub fn pos_c_to_n(&self, pos: &CdsPos) -> Result<TxPos, Error> {
         let cds_start_i = self
             .cds_start_i
             .expect("cannot convert c. to n. without CDS positions");
@@ -439,7 +424,7 @@ impl Mapper {
         };
 
         if (n <= 0 || n > self.tgt_len) && self.config.strict_bounds {
-            Err(anyhow::anyhow!("c.{:?} coordinate is out of boounds", pos))
+            Err(Error::CoordinateOutOfBounds(format!("{:?}", pos)))
         } else {
             Ok(TxPos {
                 base: n,
@@ -449,12 +434,9 @@ impl Mapper {
     }
 
     /// Convert a a CDS (c.) interval to a transcript (n.) interval.
-    pub fn c_to_n(&self, c_interval: &CdsInterval) -> Result<TxInterval, anyhow::Error> {
+    pub fn c_to_n(&self, c_interval: &CdsInterval) -> Result<TxInterval, Error> {
         if self.cds_start_i.is_none() {
-            return Err(anyhow::anyhow!(
-                "CDS is undefined for {}; cannot map to c. coordinate (non-coding transcript?)",
-                self.tx_ac
-            ));
+            return Err(Error::CdsUndefined(self.tx_ac.to_string()));
         }
 
         let n_start = self.pos_c_to_n(&c_interval.start);
@@ -467,7 +449,7 @@ impl Mapper {
     }
 
     /// Convert a genomic (g.) interval to a CDS (c.) interval.
-    pub fn g_to_c(&self, g_interval: &GenomeInterval) -> Result<Mu<CdsInterval>, anyhow::Error> {
+    pub fn g_to_c(&self, g_interval: &GenomeInterval) -> Result<Mu<CdsInterval>, Error> {
         let n_interval = self.g_to_n(g_interval)?;
         Ok(match &n_interval {
             Mu::Certain(n_interval) => Mu::Certain(self.n_to_c(n_interval)?),
@@ -476,7 +458,7 @@ impl Mapper {
     }
 
     /// Convert a CDS (c.) interval to a genomic (g.) interval.
-    pub fn c_to_g(&self, c_interval: &CdsInterval) -> Result<Mu<GenomeInterval>, anyhow::Error> {
+    pub fn c_to_g(&self, c_interval: &CdsInterval) -> Result<Mu<GenomeInterval>, Error> {
         let n_interval = self.c_to_n(c_interval)?;
         let g_interval = self.n_to_g(&n_interval)?;
         Ok(g_interval)
@@ -505,6 +487,7 @@ impl Mapper {
 
 #[cfg(test)]
 mod test {
+    use anyhow::Error;
     use std::str::FromStr;
 
     use pretty_assertions::assert_eq;
@@ -522,7 +505,7 @@ mod test {
     }
 
     #[test]
-    fn build_tx_cigar_forward() -> Result<(), anyhow::Error> {
+    fn build_tx_cigar_forward() -> Result<(), Error> {
         let exons = vec![
             TxExonsRecord {
                 tx_start_i: 0,
@@ -548,7 +531,7 @@ mod test {
     }
 
     #[test]
-    fn build_tx_cigar_reverse() -> Result<(), anyhow::Error> {
+    fn build_tx_cigar_reverse() -> Result<(), Error> {
         let exons = vec![
             TxExonsRecord {
                 tx_start_i: 0,
@@ -582,7 +565,7 @@ mod test {
     }
 
     #[test]
-    fn construction() -> Result<(), anyhow::Error> {
+    fn construction() -> Result<(), Error> {
         let provider = build_provider()?;
 
         assert_eq!(provider.data_version(), "uta_20210129");
@@ -592,7 +575,7 @@ mod test {
     }
 
     #[test]
-    fn failures() -> Result<(), anyhow::Error> {
+    fn failures() -> Result<(), Error> {
         let provider = build_provider()?;
 
         // unknown sequences
@@ -686,7 +669,7 @@ mod test {
         tx_ac: &str,
         alt_ac: &str,
         cases: &Vec<(GenomeInterval, TxInterval, CdsInterval)>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), Error> {
         let provider = build_provider()?;
         let mapper = Mapper::new(&Default::default(), provider, tx_ac, alt_ac, "splign")?;
 
@@ -748,7 +731,7 @@ mod test {
 
     /// Use NM_178434.2 tests to test mapping with uncertain positions
     // #[test]  // not yet supported (same as Python package)
-    fn _test_lce3c_uncertain() -> Result<(), anyhow::Error> {
+    fn _test_lce3c_uncertain() -> Result<(), Error> {
         let tx_ac = "NM_178434.2";
         let alt_ac = "NC_000001.10";
         let test_cases = vec![
@@ -771,7 +754,7 @@ mod test {
 
     /// NM_178434.2: LCE3C single exon, strand = +1, all coordinate input/output are in HGVS
     #[test]
-    fn test_lce3c() -> Result<(), anyhow::Error> {
+    fn test_lce3c() -> Result<(), Error> {
         let tx_ac = "NM_178434.2";
         let alt_ac = "NC_000001.10";
         let test_cases = vec![
@@ -827,7 +810,7 @@ mod test {
 
     /// NM_033445.2: H2AW single exon, strand = -1, all coordinate input/output are in HGVS
     #[test]
-    fn test_h2a2() -> Result<(), anyhow::Error> {
+    fn test_h2a2() -> Result<(), Error> {
         let tx_ac = "NM_033445.2";
         let alt_ac = "NC_000001.10";
         let test_cases = vec![
@@ -883,7 +866,7 @@ mod test {
 
     /// NM_014357.4: LCE2B, two exons, strand = +1, all coordinate input/output are in HGVS
     #[test]
-    fn test_lce2b() -> Result<(), anyhow::Error> {
+    fn test_lce2b() -> Result<(), Error> {
         let tx_ac = "NM_014357.4";
         let alt_ac = "NC_000001.10";
         let test_cases = vec![
@@ -969,7 +952,7 @@ mod test {
 
     /// NM_178449.3: PTH2, two exons, strand = -1, all coordinate input/output are in HGVS
     #[test]
-    fn test_pth2() -> Result<(), anyhow::Error> {
+    fn test_pth2() -> Result<(), Error> {
         let tx_ac = "NM_178449.3";
         let alt_ac = "NC_000019.9";
         let test_cases = vec![

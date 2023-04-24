@@ -5,6 +5,27 @@
 use md5::{Digest, Md5};
 use rustc_hash::FxHashMap;
 
+pub use crate::sequences::error::Error;
+
+mod error {
+    /// Error type for normalization of HGVS expressins.
+    #[derive(thiserror::Error, Debug)]
+    pub enum Error {
+        #[error("invalid 1-letter aminoacid: {0} at {1}")]
+        InvalidOneLetterAminoAcid(String, String),
+        #[error("invalid 3-letter aminoacid: {0} at {1}")]
+        InvalidThreeLetterAminoAcid(String, String),
+        #[error("3-letter amino acid sequence length is not multiple of three: {0}")]
+        InvalidThreeLetterAminoAcidLength(usize),
+        #[error("codon is undefined in codon table: {0}")]
+        UndefinedCodon(String),
+        #[error("can only translate DNA sequences whose length is multiple of 3, but is: {0}")]
+        UntranslatableDnaLenth(usize),
+        #[error("character is not alphabetic: {0}")]
+        NotAlphabetic(char),
+    }
+}
+
 pub fn trim_common_prefixes(reference: &str, alternative: &str) -> (usize, String, String) {
     if reference.is_empty() || alternative.is_empty() {
         return (0, reference.to_string(), alternative.to_string());
@@ -585,7 +606,7 @@ pub enum TranslationTable {
 ///
 /// The sequence as one of 1-letter amino acids.
 #[allow(dead_code)]
-pub fn aa_to_aa1(seq: &str) -> Result<String, anyhow::Error> {
+pub fn aa_to_aa1(seq: &str) -> Result<String, Error> {
     if looks_like_aa3_p(seq) {
         aa3_to_aa1(seq)
     } else {
@@ -605,7 +626,7 @@ pub fn aa_to_aa1(seq: &str) -> Result<String, anyhow::Error> {
 ///
 /// The sequence as one of 1-letter amino acids.
 #[allow(dead_code)]
-pub fn aa_to_aa3(seq: &str) -> Result<String, anyhow::Error> {
+pub fn aa_to_aa3(seq: &str) -> Result<String, Error> {
     if looks_like_aa3_p(seq) {
         Ok(seq.to_string())
     } else {
@@ -625,7 +646,7 @@ pub fn aa_to_aa3(seq: &str) -> Result<String, anyhow::Error> {
 ///
 /// The sequence as 3-letter amino acids.
 #[allow(dead_code)]
-pub fn aa1_to_aa3(seq: &str) -> Result<String, anyhow::Error> {
+pub fn aa1_to_aa3(seq: &str) -> Result<String, Error> {
     if seq.is_empty() {
         return Ok(String::new());
     }
@@ -634,7 +655,7 @@ pub fn aa1_to_aa3(seq: &str) -> Result<String, anyhow::Error> {
 
     for (i, aa1) in seq.as_bytes().chunks(1).enumerate() {
         let aa3 = AA1_TO_AA3.get(aa1).ok_or_else(|| {
-            anyhow::anyhow!("Invalid 1-letter amino acid: {:?} at {}", aa1, i + 1)
+            Error::InvalidOneLetterAminoAcid(format!("{:?}", aa1), format!("{}", i + 1))
         })?;
         result.push_str(aa3);
     }
@@ -654,20 +675,17 @@ pub fn aa1_to_aa3(seq: &str) -> Result<String, anyhow::Error> {
 ///
 /// The sequence as 1-letter amino acids.
 #[allow(dead_code)]
-pub fn aa3_to_aa1(seq: &str) -> Result<String, anyhow::Error> {
+pub fn aa3_to_aa1(seq: &str) -> Result<String, Error> {
     if seq.len() % 3 != 0 {
-        return Err(anyhow::anyhow!(
-            "3-letter amino acid sequence length is not multiple of three"
-        ));
+        return Err(Error::InvalidThreeLetterAminoAcidLength(seq.len()));
     }
 
     let mut result = String::with_capacity(seq.len() / 3);
 
     for (i, aa3) in seq.as_bytes().chunks(3).enumerate() {
-        let aa1 = AA3_TO_AA1.get(aa3).ok_or(anyhow::anyhow!(
-            "Invalid 3-letter amino acid: {:?} at {}",
-            &aa3,
-            i + 1
+        let aa1 = AA3_TO_AA1.get(aa3).ok_or(Error::InvalidOneLetterAminoAcid(
+            format!("{:?}", aa3),
+            format!("{}", i + 1),
         ))?;
         result.push_str(aa1);
     }
@@ -739,7 +757,7 @@ impl CodonTranslator {
     /// # Returns
     ///
     /// The corresponding amino acid.
-    pub fn translate(&mut self, codon: &[u8]) -> Result<u8, anyhow::Error> {
+    pub fn translate(&mut self, codon: &[u8]) -> Result<u8, Error> {
         // Normalize (to upper case etc.) codon.
         self.normalize_codon(codon);
         // Attempt fast translation of codon.
@@ -756,10 +774,11 @@ impl CodonTranslator {
                     return Ok(b'X');
                 }
             }
-            anyhow::bail!(
-                "Codon {:?} is undefined in codon table",
-                std::str::from_utf8(codon).unwrap(),
-            )
+            return Err(Error::UndefinedCodon(
+                std::str::from_utf8(codon)
+                    .expect("cannot decode UTF-8")
+                    .to_owned(),
+            ));
         }
     }
 
@@ -819,15 +838,13 @@ pub fn translate_cds(
     full_codons: bool,
     ter_symbol: &str,
     translation_table: TranslationTable,
-) -> Result<String, anyhow::Error> {
+) -> Result<String, Error> {
     if seq.is_empty() {
         return Ok("".to_string());
     }
 
     if full_codons && seq.len() % 3 != 0 {
-        return Err(anyhow::anyhow!(
-            "Sequence length must be a multiple of three"
-        ));
+        return Err(Error::UntranslatableDnaLenth(seq.len()));
     }
 
     // Translate the codons from the input to result.
@@ -856,7 +873,7 @@ pub fn translate_cds(
 /// # Returns
 ///
 /// The sequence as a string of uppercase letters.
-pub fn normalize_sequence(seq: &str) -> Result<String, anyhow::Error> {
+pub fn normalize_sequence(seq: &str) -> Result<String, Error> {
     let mut result = String::new();
 
     for c in seq.chars() {
@@ -865,7 +882,7 @@ pub fn normalize_sequence(seq: &str) -> Result<String, anyhow::Error> {
             if c.is_alphabetic() {
                 result.push(c)
             } else {
-                return Err(anyhow::anyhow!("Character {} is not alphetic", c));
+                return Err(Error::NotAlphabetic(c));
             }
         }
     }
@@ -886,7 +903,7 @@ pub fn normalize_sequence(seq: &str) -> Result<String, anyhow::Error> {
 /// # Returns
 ///
 /// Unicode MD5 hex digest representation of sequence.
-pub fn seq_md5(seq: &str, normalize: bool) -> Result<String, anyhow::Error> {
+pub fn seq_md5(seq: &str, normalize: bool) -> Result<String, Error> {
     let seq = if normalize {
         normalize_sequence(seq)?
     } else {
@@ -968,7 +985,7 @@ mod test {
     }
 
     #[test]
-    fn aa_to_aa1_examples() -> Result<(), anyhow::Error> {
+    fn aa_to_aa1_examples() -> Result<(), Error> {
         assert_eq!(aa_to_aa1("")?, "");
         assert_eq!(aa_to_aa1("CATSARELAME")?, "CATSARELAME");
         assert_eq!(
@@ -980,7 +997,7 @@ mod test {
     }
 
     #[test]
-    fn aa1_to_aa3_examples() -> Result<(), anyhow::Error> {
+    fn aa1_to_aa3_examples() -> Result<(), Error> {
         assert_eq!(aa1_to_aa3("")?, "");
         assert_eq!(
             aa1_to_aa3("CATSARELAME")?,
@@ -991,7 +1008,7 @@ mod test {
     }
 
     #[test]
-    fn aa3_to_aa1_examples() -> Result<(), anyhow::Error> {
+    fn aa3_to_aa1_examples() -> Result<(), Error> {
         assert!(aa3_to_aa1("Te").is_err());
         assert_eq!(aa3_to_aa1("")?, "");
         assert_eq!(
@@ -1003,7 +1020,7 @@ mod test {
     }
 
     #[test]
-    fn translate_cds_examples() -> Result<(), anyhow::Error> {
+    fn translate_cds_examples() -> Result<(), Error> {
         assert_eq!(
             translate_cds("ATGCGA", true, "*", TranslationTable::Standard)?,
             "MR"
@@ -1059,7 +1076,7 @@ mod test {
     }
 
     #[test]
-    fn seq_md5_examples() -> Result<(), anyhow::Error> {
+    fn seq_md5_examples() -> Result<(), Error> {
         assert_eq!(seq_md5("", true)?, "d41d8cd98f00b204e9800998ecf8427e");
         assert_eq!(seq_md5("ACGT", true)?, "f1f8f4bf413b16ad135722aa4591043e");
         assert_eq!(seq_md5("ACGT*", true)?, "f1f8f4bf413b16ad135722aa4591043e");
@@ -1074,7 +1091,7 @@ mod test {
     }
 
     #[test]
-    fn normalize_sequence_examples() -> Result<(), anyhow::Error> {
+    fn normalize_sequence_examples() -> Result<(), Error> {
         assert_eq!(normalize_sequence("ACGT")?, "ACGT");
         assert_eq!(normalize_sequence("  A C G T * ")?, "ACGT");
         assert!(normalize_sequence("ACGT1").is_err());
@@ -1092,7 +1109,7 @@ mod test {
     }
 
     #[test]
-    fn codon_translator_standard() -> Result<(), anyhow::Error> {
+    fn codon_translator_standard() -> Result<(), Error> {
         let mut translator = CodonTranslator::new(TranslationTable::Standard);
 
         // Non-denenerate codon.
@@ -1104,7 +1121,7 @@ mod test {
     }
 
     #[test]
-    fn codon_translator_sec() -> Result<(), anyhow::Error> {
+    fn codon_translator_sec() -> Result<(), Error> {
         let mut translator = CodonTranslator::new(TranslationTable::Selenocysteine);
 
         // Non-denenerate codon.

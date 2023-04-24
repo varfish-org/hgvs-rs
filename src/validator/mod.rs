@@ -1,9 +1,12 @@
 //! Implementation of validation.
 
+mod error;
+
 use std::rc::Rc;
 
 use log::{error, warn};
 
+pub use crate::validator::error::Error;
 use crate::{
     data::interface::Provider,
     mapper::{variant::Config, variant::Mapper},
@@ -12,7 +15,7 @@ use crate::{
 
 /// Trait for validating of variants, locations etc.
 pub trait Validateable {
-    fn validate(&self) -> Result<(), anyhow::Error>;
+    fn validate(&self) -> Result<(), Error>;
 }
 
 /// Validation level specification.
@@ -47,7 +50,7 @@ pub trait Validator {
     ///
     /// Depending on the configuration and implementation of the validator, an `Err` will be
     /// returned or only a warning will be logged.
-    fn validate(&self, var: &HgvsVariant) -> Result<(), anyhow::Error>;
+    fn validate(&self, var: &HgvsVariant) -> Result<(), Error>;
 }
 
 /// A validator that performs no validation.
@@ -70,7 +73,7 @@ impl Validator for NullValidator {
         false
     }
 
-    fn validate(&self, _var: &HgvsVariant) -> Result<(), anyhow::Error> {
+    fn validate(&self, _var: &HgvsVariant) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -94,7 +97,7 @@ impl Validator for IntrinsicValidator {
         self.strict
     }
 
-    fn validate(&self, var: &HgvsVariant) -> Result<(), anyhow::Error> {
+    fn validate(&self, var: &HgvsVariant) -> Result<(), Error> {
         let res = var.validate();
         match (&res, self.is_strict()) {
             (Ok(_), _) => Ok(()),
@@ -140,7 +143,7 @@ impl Validator for ExtrinsicValidator {
         self.strict
     }
 
-    fn validate(&self, var: &HgvsVariant) -> Result<(), anyhow::Error> {
+    fn validate(&self, var: &HgvsVariant) -> Result<(), Error> {
         // Check transcripts bounds
         match var {
             HgvsVariant::CdsVariant { .. } | HgvsVariant::TxVariant { .. } => {
@@ -188,15 +191,15 @@ impl Validator for ExtrinsicValidator {
 }
 
 impl ExtrinsicValidator {
-    fn check_tx_bound(&self, _var: &HgvsVariant) -> Result<(), anyhow::Error> {
+    fn check_tx_bound(&self, _var: &HgvsVariant) -> Result<(), Error> {
         Ok(()) // TODO
     }
 
-    fn check_cds_bound(&self, _var: &HgvsVariant) -> Result<(), anyhow::Error> {
+    fn check_cds_bound(&self, _var: &HgvsVariant) -> Result<(), Error> {
         Ok(()) // TODO
     }
 
-    fn check_ref(&self, _var: &HgvsVariant) -> Result<(), anyhow::Error> {
+    fn check_ref(&self, _var: &HgvsVariant) -> Result<(), Error> {
         Ok(()) // TODO
     }
 }
@@ -221,7 +224,7 @@ impl Validator for FullValidator {
         self.intrinsic.is_strict()
     }
 
-    fn validate(&self, var: &HgvsVariant) -> Result<(), anyhow::Error> {
+    fn validate(&self, var: &HgvsVariant) -> Result<(), Error> {
         self.intrinsic.validate(var)?;
         self.extrinsic.validate(var)
     }

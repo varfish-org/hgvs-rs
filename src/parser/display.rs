@@ -634,6 +634,7 @@ impl<'a> Display for NoRef<'a, HgvsVariant> {
 
 #[cfg(test)]
 mod test {
+    use anyhow::Error;
     use std::{
         fs::File,
         io::{BufRead, BufReader},
@@ -2099,7 +2100,7 @@ mod test {
 
     // This test uses the "gauntlet" file from the hgvs package for round-tripping.
     #[test]
-    fn roundtrip_hgvs_gauntlet() -> Result<(), anyhow::Error> {
+    fn roundtrip_hgvs_gauntlet() -> Result<(), Error> {
         let reader = BufReader::new(File::open("tests/data/parser/gauntlet")?);
 
         for line in reader.lines() {
