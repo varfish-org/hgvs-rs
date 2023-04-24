@@ -197,7 +197,7 @@ impl<'a> Normalizer<'a> {
             (
                 self.mapper
                     .c_to_n(&var)
-                    .map_err(|e| Error::CToNMappingFailed(format!("{}", var)))?,
+                    .map_err(|_e| Error::CToNMappingFailed(format!("{}", var)))?,
                 true,
             )
         } else {
@@ -640,7 +640,7 @@ impl<'a> Normalizer<'a> {
                 if cds_to_tx {
                     self.mapper
                         .n_to_c(&var_t)
-                        .map_err(|e| Error::NToCMappingFailed(format!("{}", var_t)))?
+                        .map_err(|_e| Error::NToCMappingFailed(format!("{}", var_t)))?
                 } else {
                     var_t
                 }

@@ -117,7 +117,7 @@ impl ProviderInterface for Provider {
         };
         self.seqrepo
             .fetch_sequence_part(&aos, begin, end)
-            .map_err(|e| Error::SeqRepoError(e))
+            .map_err(Error::SeqRepoError)
     }
 
     fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, Error> {
