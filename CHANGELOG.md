@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/bihealth/hgvs-rs/compare/v0.7.0...v0.8.0) (2023-05-23)
+
+
+### Features
+
+* losen dependencies ([#106](https://github.com/bihealth/hgvs-rs/issues/106)) ([c654507](https://github.com/bihealth/hgvs-rs/commit/c6545077e5e0bad33d4e0168cf455c3dcc1c928a))
+
 ## [0.7.0](https://github.com/bihealth/hgvs-rs/compare/v0.6.2...v0.7.0) (2023-04-24)
 
 
