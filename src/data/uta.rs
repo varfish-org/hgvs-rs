@@ -2,7 +2,7 @@
 //!
 //! C.f. https://github.com/biocommons/uta
 
-use linked_hash_map::LinkedHashMap;
+use indexmap::IndexMap;
 use postgres::{Client, NoTls, Row};
 use quick_cache::sync::Cache;
 use std::fmt::Debug;
@@ -243,8 +243,8 @@ impl ProviderInterface for Provider {
         &self.schema_version
     }
 
-    fn get_assembly_map(&self, assembly: Assembly) -> LinkedHashMap<String, String> {
-        LinkedHashMap::from_iter(
+    fn get_assembly_map(&self, assembly: Assembly) -> IndexMap<String, String> {
+        IndexMap::from_iter(
             ASSEMBLY_INFOS[assembly]
                 .sequences
                 .iter()

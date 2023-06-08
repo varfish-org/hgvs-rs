@@ -15,7 +15,7 @@ use crate::{
 
 use bio::data_structures::interval_tree::ArrayBackedIntervalTree;
 use chrono::NaiveDateTime;
-use linked_hash_map::LinkedHashMap;
+use indexmap::IndexMap;
 use seqrepo::{Interface as SeqRepoInterface, SeqRepo};
 
 /// Configurationf or the `data::cdot::Provider`.
@@ -105,7 +105,7 @@ impl ProviderInterface for Provider {
     fn get_assembly_map(
         &self,
         assembly: crate::static_data::Assembly,
-    ) -> linked_hash_map::LinkedHashMap<String, String> {
+    ) -> indexmap::IndexMap<String, String> {
         self.inner.get_assembly_map(assembly)
     }
 
@@ -187,16 +187,16 @@ impl ProviderInterface for Provider {
 
 /// Data structures used for deserializing from cdot.
 pub mod models {
-    use linked_hash_map::LinkedHashMap;
+    use indexmap::IndexMap;
     use serde::{Deserialize, Deserializer};
 
     /// Container for a cDot data file.
     #[derive(Deserialize, Debug, Clone)]
     pub struct Container {
-        pub transcripts: LinkedHashMap<String, Transcript>,
+        pub transcripts: IndexMap<String, Transcript>,
         pub cdot_version: String,
         pub genome_builds: Vec<String>,
-        pub genes: LinkedHashMap<String, Gene>,
+        pub genes: IndexMap<String, Gene>,
     }
 
     /// Enum for representing the tags for transcripts.
@@ -221,7 +221,7 @@ pub mod models {
         /// `"ENSG00000012048"` for BRCA1.
         pub gene_version: String,
         /// Alignments to the different genome builds.
-        pub genome_builds: LinkedHashMap<String, GenomeAlignment>,
+        pub genome_builds: IndexMap<String, GenomeAlignment>,
         /// HGNC identifier, e.g. `"1100"` for BRCA1 which is `HGNC:1100`.
         #[serde(default)]
         pub hgnc: Option<String>,
@@ -709,8 +709,8 @@ impl TxProvider {
         REQUIRED_VERSION
     }
 
-    fn get_assembly_map(&self, assembly: Assembly) -> LinkedHashMap<String, String> {
-        LinkedHashMap::from_iter(
+    fn get_assembly_map(&self, assembly: Assembly) -> IndexMap<String, String> {
+        IndexMap::from_iter(
             ASSEMBLY_INFOS[assembly]
                 .sequences
                 .iter()
