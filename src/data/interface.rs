@@ -1,7 +1,7 @@
 //! Definition of the interface for accessing the transcript database.
 
 use chrono::NaiveDateTime;
-use linked_hash_map::LinkedHashMap;
+use indexmap::IndexMap;
 
 use crate::data::error::Error;
 use crate::static_data::Assembly;
@@ -193,7 +193,7 @@ pub trait Provider {
     /// # Arguments
     ///
     /// * `assembly` - The assembly to build the map for.
-    fn get_assembly_map(&self, assembly: Assembly) -> LinkedHashMap<String, String>;
+    fn get_assembly_map(&self, assembly: Assembly) -> IndexMap<String, String>;
 
     /// Returns the basic information about the gene.
     ///

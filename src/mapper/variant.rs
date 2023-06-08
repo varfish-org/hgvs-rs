@@ -1134,7 +1134,7 @@ mod test {
             fn get_assembly_map(
                 &self,
                 _assembly: crate::static_data::Assembly,
-            ) -> linked_hash_map::LinkedHashMap<String, String> {
+            ) -> indexmap::IndexMap<String, String> {
                 panic!("for test use only");
             }
 

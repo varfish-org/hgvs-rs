@@ -93,7 +93,7 @@ impl ProviderInterface for Provider {
     fn get_assembly_map(
         &self,
         assembly: crate::static_data::Assembly,
-    ) -> linked_hash_map::LinkedHashMap<String, String> {
+    ) -> indexmap::IndexMap<String, String> {
         self.inner.get_assembly_map(assembly)
     }
 
