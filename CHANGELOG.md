@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.2](https://github.com/bihealth/hgvs-rs/compare/v0.8.1...v0.8.2) (2023-06-08)
+
+
+### Code Refactoring
+
+* replace linked-hash-map by indexmap ([#111](https://github.com/bihealth/hgvs-rs/issues/111)) ([#112](https://github.com/bihealth/hgvs-rs/issues/112)) ([f6d3ab4](https://github.com/bihealth/hgvs-rs/commit/f6d3ab47dc79daab2ad837c5c739976061991926))
+
 ## [0.8.1](https://github.com/bihealth/hgvs-rs/compare/v0.8.0...v0.8.1) (2023-05-23)
 
 
