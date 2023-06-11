@@ -1043,7 +1043,7 @@ mod test {
     use test_log::test;
 
     use anyhow::Error;
-    use std::{sync::Arc, str::FromStr};
+    use std::{str::FromStr, sync::Arc};
 
     use pretty_assertions::assert_eq;
 

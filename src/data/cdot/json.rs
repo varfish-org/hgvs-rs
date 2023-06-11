@@ -1066,8 +1066,8 @@ pub mod test_helpers {
 #[cfg(test)]
 pub mod tests {
     use anyhow::Error;
-    use std::sync::Arc;
     use std::str::FromStr;
+    use std::sync::Arc;
 
     use chrono::NaiveDateTime;
     use pretty_assertions::assert_eq;
