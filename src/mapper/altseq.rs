@@ -67,16 +67,13 @@ impl RefTranscriptData {
             ));
         }
 
+        let provider = provider.as_ref().lock().expect("could not acquire lock");
+
         let aa_sequence =
             translate_cds(tx_seq_to_translate, true, "*", TranslationTable::Standard)?;
         let protein_accession = if let Some(pro_ac) = pro_ac {
             pro_ac.to_owned()
-        } else if let Some(pro_ac) = provider
-            .as_ref()
-            .lock()
-            .expect("could not acquire lock")
-            .get_pro_ac_for_tx_ac(tx_ac)?
-        {
+        } else if let Some(pro_ac) = provider.get_pro_ac_for_tx_ac(tx_ac)? {
             pro_ac
         } else {
             // get_acs_for_protein_seq() will always return at least the MD5_ accession.
@@ -85,9 +82,6 @@ impl RefTranscriptData {
             //
             // TODO: drop get_acs_for_protein_seq; use known mapping or digest (wo/pro ac inference)
             provider
-                .as_ref()
-                .lock()
-                .expect("could not acquire lock")
                 .get_acs_for_protein_seq(&aa_sequence)?
                 .into_iter()
                 .next()
