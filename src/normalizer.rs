@@ -1,6 +1,12 @@
 //! Variant normalization.
 
-use std::{cmp::Ordering, ops::Range, sync::Arc};
+use std::{
+    cmp::Ordering,
+    ops::Range,
+    sync::{Arc, Mutex},
+};
+
+use lazy_static::__Deref;
 
 pub use crate::normalizer::error::Error;
 use crate::{
@@ -87,8 +93,8 @@ impl Default for Config {
 
 /// Normalizes variants (5' and 3' shifting).
 pub struct Normalizer<'a> {
-    pub provider: Arc<dyn Provider>,
-    pub validator: Arc<dyn Validator>,
+    pub provider: Arc<Mutex<dyn Provider>>,
+    pub validator: Arc<Mutex<dyn Validator>>,
     pub config: Config,
     pub mapper: &'a VariantMapper,
 }
@@ -103,8 +109,8 @@ struct CheckAndGuardResult {
 impl<'a> Normalizer<'a> {
     pub fn new(
         mapper: &'a VariantMapper,
-        provider: Arc<dyn Provider>,
-        validator: Arc<dyn Validator>,
+        provider: Arc<Mutex<dyn Provider>>,
+        validator: Arc<Mutex<dyn Validator>>,
         config: Config,
     ) -> Self {
         Self {
@@ -151,6 +157,8 @@ impl<'a> Normalizer<'a> {
     ) -> Result<CheckAndGuardResult, Error> {
         let var = orig_var.clone();
         self.validator
+            .lock()
+            .expect("could not acquire lock")
             .validate(&var)
             .map_err(|e| Error::Validation(e.to_string()))?;
 
@@ -226,7 +234,11 @@ impl<'a> Normalizer<'a> {
             if var_loc_range.start < 0
                 || !is_genome
                     && !valid_seq_len(
-                        self.provider.as_ref(),
+                        self.provider
+                            .as_ref()
+                            .lock()
+                            .expect("could not acquire lock")
+                            .deref(),
                         var.accession(),
                         var_loc_range.end as usize,
                     )?
@@ -268,6 +280,8 @@ impl<'a> Normalizer<'a> {
             let map_info = self
                 .provider
                 .as_ref()
+                .lock()
+                .expect("could not acquire lock")
                 .get_tx_mapping_options(var.accession())?;
             let map_info = map_info
                 .into_iter()
@@ -276,20 +290,22 @@ impl<'a> Normalizer<'a> {
             let alt_ac = &map_info[0].alt_ac;
 
             // Obtain tx info.
-            let tx_info = self.provider.as_ref().get_tx_info(
-                var.accession(),
-                alt_ac,
-                &self.config.alt_aln_method,
-            )?;
+            let tx_info = self
+                .provider
+                .as_ref()
+                .lock()
+                .expect("could not acquire lock")
+                .get_tx_info(var.accession(), alt_ac, &self.config.alt_aln_method)?;
             let cds_start = tx_info.cds_start_i;
             let cds_end = tx_info.cds_end_i;
 
             // Obtain exon info.
-            let exon_info = self.provider.as_ref().get_tx_exons(
-                var.accession(),
-                alt_ac,
-                &self.config.alt_aln_method,
-            )?;
+            let exon_info = self
+                .provider
+                .as_ref()
+                .lock()
+                .expect("could not acquire lock")
+                .get_tx_exons(var.accession(), alt_ac, &self.config.alt_aln_method)?;
             let mut exon_starts = exon_info.iter().map(|r| r.tx_start_i).collect::<Vec<_>>();
             exon_starts.sort();
             let mut exon_ends = exon_info.iter().map(|r| r.tx_end_i).collect::<Vec<_>>();
@@ -826,11 +842,15 @@ impl<'a> Normalizer<'a> {
             return Ok("".to_string());
         }
 
-        let seq = self.provider.get_seq_part(
-            var.accession(),
-            Some(start.try_into()?),
-            Some(end.try_into()?),
-        )?;
+        let seq = self
+            .provider
+            .lock()
+            .expect("could not acquire lock")
+            .get_seq_part(
+                var.accession(),
+                Some(start.try_into()?),
+                Some(end.try_into()?),
+            )?;
         let seq_len: i32 = seq.len().try_into()?;
 
         if seq_len < end - start && seq_len < var_len {
@@ -848,7 +868,11 @@ impl<'a> Normalizer<'a> {
             ) {
                 std::i32::MAX
             } else {
-                let id_info = self.provider.get_tx_identity_info(var.accession())?;
+                let id_info = self
+                    .provider
+                    .lock()
+                    .expect("could not acquire lock")
+                    .get_tx_identity_info(var.accession())?;
                 id_info.lengths.into_iter().sum()
             },
         )
@@ -1043,7 +1067,10 @@ mod test {
     use test_log::test;
 
     use anyhow::Error;
-    use std::{str::FromStr, sync::Arc};
+    use std::{
+        str::FromStr,
+        sync::{Arc, Mutex},
+    };
 
     use pretty_assertions::assert_eq;
 
@@ -1059,7 +1086,7 @@ mod test {
         mapper: &Mapper,
     ) -> Result<(Normalizer, Normalizer, Normalizer, Normalizer), Error> {
         let provider = mapper.provider();
-        let validator = Arc::new(IntrinsicValidator::new(true));
+        let validator = Arc::new(Mutex::new(IntrinsicValidator::new(true)));
 
         Ok((
             Normalizer::new(

@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::mapper::error::Error;
 use crate::mapper::variant;
@@ -90,7 +90,7 @@ impl Default for Config {
 /// not support contigs or other genomic sequences (e.g., NT_167249.1).
 pub struct Mapper {
     config: Config,
-    provider: Arc<dyn Provider + Send + Sync>,
+    provider: Arc<Mutex<dyn Provider>>,
     inner: variant::Mapper,
     /// Accessions of contigs in assembly.
     asm_accessions: HashSet<String>,
@@ -100,7 +100,7 @@ pub struct Mapper {
 
 impl Mapper {
     /// Construct new assembly mapper from config and provider.
-    pub fn new(config: Config, provider: Arc<dyn Provider + Send + Sync>) -> Self {
+    pub fn new(config: Config, provider: Arc<Mutex<dyn Provider>>) -> Self {
         let inner_config = variant::Config {
             replace_reference: config.replace_reference,
             strict_validation: config.strict_validation,
@@ -113,6 +113,8 @@ impl Mapper {
         let inner = variant::Mapper::new(&inner_config, provider.clone());
         let asm_accessions = provider
             .as_ref()
+            .lock()
+            .expect("could not acquire lock")
             .get_assembly_map(config.assembly)
             .keys()
             .clone()
@@ -121,6 +123,8 @@ impl Mapper {
         let asm_map = HashMap::from_iter(
             provider
                 .as_ref()
+                .lock()
+                .expect("could not acquire lock")
                 .get_assembly_map(config.assembly)
                 .iter()
                 .map(|(key, value)| (key.clone(), value.clone())),
@@ -262,6 +266,8 @@ impl Mapper {
                 Ok(self
                     .provider
                     .as_ref()
+                    .lock()
+                    .expect("could not acquire lock")
                     .get_tx_for_region(
                         var_g.accession(),
                         &self.config.alt_aln_method,
@@ -295,7 +301,12 @@ impl Mapper {
     /// aln_method from configuration.
     fn alt_ac_for_tx_ac(&self, tx_ac: &str) -> Result<String, Error> {
         let mut alt_acs = Vec::new();
-        for record in self.provider.get_tx_mapping_options(tx_ac)? {
+        for record in self
+            .provider
+            .lock()
+            .expect("could not acquire lock")
+            .get_tx_mapping_options(tx_ac)?
+        {
             if record.alt_aln_method == self.config.alt_aln_method
                 && self.asm_accessions.contains(&record.alt_ac)
             {

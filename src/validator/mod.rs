@@ -2,7 +2,7 @@
 
 mod error;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use log::{error, warn};
 
@@ -30,11 +30,15 @@ pub enum ValidationLevel {
 }
 
 impl ValidationLevel {
-    pub fn validator(&self, strict: bool, provider: Arc<dyn Provider>) -> Arc<dyn Validator> {
+    pub fn validator(
+        &self,
+        strict: bool,
+        provider: Arc<Mutex<dyn Provider>>,
+    ) -> Arc<Mutex<dyn Validator>> {
         match self {
-            ValidationLevel::Null => Arc::new(NullValidator::new()),
-            ValidationLevel::Intrinsic => Arc::new(IntrinsicValidator::new(strict)),
-            ValidationLevel::Full => Arc::new(FullValidator::new(strict, provider)),
+            ValidationLevel::Null => Arc::new(Mutex::new(NullValidator::new())),
+            ValidationLevel::Intrinsic => Arc::new(Mutex::new(IntrinsicValidator::new(strict))),
+            ValidationLevel::Full => Arc::new(Mutex::new(FullValidator::new(strict, provider))),
         }
     }
 }
@@ -121,7 +125,7 @@ pub struct ExtrinsicValidator {
 }
 
 impl ExtrinsicValidator {
-    pub fn new(strict: bool, provider: Arc<dyn Provider>) -> Self {
+    pub fn new(strict: bool, provider: Arc<Mutex<dyn Provider>>) -> Self {
         let config = Config {
             replace_reference: false,
             strict_validation: false,
@@ -211,7 +215,7 @@ pub struct FullValidator {
 }
 
 impl FullValidator {
-    pub fn new(strict: bool, provider: Arc<dyn Provider>) -> Self {
+    pub fn new(strict: bool, provider: Arc<Mutex<dyn Provider>>) -> Self {
         Self {
             intrinsic: IntrinsicValidator::new(strict),
             extrinsic: ExtrinsicValidator::new(strict, provider),

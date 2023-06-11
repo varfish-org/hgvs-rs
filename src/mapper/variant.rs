@@ -1,6 +1,9 @@
 //! Code for mapping variants between sequences.
 
-use std::{ops::Range, sync::Arc};
+use std::{
+    ops::Range,
+    sync::{Arc, Mutex},
+};
 
 use log::{debug, info};
 
@@ -53,8 +56,8 @@ impl Default for Config {
 /// Projects variants between sequences using `alignment::Mapper`.
 pub struct Mapper {
     config: Config,
-    provider: Arc<dyn Provider>,
-    validator: Arc<dyn Validator>,
+    provider: Arc<Mutex<dyn Provider>>,
+    validator: Arc<Mutex<dyn Validator>>,
 }
 
 /// Maps SequenceVariant objects between g., n., r., c., and p. representations.
@@ -91,7 +94,7 @@ pub struct Mapper {
 /// differences. For example, c_to_g accounts for the transcription
 /// start site offset, then calls n_to_g.
 impl Mapper {
-    pub fn new(config: &Config, provider: Arc<dyn Provider>) -> Mapper {
+    pub fn new(config: &Config, provider: Arc<Mutex<dyn Provider>>) -> Mapper {
         let validator = config
             .prevalidation_level
             .validator(config.strict_validation, provider.clone());
@@ -110,7 +113,7 @@ impl Mapper {
     }
 
     /// Return a copy of the internal provider.
-    pub fn provider(&self) -> Arc<dyn Provider> {
+    pub fn provider(&self) -> Arc<Mutex<dyn Provider>> {
         self.provider.clone()
     }
 
@@ -159,7 +162,10 @@ impl Mapper {
         tx_ac: &str,
         alt_aln_method: &str,
     ) -> Result<HgvsVariant, Error> {
-        self.validator.validate(var_g)?;
+        self.validator
+            .lock()
+            .expect("could not acquire lock")
+            .validate(var_g)?;
         let mapper = self.build_alignment_mapper(tx_ac, var_g.accession(), alt_aln_method)?;
         if mapper.is_coding_transcript() {
             self.g_to_c(var_g, tx_ac, alt_aln_method)
@@ -181,7 +187,10 @@ impl Mapper {
         tx_ac: &str,
         alt_aln_method: &str,
     ) -> Result<HgvsVariant, Error> {
-        self.validator.validate(var_g)?;
+        self.validator
+            .lock()
+            .expect("could not acquire lock")
+            .validate(var_g)?;
         let var_g = if self.config.replace_reference {
             self.replace_reference(var_g.clone())?
         } else {
@@ -299,7 +308,10 @@ impl Mapper {
         alt_ac: &str,
         alt_aln_method: &str,
     ) -> Result<HgvsVariant, Error> {
-        self.validator.validate(var_n)?;
+        self.validator
+            .lock()
+            .expect("could not acquire lock")
+            .validate(var_n)?;
         let var_n = self.replace_reference(var_n.clone())?;
         if let HgvsVariant::TxVariant {
             accession,
@@ -388,7 +400,10 @@ impl Mapper {
         tx_ac: &str,
         alt_aln_method: &str,
     ) -> Result<HgvsVariant, Error> {
-        self.validator.validate(var_g)?;
+        self.validator
+            .lock()
+            .expect("could not acquire lock")
+            .validate(var_g)?;
         let var_g = if self.config.replace_reference {
             self.replace_reference(var_g.clone())?
         } else {
@@ -479,7 +494,10 @@ impl Mapper {
         alt_ac: &str,
         alt_aln_method: &str,
     ) -> Result<HgvsVariant, Error> {
-        self.validator.validate(var_c)?;
+        self.validator
+            .lock()
+            .expect("could not acquire lock")
+            .validate(var_c)?;
         let var_c = if self.config.replace_reference {
             self.replace_reference(var_c.clone())?
         } else {
@@ -580,7 +598,10 @@ impl Mapper {
         alt_ac: &str,
         alt_aln_method: &str,
     ) -> Result<HgvsVariant, Error> {
-        self.validator.validate(var_t)?;
+        self.validator
+            .lock()
+            .expect("could not acquire lock")
+            .validate(var_t)?;
         let var_t = if self.config.replace_reference {
             self.replace_reference(var_t.clone())?
         } else {
@@ -600,7 +621,10 @@ impl Mapper {
     /// * `var_c` -- `HgvsVariant::CdsVariant` to project
     pub fn c_to_n(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, Error> {
         log::debug!("c_to_n({})", var_c);
-        self.validator.validate(var_c)?;
+        self.validator
+            .lock()
+            .expect("could not acquire lock")
+            .validate(var_c)?;
         let var_c = if self.config.replace_reference {
             self.replace_reference(var_c.clone())?
         } else {
@@ -644,7 +668,10 @@ impl Mapper {
     ///
     /// * `var_n` -- `HgvsVariant::TxVariant` to project
     pub fn n_to_c(&self, var_n: &HgvsVariant) -> Result<HgvsVariant, Error> {
-        self.validator.validate(var_n)?;
+        self.validator
+            .lock()
+            .expect("could not acquire lock")
+            .validate(var_n)?;
         let var_n = if self.config.replace_reference {
             self.replace_reference(var_n.clone())?
         } else {
@@ -696,7 +723,10 @@ impl Mapper {
             loc_edit: _,
         } = &var_c
         {
-            self.validator.validate(var_c)?;
+            self.validator
+                .lock()
+                .expect("could not acquire lock")
+                .validate(var_c)?;
 
             let var_c = if self.config.replace_reference {
                 self.replace_reference(var_c.clone())?
@@ -756,21 +786,26 @@ impl Mapper {
         interval: Range<i32>,
         var: &HgvsVariant,
     ) -> Result<String, Error> {
-        let mut seq = self.provider.as_ref().get_seq_part(
-            var.accession(),
-            Some(
-                interval
-                    .start
-                    .try_into()
-                    .map_err(|_e| Error::CannotConvertIntervalStart(interval.start))?,
-            ),
-            Some(
-                interval
-                    .end
-                    .try_into()
-                    .map_err(|_e| Error::CannotConvertIntervalEnd(interval.end))?,
-            ),
-        )?;
+        let mut seq = self
+            .provider
+            .as_ref()
+            .lock()
+            .expect("could not acquire lock")
+            .get_seq_part(
+                var.accession(),
+                Some(
+                    interval
+                        .start
+                        .try_into()
+                        .map_err(|_e| Error::CannotConvertIntervalStart(interval.start))?,
+                ),
+                Some(
+                    interval
+                        .end
+                        .try_into()
+                        .map_err(|_e| Error::CannotConvertIntervalEnd(interval.end))?,
+                ),
+            )?;
 
         let r = var
             .loc_range()
@@ -900,11 +935,12 @@ impl Mapper {
             return Ok(var);
         }
         log::debug!("get_seq_part({}, {}, {})", ac, r.start, r.end);
-        let seq = self.provider.as_ref().get_seq_part(
-            ac,
-            Some(r.start as usize),
-            Some(r.end as usize),
-        )?;
+        let seq = self
+            .provider
+            .as_ref()
+            .lock()
+            .expect("could not acquire lock")
+            .get_seq_part(ac, Some(r.start as usize), Some(r.end as usize))?;
         if seq.len() != r.len() {
             // Tried to read beyond seq end; this is an out-of-bounds variant.
             log::debug!("Bailing out on out-of-bounds variant: {}", &var);
@@ -931,7 +967,13 @@ impl Mapper {
         } else if let Some(gene_symbol) = gene_symbol {
             Ok(Some(gene_symbol.clone()))
         } else {
-            let hgnc = self.provider.as_ref().get_tx_identity_info(tx_ac)?.hgnc;
+            let hgnc = self
+                .provider
+                .as_ref()
+                .lock()
+                .expect("could not acquire lock")
+                .get_tx_identity_info(tx_ac)?
+                .hgnc;
             if hgnc.is_empty() {
                 Ok(None)
             } else {
@@ -1085,7 +1127,7 @@ mod test {
         use anyhow::Error;
         use std::{
             path::{Path, PathBuf},
-            sync::Arc,
+            sync::{Arc, Mutex},
         };
 
         use crate::data::interface::Provider as ProviderInterface;
@@ -1264,7 +1306,7 @@ mod test {
 
         pub fn build_mapper(strict_bounds: bool) -> Result<Mapper, Error> {
             let path = PathBuf::from("tests/data/mapper/sanity_cp.tsv");
-            let provider = Arc::new(Provider::new(&path)?);
+            let provider = Arc::new(Mutex::new(Provider::new(&path)?));
             let config = Config {
                 strict_bounds,
                 ..Default::default()

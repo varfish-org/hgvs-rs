@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["Manuel Holtgrewe <manuel.holtgrewe@bih-charite.de>"]
 description = "Port of biocommons/hgvs to Rust"
 license = "Apache-2.0"
-homepage = "https://github.com/bihealth/seqrepo-rs"
+homepage = "https://github.com/bihealth/hgvs-rs.git"
 readme = "README.md"
 rust-version = "1.64.0"
 
@@ -27,7 +27,8 @@ postgres = { version = "0.19", features = ["with-chrono-0_4"] }
 quick_cache = "0.3"
 regex = "1.7"
 rustc-hash = "1.1"
-seqrepo = { version = "0.5" }
+#seqrepo = { version = "0.5" }
+seqrepo = { git = "https://github.com/bihealth/seqrepo-rs.git", branch = "thread-safety" }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0"

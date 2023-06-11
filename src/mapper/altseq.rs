@@ -1,6 +1,9 @@
 //! Code for building alternative sequence and convertion to HGVS.p.
 
-use std::{cmp::Ordering, sync::Arc};
+use std::{
+    cmp::Ordering,
+    sync::{Arc, Mutex},
+};
 
 use crate::{
     data::interface::Provider,
@@ -35,12 +38,20 @@ impl RefTranscriptData {
     /// * `tx_ac` -- Transcript accession.
     /// * `pro_ac` -- Protein accession.
     pub fn new(
-        provider: Arc<dyn Provider>,
+        provider: Arc<Mutex<dyn Provider>>,
         tx_ac: &str,
         pro_ac: Option<&str>,
     ) -> Result<Self, Error> {
-        let tx_info = provider.as_ref().get_tx_identity_info(tx_ac)?;
-        let transcript_sequence = provider.as_ref().get_seq(tx_ac)?;
+        let tx_info = provider
+            .as_ref()
+            .lock()
+            .expect("could not acquire lock")
+            .get_tx_identity_info(tx_ac)?;
+        let transcript_sequence = provider
+            .as_ref()
+            .lock()
+            .expect("could not acquire lock")
+            .get_seq(tx_ac)?;
 
         // Use 1-based HGVS coordinates.
         let cds_start = tx_info.cds_start_i + 1;
@@ -60,7 +71,12 @@ impl RefTranscriptData {
             translate_cds(tx_seq_to_translate, true, "*", TranslationTable::Standard)?;
         let protein_accession = if let Some(pro_ac) = pro_ac {
             pro_ac.to_owned()
-        } else if let Some(pro_ac) = provider.as_ref().get_pro_ac_for_tx_ac(tx_ac)? {
+        } else if let Some(pro_ac) = provider
+            .as_ref()
+            .lock()
+            .expect("could not acquire lock")
+            .get_pro_ac_for_tx_ac(tx_ac)?
+        {
             pro_ac
         } else {
             // get_acs_for_protein_seq() will always return at least the MD5_ accession.
@@ -70,6 +86,8 @@ impl RefTranscriptData {
             // TODO: drop get_acs_for_protein_seq; use known mapping or digest (wo/pro ac inference)
             provider
                 .as_ref()
+                .lock()
+                .expect("could not acquire lock")
                 .get_acs_for_protein_seq(&aa_sequence)?
                 .into_iter()
                 .next()

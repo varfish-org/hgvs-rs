@@ -2,7 +2,12 @@
 //!
 //! https://github.com/SACGF/cdot
 
-use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Instant};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    time::Instant,
+};
 
 use crate::{
     data::error::Error,
@@ -42,7 +47,7 @@ pub struct Config {
 /// `exon_aln_id`.
 pub struct Provider {
     inner: TxProvider,
-    seqrepo: Arc<dyn SeqRepoInterface>,
+    seqrepo: Arc<Mutex<dyn SeqRepoInterface>>,
 }
 
 impl Provider {
@@ -70,14 +75,14 @@ impl Provider {
                     .collect::<Vec<&str>>()
                     .as_ref(),
             )?,
-            seqrepo: Arc::new(SeqRepo::new(path, &instance)?),
+            seqrepo: Arc::new(Mutex::new(SeqRepo::new(path, &instance)?)),
         })
     }
 
     /// Create a new provider allowing to inject a seqrepo.
     pub fn with_seqrepo(
         config: Config,
-        seqrepo: Arc<dyn SeqRepoInterface>,
+        seqrepo: Arc<Mutex<dyn SeqRepoInterface>>,
     ) -> Result<Provider, Error> {
         Ok(Self {
             inner: TxProvider::with_config(
@@ -124,6 +129,8 @@ impl ProviderInterface for Provider {
         end: Option<usize>,
     ) -> Result<String, Error> {
         self.seqrepo
+            .lock()
+            .expect("could not acquire lock")
             .fetch_sequence_part(
                 &seqrepo::AliasOrSeqId::Alias {
                     value: ac.to_string(),
@@ -1024,7 +1031,7 @@ impl TxProvider {
 #[cfg(test)]
 pub mod test_helpers {
     use anyhow::Error;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     use crate::data::uta_sr::test_helpers::build_writing_sr;
 
@@ -1040,8 +1047,8 @@ pub mod test_helpers {
         log::debug!("building provider...");
         let seqrepo = if sr_cache_mode == "read" {
             log::debug!("reading provider...");
-            let seqrepo: Arc<dyn SeqRepoInterface> =
-                Arc::new(CacheReadingSeqRepo::new(sr_cache_path)?);
+            let seqrepo: Arc<Mutex<dyn SeqRepoInterface>> =
+                Arc::new(Mutex::new(CacheReadingSeqRepo::new(sr_cache_path)?));
             log::debug!("construction done...");
             seqrepo
         } else if sr_cache_mode == "write" {
@@ -1067,7 +1074,7 @@ pub mod test_helpers {
 pub mod tests {
     use anyhow::Error;
     use std::str::FromStr;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     use chrono::NaiveDateTime;
     use pretty_assertions::assert_eq;
@@ -2152,7 +2159,7 @@ pub mod tests {
     }
 
     fn build_mapper_37(normalize: bool) -> Result<Mapper, Error> {
-        let provider = Arc::new(build_provider()?);
+        let provider = Arc::new(Mutex::new(build_provider()?));
         let config = AssemblyMapperConfig {
             assembly: Assembly::Grch37,
             normalize,

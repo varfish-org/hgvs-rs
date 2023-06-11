@@ -22,7 +22,7 @@
 //    n.        -2    -1  !  1     2     3     4     5     6     7     8     9
 //    g.   ... 123   124   125   126   127   128   129   130   131   132   133 ...
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::{
     data::interface::{Provider, TxExonsRecord},
@@ -119,7 +119,7 @@ pub struct Mapper {
     /// Configuration for alignment mapping.
     pub config: Config,
     /// Data provider to use for the mapping.
-    pub provider: Arc<dyn Provider>,
+    pub provider: Arc<Mutex<dyn Provider>>,
 
     /// The transcript accession.
     pub tx_ac: String,
@@ -138,7 +138,7 @@ pub struct Mapper {
 impl Mapper {
     pub fn new(
         config: &Config,
-        provider: Arc<dyn Provider>,
+        provider: Arc<Mutex<dyn Provider>>,
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
@@ -147,9 +147,15 @@ impl Mapper {
         let (strand, gc_offset, cds_start_i, cds_end_i, tgt_len, cigar_mapper) = if alt_aln_method
             != "transcript"
         {
-            let tx_info = provider.get_tx_info(tx_ac, alt_ac, alt_aln_method)?;
+            let tx_info = provider
+                .lock()
+                .expect("could not acquire lock")
+                .get_tx_info(tx_ac, alt_ac, alt_aln_method)?;
             let tx_exons = {
-                let tx_exons = provider.get_tx_exons(tx_ac, alt_ac, alt_aln_method)?;
+                let tx_exons = provider
+                    .lock()
+                    .expect("could not acquire lock")
+                    .get_tx_exons(tx_ac, alt_ac, alt_aln_method)?;
                 if tx_exons.is_empty() {
                     return Err(Error::NoExons(
                         tx_ac.to_string(),
@@ -206,7 +212,10 @@ impl Mapper {
             )
         } else {
             // this covers the identity cases n <-> c
-            let tx_identity_info = provider.get_tx_identity_info(tx_ac)?;
+            let tx_identity_info = provider
+                .lock()
+                .expect("could not acquire lock")
+                .get_tx_identity_info(tx_ac)?;
 
             let cds_start_i = tx_identity_info.cds_start_i;
             let cds_end_i = tx_identity_info.cds_end_i;
@@ -568,8 +577,8 @@ mod test {
     fn construction() -> Result<(), Error> {
         let provider = build_provider()?;
 
-        assert_eq!(provider.data_version(), "uta_20210129");
-        assert_eq!(provider.schema_version(), "1.1");
+        assert_eq!(provider.lock().unwrap().data_version(), "uta_20210129");
+        assert_eq!(provider.lock().unwrap().schema_version(), "1.1");
 
         Ok(())
     }
