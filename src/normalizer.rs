@@ -1,6 +1,6 @@
 //! Variant normalization.
 
-use std::{cmp::Ordering, ops::Range, rc::Rc};
+use std::{cmp::Ordering, ops::Range, sync::Arc};
 
 pub use crate::normalizer::error::Error;
 use crate::{
@@ -87,8 +87,8 @@ impl Default for Config {
 
 /// Normalizes variants (5' and 3' shifting).
 pub struct Normalizer<'a> {
-    pub provider: Rc<dyn Provider>,
-    pub validator: Rc<dyn Validator>,
+    pub provider: Arc<dyn Provider>,
+    pub validator: Arc<dyn Validator>,
     pub config: Config,
     pub mapper: &'a VariantMapper,
 }
@@ -103,8 +103,8 @@ struct CheckAndGuardResult {
 impl<'a> Normalizer<'a> {
     pub fn new(
         mapper: &'a VariantMapper,
-        provider: Rc<dyn Provider>,
-        validator: Rc<dyn Validator>,
+        provider: Arc<dyn Provider>,
+        validator: Arc<dyn Validator>,
         config: Config,
     ) -> Self {
         Self {
@@ -1043,7 +1043,7 @@ mod test {
     use test_log::test;
 
     use anyhow::Error;
-    use std::{rc::Rc, str::FromStr};
+    use std::{sync::Arc, str::FromStr};
 
     use pretty_assertions::assert_eq;
 
@@ -1059,7 +1059,7 @@ mod test {
         mapper: &Mapper,
     ) -> Result<(Normalizer, Normalizer, Normalizer, Normalizer), Error> {
         let provider = mapper.provider();
-        let validator = Rc::new(IntrinsicValidator::new(true));
+        let validator = Arc::new(IntrinsicValidator::new(true));
 
         Ok((
             Normalizer::new(

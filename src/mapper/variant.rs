@@ -1,6 +1,6 @@
 //! Code for mapping variants between sequences.
 
-use std::{ops::Range, rc::Rc};
+use std::{ops::Range, sync::Arc};
 
 use log::{debug, info};
 
@@ -53,8 +53,8 @@ impl Default for Config {
 /// Projects variants between sequences using `alignment::Mapper`.
 pub struct Mapper {
     config: Config,
-    provider: Rc<dyn Provider>,
-    validator: Rc<dyn Validator>,
+    provider: Arc<dyn Provider>,
+    validator: Arc<dyn Validator>,
 }
 
 /// Maps SequenceVariant objects between g., n., r., c., and p. representations.
@@ -91,7 +91,7 @@ pub struct Mapper {
 /// differences. For example, c_to_g accounts for the transcription
 /// start site offset, then calls n_to_g.
 impl Mapper {
-    pub fn new(config: &Config, provider: Rc<dyn Provider>) -> Mapper {
+    pub fn new(config: &Config, provider: Arc<dyn Provider>) -> Mapper {
         let validator = config
             .prevalidation_level
             .validator(config.strict_validation, provider.clone());
@@ -110,7 +110,7 @@ impl Mapper {
     }
 
     /// Return a copy of the internal provider.
-    pub fn provider(&self) -> Rc<dyn Provider> {
+    pub fn provider(&self) -> Arc<dyn Provider> {
         self.provider.clone()
     }
 
@@ -1085,7 +1085,7 @@ mod test {
         use anyhow::Error;
         use std::{
             path::{Path, PathBuf},
-            rc::Rc,
+            sync::Arc,
         };
 
         use crate::data::interface::Provider as ProviderInterface;
@@ -1264,7 +1264,7 @@ mod test {
 
         pub fn build_mapper(strict_bounds: bool) -> Result<Mapper, Error> {
             let path = PathBuf::from("tests/data/mapper/sanity_cp.tsv");
-            let provider = Rc::new(Provider::new(&path)?);
+            let provider = Arc::new(Provider::new(&path)?);
             let config = Config {
                 strict_bounds,
                 ..Default::default()

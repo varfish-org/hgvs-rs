@@ -2,7 +2,7 @@
 //!
 //! https://github.com/SACGF/cdot
 
-use std::{collections::HashMap, path::PathBuf, rc::Rc, time::Instant};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Instant};
 
 use crate::{
     data::error::Error,
@@ -42,7 +42,7 @@ pub struct Config {
 /// `exon_aln_id`.
 pub struct Provider {
     inner: TxProvider,
-    seqrepo: Rc<dyn SeqRepoInterface>,
+    seqrepo: Arc<dyn SeqRepoInterface>,
 }
 
 impl Provider {
@@ -70,14 +70,14 @@ impl Provider {
                     .collect::<Vec<&str>>()
                     .as_ref(),
             )?,
-            seqrepo: Rc::new(SeqRepo::new(path, &instance)?),
+            seqrepo: Arc::new(SeqRepo::new(path, &instance)?),
         })
     }
 
     /// Create a new provider allowing to inject a seqrepo.
     pub fn with_seqrepo(
         config: Config,
-        seqrepo: Rc<dyn SeqRepoInterface>,
+        seqrepo: Arc<dyn SeqRepoInterface>,
     ) -> Result<Provider, Error> {
         Ok(Self {
             inner: TxProvider::with_config(
@@ -1024,7 +1024,7 @@ impl TxProvider {
 #[cfg(test)]
 pub mod test_helpers {
     use anyhow::Error;
-    use std::rc::Rc;
+    use std::sync::Arc;
 
     use crate::data::uta_sr::test_helpers::build_writing_sr;
 
@@ -1040,8 +1040,8 @@ pub mod test_helpers {
         log::debug!("building provider...");
         let seqrepo = if sr_cache_mode == "read" {
             log::debug!("reading provider...");
-            let seqrepo: Rc<dyn SeqRepoInterface> =
-                Rc::new(CacheReadingSeqRepo::new(sr_cache_path)?);
+            let seqrepo: Arc<dyn SeqRepoInterface> =
+                Arc::new(CacheReadingSeqRepo::new(sr_cache_path)?);
             log::debug!("construction done...");
             seqrepo
         } else if sr_cache_mode == "write" {
@@ -1066,7 +1066,7 @@ pub mod test_helpers {
 #[cfg(test)]
 pub mod tests {
     use anyhow::Error;
-    use std::rc::Rc;
+    use std::sync::Arc;
     use std::str::FromStr;
 
     use chrono::NaiveDateTime;
@@ -2152,7 +2152,7 @@ pub mod tests {
     }
 
     fn build_mapper_37(normalize: bool) -> Result<Mapper, Error> {
-        let provider = Rc::new(build_provider()?);
+        let provider = Arc::new(build_provider()?);
         let config = AssemblyMapperConfig {
             assembly: Assembly::Grch37,
             normalize,

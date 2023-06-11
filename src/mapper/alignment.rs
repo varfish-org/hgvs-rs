@@ -22,7 +22,7 @@
 //    n.        -2    -1  !  1     2     3     4     5     6     7     8     9
 //    g.   ... 123   124   125   126   127   128   129   130   131   132   133 ...
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::{
     data::interface::{Provider, TxExonsRecord},
@@ -119,7 +119,7 @@ pub struct Mapper {
     /// Configuration for alignment mapping.
     pub config: Config,
     /// Data provider to use for the mapping.
-    pub provider: Rc<dyn Provider>,
+    pub provider: Arc<dyn Provider>,
 
     /// The transcript accession.
     pub tx_ac: String,
@@ -138,7 +138,7 @@ pub struct Mapper {
 impl Mapper {
     pub fn new(
         config: &Config,
-        provider: Rc<dyn Provider>,
+        provider: Arc<dyn Provider>,
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,

@@ -5,7 +5,7 @@
 //! * https://github.com/bihealth/seqrepo-rs
 
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::data::uta::{Config as UtaConfig, Provider as UtaProvider};
 use crate::data::{
@@ -34,7 +34,7 @@ pub struct Config {
 /// genome contig information available in contrast to `data::uta::Provider`.
 pub struct Provider {
     inner: UtaProvider,
-    seqrepo: Rc<dyn SeqRepoInterface>,
+    seqrepo: Arc<dyn SeqRepoInterface>,
 }
 
 impl Provider {
@@ -62,14 +62,14 @@ impl Provider {
                 db_url: config.db_url.clone(),
                 db_schema: config.db_schema,
             })?,
-            seqrepo: Rc::new(SeqRepo::new(path, &instance)?),
+            seqrepo: Arc::new(SeqRepo::new(path, &instance)?),
         })
     }
 
     /// Create a new provider allowing to inject a seqrepo.
     pub fn with_seqrepo(
         config: Config,
-        seqrepo: Rc<dyn SeqRepoInterface>,
+        seqrepo: Arc<dyn SeqRepoInterface>,
     ) -> Result<Provider, Error> {
         Ok(Self {
             inner: UtaProvider::with_config(&UtaConfig {
@@ -174,7 +174,7 @@ impl ProviderInterface for Provider {
 #[cfg(test)]
 pub mod test_helpers {
     use anyhow::Error;
-    use std::{path::PathBuf, rc::Rc};
+    use std::{path::PathBuf, sync::Arc};
 
     use seqrepo::{
         CacheReadingSeqRepo, CacheWritingSeqRepo, Interface as SeqRepoInterface, SeqRepo,
@@ -185,7 +185,7 @@ pub mod test_helpers {
     /// Setup a UTA Provider with data source depending on environment variables.
     ///
     /// See README.md for information on environment variable setup.
-    pub fn build_provider() -> Result<Rc<dyn ProviderInterface>, Error> {
+    pub fn build_provider() -> Result<Arc<dyn ProviderInterface>, Error> {
         log::debug!("building provider...");
         let db_url = std::env::var("TEST_UTA_DATABASE_URL")
             .expect("Environment variable TEST_UTA_DATABASE_URL undefined!");
@@ -198,8 +198,8 @@ pub mod test_helpers {
 
         let (seqrepo, seqrepo_path) = if sr_cache_mode == "read" {
             log::debug!("reading provider...");
-            let seqrepo: Rc<dyn SeqRepoInterface> =
-                Rc::new(CacheReadingSeqRepo::new(sr_cache_path)?);
+            let seqrepo: Arc<dyn SeqRepoInterface> =
+                Arc::new(CacheReadingSeqRepo::new(sr_cache_path)?);
             log::debug!("construction done...");
             (seqrepo, "".to_string())
         } else if sr_cache_mode == "write" {
@@ -210,7 +210,7 @@ pub mod test_helpers {
         };
         log::debug!("now returning provider...");
 
-        Ok(Rc::new(Provider::with_seqrepo(
+        Ok(Arc::new(Provider::with_seqrepo(
             Config {
                 db_url,
                 db_schema,
@@ -223,7 +223,7 @@ pub mod test_helpers {
     /// Helper that builds the cache writing SeqRepo with inner stock SeqRepo.
     pub fn build_writing_sr(
         sr_cache_path: String,
-    ) -> Result<(Rc<dyn SeqRepoInterface>, String), Error> {
+    ) -> Result<(Arc<dyn SeqRepoInterface>, String), Error> {
         let seqrepo_path = std::env::var("TEST_SEQREPO_PATH")
             .expect("Environment variable TEST_SEQREPO_PATH undefined!");
         let path_buf = PathBuf::from(seqrepo_path.clone());
@@ -245,7 +245,7 @@ pub mod test_helpers {
             .to_str()
             .expect("problem with path to string conversion")
             .to_string();
-        let seqrepo: Rc<dyn SeqRepoInterface> = Rc::new(CacheWritingSeqRepo::new(
+        let seqrepo: Arc<dyn SeqRepoInterface> = Arc::new(CacheWritingSeqRepo::new(
             SeqRepo::new(path, &instance)?,
             sr_cache_path,
         )?);
