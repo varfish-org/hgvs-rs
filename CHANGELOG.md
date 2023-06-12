@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/bihealth/hgvs-rs/compare/v0.8.2...v0.9.0) (2023-06-12)
+
+
+### Features
+
+* express existing thread safety (as most things are immutable) ([#115](https://github.com/bihealth/hgvs-rs/issues/115)) ([0d6f241](https://github.com/bihealth/hgvs-rs/commit/0d6f24177cfafa62796e9b5da069f8d1ca807aad))
+
 ## [0.8.2](https://github.com/bihealth/hgvs-rs/compare/v0.8.1...v0.8.2) (2023-06-08)
 
 
