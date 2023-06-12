@@ -2,13 +2,13 @@
 //!
 //! https://github.com/SACGF/cdot
 
-use std::{collections::HashMap, path::PathBuf, rc::Rc, time::Instant};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Instant};
 
 use crate::{
     data::error::Error,
     data::interface::{
-        GeneInfoRecord, Provider as ProviderInterface, TxExonsRecord, TxForRegionRecord,
-        TxIdentityInfo, TxInfoRecord, TxMappingOptionsRecord, TxSimilarityRecord,
+        self, GeneInfoRecord, TxExonsRecord, TxForRegionRecord, TxIdentityInfo, TxInfoRecord,
+        TxMappingOptionsRecord, TxSimilarityRecord,
     },
     static_data::{Assembly, ASSEMBLY_INFOS},
 };
@@ -16,7 +16,7 @@ use crate::{
 use bio::data_structures::interval_tree::ArrayBackedIntervalTree;
 use chrono::NaiveDateTime;
 use indexmap::IndexMap;
-use seqrepo::{Interface as SeqRepoInterface, SeqRepo};
+use seqrepo::{self, SeqRepo};
 
 /// Configurationf or the `data::cdot::Provider`.
 #[derive(Debug, PartialEq, Clone)]
@@ -42,7 +42,7 @@ pub struct Config {
 /// `exon_aln_id`.
 pub struct Provider {
     inner: TxProvider,
-    seqrepo: Rc<dyn SeqRepoInterface>,
+    seqrepo: Arc<dyn seqrepo::Interface + Sync + Send>,
 }
 
 impl Provider {
@@ -70,14 +70,14 @@ impl Provider {
                     .collect::<Vec<&str>>()
                     .as_ref(),
             )?,
-            seqrepo: Rc::new(SeqRepo::new(path, &instance)?),
+            seqrepo: Arc::new(SeqRepo::new(path, &instance)?),
         })
     }
 
     /// Create a new provider allowing to inject a seqrepo.
     pub fn with_seqrepo(
         config: Config,
-        seqrepo: Rc<dyn SeqRepoInterface>,
+        seqrepo: Arc<dyn seqrepo::Interface + Sync + Send>,
     ) -> Result<Provider, Error> {
         Ok(Self {
             inner: TxProvider::with_config(
@@ -93,7 +93,7 @@ impl Provider {
     }
 }
 
-impl ProviderInterface for Provider {
+impl interface::Provider for Provider {
     fn data_version(&self) -> &str {
         self.inner.data_version()
     }
@@ -699,7 +699,7 @@ pub static REQUIRED_VERSION: &str = "1.1";
 /// The alignment method returned for all cdot transcripts.
 pub static NCBI_ALN_METHOD: &str = "splign";
 
-/// Implementation for `ProviderInterface`.
+/// Implementation for `interface::Provider`.
 impl TxProvider {
     fn data_version(&self) -> &str {
         REQUIRED_VERSION
@@ -1024,12 +1024,12 @@ impl TxProvider {
 #[cfg(test)]
 pub mod test_helpers {
     use anyhow::Error;
-    use std::rc::Rc;
+    use std::sync::Arc;
 
     use crate::data::uta_sr::test_helpers::build_writing_sr;
 
     use super::{Config, Provider};
-    use seqrepo::{CacheReadingSeqRepo, Interface as SeqRepoInterface};
+    use seqrepo;
 
     pub fn build_provider() -> Result<Provider, Error> {
         let sr_cache_mode = std::env::var("TEST_SEQREPO_CACHE_MODE")
@@ -1040,8 +1040,8 @@ pub mod test_helpers {
         log::debug!("building provider...");
         let seqrepo = if sr_cache_mode == "read" {
             log::debug!("reading provider...");
-            let seqrepo: Rc<dyn SeqRepoInterface> =
-                Rc::new(CacheReadingSeqRepo::new(sr_cache_path)?);
+            let seqrepo: Arc<dyn seqrepo::Interface + Send + Sync> =
+                Arc::new(seqrepo::CacheReadingSeqRepo::new(sr_cache_path)?);
             log::debug!("construction done...");
             seqrepo
         } else if sr_cache_mode == "write" {
@@ -1066,8 +1066,9 @@ pub mod test_helpers {
 #[cfg(test)]
 pub mod tests {
     use anyhow::Error;
-    use std::rc::Rc;
+
     use std::str::FromStr;
+    use std::sync::Arc;
 
     use chrono::NaiveDateTime;
     use pretty_assertions::assert_eq;
@@ -1076,12 +1077,18 @@ pub mod tests {
     use super::models::{gap_to_cigar, Container};
     use super::test_helpers::build_provider;
     use crate::data::interface::{
-        GeneInfoRecord, Provider as ProviderInterface, TxExonsRecord, TxForRegionRecord,
-        TxInfoRecord, TxMappingOptionsRecord, TxSimilarityRecord,
+        GeneInfoRecord, Provider, TxExonsRecord, TxForRegionRecord, TxInfoRecord,
+        TxMappingOptionsRecord, TxSimilarityRecord,
     };
-    use crate::mapper::assembly::{Config as AssemblyMapperConfig, Mapper};
+    use crate::mapper::assembly::{self, Mapper};
     use crate::parser::HgvsVariant;
     use crate::static_data::Assembly;
+
+    #[test]
+    fn test_sync() {
+        fn is_sync<T: Sync>() {}
+        is_sync::<super::Provider>();
+    }
 
     #[test]
     fn deserialize_brca1() -> Result<(), Error> {
@@ -2152,8 +2159,8 @@ pub mod tests {
     }
 
     fn build_mapper_37(normalize: bool) -> Result<Mapper, Error> {
-        let provider = Rc::new(build_provider()?);
-        let config = AssemblyMapperConfig {
+        let provider = Arc::new(build_provider()?);
+        let config = assembly::Config {
             assembly: Assembly::Grch37,
             normalize,
             ..Default::default()

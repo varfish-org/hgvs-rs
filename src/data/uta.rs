@@ -12,9 +12,9 @@ use crate::sequences::seq_md5;
 use crate::static_data::{Assembly, ASSEMBLY_INFOS};
 
 use crate::data::{
-    error::Error, interface::GeneInfoRecord, interface::Provider as ProviderInterface,
-    interface::TxExonsRecord, interface::TxForRegionRecord, interface::TxIdentityInfo,
-    interface::TxInfoRecord, interface::TxMappingOptionsRecord, interface::TxSimilarityRecord,
+    error::Error, interface, interface::GeneInfoRecord, interface::TxExonsRecord,
+    interface::TxForRegionRecord, interface::TxIdentityInfo, interface::TxInfoRecord,
+    interface::TxMappingOptionsRecord, interface::TxSimilarityRecord,
 };
 
 /// Configuration for the `data::uta::Provider`.
@@ -234,7 +234,7 @@ impl Provider {
     }
 }
 
-impl ProviderInterface for Provider {
+impl interface::Provider for Provider {
     fn data_version(&self) -> &str {
         &self.config.db_schema
     }
@@ -604,10 +604,16 @@ impl ProviderInterface for Provider {
 
 #[cfg(test)]
 mod test {
-    use crate::{data::interface::Provider as ProviderInterface, static_data::Assembly};
+    use crate::{data::interface::Provider as InterfaceProvider, static_data::Assembly};
     use anyhow::Error;
 
     use super::{Config, Provider};
+
+    #[test]
+    fn test_sync() {
+        fn is_sync<T: Sync>() {}
+        is_sync::<super::Provider>();
+    }
 
     fn get_config() -> Config {
         Config {

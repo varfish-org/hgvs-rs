@@ -2,10 +2,11 @@
 
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
-use std::rc::Rc;
+
+use std::sync::Arc;
 
 use crate::mapper::error::Error;
-use crate::mapper::variant::{Config as VariantMapperConfig, Mapper as VariantMapper};
+use crate::mapper::variant;
 use crate::parser::HgvsVariant;
 use crate::{data::interface::Provider, static_data::Assembly, validator::ValidationLevel};
 
@@ -68,7 +69,7 @@ impl Default for Config {
 /// Provides simplified variant mapping for a single assembly and transcript-reference
 /// alignment method.
 ///
-/// `AssemblyMapper` uses `VariantMapper`, to provide all projection functionality, and add:
+/// `AssemblyMapper` uses `variant::Mapper`, to provide all projection functionality, and add:
 ///
 /// * Automatic selection of genomic sequence accession
 /// * Transcript selection from genomic coordinates
@@ -76,7 +77,7 @@ impl Default for Config {
 /// * Special handling for PAR regions
 ///
 /// `AssemblyMapper` is instantiated with an assembly name and `alt_aln_method`. These enable
-/// the following conveniences over `VariantMapper`:
+/// the following conveniences over `variant::Mapper`:
 ///
 /// * The assembly and alignment method are used to automatically select an appropriate
 ///   chromosomal reference sequence when mapping from a transcript to a genome (i.e.,
@@ -90,8 +91,8 @@ impl Default for Config {
 /// not support contigs or other genomic sequences (e.g., NT_167249.1).
 pub struct Mapper {
     config: Config,
-    provider: Rc<dyn Provider>,
-    inner: VariantMapper,
+    provider: Arc<dyn Provider + Send + Sync>,
+    inner: variant::Mapper,
     /// Accessions of contigs in assembly.
     asm_accessions: HashSet<String>,
     /// Map from accession to contig name.
@@ -100,8 +101,8 @@ pub struct Mapper {
 
 impl Mapper {
     /// Construct new assembly mapper from config and provider.
-    pub fn new(config: Config, provider: Rc<dyn Provider>) -> Self {
-        let inner_config = VariantMapperConfig {
+    pub fn new(config: Config, provider: Arc<dyn Provider + Send + Sync>) -> Self {
+        let inner_config = variant::Config {
             replace_reference: config.replace_reference,
             strict_validation: config.strict_validation,
             prevalidation_level: config.prevalidation_level,
@@ -110,7 +111,7 @@ impl Mapper {
             renormalize_g: config.renormalize_g,
             genome_seq_available: config.genome_seq_available,
         };
-        let inner = VariantMapper::new(&inner_config, provider.clone());
+        let inner = variant::Mapper::new(&inner_config, provider.clone());
         let asm_accessions = provider
             .as_ref()
             .get_assembly_map(config.assembly)
@@ -377,6 +378,12 @@ mod test {
 
     use super::{Config, Mapper};
 
+    #[test]
+    fn test_sync() {
+        fn is_sync<T: Sync>() {}
+        is_sync::<super::Mapper>();
+    }
+
     fn build_mapper_38(normalize: bool) -> Result<Mapper, Error> {
         let provider = build_provider()?;
         let config = Config {
@@ -403,8 +410,8 @@ mod test {
         Ok(())
     }
 
-    /// The following is a port of `Test_VariantMapper` in
-    /// `test_hgvs_variantmapper_near_discrepancies.py` (sic!)
+    /// The following is a port of `Test_variant::Mapper` in
+    /// `test_hgvs_variant::Mapper_near_discrepancies.py` (sic!)
     mod cases {
         use anyhow::Error;
         use std::str::FromStr;
@@ -605,7 +612,7 @@ mod test {
     }
 
     /// The following is a port of the `Test_RefReplacement` in
-    /// `test_hgvs_variantmapper_near_discrepancies.py` (sic!)
+    /// `test_hgvs_variant::Mapper_near_discrepancies.py` (sic!)
     mod ref_replacement {
         use anyhow::Error;
         use std::str::FromStr;
@@ -864,7 +871,7 @@ mod test {
     }
 
     /// The following is a port of `Test_AssemblyMapper` in
-    /// `test_hgvs_variantmapper_near_discrepancies.py` (sic!)
+    /// `test_hgvs_variant::Mapper_near_discrepancies.py` (sic!)
     mod projections {
         use anyhow::Error;
         use std::str::FromStr;
@@ -930,7 +937,7 @@ mod test {
         }
     }
 
-    /// The following is a port of the `test_hgvs_variantmapper_near_discrepancies.py` (sic!)
+    /// The following is a port of the `test_hgvs_variant::Mapper_near_discrepancies.py` (sic!)
     mod near_discrepancies {
         use anyhow::Error;
         use std::str::FromStr;

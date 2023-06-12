@@ -1,14 +1,14 @@
 //! Code for mapping variants between sequences.
 
-use std::{ops::Range, rc::Rc};
+use std::{ops::Range, sync::Arc};
 
 use log::{debug, info};
 
-use super::alignment::{Config as AlignmentConfig, Mapper as AlignmentMapper};
+use super::alignment;
 use crate::{
     data::interface::Provider,
     mapper::Error,
-    normalizer::{self, Config as NormalizerConfig, Normalizer},
+    normalizer::{self, Normalizer},
     parser::{
         Accession, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval, GenomeLocEdit,
         HgvsVariant, Mu, NaEdit, TxInterval, TxLocEdit, TxPos,
@@ -53,8 +53,8 @@ impl Default for Config {
 /// Projects variants between sequences using `alignment::Mapper`.
 pub struct Mapper {
     config: Config,
-    provider: Rc<dyn Provider>,
-    validator: Rc<dyn Validator>,
+    provider: Arc<dyn Provider + Send + Sync>,
+    validator: Arc<dyn Validator + Send + Sync>,
 }
 
 /// Maps SequenceVariant objects between g., n., r., c., and p. representations.
@@ -91,7 +91,7 @@ pub struct Mapper {
 /// differences. For example, c_to_g accounts for the transcription
 /// start site offset, then calls n_to_g.
 impl Mapper {
-    pub fn new(config: &Config, provider: Rc<dyn Provider>) -> Mapper {
+    pub fn new(config: &Config, provider: Arc<dyn Provider + Send + Sync>) -> Mapper {
         let validator = config
             .prevalidation_level
             .validator(config.strict_validation, provider.clone());
@@ -110,7 +110,7 @@ impl Mapper {
     }
 
     /// Return a copy of the internal provider.
-    pub fn provider(&self) -> Rc<dyn Provider> {
+    pub fn provider(&self) -> Arc<dyn Provider + Send + Sync> {
         self.provider.clone()
     }
 
@@ -120,10 +120,10 @@ impl Mapper {
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<AlignmentMapper, Error> {
+    ) -> Result<alignment::Mapper, Error> {
         // TODO: implement caching
-        AlignmentMapper::new(
-            &AlignmentConfig {
+        alignment::Mapper::new(
+            &alignment::Config {
                 strict_bounds: self.config.strict_bounds,
             },
             self.provider.clone(),
@@ -139,7 +139,7 @@ impl Mapper {
             self,
             self.provider.clone(),
             self.validator.clone(),
-            NormalizerConfig {
+            normalizer::Config {
                 replace_reference: self.config.replace_reference,
                 ..Default::default()
             },
@@ -959,6 +959,12 @@ mod test {
 
     use super::{Config, Mapper};
 
+    #[test]
+    fn test_sync() {
+        fn is_sync<T: Sync>() {}
+        is_sync::<super::Mapper>();
+    }
+
     fn build_mapper() -> Result<Mapper, Error> {
         let provider = build_provider()?;
         let config = Config::default();
@@ -1085,10 +1091,10 @@ mod test {
         use anyhow::Error;
         use std::{
             path::{Path, PathBuf},
-            rc::Rc,
+            sync::Arc,
         };
 
-        use crate::data::interface::Provider as ProviderInterface;
+        use crate::data::interface;
         use crate::{
             data::interface::TxIdentityInfo,
             mapper::variant::{Config, Mapper},
@@ -1122,7 +1128,7 @@ mod test {
             }
         }
 
-        impl ProviderInterface for Provider {
+        impl interface::Provider for Provider {
             fn data_version(&self) -> &str {
                 panic!("for test use only");
             }
@@ -1264,7 +1270,7 @@ mod test {
 
         pub fn build_mapper(strict_bounds: bool) -> Result<Mapper, Error> {
             let path = PathBuf::from("tests/data/mapper/sanity_cp.tsv");
-            let provider = Rc::new(Provider::new(&path)?);
+            let provider = Arc::new(Provider::new(&path)?);
             let config = Config {
                 strict_bounds,
                 ..Default::default()

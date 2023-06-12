@@ -1,11 +1,11 @@
 //! Variant normalization.
 
-use std::{cmp::Ordering, ops::Range, rc::Rc};
+use std::{cmp::Ordering, ops::Range, sync::Arc};
 
 pub use crate::normalizer::error::Error;
 use crate::{
     data::interface::Provider,
-    mapper::variant::Mapper as VariantMapper,
+    mapper::variant,
     parser::{
         GenomeInterval, GenomeLocEdit, HgvsVariant, MtInterval, MtLocEdit, Mu, NaEdit, RnaInterval,
         RnaLocEdit, RnaPos, TxInterval, TxLocEdit, TxPos,
@@ -87,10 +87,10 @@ impl Default for Config {
 
 /// Normalizes variants (5' and 3' shifting).
 pub struct Normalizer<'a> {
-    pub provider: Rc<dyn Provider>,
-    pub validator: Rc<dyn Validator>,
+    pub provider: Arc<dyn Provider + Send + Sync>,
+    pub validator: Arc<dyn Validator + Send + Sync>,
     pub config: Config,
-    pub mapper: &'a VariantMapper,
+    pub mapper: &'a variant::Mapper,
 }
 
 /// Helper type used in `Normalizer::check_and_guard()`.
@@ -102,9 +102,9 @@ struct CheckAndGuardResult {
 
 impl<'a> Normalizer<'a> {
     pub fn new(
-        mapper: &'a VariantMapper,
-        provider: Rc<dyn Provider>,
-        validator: Rc<dyn Validator>,
+        mapper: &'a variant::Mapper,
+        provider: Arc<dyn Provider + Send + Sync>,
+        validator: Arc<dyn Validator + Send + Sync>,
         config: Config,
     ) -> Self {
         Self {
@@ -1043,7 +1043,7 @@ mod test {
     use test_log::test;
 
     use anyhow::Error;
-    use std::{rc::Rc, str::FromStr};
+    use std::{str::FromStr, sync::Arc};
 
     use pretty_assertions::assert_eq;
 
@@ -1055,11 +1055,17 @@ mod test {
         validator::IntrinsicValidator,
     };
 
+    #[test]
+    fn test_sync() {
+        fn is_sync<T: Sync>() {}
+        is_sync::<Normalizer>();
+    }
+
     fn normalizers(
         mapper: &Mapper,
     ) -> Result<(Normalizer, Normalizer, Normalizer, Normalizer), Error> {
         let provider = mapper.provider();
-        let validator = Rc::new(IntrinsicValidator::new(true));
+        let validator = Arc::new(IntrinsicValidator::new(true));
 
         Ok((
             Normalizer::new(
