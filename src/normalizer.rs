@@ -1,6 +1,6 @@
 //! Variant normalization.
 
-use std::{cmp::Ordering, ops::Range, rc::Rc};
+use std::{cmp::Ordering, ops::Range, rc::Rc, sync::Arc};
 
 pub use crate::normalizer::error::Error;
 use crate::{
@@ -87,8 +87,8 @@ impl Default for Config {
 
 /// Normalizes variants (5' and 3' shifting).
 pub struct Normalizer<'a> {
-    pub provider: Rc<dyn Provider>,
-    pub validator: Rc<dyn Validator>,
+    pub provider: Arc<dyn Provider + Send + Sync>,
+    pub validator: Arc<dyn Validator + Send + Sync>,
     pub config: Config,
     pub mapper: &'a variant::Mapper,
 }
@@ -103,8 +103,8 @@ struct CheckAndGuardResult {
 impl<'a> Normalizer<'a> {
     pub fn new(
         mapper: &'a variant::Mapper,
-        provider: Rc<dyn Provider>,
-        validator: Rc<dyn Validator>,
+        provider: Arc<dyn Provider + Send + Sync>,
+        validator: Arc<dyn Validator + Send + Sync>,
         config: Config,
     ) -> Self {
         Self {
@@ -1059,7 +1059,7 @@ mod test {
         mapper: &Mapper,
     ) -> Result<(Normalizer, Normalizer, Normalizer, Normalizer), Error> {
         let provider = mapper.provider();
-        let validator = Rc::new(IntrinsicValidator::new(true));
+        let validator = Arc::new(IntrinsicValidator::new(true));
 
         Ok((
             Normalizer::new(

@@ -3,6 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::mapper::error::Error;
 use crate::mapper::variant;
@@ -90,7 +91,7 @@ impl Default for Config {
 /// not support contigs or other genomic sequences (e.g., NT_167249.1).
 pub struct Mapper {
     config: Config,
-    provider: Rc<dyn Provider>,
+    provider: Arc<dyn Provider + Send + Sync>,
     inner: variant::Mapper,
     /// Accessions of contigs in assembly.
     asm_accessions: HashSet<String>,
@@ -100,7 +101,7 @@ pub struct Mapper {
 
 impl Mapper {
     /// Construct new assembly mapper from config and provider.
-    pub fn new(config: Config, provider: Rc<dyn Provider>) -> Self {
+    pub fn new(config: Config, provider: Arc<dyn Provider + Send + Sync>) -> Self {
         let inner_config = variant::Config {
             replace_reference: config.replace_reference,
             strict_validation: config.strict_validation,

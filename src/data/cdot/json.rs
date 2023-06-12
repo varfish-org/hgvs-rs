@@ -2,7 +2,7 @@
 //!
 //! https://github.com/SACGF/cdot
 
-use std::{collections::HashMap, path::PathBuf, rc::Rc, time::Instant};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Instant};
 
 use crate::{
     data::error::Error,
@@ -42,7 +42,7 @@ pub struct Config {
 /// `exon_aln_id`.
 pub struct Provider {
     inner: TxProvider,
-    seqrepo: Rc<dyn seqrepo::Interface>,
+    seqrepo: Arc<dyn seqrepo::Interface + Sync + Send>,
 }
 
 impl Provider {
@@ -70,14 +70,14 @@ impl Provider {
                     .collect::<Vec<&str>>()
                     .as_ref(),
             )?,
-            seqrepo: Rc::new(SeqRepo::new(path, &instance)?),
+            seqrepo: Arc::new(SeqRepo::new(path, &instance)?),
         })
     }
 
     /// Create a new provider allowing to inject a seqrepo.
     pub fn with_seqrepo(
         config: Config,
-        seqrepo: Rc<dyn seqrepo::Interface>,
+        seqrepo: Arc<dyn seqrepo::Interface + Sync + Send>,
     ) -> Result<Provider, Error> {
         Ok(Self {
             inner: TxProvider::with_config(
@@ -1024,7 +1024,7 @@ impl TxProvider {
 #[cfg(test)]
 pub mod test_helpers {
     use anyhow::Error;
-    use std::rc::Rc;
+    use std::sync::Arc;
 
     use crate::data::uta_sr::test_helpers::build_writing_sr;
 
@@ -1040,8 +1040,8 @@ pub mod test_helpers {
         log::debug!("building provider...");
         let seqrepo = if sr_cache_mode == "read" {
             log::debug!("reading provider...");
-            let seqrepo: Rc<dyn seqrepo::Interface> =
-                Rc::new(seqrepo::CacheReadingSeqRepo::new(sr_cache_path)?);
+            let seqrepo: Arc<dyn seqrepo::Interface + Send + Sync> =
+                Arc::new(seqrepo::CacheReadingSeqRepo::new(sr_cache_path)?);
             log::debug!("construction done...");
             seqrepo
         } else if sr_cache_mode == "write" {
@@ -1082,6 +1082,12 @@ pub mod tests {
     use crate::mapper::assembly::{self, Mapper};
     use crate::parser::HgvsVariant;
     use crate::static_data::Assembly;
+
+    #[test]
+    fn test_sync() {
+        fn is_sync<T: Sync>() {}
+        is_sync::<super::Provider>();
+    }
 
     #[test]
     fn deserialize_brca1() -> Result<(), Error> {

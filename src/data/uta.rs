@@ -609,6 +609,12 @@ mod test {
 
     use super::{Config, Provider};
 
+    #[test]
+    fn test_sync() {
+        fn is_sync<T: Sync>() {}
+        is_sync::<super::Provider>();
+    }
+
     fn get_config() -> Config {
         Config {
             db_url: std::env::var("TEST_UTA_DATABASE_URL")

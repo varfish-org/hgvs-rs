@@ -1,6 +1,6 @@
 //! Code for building alternative sequence and convertion to HGVS.p.
 
-use std::{cmp::Ordering, rc::Rc};
+use std::{cmp::Ordering, rc::Rc, sync::Arc};
 
 use crate::{
     data::interface::Provider,
@@ -35,7 +35,7 @@ impl RefTranscriptData {
     /// * `tx_ac` -- Transcript accession.
     /// * `pro_ac` -- Protein accession.
     pub fn new(
-        provider: Rc<dyn Provider>,
+        provider: Arc<dyn Provider + Send + Sync>,
         tx_ac: &str,
         pro_ac: Option<&str>,
     ) -> Result<Self, Error> {
