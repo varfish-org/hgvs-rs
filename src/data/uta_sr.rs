@@ -7,13 +7,13 @@
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use crate::data::uta::{Config as UtaConfig, Provider as UtaProvider};
+use crate::data::uta;
 use crate::data::{
-    error::Error, interface::GeneInfoRecord, interface::Provider as ProviderInterface,
-    interface::TxExonsRecord, interface::TxForRegionRecord, interface::TxIdentityInfo,
-    interface::TxInfoRecord, interface::TxMappingOptionsRecord, interface::TxSimilarityRecord,
+    error::Error, interface, interface::GeneInfoRecord, interface::TxExonsRecord,
+    interface::TxForRegionRecord, interface::TxIdentityInfo, interface::TxInfoRecord,
+    interface::TxMappingOptionsRecord, interface::TxSimilarityRecord,
 };
-use seqrepo::{AliasOrSeqId, Interface as SeqRepoInterface, SeqRepo};
+use seqrepo::{self, AliasOrSeqId, SeqRepo};
 
 /// Configuration for the `data::uta_sr::Provider`.
 #[derive(Debug, PartialEq, Clone)]
@@ -33,8 +33,8 @@ pub struct Config {
 /// Transcripts from a UTA Postgres database, sequences comes from a SeqRepo.  This makes
 /// genome contig information available in contrast to `data::uta::Provider`.
 pub struct Provider {
-    inner: UtaProvider,
-    seqrepo: Rc<dyn SeqRepoInterface>,
+    inner: uta::Provider,
+    seqrepo: Rc<dyn seqrepo::Interface>,
 }
 
 impl Provider {
@@ -58,7 +58,7 @@ impl Provider {
             .to_string();
 
         Ok(Self {
-            inner: UtaProvider::with_config(&UtaConfig {
+            inner: uta::Provider::with_config(&uta::Config {
                 db_url: config.db_url.clone(),
                 db_schema: config.db_schema,
             })?,
@@ -69,10 +69,10 @@ impl Provider {
     /// Create a new provider allowing to inject a seqrepo.
     pub fn with_seqrepo(
         config: Config,
-        seqrepo: Rc<dyn SeqRepoInterface>,
+        seqrepo: Rc<dyn seqrepo::Interface>,
     ) -> Result<Provider, Error> {
         Ok(Self {
-            inner: UtaProvider::with_config(&UtaConfig {
+            inner: uta::Provider::with_config(&uta::Config {
                 db_url: config.db_url.clone(),
                 db_schema: config.db_schema,
             })?,
@@ -81,7 +81,7 @@ impl Provider {
     }
 }
 
-impl ProviderInterface for Provider {
+impl interface::Provider for Provider {
     fn data_version(&self) -> &str {
         self.inner.data_version()
     }
@@ -174,18 +174,17 @@ impl ProviderInterface for Provider {
 #[cfg(test)]
 pub mod test_helpers {
     use anyhow::Error;
+    use seqrepo::{CacheReadingSeqRepo, CacheWritingSeqRepo, SeqRepo};
     use std::{path::PathBuf, rc::Rc};
 
-    use seqrepo::{
-        CacheReadingSeqRepo, CacheWritingSeqRepo, Interface as SeqRepoInterface, SeqRepo,
-    };
+    use crate::data::interface;
 
-    use super::{Config, Provider, ProviderInterface};
+    use super::{Config, Provider};
 
     /// Setup a UTA Provider with data source depending on environment variables.
     ///
     /// See README.md for information on environment variable setup.
-    pub fn build_provider() -> Result<Rc<dyn ProviderInterface>, Error> {
+    pub fn build_provider() -> Result<Rc<dyn interface::Provider>, Error> {
         log::debug!("building provider...");
         let db_url = std::env::var("TEST_UTA_DATABASE_URL")
             .expect("Environment variable TEST_UTA_DATABASE_URL undefined!");
@@ -198,7 +197,7 @@ pub mod test_helpers {
 
         let (seqrepo, seqrepo_path) = if sr_cache_mode == "read" {
             log::debug!("reading provider...");
-            let seqrepo: Rc<dyn SeqRepoInterface> =
+            let seqrepo: Rc<dyn seqrepo::Interface> =
                 Rc::new(CacheReadingSeqRepo::new(sr_cache_path)?);
             log::debug!("construction done...");
             (seqrepo, "".to_string())
@@ -223,7 +222,7 @@ pub mod test_helpers {
     /// Helper that builds the cache writing SeqRepo with inner stock SeqRepo.
     pub fn build_writing_sr(
         sr_cache_path: String,
-    ) -> Result<(Rc<dyn SeqRepoInterface>, String), Error> {
+    ) -> Result<(Rc<dyn seqrepo::Interface>, String), Error> {
         let seqrepo_path = std::env::var("TEST_SEQREPO_PATH")
             .expect("Environment variable TEST_SEQREPO_PATH undefined!");
         let path_buf = PathBuf::from(seqrepo_path.clone());
@@ -245,7 +244,7 @@ pub mod test_helpers {
             .to_str()
             .expect("problem with path to string conversion")
             .to_string();
-        let seqrepo: Rc<dyn SeqRepoInterface> = Rc::new(CacheWritingSeqRepo::new(
+        let seqrepo: Rc<dyn seqrepo::Interface> = Rc::new(CacheWritingSeqRepo::new(
             SeqRepo::new(path, &instance)?,
             sr_cache_path,
         )?);

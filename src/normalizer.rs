@@ -5,7 +5,7 @@ use std::{cmp::Ordering, ops::Range, rc::Rc};
 pub use crate::normalizer::error::Error;
 use crate::{
     data::interface::Provider,
-    mapper::variant::Mapper as VariantMapper,
+    mapper::variant,
     parser::{
         GenomeInterval, GenomeLocEdit, HgvsVariant, MtInterval, MtLocEdit, Mu, NaEdit, RnaInterval,
         RnaLocEdit, RnaPos, TxInterval, TxLocEdit, TxPos,
@@ -90,7 +90,7 @@ pub struct Normalizer<'a> {
     pub provider: Rc<dyn Provider>,
     pub validator: Rc<dyn Validator>,
     pub config: Config,
-    pub mapper: &'a VariantMapper,
+    pub mapper: &'a variant::Mapper,
 }
 
 /// Helper type used in `Normalizer::check_and_guard()`.
@@ -102,7 +102,7 @@ struct CheckAndGuardResult {
 
 impl<'a> Normalizer<'a> {
     pub fn new(
-        mapper: &'a VariantMapper,
+        mapper: &'a variant::Mapper,
         provider: Rc<dyn Provider>,
         validator: Rc<dyn Validator>,
         config: Config,

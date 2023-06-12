@@ -4,11 +4,11 @@ use std::{ops::Range, rc::Rc};
 
 use log::{debug, info};
 
-use super::alignment::{Config as AlignmentConfig, Mapper as AlignmentMapper};
+use super::alignment;
 use crate::{
     data::interface::Provider,
     mapper::Error,
-    normalizer::{self, Config as NormalizerConfig, Normalizer},
+    normalizer::{self, Normalizer},
     parser::{
         Accession, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval, GenomeLocEdit,
         HgvsVariant, Mu, NaEdit, TxInterval, TxLocEdit, TxPos,
@@ -120,10 +120,10 @@ impl Mapper {
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<AlignmentMapper, Error> {
+    ) -> Result<alignment::Mapper, Error> {
         // TODO: implement caching
-        AlignmentMapper::new(
-            &AlignmentConfig {
+        alignment::Mapper::new(
+            &alignment::Config {
                 strict_bounds: self.config.strict_bounds,
             },
             self.provider.clone(),
@@ -139,7 +139,7 @@ impl Mapper {
             self,
             self.provider.clone(),
             self.validator.clone(),
-            NormalizerConfig {
+            normalizer::Config {
                 replace_reference: self.config.replace_reference,
                 ..Default::default()
             },
@@ -1088,7 +1088,7 @@ mod test {
             rc::Rc,
         };
 
-        use crate::data::interface::Provider as ProviderInterface;
+        use crate::data::interface;
         use crate::{
             data::interface::TxIdentityInfo,
             mapper::variant::{Config, Mapper},
@@ -1122,7 +1122,7 @@ mod test {
             }
         }
 
-        impl ProviderInterface for Provider {
+        impl interface::Provider for Provider {
             fn data_version(&self) -> &str {
                 panic!("for test use only");
             }
