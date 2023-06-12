@@ -27,8 +27,7 @@ postgres = { version = "0.19", features = ["with-chrono-0_4"] }
 quick_cache = "0.3"
 regex = "1.7"
 rustc-hash = "1.1"
-#seqrepo = { version = "0.5" }
-seqrepo = { git = "https://github.com/bihealth/seqrepo-rs.git", branch = "thread-safety" }
+seqrepo = { version = "0.6" }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0"
