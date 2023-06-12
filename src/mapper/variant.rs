@@ -1085,7 +1085,7 @@ mod test {
         use anyhow::Error;
         use std::{
             path::{Path, PathBuf},
-            rc::Rc, sync::Arc,
+            sync::Arc,
         };
 
         use crate::data::interface;
