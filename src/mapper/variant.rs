@@ -959,6 +959,12 @@ mod test {
 
     use super::{Config, Mapper};
 
+    #[test]
+    fn test_sync() {
+        fn is_sync<T: Sync>() {}
+        is_sync::<super::Mapper>();
+    }
+
     fn build_mapper() -> Result<Mapper, Error> {
         let provider = build_provider()?;
         let config = Config::default();

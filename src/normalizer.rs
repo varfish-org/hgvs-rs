@@ -1055,6 +1055,12 @@ mod test {
         validator::IntrinsicValidator,
     };
 
+    #[test]
+    fn test_sync() {
+        fn is_sync<T: Sync>() {}
+        is_sync::<Normalizer>();
+    }
+
     fn normalizers(
         mapper: &Mapper,
     ) -> Result<(Normalizer, Normalizer, Normalizer, Normalizer), Error> {
