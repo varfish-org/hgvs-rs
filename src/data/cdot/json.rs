@@ -1068,6 +1068,7 @@ pub mod tests {
     use anyhow::Error;
     use std::rc::Rc;
     use std::str::FromStr;
+    use std::sync::Arc;
 
     use chrono::NaiveDateTime;
     use pretty_assertions::assert_eq;
@@ -2158,7 +2159,7 @@ pub mod tests {
     }
 
     fn build_mapper_37(normalize: bool) -> Result<Mapper, Error> {
-        let provider = Rc::new(build_provider()?);
+        let provider = Arc::new(build_provider()?);
         let config = assembly::Config {
             assembly: Assembly::Grch37,
             normalize,

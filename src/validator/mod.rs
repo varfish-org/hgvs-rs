@@ -2,7 +2,7 @@
 
 mod error;
 
-use std::{rc::Rc, sync::Arc};
+use std::sync::Arc;
 
 use log::{error, warn};
 

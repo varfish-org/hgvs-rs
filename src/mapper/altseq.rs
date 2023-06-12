@@ -1,6 +1,6 @@
 //! Code for building alternative sequence and convertion to HGVS.p.
 
-use std::{cmp::Ordering, rc::Rc, sync::Arc};
+use std::{cmp::Ordering, sync::Arc};
 
 use crate::{
     data::interface::Provider,

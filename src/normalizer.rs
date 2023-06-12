@@ -1,6 +1,6 @@
 //! Variant normalization.
 
-use std::{cmp::Ordering, ops::Range, rc::Rc, sync::Arc};
+use std::{cmp::Ordering, ops::Range, sync::Arc};
 
 pub use crate::normalizer::error::Error;
 use crate::{
@@ -1043,7 +1043,7 @@ mod test {
     use test_log::test;
 
     use anyhow::Error;
-    use std::{rc::Rc, str::FromStr};
+    use std::{rc::Rc, str::FromStr, sync::Arc};
 
     use pretty_assertions::assert_eq;
 

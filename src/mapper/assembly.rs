@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
-use std::rc::Rc;
+
 use std::sync::Arc;
 
 use crate::mapper::error::Error;

@@ -1,6 +1,6 @@
 //! Code for mapping variants between sequences.
 
-use std::{ops::Range, rc::Rc, sync::Arc};
+use std::{ops::Range, sync::Arc};
 
 use log::{debug, info};
 
@@ -1085,7 +1085,7 @@ mod test {
         use anyhow::Error;
         use std::{
             path::{Path, PathBuf},
-            rc::Rc,
+            rc::Rc, sync::Arc,
         };
 
         use crate::data::interface;
@@ -1264,7 +1264,7 @@ mod test {
 
         pub fn build_mapper(strict_bounds: bool) -> Result<Mapper, Error> {
             let path = PathBuf::from("tests/data/mapper/sanity_cp.tsv");
-            let provider = Rc::new(Provider::new(&path)?);
+            let provider = Arc::new(Provider::new(&path)?);
             let config = Config {
                 strict_bounds,
                 ..Default::default()
