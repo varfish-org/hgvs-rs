@@ -15,7 +15,7 @@ jobs:
         with:
           release-type: rust
           package-name: hgvs
-          token: ${{ secrest.BOT_TOKEN }}
+          token: ${{ secrets.BOT_TOKEN }}
 
       - uses: actions/checkout@v2
         if: ${{ steps.release.outputs.release_created }}
