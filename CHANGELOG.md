@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/bihealth/hgvs-rs/compare/v0.10.0...v0.10.1) (2023-07-04)
+
+
+### Bug Fixes
+
+* properly configure dependabot for noodles ([#119](https://github.com/bihealth/hgvs-rs/issues/119)) ([b539921](https://github.com/bihealth/hgvs-rs/commit/b5399215294e555df06bc78c7ffca4d71acb4c75))
+
 ## [0.10.0](https://github.com/bihealth/hgvs-rs/compare/v0.9.0...v0.10.0) (2023-07-04)
 
 
