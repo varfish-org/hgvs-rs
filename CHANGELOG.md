@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/bihealth/hgvs-rs/compare/v0.10.1...v0.11.0) (2023-09-18)
+
+
+### Features
+
+* various dependency updates, bump version to 0.11.0 ([#128](https://github.com/bihealth/hgvs-rs/issues/128)) ([09ed016](https://github.com/bihealth/hgvs-rs/commit/09ed0167624ea67354eef78e698f9b0439050b11))
+
 ## [0.10.1](https://github.com/bihealth/hgvs-rs/compare/v0.10.0...v0.10.1) (2023-07-04)
 
 
