@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.0](https://github.com/bihealth/hgvs-rs/compare/v0.11.0...v0.12.0) (2023-10-21)
+
+
+### Features
+
+* move out assemblies to biocommons_bioutils crate ([#134](https://github.com/bihealth/hgvs-rs/issues/134)) ([#135](https://github.com/bihealth/hgvs-rs/issues/135)) ([d06bd28](https://github.com/bihealth/hgvs-rs/commit/d06bd28d17884df1999669a378a516d317ab28e0))
+
+
+### Bug Fixes
+
+* problem with annotating stop_retained insertions ([#131](https://github.com/bihealth/hgvs-rs/issues/131)) ([#132](https://github.com/bihealth/hgvs-rs/issues/132)) ([0f42d20](https://github.com/bihealth/hgvs-rs/commit/0f42d20fa89bfc3db429ce6bfe53984dd03ba29c))
+
 ## [0.11.0](https://github.com/bihealth/hgvs-rs/compare/v0.10.1...v0.11.0) (2023-09-18)
 
 
