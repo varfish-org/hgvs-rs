@@ -4,7 +4,7 @@ use chrono::NaiveDateTime;
 use indexmap::IndexMap;
 
 use crate::data::error::Error;
-use crate::static_data::Assembly;
+use biocommons_bioutils::assemblies::Assembly;
 
 /// Information about a gene.
 ///

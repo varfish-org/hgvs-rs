@@ -8,7 +8,8 @@ use std::sync::Arc;
 use crate::mapper::error::Error;
 use crate::mapper::variant;
 use crate::parser::HgvsVariant;
-use crate::{data::interface::Provider, static_data::Assembly, validator::ValidationLevel};
+use crate::{data::interface::Provider, validator::ValidationLevel};
+use biocommons_bioutils::assemblies::Assembly;
 
 #[derive(Debug, PartialEq, Eq, Default, Clone, Copy)]
 pub enum InParAssume {
@@ -373,8 +374,9 @@ impl Mapper {
 
 #[cfg(test)]
 mod test {
-    use crate::{data::uta_sr::test_helpers::build_provider, static_data::Assembly};
+    use crate::data::uta_sr::test_helpers::build_provider;
     use anyhow::Error;
+    use biocommons_bioutils::assemblies::Assembly;
 
     use super::{Config, Mapper};
 

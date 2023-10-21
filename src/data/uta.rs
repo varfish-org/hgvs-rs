@@ -9,7 +9,7 @@ use std::fmt::Debug;
 use std::sync::Mutex;
 
 use crate::sequences::seq_md5;
-use crate::static_data::{Assembly, ASSEMBLY_INFOS};
+use biocommons_bioutils::assemblies::{Assembly, ASSEMBLY_INFOS};
 
 use crate::data::{
     error::Error, interface, interface::GeneInfoRecord, interface::TxExonsRecord,
@@ -604,8 +604,9 @@ impl interface::Provider for Provider {
 
 #[cfg(test)]
 mod test {
-    use crate::{data::interface::Provider as InterfaceProvider, static_data::Assembly};
+    use crate::data::interface::Provider as InterfaceProvider;
     use anyhow::Error;
+    use biocommons_bioutils::assemblies::Assembly;
 
     use super::{Config, Provider};
 

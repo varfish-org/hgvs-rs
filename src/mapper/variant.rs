@@ -1152,7 +1152,7 @@ mod test {
 
             fn get_assembly_map(
                 &self,
-                _assembly: crate::static_data::Assembly,
+                _assembly: biocommons_bioutils::assemblies::Assembly,
             ) -> indexmap::IndexMap<String, String> {
                 panic!("for test use only");
             }

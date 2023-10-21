@@ -10,8 +10,8 @@ use crate::{
         self, GeneInfoRecord, TxExonsRecord, TxForRegionRecord, TxIdentityInfo, TxInfoRecord,
         TxMappingOptionsRecord, TxSimilarityRecord,
     },
-    static_data::{Assembly, ASSEMBLY_INFOS},
 };
+use biocommons_bioutils::assemblies::{Assembly, ASSEMBLY_INFOS};
 
 use bio::data_structures::interval_tree::ArrayBackedIntervalTree;
 use chrono::NaiveDateTime;
@@ -104,7 +104,7 @@ impl interface::Provider for Provider {
 
     fn get_assembly_map(
         &self,
-        assembly: crate::static_data::Assembly,
+        assembly: biocommons_bioutils::assemblies::Assembly,
     ) -> indexmap::IndexMap<String, String> {
         self.inner.get_assembly_map(assembly)
     }
@@ -1082,7 +1082,7 @@ pub mod tests {
     };
     use crate::mapper::assembly::{self, Mapper};
     use crate::parser::HgvsVariant;
-    use crate::static_data::Assembly;
+    use biocommons_bioutils::assemblies::Assembly;
 
     #[test]
     fn test_sync() {
