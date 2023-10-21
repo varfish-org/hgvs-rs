@@ -88,6 +88,7 @@ impl RefTranscriptData {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct AltTranscriptData {
     /// Transcript nucleotide sequence.
     #[allow(dead_code)]
@@ -697,10 +698,14 @@ impl AltSeqToHgvsp {
                             .last()
                             .expect("should not happen; checked for being non-empty above")
                             + 1;
-                        (
-                            format!("{}{}", deletion, &ref_sub[..max_diff]),
-                            format!("{}{}", insertion, &alt_sub[..max_diff]),
-                        )
+                        if max_diff > ref_sub.len() || max_diff > alt_sub.len() {
+                            (deletion.clone(), insertion.clone())
+                        } else {
+                            (
+                                format!("{}{}", deletion, &ref_sub[..max_diff]),
+                                format!("{}{}", insertion, &alt_sub[..max_diff]),
+                            )
+                        }
                     } else {
                         (deletion, insertion)
                     };
