@@ -8,7 +8,8 @@ use std::sync::Arc;
 use crate::mapper::error::Error;
 use crate::mapper::variant;
 use crate::parser::HgvsVariant;
-use crate::{data::interface::Provider, static_data::Assembly, validator::ValidationLevel};
+use crate::{data::interface::Provider, validator::ValidationLevel};
+use biocommons_bioutils::assemblies::Assembly;
 
 #[derive(Debug, PartialEq, Eq, Default, Clone, Copy)]
 pub enum InParAssume {

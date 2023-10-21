@@ -9,7 +9,7 @@ use std::fmt::Debug;
 use std::sync::Mutex;
 
 use crate::sequences::seq_md5;
-use crate::static_data::{Assembly, ASSEMBLY_INFOS};
+use biocommons_bioutils::assemblies::{Assembly, ASSEMBLY_INFOS};
 
 use crate::data::{
     error::Error, interface, interface::GeneInfoRecord, interface::TxExonsRecord,
