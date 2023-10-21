@@ -374,8 +374,9 @@ impl Mapper {
 
 #[cfg(test)]
 mod test {
-    use crate::{data::uta_sr::test_helpers::build_provider, static_data::Assembly};
+    use crate::data::uta_sr::test_helpers::build_provider;
     use anyhow::Error;
+    use biocommons_bioutils::assemblies::Assembly;
 
     use super::{Config, Mapper};
 

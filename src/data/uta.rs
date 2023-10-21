@@ -604,8 +604,9 @@ impl interface::Provider for Provider {
 
 #[cfg(test)]
 mod test {
-    use crate::{data::interface::Provider as InterfaceProvider, static_data::Assembly};
+    use crate::data::interface::Provider as InterfaceProvider;
     use anyhow::Error;
+    use biocommons_bioutils::assemblies::Assembly;
 
     use super::{Config, Provider};
 
