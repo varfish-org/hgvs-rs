@@ -1,0 +1,10 @@
+---
+source: src/mapper/variant.rs
+expression: "&var_p_test"
+---
+ProtVariant:
+  accession:
+    value: NP_001240838.1
+  gene_symbol: ~
+  loc_edit: NoChange
+

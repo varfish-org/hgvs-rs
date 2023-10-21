@@ -6,7 +6,7 @@ use crate::parser::error::Error;
 use log::warn;
 
 /// Expression of "maybe uncertain".
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Mu<T> {
     /// Certain variant of `T`.
     Certain(T),
@@ -53,7 +53,7 @@ impl<T> Mu<T> {
 }
 
 /// Representation of gene symbol, e.g., `TTN` or `Ttn`.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GeneSymbol {
     pub value: String,
 }
@@ -79,7 +79,7 @@ impl Deref for GeneSymbol {
 }
 
 /// Edit of nucleic acids.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum NaEdit {
     /// A substitution where both reference and alternative allele are nucleic acid strings
     /// (or empty).
@@ -189,7 +189,7 @@ impl NaEdit {
 }
 
 /// Uncertain change through extension.
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub enum UncertainLengthChange {
     #[default]
     None,
@@ -198,7 +198,7 @@ pub enum UncertainLengthChange {
 }
 
 /// Representation of accession, e.g., `NM_01234.5`.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Accession {
     pub value: String,
 }
@@ -224,7 +224,7 @@ impl Accession {
 }
 
 /// Protein edit with interval end edit.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ProteinEdit {
     Fs {
         alternative: Option<String>,
@@ -259,7 +259,7 @@ pub enum ProteinEdit {
 }
 
 /// A HGVS variant specification.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum HgvsVariant {
     /// Variant specification with `c.` location.
     CdsVariant {
@@ -563,7 +563,7 @@ impl HgvsVariant {
 }
 
 /// Coding sequence location with edit.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CdsLocEdit {
     /// Location on the CDS.
     pub loc: Mu<CdsInterval>,
@@ -596,7 +596,7 @@ impl CdsLocEdit {
 }
 
 /// CDS position interval.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CdsInterval {
     /// Start position
     pub start: CdsPos,
@@ -627,14 +627,14 @@ impl TryFrom<CdsInterval> for Range<i32> {
 
 /// Specifies whether the CDS position is relative to the CDS start or
 /// CDS end.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum CdsFrom {
     Start,
     End,
 }
 
 /// CDS position.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CdsPos {
     /// Base position.
     pub base: i32,
@@ -645,7 +645,7 @@ pub struct CdsPos {
 }
 
 /// Genome sequence location with edit.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GenomeLocEdit {
     /// Location on the genome.
     pub loc: Mu<GenomeInterval>,
@@ -678,7 +678,7 @@ impl GenomeLocEdit {
 }
 
 /// Genome position interval.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GenomeInterval {
     /// Start position
     pub start: Option<i32>,
@@ -701,7 +701,7 @@ impl TryInto<Range<i32>> for GenomeInterval {
 }
 
 /// Mitochondrial sequence location with edit.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct MtLocEdit {
     /// Location on the mitochondrium.
     pub loc: Mu<MtInterval>,
@@ -733,7 +733,7 @@ impl MtLocEdit {
     }
 }
 /// Mitochondrial position interval.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct MtInterval {
     /// Start position
     pub start: Option<i32>,
@@ -756,7 +756,7 @@ impl TryInto<Range<i32>> for MtInterval {
 }
 
 /// Transcript sequence location with edit.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TxLocEdit {
     /// Loction on a transcript.
     pub loc: Mu<TxInterval>,
@@ -789,7 +789,7 @@ impl TxLocEdit {
 }
 
 /// Transcript position interval.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TxInterval {
     /// Start position
     pub start: TxPos,
@@ -813,7 +813,7 @@ impl From<TxInterval> for Range<i32> {
 }
 
 /// Transcript position.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TxPos {
     /// Base position.
     pub base: i32,
@@ -822,7 +822,7 @@ pub struct TxPos {
 }
 
 /// RNA sequence location with edit.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RnaLocEdit {
     /// Location on a transcript.
     pub loc: Mu<RnaInterval>,
@@ -854,7 +854,7 @@ impl RnaLocEdit {
     }
 }
 /// RNA position interval.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RnaInterval {
     /// Start position
     pub start: RnaPos,
@@ -878,7 +878,7 @@ impl From<RnaInterval> for Range<i32> {
 }
 
 /// RNA position.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RnaPos {
     /// Base position.
     pub base: i32,
@@ -887,7 +887,7 @@ pub struct RnaPos {
 }
 
 /// Protein sequence location with edit or special.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ProtLocEdit {
     Ordinary {
         loc: Mu<ProtInterval>,
@@ -908,7 +908,7 @@ pub enum ProtLocEdit {
 }
 
 /// Protein position interval.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ProtInterval {
     /// Start position
     pub start: ProtPos,
@@ -927,7 +927,7 @@ impl From<ProtInterval> for Range<i32> {
 }
 
 /// Protein position.
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct ProtPos {
     /// Amino acid value.
     pub aa: String,
@@ -973,13 +973,13 @@ mod test {
         assert_eq!(Mu::from(Some(1), false), Mu::Uncertain(Some(1)));
     }
 
-    #[derive(Clone, Debug, PartialEq)]
+    #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
     pub struct TestInterval {
         pub start: TestPos,
         pub end: TestPos,
     }
 
-    #[derive(Clone, Debug, PartialEq)]
+    #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
     pub struct TestPos {
         pub base: i32,
         pub offset: Option<i32>,

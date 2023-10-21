@@ -960,6 +960,19 @@ mod test {
     use super::{Config, Mapper};
 
     #[test]
+    fn issue_131() -> Result<(), Error> {
+        let mapper = build_mapper()?;
+
+        let var_c = HgvsVariant::from_str("NM_001253909.2:c.416_417insGTG")?;
+        let var_p_test = mapper.c_to_p(&var_c, None)?;
+
+        assert_eq!(format!("{}", &var_p_test), "NP_001240838.1:p.=");
+        insta::assert_yaml_snapshot!(&var_p_test);
+
+        Ok(())
+    }
+
+    #[test]
     fn test_sync() {
         fn is_sync<T: Sync>() {}
         is_sync::<super::Mapper>();
