@@ -294,10 +294,16 @@ pub mod models {
     pub enum BioType {
         #[serde(rename = "3prime_overlapping_ncrna")]
         ThreePrimeOverlappingNcRna,
+        #[serde(rename = "aberrant_processed_transcript")]
+        AberrantProcessedTranscript,
         #[serde(rename = "antisense")]
         Antisense,
+        #[serde(rename = "antisense_RNA")]
+        AntisenseRna,
         #[serde(rename = "artifact")]
         Artifact,
+        #[serde(rename = "C_gene_segment")]
+        CGeneSegment,
         #[serde(rename = "IG_C_gene")]
         IgCGene,
         #[serde(rename = "IG_C_pseudogene")]
@@ -314,28 +320,74 @@ pub mod models {
         IgVGene,
         #[serde(rename = "IG_V_pseudogene")]
         IgVPseudogene,
+        #[serde(rename = "J_gene_segment")]
+        JGeneSegment,
+        #[serde(rename = "lincRNA")]
+        LincRna,
+        #[serde(rename = "lnc_RNA", alias = "lncRNA")]
+        LncRna,
+        #[serde(rename = "miRNA")]
+        MiRna,
+        #[serde(rename = "misc_RNA")]
+        MiscRna,
+        #[serde(rename = "mRNA")]
+        MRna,
         #[serde(rename = "Mt_rRNA")]
-        MtRna,
+        MtRRna,
+        #[serde(rename = "Mt_tRNA")]
+        MtTRna,
+        #[serde(rename = "nc_primary_transcript")]
+        NcPrimaryTranscript,
+        #[serde(rename = "ncRNA")]
+        NcRna,
+        #[serde(rename = "ncRNA_pseudogene")]
+        NcRnaPseudogene,
+        #[serde(rename = "NMD_transcript_variant")]
+        NmdTranscriptVariant,
         #[serde(rename = "non_coding")]
         NonCoding,
+        #[serde(rename = "other")]
+        Other,
         #[serde(rename = "polymorphic_pseudogene")]
         PolymorphicPseudogene,
+        #[serde(rename = "primary_transcript")]
+        PrimaryTranscript,
         #[serde(rename = "processed_pseudogene")]
         ProcessedPseudogene,
+        #[serde(rename = "processed_transcript")]
+        ProcessedTranscript,
         #[serde(rename = "protein_coding")]
         ProteinCoding,
+        #[serde(rename = "pseudogenic_transcript")]
+        PseudogenicTranscript,
         #[serde(rename = "pseudogene")]
         Pseudogene,
+        #[serde(rename = "RNase_MRP_RNA")]
+        RnaseMrpRna,
+        #[serde(rename = "RNase_P_RNA")]
+        RnasePRna,
+        #[serde(rename = "scRNA")]
+        ScnRna,
+        #[serde(rename = "rRNA")]
+        RRna,
         #[serde(rename = "rRNA_pseudogene")]
         RnaPseudogene,
         #[serde(rename = "sense_intronic")]
         SenseIntronic,
         #[serde(rename = "sense_overlapping")]
         SenseOverlapping,
+        #[serde(rename = "snoRNA")]
+        SnoRna,
+        #[serde(rename = "snRNA")]
+        SnRna,
         #[serde(rename = "sRNA")]
         SRna,
         #[serde(rename = "TEC")]
         Tec,
+        #[serde(rename = "telomerase_RNA")]
+        TelomeraseRna,
+        #[serde(rename = "transcribed_pseudogene")]
+        TranscribedPseudogene,
         #[serde(rename = "transcribed_processed_pseudogene")]
         TranscriptProcessedPseudogene,
         #[serde(rename = "transcribed_unitary_pseudogene")]
@@ -362,6 +414,12 @@ pub mod models {
         UnitaryPseudogene,
         #[serde(rename = "unprocessed_pseudogene")]
         UnprocessedPseudogene,
+        #[serde(rename = "vault_RNA")]
+        VaultRna,
+        #[serde(rename = "V_gene_segment")]
+        VGeneSegment,
+        #[serde(rename = "Y_RNA")]
+        YRna,
     }
 
     #[derive(Deserialize, Debug, Clone)]
@@ -431,13 +489,12 @@ pub mod models {
         }
     }
 
-    fn str_to_tag(s: &str) -> Tag {
+    pub fn str_to_tag(s: &str) -> Tag {
         match s {
             "basic" => Tag::Basic,
             "Ensembl_canonical" => Tag::EnsemblCanonical,
-            "MANE_Plus_Clinical" => Tag::ManePlusClinical,
-            "MANE_Select" => Tag::ManeSelect,
-            "MANE Select" => Tag::ManeSelect,
+            "MANE_Plus_Clinical" | "MANE Plus Clinical" => Tag::ManePlusClinical,
+            "MANE_Select" | "MANE Select" => Tag::ManeSelect,
             "RefSeq Select" => Tag::RefSeqSelect,
             _ => panic!("Invalid transcript tag {s:?}"),
         }
@@ -463,48 +520,6 @@ pub mod models {
 
         Ok(buf.map(|s| s.split(", ").map(|s| s.to_string()).collect()))
     }
-
-    fn str_to_biotype(s: &str) -> BioType {
-        match s {
-            "3prime_overlapping_ncrna" => BioType::ThreePrimeOverlappingNcRna,
-            "antisense" => BioType::Antisense,
-            "artifact" => BioType::Artifact,
-            "IG_C_gene" => BioType::IgCGene,
-            "IG_C_pseudogene" => BioType::IgCPseudogene,
-            "IG_D_gene" => BioType::IgDGene,
-            "IG_J_gene" => BioType::IdJGene,
-            "IG_J_pseudogene" => BioType::IdJPseudogene,
-            "IG_pseudogene" => BioType::IdPseudogene,
-            "IG_V_gene" => BioType::IgVGene,
-            "IG_V_pseudogene" => BioType::IgVPseudogene,
-            "Mt_rRNA" => BioType::MtRna,
-            "non_coding" => BioType::NonCoding,
-            "polymorphic_pseudogene" => BioType::PolymorphicPseudogene,
-            "processed_pseudogene" => BioType::ProcessedPseudogene,
-            "protein_coding" => BioType::ProteinCoding,
-            "pseudogene" => BioType::Pseudogene,
-            "rRNA_pseudogene" => BioType::RnaPseudogene,
-            "sense_intronic" => BioType::SenseIntronic,
-            "sense_overlapping" => BioType::SenseOverlapping,
-            "sRNA" => BioType::SRna,
-            "TEC" => BioType::Tec,
-            "transcribed_processed_pseudogene" => BioType::TranscriptProcessedPseudogene,
-            "transcribed_unitary_pseudogene" => BioType::TranscriptUnitaryPseudogene,
-            "transcribed_unprocessed_pseudogene" => BioType::TranscriptUnprocessedPseudogene,
-            "translated_processed_pseudogene" => BioType::TranslatedProcessedPseudogene,
-            "translated_unprocessed_pseudogene" => BioType::TranslatedUnprocessedPseudogene,
-            "TR_C_gene" => BioType::TrCGene,
-            "TR_D_gene" => BioType::TrDGene,
-            "TR_J_gene" => BioType::TrJGene,
-            "TR_J_pseudogene" => BioType::TrJPseudogene,
-            "TR_V_gene" => BioType::TrVGene,
-            "TR_V_pseudogene" => BioType::TrVPseudogene,
-            "unitary_pseudogene" => BioType::UnitaryPseudogene,
-            "unprocessed_pseudogene" => BioType::UnprocessedPseudogene,
-            _ => panic!("Unknown biotype {s:?}"),
-        }
-    }
-
     fn deserialize_gene_biotype<'de, D>(deserializer: D) -> Result<Option<Vec<BioType>>, D::Error>
     where
         D: Deserializer<'de>,
@@ -625,7 +640,7 @@ impl TxProvider {
                     .clone();
                 transcript_ids_for_gene
                     .entry(gene_symbol.clone())
-                    .or_insert(Vec::new());
+                    .or_default();
                 genes.insert(gene_symbol, gene.clone());
             });
         c_txs
@@ -1053,9 +1068,9 @@ pub mod test_helpers {
         log::debug!("now returning provider...");
 
         let config = Config {
-            json_paths: vec![String::from(
-                "tests/data/data/cdot/cdot-0.2.12.refseq.grch37_grch38.brca1.json",
-            )],
+            json_paths: vec![
+                String::from("tests/data/data/cdot/cdot-0.2.12.refseq.grch37_grch38.brca1.json"),
+            ],
             seqrepo_path: String::from("nonexisting"),
         };
         // Note that we don't actually use the seqrepo instance except for initializing the provider.
@@ -1070,16 +1085,12 @@ pub mod tests {
     use std::str::FromStr;
     use std::sync::Arc;
 
-    use chrono::NaiveDateTime;
     use pretty_assertions::assert_eq;
     use test_log::test;
 
     use super::models::{gap_to_cigar, Container};
     use super::test_helpers::build_provider;
-    use crate::data::interface::{
-        GeneInfoRecord, Provider, TxExonsRecord, TxForRegionRecord, TxInfoRecord,
-        TxMappingOptionsRecord, TxSimilarityRecord,
-    };
+    use crate::data::interface::{Provider, TxSimilarityRecord};
     use crate::mapper::assembly::{self, Mapper};
     use crate::parser::HgvsVariant;
     use biocommons_bioutils::assemblies::Assembly;
@@ -1092,18 +1103,13 @@ pub mod tests {
 
     #[test]
     fn deserialize_brca1() -> Result<(), Error> {
-        let json = std::fs::read_to_string(
-            "tests/data/data/cdot/cdot-0.2.12.refseq.grch37_grch38.brca1.json",
-        )?;
+        let json =
+            std::fs::read_to_string("tests/data/data/cdot/cdot-0.2.12.refseq.grch37_grch38.brca1.json")?;
 
         let c: Container = serde_json::from_str(&json)?;
         assert_eq!(c.cdot_version, "0.2.12");
 
-        let c_dump = format!("{:#?}\n", &c);
-        let c_dump_expected = std::fs::read_to_string(
-            "tests/data/data/cdot/cdot-0.2.12.refseq.grch37_grch38.brca1.txt",
-        )?;
-        assert_eq!(c_dump, c_dump_expected);
+        insta::assert_debug_snapshot!(&c);
 
         Ok(())
     }
@@ -1119,18 +1125,16 @@ pub mod tests {
     fn deserialize_big_files() -> Result<(), Error> {
         let before = std::time::Instant::now();
         println!("ensembl...");
-        let _ensembl: Container =
-            serde_json::from_reader(flate2::bufread::GzDecoder::new(std::io::BufReader::new(
-                std::fs::File::open("cdot-0.2.12.ensembl.grch37_grch38.json.gz")?,
-            )))?;
+        let _ensembl: Container = serde_json::from_reader(flate2::bufread::GzDecoder::new(
+            std::io::BufReader::new(std::fs::File::open("cdot-0.2.12.ensembl.grch37.json.gz")?),
+        ))?;
         println!("Reading ensembl: {:?}", before.elapsed());
 
         let before = std::time::Instant::now();
         println!("refseq...");
-        let _refseq: Container =
-            serde_json::from_reader(flate2::bufread::GzDecoder::new(std::io::BufReader::new(
-                std::fs::File::open("cdot-0.2.12.refseq.grch37_grch38.json.gz")?,
-            )))?;
+        let _refseq: Container = serde_json::from_reader(flate2::bufread::GzDecoder::new(
+            std::io::BufReader::new(std::fs::File::open("cdot-0.2.12.refseq.grch37.json.gz")?),
+        ))?;
         println!("Reading refseq: {:?}", before.elapsed());
 
         Ok(())
@@ -1169,25 +1173,7 @@ pub mod tests {
 
         let record = provider.get_gene_info("BRCA1")?;
 
-        let expected = GeneInfoRecord {
-            hgnc: String::from("BRCA1"),
-            maploc: String::from("17q21.31"),
-            descr: String::from("BRCA1 DNA repair associated"),
-            summary: String::from("This gene encodes a 190 kD nuclear phosphoprotein that plays a role in maintaining genomic stability, and it also acts as a tumor suppressor. The BRCA1 gene contains 22 exons spanning about 110 kb of DNA. The encoded protein combines with other tumor suppressors, DNA damage sensors, and signal transducers to form a large multi-subunit protein complex known as the BRCA1-associated genome surveillance complex (BASC). This gene product associates with RNA polymerase II, and through the C-terminal domain, also interacts with histone deacetylase complexes. This protein thus plays a role in transcription, DNA repair of double-stranded breaks, and recombination. Mutations in this gene are responsible for approximately 40% of inherited breast cancers and more than 80% of inherited breast and ovarian cancers. Alternative splicing plays a role in modulating the subcellular localization and physiological function of this gene. Many alternatively spliced transcript variants, some of which are disease-associated mutations, have been described for this gene, but the full-length natures of only some of these variants has been described. A related pseudogene, which is also located on chromosome 17, has been identified. [provided by RefSeq, May 2020]"),
-            aliases: vec![
-                String::from("BRCAI"),
-                String::from("BRCC1"),
-                String::from("BROVCA1"),
-                String::from("FANCS"),
-                String::from("IRIS"),
-                String::from("PNCA4"),
-                String::from("PPP1R53"),
-                String::from("PSCP"),
-                String::from("RNF53"),
-            ],
-            added: NaiveDateTime::default(),
-        };
-        assert_eq!(expected, record);
+        insta::assert_debug_snapshot!(&record);
 
         Ok(())
     }
@@ -1236,470 +1222,7 @@ pub mod tests {
 
         let result = provider.get_tx_exons("NM_007294.3", "NC_000017.10", "splign")?;
 
-        let expected = vec![
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 22,
-                tx_start_i: 5699,
-                tx_end_i: 7207,
-                alt_start_i: 41196311,
-                alt_end_i: 41197819,
-                cigar: String::from("1508M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 21,
-                tx_start_i: 5638,
-                tx_end_i: 5699,
-                alt_start_i: 41199659,
-                alt_end_i: 41199720,
-                cigar: String::from("61M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 20,
-                tx_start_i: 5564,
-                tx_end_i: 5638,
-                alt_start_i: 41201137,
-                alt_end_i: 41201211,
-                cigar: String::from("74M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 19,
-                tx_start_i: 5509,
-                tx_end_i: 5564,
-                alt_start_i: 41203079,
-                alt_end_i: 41203134,
-                cigar: String::from("55M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 18,
-                tx_start_i: 5425,
-                tx_end_i: 5509,
-                alt_start_i: 41209068,
-                alt_end_i: 41209152,
-                cigar: String::from("84M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 17,
-                tx_start_i: 5384,
-                tx_end_i: 5425,
-                alt_start_i: 41215349,
-                alt_end_i: 41215390,
-                cigar: String::from("41M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 16,
-                tx_start_i: 5306,
-                tx_end_i: 5384,
-                alt_start_i: 41215890,
-                alt_end_i: 41215968,
-                cigar: String::from("78M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 15,
-                tx_start_i: 5218,
-                tx_end_i: 5306,
-                alt_start_i: 41219624,
-                alt_end_i: 41219712,
-                cigar: String::from("88M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 14,
-                tx_start_i: 4907,
-                tx_end_i: 5218,
-                alt_start_i: 41222944,
-                alt_end_i: 41223255,
-                cigar: String::from("311M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 13,
-                tx_start_i: 4716,
-                tx_end_i: 4907,
-                alt_start_i: 41226347,
-                alt_end_i: 41226538,
-                cigar: String::from("191M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 12,
-                tx_start_i: 4589,
-                tx_end_i: 4716,
-                alt_start_i: 41228504,
-                alt_end_i: 41228631,
-                cigar: String::from("127M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 11,
-                tx_start_i: 4417,
-                tx_end_i: 4589,
-                alt_start_i: 41234420,
-                alt_end_i: 41234592,
-                cigar: String::from("172M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 10,
-                tx_start_i: 4328,
-                tx_end_i: 4417,
-                alt_start_i: 41242960,
-                alt_end_i: 41243049,
-                cigar: String::from("89M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 9,
-                tx_start_i: 902,
-                tx_end_i: 4328,
-                alt_start_i: 41243451,
-                alt_end_i: 41246877,
-                cigar: String::from("3426M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 8,
-                tx_start_i: 825,
-                tx_end_i: 902,
-                alt_start_i: 41247862,
-                alt_end_i: 41247939,
-                cigar: String::from("77M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 7,
-                tx_start_i: 779,
-                tx_end_i: 825,
-                alt_start_i: 41249260,
-                alt_end_i: 41249306,
-                cigar: String::from("46M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 6,
-                tx_start_i: 673,
-                tx_end_i: 779,
-                alt_start_i: 41251791,
-                alt_end_i: 41251897,
-                cigar: String::from("106M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 5,
-                tx_start_i: 533,
-                tx_end_i: 673,
-                alt_start_i: 41256138,
-                alt_end_i: 41256278,
-                cigar: String::from("140M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 4,
-                tx_start_i: 444,
-                tx_end_i: 533,
-                alt_start_i: 41256884,
-                alt_end_i: 41256973,
-                cigar: String::from("89M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 3,
-                tx_start_i: 366,
-                tx_end_i: 444,
-                alt_start_i: 41258472,
-                alt_end_i: 41258550,
-                cigar: String::from("78M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 2,
-                tx_start_i: 312,
-                tx_end_i: 366,
-                alt_start_i: 41267742,
-                alt_end_i: 41267796,
-                cigar: String::from("54M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 1,
-                tx_start_i: 213,
-                tx_end_i: 312,
-                alt_start_i: 41276033,
-                alt_end_i: 41276132,
-                cigar: String::from("99M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-            TxExonsRecord {
-                hgnc: String::from("BRCA1"),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-                alt_strand: -1,
-                ord: 0,
-                tx_start_i: 0,
-                tx_end_i: 213,
-                alt_start_i: 41277287,
-                alt_end_i: 41277500,
-                cigar: String::from("213M"),
-                tx_aseq: None,
-                alt_aseq: None,
-                tx_exon_set_id: 2147483647,
-                alt_exon_set_id: 2147483647,
-                tx_exon_id: 2147483647,
-                alt_exon_id: 2147483647,
-                exon_aln_id: 2147483647,
-            },
-        ];
-
-        assert_eq!(result, expected);
+        insta::assert_debug_snapshot!(&result);
 
         Ok(())
     }
@@ -1710,290 +1233,7 @@ pub mod tests {
 
         let result = provider.get_tx_for_gene("BRCA1")?;
 
-        let expected = vec![
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(232),
-                cds_end_i: Some(5824),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(232),
-                cds_end_i: Some(5824),
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(232),
-                cds_end_i: Some(5887),
-                tx_ac: String::from("NM_007300.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(232),
-                cds_end_i: Some(5887),
-                tx_ac: String::from("NM_007300.3"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(281),
-                cds_end_i: Some(5732),
-                tx_ac: String::from("NM_007297.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(281),
-                cds_end_i: Some(5732),
-                tx_ac: String::from("NM_007297.3"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(194),
-                cds_end_i: Some(2294),
-                tx_ac: String::from("NM_007299.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(194),
-                cds_end_i: Some(2294),
-                tx_ac: String::from("NM_007299.3"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(193),
-                cds_end_i: Some(5785),
-                tx_ac: String::from("XM_006722029.1"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(717),
-                cds_end_i: Some(6309),
-                tx_ac: String::from("XM_006722031.1"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(364),
-                cds_end_i: Some(5746),
-                tx_ac: String::from("XM_006722035.1"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(173),
-                cds_end_i: Some(2453),
-                tx_ac: String::from("XM_006722039.1"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(145),
-                cds_end_i: Some(5734),
-                tx_ac: String::from("XM_006722032.1"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(145),
-                cds_end_i: Some(5734),
-                tx_ac: String::from("XM_006722033.1"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(145),
-                cds_end_i: Some(5734),
-                tx_ac: String::from("XM_006722034.1"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(145),
-                cds_end_i: Some(2428),
-                tx_ac: String::from("XM_006722037.1"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(145),
-                cds_end_i: Some(2425),
-                tx_ac: String::from("XM_006722038.1"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(145),
-                cds_end_i: Some(2425),
-                tx_ac: String::from("XM_006722040.1"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(145),
-                cds_end_i: Some(2302),
-                tx_ac: String::from("XM_006722041.1"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(113),
-                cds_end_i: Some(5705),
-                tx_ac: String::from("NM_007294.4"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(113),
-                cds_end_i: Some(5705),
-                tx_ac: String::from("NM_007294.4"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(194),
-                cds_end_i: Some(5645),
-                tx_ac: String::from("NM_007297.4"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(194),
-                cds_end_i: Some(5645),
-                tx_ac: String::from("NM_007297.4"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(107),
-                cds_end_i: Some(2207),
-                tx_ac: String::from("NM_007299.4"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(107),
-                cds_end_i: Some(2207),
-                tx_ac: String::from("NM_007299.4"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(113),
-                cds_end_i: Some(5768),
-                tx_ac: String::from("NM_007300.4"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(113),
-                cds_end_i: Some(5768),
-                tx_ac: String::from("NM_007300.4"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: None,
-                cds_end_i: None,
-                tx_ac: String::from("NR_027676.2"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: None,
-                cds_end_i: None,
-                tx_ac: String::from("NR_027676.2"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: None,
-                cds_end_i: None,
-                tx_ac: String::from("NR_027676.1"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: None,
-                cds_end_i: None,
-                tx_ac: String::from("NR_027676.1"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(161),
-                cds_end_i: Some(5753),
-                tx_ac: String::from("XM_006722030.1"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(19),
-                cds_end_i: Some(2299),
-                tx_ac: String::from("NM_007298.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(19),
-                cds_end_i: Some(2299),
-                tx_ac: String::from("NM_007298.3"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxInfoRecord {
-                hgnc: String::from("BRCA1"),
-                cds_start_i: Some(114),
-                cds_end_i: Some(5325),
-                tx_ac: String::from("XM_006722036.1"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-        ];
-
-        assert_eq!(result, expected);
+        insta::assert_debug_snapshot!(&result);
 
         Ok(())
     }
@@ -2005,9 +1245,7 @@ pub mod tests {
         let result =
             provider.get_tx_for_region("NC_000017.10", "splign", 50_000_000, 50_000_001)?;
 
-        let expected = vec![];
-
-        assert_eq!(result, expected);
+        insta::assert_debug_snapshot!(&result);
 
         Ok(())
     }
@@ -2017,99 +1255,7 @@ pub mod tests {
         let provider = build_provider()?;
 
         let result = provider.get_tx_for_region("NC_000017.10", "splign", 41196311, 41197819)?;
-
-        let expected = vec![
-            TxForRegionRecord {
-                tx_ac: String::from("NM_007300.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_strand: -1,
-                alt_aln_method: String::from("splign"),
-                start_i: 41196311,
-                end_i: 41277500,
-            },
-            TxForRegionRecord {
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_strand: -1,
-                alt_aln_method: String::from("splign"),
-                start_i: 41196311,
-                end_i: 41277500,
-            },
-            TxForRegionRecord {
-                tx_ac: String::from("NM_007299.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_strand: -1,
-                alt_aln_method: String::from("splign"),
-                start_i: 41196311,
-                end_i: 41277468,
-            },
-            TxForRegionRecord {
-                tx_ac: String::from("NM_007297.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_strand: -1,
-                alt_aln_method: String::from("splign"),
-                start_i: 41196311,
-                end_i: 41277468,
-            },
-            TxForRegionRecord {
-                tx_ac: String::from("NR_027676.2"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_strand: -1,
-                alt_aln_method: String::from("splign"),
-                start_i: 41196311,
-                end_i: 41277381,
-            },
-            TxForRegionRecord {
-                tx_ac: String::from("NM_007300.4"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_strand: -1,
-                alt_aln_method: String::from("splign"),
-                start_i: 41196311,
-                end_i: 41277381,
-            },
-            TxForRegionRecord {
-                tx_ac: String::from("NM_007299.4"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_strand: -1,
-                alt_aln_method: String::from("splign"),
-                start_i: 41196311,
-                end_i: 41277381,
-            },
-            TxForRegionRecord {
-                tx_ac: String::from("NM_007297.4"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_strand: -1,
-                alt_aln_method: String::from("splign"),
-                start_i: 41196311,
-                end_i: 41277381,
-            },
-            TxForRegionRecord {
-                tx_ac: String::from("NM_007294.4"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_strand: -1,
-                alt_aln_method: String::from("splign"),
-                start_i: 41196311,
-                end_i: 41277381,
-            },
-            TxForRegionRecord {
-                tx_ac: String::from("NR_027676.1"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_strand: -1,
-                alt_aln_method: String::from("splign"),
-                start_i: 41196311,
-                end_i: 41277340,
-            },
-            TxForRegionRecord {
-                tx_ac: String::from("NM_007298.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_strand: -1,
-                alt_aln_method: String::from("splign"),
-                start_i: 41196311,
-                end_i: 41276132,
-            },
-        ];
-
-        assert_eq!(result, expected);
+        insta::assert_debug_snapshot!(&result);
 
         Ok(())
     }
@@ -2120,16 +1266,7 @@ pub mod tests {
 
         let result = provider.get_tx_info("NM_007294.3", "NC_000017.10", "splign")?;
 
-        let expected = TxInfoRecord {
-            hgnc: String::from("BRCA1"),
-            cds_start_i: Some(232),
-            cds_end_i: Some(5824),
-            tx_ac: String::from("NM_007294.3"),
-            alt_ac: String::from("NC_000017.10"),
-            alt_aln_method: String::from("splign"),
-        };
-
-        assert_eq!(result, expected);
+        insta::assert_debug_snapshot!(&result);
 
         Ok(())
     }
@@ -2140,20 +1277,7 @@ pub mod tests {
 
         let result = provider.get_tx_mapping_options("NM_007294.3")?;
 
-        let expected = vec![
-            TxMappingOptionsRecord {
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.10"),
-                alt_aln_method: String::from("splign"),
-            },
-            TxMappingOptionsRecord {
-                tx_ac: String::from("NM_007294.3"),
-                alt_ac: String::from("NC_000017.11"),
-                alt_aln_method: String::from("splign"),
-            },
-        ];
-
-        assert_eq!(result, expected);
+        insta::assert_debug_snapshot!(&result);
 
         Ok(())
     }
