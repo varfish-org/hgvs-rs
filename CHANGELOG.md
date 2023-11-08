@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/bihealth/hgvs-rs/compare/v0.13.0...v0.13.1) (2023-11-08)
+
+
+### Bug Fixes
+
+* adding back missing Gene::biotype member ([#138](https://github.com/bihealth/hgvs-rs/issues/138)) ([84db645](https://github.com/bihealth/hgvs-rs/commit/84db6458b0e3551913488662a74dd738c1279308))
+
 ## [0.13.0](https://github.com/bihealth/hgvs-rs/compare/v0.12.0...v0.13.0) (2023-11-08)
 
 
