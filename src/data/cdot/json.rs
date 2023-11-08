@@ -304,6 +304,14 @@ pub mod models {
         Artifact,
         #[serde(rename = "C_gene_segment")]
         CGeneSegment,
+        #[serde(rename = "C_region")]
+        CRegion,
+        #[serde(rename = "C_region_pseudogene")]
+        CRegionPseudogene,
+        #[serde(rename = "D_gene_segment")]
+        DGeneSegment,
+        #[serde(rename = "D_segment")]
+        DSegment,
         #[serde(rename = "IG_C_gene")]
         IgCGene,
         #[serde(rename = "IG_C_pseudogene")]
@@ -322,6 +330,10 @@ pub mod models {
         IgVPseudogene,
         #[serde(rename = "J_gene_segment")]
         JGeneSegment,
+        #[serde(rename = "J_segment")]
+        JSegment,
+        #[serde(rename = "J_segment_pseudogene")]
+        JSegmentPseudogene,
         #[serde(rename = "lincRNA")]
         LincRna,
         #[serde(rename = "lnc_RNA", alias = "lncRNA")]
@@ -366,8 +378,12 @@ pub mod models {
         RnaseMrpRna,
         #[serde(rename = "RNase_P_RNA")]
         RnasePRna,
+        #[serde(rename = "scaRNA")]
+        ScnaRna,
         #[serde(rename = "scRNA")]
         ScnRna,
+        #[serde(rename = "ribozyme")]
+        Ribozyme,
         #[serde(rename = "rRNA")]
         RRna,
         #[serde(rename = "rRNA_pseudogene")]
@@ -384,6 +400,8 @@ pub mod models {
         SRna,
         #[serde(rename = "TEC")]
         Tec,
+        #[serde(rename = "tRNA")]
+        TRna,
         #[serde(rename = "telomerase_RNA")]
         TelomeraseRna,
         #[serde(rename = "transcribed_pseudogene")]
@@ -412,12 +430,18 @@ pub mod models {
         TrVPseudogene,
         #[serde(rename = "unitary_pseudogene")]
         UnitaryPseudogene,
+        #[serde(rename = "unconfirmed_transcript")]
+        UnconfirmedTranscript,
         #[serde(rename = "unprocessed_pseudogene")]
         UnprocessedPseudogene,
         #[serde(rename = "vault_RNA")]
         VaultRna,
+        #[serde(rename = "V_segment")]
+        VSegment,
         #[serde(rename = "V_gene_segment")]
         VGeneSegment,
+        #[serde(rename = "V_segment_pseudogene")]
+        VSegmentPseudogene,
         #[serde(rename = "Y_RNA")]
         YRna,
     }
