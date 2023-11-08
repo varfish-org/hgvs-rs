@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/bihealth/hgvs-rs/compare/v0.12.0...v0.13.0) (2023-11-08)
+
+
+### Features
+
+* make compatible with cdot v0.2.21 ([#136](https://github.com/bihealth/hgvs-rs/issues/136)) ([c677b33](https://github.com/bihealth/hgvs-rs/commit/c677b33d000117914359412e0f44c1317a82cc7c))
+
 ## [0.12.0](https://github.com/bihealth/hgvs-rs/compare/v0.11.0...v0.12.0) (2023-10-21)
 
 
