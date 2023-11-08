@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.2](https://github.com/bihealth/hgvs-rs/compare/v0.13.1...v0.13.2) (2023-11-08)
+
+
+### Bug Fixes
+
+* add more biotypes from cdot JSON for vep110 release ([#141](https://github.com/bihealth/hgvs-rs/issues/141)) ([4cb7cb6](https://github.com/bihealth/hgvs-rs/commit/4cb7cb6bd4456d7341260e3f753ef58aa32aab48))
+
 ## [0.13.1](https://github.com/bihealth/hgvs-rs/compare/v0.13.0...v0.13.1) (2023-11-08)
 
 
