@@ -1,0 +1,16 @@
+---
+source: src/data/cdot/json.rs
+expression: "&result"
+---
+TxInfoRecord {
+    hgnc: "BRCA1",
+    cds_start_i: Some(
+        232,
+    ),
+    cds_end_i: Some(
+        5824,
+    ),
+    tx_ac: "NM_007294.3",
+    alt_ac: "NC_000017.10",
+    alt_aln_method: "splign",
+}
