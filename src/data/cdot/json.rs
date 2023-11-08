@@ -812,8 +812,9 @@ impl TxProvider {
                         models::Strand::Minus => -1,
                     },
                     ord: exon.ord,
+                    // cdot tx_start_i/tx_end_i is 1 based while UTA is 0 based
                     tx_start_i: exon.alt_cds_start_i - 1,
-                    tx_end_i: exon.alt_cds_end_i,
+                    tx_end_i: exon.alt_cds_end_i - 1,
                     alt_start_i: exon.alt_start_i,
                     alt_end_i: exon.alt_end_i,
                     cigar: exon.cigar.clone(),
@@ -1052,9 +1053,9 @@ pub mod test_helpers {
         log::debug!("now returning provider...");
 
         let config = Config {
-            json_paths: vec![
-                String::from("tests/data/data/cdot/cdot-0.2.12.refseq.grch37_grch38.brca1.json"),
-            ],
+            json_paths: vec![String::from(
+                "tests/data/data/cdot/cdot-0.2.21.refseq.grch37_grch38.brca1.json",
+            )],
             seqrepo_path: String::from("nonexisting"),
         };
         // Note that we don't actually use the seqrepo instance except for initializing the provider.
@@ -1087,11 +1088,12 @@ pub mod tests {
 
     #[test]
     fn deserialize_brca1() -> Result<(), Error> {
-        let json =
-            std::fs::read_to_string("tests/data/data/cdot/cdot-0.2.12.refseq.grch37_grch38.brca1.json")?;
+        let json = std::fs::read_to_string(
+            "tests/data/data/cdot/cdot-0.2.21.refseq.grch37_grch38.brca1.json",
+        )?;
 
         let c: Container = serde_json::from_str(&json)?;
-        assert_eq!(c.cdot_version, "0.2.12");
+        assert_eq!(c.cdot_version, "0.2.21");
 
         insta::assert_debug_snapshot!(&c);
 
@@ -1110,14 +1112,14 @@ pub mod tests {
         let before = std::time::Instant::now();
         println!("ensembl...");
         let _ensembl: Container = serde_json::from_reader(flate2::bufread::GzDecoder::new(
-            std::io::BufReader::new(std::fs::File::open("cdot-0.2.12.ensembl.grch37.json.gz")?),
+            std::io::BufReader::new(std::fs::File::open("cdot-0.2.21.ensembl.grch37.json.gz")?),
         ))?;
         println!("Reading ensembl: {:?}", before.elapsed());
 
         let before = std::time::Instant::now();
         println!("refseq...");
         let _refseq: Container = serde_json::from_reader(flate2::bufread::GzDecoder::new(
-            std::io::BufReader::new(std::fs::File::open("cdot-0.2.12.refseq.grch37.json.gz")?),
+            std::io::BufReader::new(std::fs::File::open("cdot-0.2.21.refseq.grch37.json.gz")?),
         ))?;
         println!("Reading refseq: {:?}", before.elapsed());
 

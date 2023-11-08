@@ -1,0 +1,16 @@
+---
+source: src/data/cdot/json.rs
+expression: "&result"
+---
+[
+    TxMappingOptionsRecord {
+        tx_ac: "NM_007294.3",
+        alt_ac: "NC_000017.10",
+        alt_aln_method: "splign",
+    },
+    TxMappingOptionsRecord {
+        tx_ac: "NM_007294.3",
+        alt_ac: "NC_000017.11",
+        alt_aln_method: "splign",
+    },
+]
