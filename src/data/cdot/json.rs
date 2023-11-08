@@ -428,6 +428,8 @@ pub mod models {
         #[serde(deserialize_with = "deserialize_gene_aliases")]
         pub aliases: Option<Vec<String>>,
         #[serde(default)]
+        pub biotype: Option<Vec<BioType>>,
+        #[serde(default)]
         pub description: Option<String>,
         pub gene_symbol: Option<String>,
         #[serde(default)]

@@ -85319,6 +85319,12 @@ Container {
                     "RNF53",
                 ],
             ),
+            biotype: Some(
+                [
+                    MRna,
+                    ProteinCoding,
+                ],
+            ),
             description: Some(
                 "BRCA1 DNA repair associated",
             ),
