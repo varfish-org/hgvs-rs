@@ -428,9 +428,6 @@ pub mod models {
         #[serde(deserialize_with = "deserialize_gene_aliases")]
         pub aliases: Option<Vec<String>>,
         #[serde(default)]
-        #[serde(deserialize_with = "deserialize_gene_biotype")]
-        pub biotype: Option<Vec<BioType>>,
-        #[serde(default)]
         pub description: Option<String>,
         pub gene_symbol: Option<String>,
         #[serde(default)]
@@ -519,19 +516,6 @@ pub mod models {
         let buf = Option::<String>::deserialize(deserializer)?;
 
         Ok(buf.map(|s| s.split(", ").map(|s| s.to_string()).collect()))
-    }
-    fn deserialize_gene_biotype<'de, D>(deserializer: D) -> Result<Option<Vec<BioType>>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let buf = Option::<String>::deserialize(deserializer)?;
-        Ok(buf.map(|buf| {
-            if buf.is_empty() {
-                Vec::new()
-            } else {
-                buf.split(',').map(str_to_biotype).collect()
-            }
-        }))
     }
 }
 
