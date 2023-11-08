@@ -812,9 +812,8 @@ impl TxProvider {
                         models::Strand::Minus => -1,
                     },
                     ord: exon.ord,
-                    // cdot tx_start_i/tx_end_i is 1 based while UTA is 0 based
                     tx_start_i: exon.alt_cds_start_i - 1,
-                    tx_end_i: exon.alt_cds_end_i - 1,
+                    tx_end_i: exon.alt_cds_end_i,
                     alt_start_i: exon.alt_start_i,
                     alt_end_i: exon.alt_end_i,
                     cigar: exon.cigar.clone(),
