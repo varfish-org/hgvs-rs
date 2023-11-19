@@ -200,7 +200,7 @@ pub mod models {
     }
 
     /// Enum for representing the tags for transcripts.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
     pub enum Tag {
         Basic,
         EnsemblCanonical,
@@ -236,10 +236,6 @@ pub mod models {
         /// End position of stop codon of transcript, e.g., `5824` for `"NM_007294.3"` of BRCA1.
         #[serde(default)]
         pub stop_codon: Option<i32>,
-        /// Tags of the transcript.
-        #[serde(default)]
-        #[serde(deserialize_with = "deserialize_tag")]
-        pub tag: Option<Vec<Tag>>,
     }
 
     /// Representation of the strand.
@@ -287,6 +283,13 @@ pub mod models {
         pub exons: Vec<Exon>,
         /// The strand.
         pub strand: Strand,
+        /// Tags of the transcript.
+        #[serde(default)]
+        #[serde(deserialize_with = "deserialize_tag")]
+        pub tag: Option<Vec<Tag>>,
+        /// Any notes for the transcript.
+        #[serde(default)]
+        pub note: Option<String>,
     }
 
     /// Enum for representing the biotypes.

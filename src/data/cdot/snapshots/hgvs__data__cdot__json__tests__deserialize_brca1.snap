@@ -210,6 +210,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
                 "GRCh38": GenomeAlignment {
                     cds_end: Some(
@@ -406,6 +408,12 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: Some(
+                        [
+                            RefSeqSelect,
+                        ],
+                    ),
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -421,7 +429,6 @@ Container {
             stop_codon: Some(
                 5824,
             ),
-            tag: None,
         },
         "NM_007294.4": Transcript {
             biotype: Some(
@@ -629,6 +636,12 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: Some(
+                        [
+                            RefSeqSelect,
+                        ],
+                    ),
+                    note: None,
                 },
                 "GRCh38": GenomeAlignment {
                     cds_end: Some(
@@ -825,6 +838,12 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: Some(
+                        [
+                            ManeSelect,
+                        ],
+                    ),
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -840,7 +859,6 @@ Container {
             stop_codon: Some(
                 5705,
             ),
-            tag: None,
         },
         "NM_007297.3": Transcript {
             biotype: Some(
@@ -1040,6 +1058,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
                 "GRCh38": GenomeAlignment {
                     cds_end: Some(
@@ -1228,6 +1248,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -1243,7 +1265,6 @@ Container {
             stop_codon: Some(
                 5732,
             ),
-            tag: None,
         },
         "NM_007297.4": Transcript {
             biotype: Some(
@@ -1443,6 +1464,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
                 "GRCh38": GenomeAlignment {
                     cds_end: Some(
@@ -1631,6 +1654,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -1644,7 +1669,6 @@ Container {
             stop_codon: Some(
                 5645,
             ),
-            tag: None,
         },
         "NM_007298.3": Transcript {
             biotype: Some(
@@ -1844,6 +1868,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
                 "GRCh38": GenomeAlignment {
                     cds_end: Some(
@@ -2032,6 +2058,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -2047,7 +2075,6 @@ Container {
             stop_codon: Some(
                 2299,
             ),
-            tag: None,
         },
         "NM_007299.3": Transcript {
             biotype: Some(
@@ -2247,6 +2274,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
                 "GRCh38": GenomeAlignment {
                     cds_end: Some(
@@ -2435,6 +2464,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -2450,7 +2481,6 @@ Container {
             stop_codon: Some(
                 2294,
             ),
-            tag: None,
         },
         "NM_007299.4": Transcript {
             biotype: Some(
@@ -2650,6 +2680,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
                 "GRCh38": GenomeAlignment {
                     cds_end: Some(
@@ -2838,6 +2870,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -2851,7 +2885,6 @@ Container {
             stop_codon: Some(
                 2207,
             ),
-            tag: None,
         },
         "NM_007300.3": Transcript {
             biotype: Some(
@@ -3067,6 +3100,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
                 "GRCh38": GenomeAlignment {
                     cds_end: Some(
@@ -3271,6 +3306,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -3286,7 +3323,6 @@ Container {
             stop_codon: Some(
                 5887,
             ),
-            tag: None,
         },
         "NM_007300.4": Transcript {
             biotype: Some(
@@ -3502,6 +3538,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
                 "GRCh38": GenomeAlignment {
                     cds_end: Some(
@@ -3706,6 +3744,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -3719,7 +3759,6 @@ Container {
             stop_codon: Some(
                 5768,
             ),
-            tag: None,
         },
         "NR_027676.1": Transcript {
             biotype: Some(
@@ -3923,6 +3962,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
                 "GRCh38": GenomeAlignment {
                     cds_end: None,
@@ -4115,6 +4156,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -4124,7 +4167,6 @@ Container {
             protein: None,
             start_codon: None,
             stop_codon: None,
-            tag: None,
         },
         "NR_027676.2": Transcript {
             biotype: Some(
@@ -4328,6 +4370,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
                 "GRCh38": GenomeAlignment {
                     cds_end: None,
@@ -4520,6 +4564,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -4529,7 +4575,6 @@ Container {
             protein: None,
             start_codon: None,
             stop_codon: None,
-            tag: None,
         },
         "NM_001407571.1": Transcript {
             biotype: Some(
@@ -4737,6 +4782,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -4750,7 +4797,6 @@ Container {
             stop_codon: Some(
                 5769,
             ),
-            tag: None,
         },
         "NM_001407581.1": Transcript {
             biotype: Some(
@@ -4966,6 +5012,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -4979,7 +5027,6 @@ Container {
             stop_codon: Some(
                 5771,
             ),
-            tag: None,
         },
         "NM_001407582.1": Transcript {
             biotype: Some(
@@ -5195,6 +5242,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -5208,7 +5257,6 @@ Container {
             stop_codon: Some(
                 5860,
             ),
-            tag: None,
         },
         "NM_001407583.1": Transcript {
             biotype: Some(
@@ -5424,6 +5472,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -5437,7 +5487,6 @@ Container {
             stop_codon: Some(
                 6302,
             ),
-            tag: None,
         },
         "NM_001407585.1": Transcript {
             biotype: Some(
@@ -5653,6 +5702,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -5666,7 +5717,6 @@ Container {
             stop_codon: Some(
                 5755,
             ),
-            tag: None,
         },
         "NM_001407587.1": Transcript {
             biotype: Some(
@@ -5882,6 +5932,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -5895,7 +5947,6 @@ Container {
             stop_codon: Some(
                 5762,
             ),
-            tag: None,
         },
         "NM_001407590.1": Transcript {
             biotype: Some(
@@ -6111,6 +6162,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -6124,7 +6177,6 @@ Container {
             stop_codon: Some(
                 5765,
             ),
-            tag: None,
         },
         "NM_001407591.1": Transcript {
             biotype: Some(
@@ -6340,6 +6392,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -6353,7 +6407,6 @@ Container {
             stop_codon: Some(
                 6299,
             ),
-            tag: None,
         },
         "NM_001407593.1": Transcript {
             biotype: Some(
@@ -6553,6 +6606,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -6566,7 +6621,6 @@ Container {
             stop_codon: Some(
                 6860,
             ),
-            tag: None,
         },
         "NM_001407594.1": Transcript {
             biotype: Some(
@@ -6774,6 +6828,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -6787,7 +6843,6 @@ Container {
             stop_codon: Some(
                 6239,
             ),
-            tag: None,
         },
         "NM_001407596.1": Transcript {
             biotype: Some(
@@ -7003,6 +7058,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -7016,7 +7073,6 @@ Container {
             stop_codon: Some(
                 5871,
             ),
-            tag: None,
         },
         "NM_001407597.1": Transcript {
             biotype: Some(
@@ -7224,6 +7280,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -7237,7 +7295,6 @@ Container {
             stop_codon: Some(
                 5794,
             ),
-            tag: None,
         },
         "NM_001407598.1": Transcript {
             biotype: Some(
@@ -7445,6 +7502,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -7458,7 +7517,6 @@ Container {
             stop_codon: Some(
                 5699,
             ),
-            tag: None,
         },
         "NM_001407602.1": Transcript {
             biotype: Some(
@@ -7666,6 +7724,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -7679,7 +7739,6 @@ Container {
             stop_codon: Some(
                 5692,
             ),
-            tag: None,
         },
         "NM_001407603.1": Transcript {
             biotype: Some(
@@ -7887,6 +7946,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -7900,7 +7961,6 @@ Container {
             stop_codon: Some(
                 5686,
             ),
-            tag: None,
         },
         "NM_001407605.1": Transcript {
             biotype: Some(
@@ -8108,6 +8168,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -8121,7 +8183,6 @@ Container {
             stop_codon: Some(
                 6226,
             ),
-            tag: None,
         },
         "NM_001407610.1": Transcript {
             biotype: Some(
@@ -8321,6 +8382,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -8334,7 +8397,6 @@ Container {
             stop_codon: Some(
                 6857,
             ),
-            tag: None,
         },
         "NM_001407611.1": Transcript {
             biotype: Some(
@@ -8542,6 +8604,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -8555,7 +8619,6 @@ Container {
             stop_codon: Some(
                 5702,
             ),
-            tag: None,
         },
         "NM_001407612.1": Transcript {
             biotype: Some(
@@ -8763,6 +8826,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -8776,7 +8841,6 @@ Container {
             stop_codon: Some(
                 5791,
             ),
-            tag: None,
         },
         "NM_001407613.1": Transcript {
             biotype: Some(
@@ -8984,6 +9048,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -8997,7 +9063,6 @@ Container {
             stop_codon: Some(
                 5683,
             ),
-            tag: None,
         },
         "NM_001407614.1": Transcript {
             biotype: Some(
@@ -9205,6 +9270,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -9218,7 +9285,6 @@ Container {
             stop_codon: Some(
                 5696,
             ),
-            tag: None,
         },
         "NM_001407615.1": Transcript {
             biotype: Some(
@@ -9426,6 +9492,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -9439,7 +9507,6 @@ Container {
             stop_codon: Some(
                 6236,
             ),
-            tag: None,
         },
         "NM_001407616.1": Transcript {
             biotype: Some(
@@ -9647,6 +9714,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -9660,7 +9729,6 @@ Container {
             stop_codon: Some(
                 5702,
             ),
-            tag: None,
         },
         "NM_001407617.1": Transcript {
             biotype: Some(
@@ -9868,6 +9936,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -9881,7 +9951,6 @@ Container {
             stop_codon: Some(
                 5696,
             ),
-            tag: None,
         },
         "NM_001407618.1": Transcript {
             biotype: Some(
@@ -10089,6 +10158,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -10102,7 +10173,6 @@ Container {
             stop_codon: Some(
                 5683,
             ),
-            tag: None,
         },
         "NM_001407619.1": Transcript {
             biotype: Some(
@@ -10310,6 +10380,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -10323,7 +10395,6 @@ Container {
             stop_codon: Some(
                 6236,
             ),
-            tag: None,
         },
         "NM_001407620.1": Transcript {
             biotype: Some(
@@ -10531,6 +10602,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -10544,7 +10617,6 @@ Container {
             stop_codon: Some(
                 5791,
             ),
-            tag: None,
         },
         "NM_001407621.1": Transcript {
             biotype: Some(
@@ -10744,6 +10816,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -10757,7 +10831,6 @@ Container {
             stop_codon: Some(
                 6857,
             ),
-            tag: None,
         },
         "NM_001407622.1": Transcript {
             biotype: Some(
@@ -10965,6 +11038,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -10978,7 +11053,6 @@ Container {
             stop_codon: Some(
                 5689,
             ),
-            tag: None,
         },
         "NM_001407623.1": Transcript {
             biotype: Some(
@@ -11186,6 +11260,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -11199,7 +11275,6 @@ Container {
             stop_codon: Some(
                 6223,
             ),
-            tag: None,
         },
         "NM_001407624.1": Transcript {
             biotype: Some(
@@ -11407,6 +11482,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -11420,7 +11497,6 @@ Container {
             stop_codon: Some(
                 5702,
             ),
-            tag: None,
         },
         "NM_001407625.1": Transcript {
             biotype: Some(
@@ -11628,6 +11704,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -11641,7 +11719,6 @@ Container {
             stop_codon: Some(
                 6236,
             ),
-            tag: None,
         },
         "NM_001407626.1": Transcript {
             biotype: Some(
@@ -11849,6 +11926,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -11862,7 +11941,6 @@ Container {
             stop_codon: Some(
                 5696,
             ),
-            tag: None,
         },
         "NM_001407627.1": Transcript {
             biotype: Some(
@@ -12070,6 +12148,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -12083,7 +12163,6 @@ Container {
             stop_codon: Some(
                 5693,
             ),
-            tag: None,
         },
         "NM_001407628.1": Transcript {
             biotype: Some(
@@ -12291,6 +12370,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -12304,7 +12385,6 @@ Container {
             stop_codon: Some(
                 5699,
             ),
-            tag: None,
         },
         "NM_001407629.1": Transcript {
             biotype: Some(
@@ -12512,6 +12592,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -12525,7 +12607,6 @@ Container {
             stop_codon: Some(
                 5788,
             ),
-            tag: None,
         },
         "NM_001407630.1": Transcript {
             biotype: Some(
@@ -12733,6 +12814,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -12746,7 +12829,6 @@ Container {
             stop_codon: Some(
                 6233,
             ),
-            tag: None,
         },
         "NM_001407631.1": Transcript {
             biotype: Some(
@@ -12954,6 +13036,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -12967,7 +13051,6 @@ Container {
             stop_codon: Some(
                 5686,
             ),
-            tag: None,
         },
         "NM_001407632.1": Transcript {
             biotype: Some(
@@ -13175,6 +13258,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -13188,7 +13273,6 @@ Container {
             stop_codon: Some(
                 5680,
             ),
-            tag: None,
         },
         "NM_001407633.1": Transcript {
             biotype: Some(
@@ -13396,6 +13480,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -13409,7 +13495,6 @@ Container {
             stop_codon: Some(
                 6233,
             ),
-            tag: None,
         },
         "NM_001407634.1": Transcript {
             biotype: Some(
@@ -13609,6 +13694,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -13622,7 +13709,6 @@ Container {
             stop_codon: Some(
                 6854,
             ),
-            tag: None,
         },
         "NM_001407635.1": Transcript {
             biotype: Some(
@@ -13830,6 +13916,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -13843,7 +13931,6 @@ Container {
             stop_codon: Some(
                 5693,
             ),
-            tag: None,
         },
         "NM_001407636.1": Transcript {
             biotype: Some(
@@ -14051,6 +14138,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -14064,7 +14153,6 @@ Container {
             stop_codon: Some(
                 5788,
             ),
-            tag: None,
         },
         "NM_001407637.1": Transcript {
             biotype: Some(
@@ -14272,6 +14360,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -14285,7 +14375,6 @@ Container {
             stop_codon: Some(
                 5699,
             ),
-            tag: None,
         },
         "NM_001407638.1": Transcript {
             biotype: Some(
@@ -14493,6 +14582,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -14506,7 +14597,6 @@ Container {
             stop_codon: Some(
                 5686,
             ),
-            tag: None,
         },
         "NM_001407639.1": Transcript {
             biotype: Some(
@@ -14714,6 +14804,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -14727,7 +14819,6 @@ Container {
             stop_codon: Some(
                 5788,
             ),
-            tag: None,
         },
         "NM_001407640.1": Transcript {
             biotype: Some(
@@ -14935,6 +15026,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -14948,7 +15041,6 @@ Container {
             stop_codon: Some(
                 5693,
             ),
-            tag: None,
         },
         "NM_001407641.1": Transcript {
             biotype: Some(
@@ -15156,6 +15248,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -15169,7 +15263,6 @@ Container {
             stop_codon: Some(
                 5699,
             ),
-            tag: None,
         },
         "NM_001407642.1": Transcript {
             biotype: Some(
@@ -15377,6 +15470,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -15390,7 +15485,6 @@ Container {
             stop_codon: Some(
                 6233,
             ),
-            tag: None,
         },
         "NM_001407644.1": Transcript {
             biotype: Some(
@@ -15598,6 +15692,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -15611,7 +15707,6 @@ Container {
             stop_codon: Some(
                 5690,
             ),
-            tag: None,
         },
         "NM_001407645.1": Transcript {
             biotype: Some(
@@ -15819,6 +15914,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -15832,7 +15929,6 @@ Container {
             stop_codon: Some(
                 5696,
             ),
-            tag: None,
         },
         "NM_001407646.1": Transcript {
             biotype: Some(
@@ -16040,6 +16136,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -16053,7 +16151,6 @@ Container {
             stop_codon: Some(
                 5693,
             ),
-            tag: None,
         },
         "NM_001407647.1": Transcript {
             biotype: Some(
@@ -16261,6 +16358,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -16274,7 +16373,6 @@ Container {
             stop_codon: Some(
                 5684,
             ),
-            tag: None,
         },
         "NM_001407648.1": Transcript {
             biotype: Some(
@@ -16474,6 +16572,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -16487,7 +16587,6 @@ Container {
             stop_codon: Some(
                 5648,
             ),
-            tag: None,
         },
         "NM_001407649.1": Transcript {
             biotype: Some(
@@ -16687,6 +16786,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -16700,7 +16801,6 @@ Container {
             stop_codon: Some(
                 5639,
             ),
-            tag: None,
         },
         "NM_001407652.1": Transcript {
             biotype: Some(
@@ -16900,6 +17000,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -16913,7 +17015,6 @@ Container {
             stop_codon: Some(
                 5621,
             ),
-            tag: None,
         },
         "NM_001407653.1": Transcript {
             biotype: Some(
@@ -17113,6 +17214,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -17126,7 +17229,6 @@ Container {
             stop_codon: Some(
                 5627,
             ),
-            tag: None,
         },
         "NM_001407654.1": Transcript {
             biotype: Some(
@@ -17326,6 +17428,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -17339,7 +17443,6 @@ Container {
             stop_codon: Some(
                 5621,
             ),
-            tag: None,
         },
         "NM_001407655.1": Transcript {
             biotype: Some(
@@ -17539,6 +17642,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -17552,7 +17657,6 @@ Container {
             stop_codon: Some(
                 6161,
             ),
-            tag: None,
         },
         "NM_001407656.1": Transcript {
             biotype: Some(
@@ -17752,6 +17856,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -17765,7 +17871,6 @@ Container {
             stop_codon: Some(
                 5618,
             ),
-            tag: None,
         },
         "NM_001407657.1": Transcript {
             biotype: Some(
@@ -17965,6 +18070,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -17978,7 +18085,6 @@ Container {
             stop_codon: Some(
                 5618,
             ),
-            tag: None,
         },
         "NM_001407658.1": Transcript {
             biotype: Some(
@@ -18178,6 +18284,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -18191,7 +18299,6 @@ Container {
             stop_codon: Some(
                 5624,
             ),
-            tag: None,
         },
         "NM_001407659.1": Transcript {
             biotype: Some(
@@ -18391,6 +18498,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -18404,7 +18513,6 @@ Container {
             stop_codon: Some(
                 5615,
             ),
-            tag: None,
         },
         "NM_001407660.1": Transcript {
             biotype: Some(
@@ -18604,6 +18712,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -18617,7 +18727,6 @@ Container {
             stop_codon: Some(
                 5621,
             ),
-            tag: None,
         },
         "NM_001407661.1": Transcript {
             biotype: Some(
@@ -18817,6 +18926,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -18830,7 +18941,6 @@ Container {
             stop_codon: Some(
                 5621,
             ),
-            tag: None,
         },
         "NM_001407662.1": Transcript {
             biotype: Some(
@@ -19030,6 +19140,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -19043,7 +19155,6 @@ Container {
             stop_codon: Some(
                 5615,
             ),
-            tag: None,
         },
         "NM_001407663.1": Transcript {
             biotype: Some(
@@ -19243,6 +19354,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -19256,7 +19369,6 @@ Container {
             stop_codon: Some(
                 5621,
             ),
-            tag: None,
         },
         "NM_001407664.1": Transcript {
             biotype: Some(
@@ -19448,6 +19560,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -19461,7 +19575,6 @@ Container {
             stop_codon: Some(
                 5582,
             ),
-            tag: None,
         },
         "NM_001407665.1": Transcript {
             biotype: Some(
@@ -19653,6 +19766,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -19666,7 +19781,6 @@ Container {
             stop_codon: Some(
                 5563,
             ),
-            tag: None,
         },
         "NM_001407666.1": Transcript {
             biotype: Some(
@@ -19858,6 +19972,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -19871,7 +19987,6 @@ Container {
             stop_codon: Some(
                 5671,
             ),
-            tag: None,
         },
         "NM_001407667.1": Transcript {
             biotype: Some(
@@ -20063,6 +20178,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -20076,7 +20193,6 @@ Container {
             stop_codon: Some(
                 5576,
             ),
-            tag: None,
         },
         "NM_001407668.1": Transcript {
             biotype: Some(
@@ -20268,6 +20384,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -20281,7 +20399,6 @@ Container {
             stop_codon: Some(
                 5569,
             ),
-            tag: None,
         },
         "NM_001407669.1": Transcript {
             biotype: Some(
@@ -20473,6 +20590,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -20486,7 +20605,6 @@ Container {
             stop_codon: Some(
                 6116,
             ),
-            tag: None,
         },
         "NM_001407670.1": Transcript {
             biotype: Some(
@@ -20678,6 +20796,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -20691,7 +20811,6 @@ Container {
             stop_codon: Some(
                 5579,
             ),
-            tag: None,
         },
         "NM_001407671.1": Transcript {
             biotype: Some(
@@ -20883,6 +21002,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -20896,7 +21017,6 @@ Container {
             stop_codon: Some(
                 5573,
             ),
-            tag: None,
         },
         "NM_001407672.1": Transcript {
             biotype: Some(
@@ -21088,6 +21208,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -21101,7 +21223,6 @@ Container {
             stop_codon: Some(
                 5668,
             ),
-            tag: None,
         },
         "NM_001407673.1": Transcript {
             biotype: Some(
@@ -21293,6 +21414,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -21306,7 +21429,6 @@ Container {
             stop_codon: Some(
                 6113,
             ),
-            tag: None,
         },
         "NM_001407674.1": Transcript {
             biotype: Some(
@@ -21498,6 +21620,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -21511,7 +21635,6 @@ Container {
             stop_codon: Some(
                 6113,
             ),
-            tag: None,
         },
         "NM_001407675.1": Transcript {
             biotype: Some(
@@ -21703,6 +21826,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -21716,7 +21841,6 @@ Container {
             stop_codon: Some(
                 5579,
             ),
-            tag: None,
         },
         "NM_001407676.1": Transcript {
             biotype: Some(
@@ -21908,6 +22032,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -21921,7 +22047,6 @@ Container {
             stop_codon: Some(
                 5573,
             ),
-            tag: None,
         },
         "NM_001407677.1": Transcript {
             biotype: Some(
@@ -22113,6 +22238,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -22126,7 +22253,6 @@ Container {
             stop_codon: Some(
                 6113,
             ),
-            tag: None,
         },
         "NM_001407678.1": Transcript {
             biotype: Some(
@@ -22318,6 +22444,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -22331,7 +22459,6 @@ Container {
             stop_codon: Some(
                 5668,
             ),
-            tag: None,
         },
         "NM_001407679.1": Transcript {
             biotype: Some(
@@ -22523,6 +22650,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -22536,7 +22665,6 @@ Container {
             stop_codon: Some(
                 5573,
             ),
-            tag: None,
         },
         "NM_001407680.1": Transcript {
             biotype: Some(
@@ -22728,6 +22856,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -22741,7 +22871,6 @@ Container {
             stop_codon: Some(
                 5579,
             ),
-            tag: None,
         },
         "NM_001407681.1": Transcript {
             biotype: Some(
@@ -22933,6 +23062,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -22946,7 +23077,6 @@ Container {
             stop_codon: Some(
                 5576,
             ),
-            tag: None,
         },
         "NM_001407682.1": Transcript {
             biotype: Some(
@@ -23138,6 +23268,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -23151,7 +23283,6 @@ Container {
             stop_codon: Some(
                 5570,
             ),
-            tag: None,
         },
         "NM_001407683.1": Transcript {
             biotype: Some(
@@ -23343,6 +23474,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -23356,7 +23489,6 @@ Container {
             stop_codon: Some(
                 6110,
             ),
-            tag: None,
         },
         "NM_001407684.1": Transcript {
             biotype: Some(
@@ -23548,6 +23680,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -23561,7 +23695,6 @@ Container {
             stop_codon: Some(
                 6110,
             ),
-            tag: None,
         },
         "NM_001407685.1": Transcript {
             biotype: Some(
@@ -23753,6 +23886,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -23766,7 +23901,6 @@ Container {
             stop_codon: Some(
                 5570,
             ),
-            tag: None,
         },
         "NM_001407686.1": Transcript {
             biotype: Some(
@@ -23958,6 +24092,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -23971,7 +24107,6 @@ Container {
             stop_codon: Some(
                 5557,
             ),
-            tag: None,
         },
         "NM_001407687.1": Transcript {
             biotype: Some(
@@ -24163,6 +24298,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -24176,7 +24313,6 @@ Container {
             stop_codon: Some(
                 6110,
             ),
-            tag: None,
         },
         "NM_001407688.1": Transcript {
             biotype: Some(
@@ -24368,6 +24504,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -24381,7 +24519,6 @@ Container {
             stop_codon: Some(
                 5570,
             ),
-            tag: None,
         },
         "NM_001407689.1": Transcript {
             biotype: Some(
@@ -24573,6 +24710,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -24586,7 +24725,6 @@ Container {
             stop_codon: Some(
                 5576,
             ),
-            tag: None,
         },
         "NM_001407690.1": Transcript {
             biotype: Some(
@@ -24778,6 +24916,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -24791,7 +24931,6 @@ Container {
             stop_codon: Some(
                 6107,
             ),
-            tag: None,
         },
         "NM_001407691.1": Transcript {
             biotype: Some(
@@ -24983,6 +25122,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -24996,7 +25137,6 @@ Container {
             stop_codon: Some(
                 5567,
             ),
-            tag: None,
         },
         "NM_001407692.1": Transcript {
             biotype: Some(
@@ -25188,6 +25328,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -25201,7 +25343,6 @@ Container {
             stop_codon: Some(
                 5552,
             ),
-            tag: None,
         },
         "NM_001407694.1": Transcript {
             biotype: Some(
@@ -25417,6 +25558,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -25430,7 +25573,6 @@ Container {
             stop_codon: Some(
                 5821,
             ),
-            tag: None,
         },
         "NM_001407695.1": Transcript {
             biotype: Some(
@@ -25646,6 +25788,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -25659,7 +25803,6 @@ Container {
             stop_codon: Some(
                 5819,
             ),
-            tag: None,
         },
         "NM_001407696.1": Transcript {
             biotype: Some(
@@ -25883,6 +26026,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -25896,7 +26041,6 @@ Container {
             stop_codon: Some(
                 5966,
             ),
-            tag: None,
         },
         "NM_001407697.1": Transcript {
             biotype: Some(
@@ -26112,6 +26256,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -26125,7 +26271,6 @@ Container {
             stop_codon: Some(
                 6384,
             ),
-            tag: None,
         },
         "NM_001407698.1": Transcript {
             biotype: Some(
@@ -26325,6 +26470,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -26338,7 +26485,6 @@ Container {
             stop_codon: Some(
                 5651,
             ),
-            tag: None,
         },
         "NM_001407724.1": Transcript {
             biotype: Some(
@@ -26554,6 +26700,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -26567,7 +26715,6 @@ Container {
             stop_codon: Some(
                 6355,
             ),
-            tag: None,
         },
         "NM_001407725.1": Transcript {
             biotype: Some(
@@ -26783,6 +26930,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -26796,7 +26945,6 @@ Container {
             stop_codon: Some(
                 5824,
             ),
-            tag: None,
         },
         "NM_001407726.1": Transcript {
             biotype: Some(
@@ -27004,6 +27152,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -27017,7 +27167,6 @@ Container {
             stop_codon: Some(
                 5764,
             ),
-            tag: None,
         },
         "NM_001407727.1": Transcript {
             biotype: Some(
@@ -27241,6 +27390,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -27254,7 +27405,6 @@ Container {
             stop_codon: Some(
                 5993,
             ),
-            tag: None,
         },
         "NM_001407728.1": Transcript {
             biotype: Some(
@@ -27454,6 +27604,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -27467,7 +27619,6 @@ Container {
             stop_codon: Some(
                 5600,
             ),
-            tag: None,
         },
         "NM_001407729.1": Transcript {
             biotype: Some(
@@ -27667,6 +27818,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -27680,7 +27833,6 @@ Container {
             stop_codon: Some(
                 5606,
             ),
-            tag: None,
         },
         "NM_001407730.1": Transcript {
             biotype: Some(
@@ -27896,6 +28048,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -27909,7 +28063,6 @@ Container {
             stop_codon: Some(
                 5818,
             ),
-            tag: None,
         },
         "NM_001407731.1": Transcript {
             biotype: Some(
@@ -28125,6 +28278,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -28138,7 +28293,6 @@ Container {
             stop_codon: Some(
                 5815,
             ),
-            tag: None,
         },
         "NM_001407732.1": Transcript {
             biotype: Some(
@@ -28338,6 +28492,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -28351,7 +28507,6 @@ Container {
             stop_codon: Some(
                 5648,
             ),
-            tag: None,
         },
         "NM_001407733.1": Transcript {
             biotype: Some(
@@ -28567,6 +28722,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -28580,7 +28737,6 @@ Container {
             stop_codon: Some(
                 5818,
             ),
-            tag: None,
         },
         "NM_001407734.1": Transcript {
             biotype: Some(
@@ -28796,6 +28952,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -28809,7 +28967,6 @@ Container {
             stop_codon: Some(
                 5815,
             ),
-            tag: None,
         },
         "NM_001407735.1": Transcript {
             biotype: Some(
@@ -29009,6 +29166,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -29022,7 +29181,6 @@ Container {
             stop_codon: Some(
                 5603,
             ),
-            tag: None,
         },
         "NM_001407736.1": Transcript {
             biotype: Some(
@@ -29222,6 +29380,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -29235,7 +29395,6 @@ Container {
             stop_codon: Some(
                 5642,
             ),
-            tag: None,
         },
         "NM_001407737.1": Transcript {
             biotype: Some(
@@ -29435,6 +29594,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -29448,7 +29609,6 @@ Container {
             stop_codon: Some(
                 5597,
             ),
-            tag: None,
         },
         "NM_001407738.1": Transcript {
             biotype: Some(
@@ -29648,6 +29808,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -29661,7 +29823,6 @@ Container {
             stop_codon: Some(
                 5629,
             ),
-            tag: None,
         },
         "NM_001407739.1": Transcript {
             biotype: Some(
@@ -29877,6 +30038,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -29890,7 +30053,6 @@ Container {
             stop_codon: Some(
                 5821,
             ),
-            tag: None,
         },
         "NM_001407740.1": Transcript {
             biotype: Some(
@@ -30106,6 +30268,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -30119,7 +30283,6 @@ Container {
             stop_codon: Some(
                 5821,
             ),
-            tag: None,
         },
         "NM_001407741.1": Transcript {
             biotype: Some(
@@ -30335,6 +30498,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -30348,7 +30513,6 @@ Container {
             stop_codon: Some(
                 6359,
             ),
-            tag: None,
         },
         "NM_001407742.1": Transcript {
             biotype: Some(
@@ -30548,6 +30712,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -30561,7 +30727,6 @@ Container {
             stop_codon: Some(
                 5642,
             ),
-            tag: None,
         },
         "NM_001407743.1": Transcript {
             biotype: Some(
@@ -30761,6 +30926,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -30774,7 +30941,6 @@ Container {
             stop_codon: Some(
                 5603,
             ),
-            tag: None,
         },
         "NM_001407744.1": Transcript {
             biotype: Some(
@@ -30974,6 +31140,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -30987,7 +31155,6 @@ Container {
             stop_codon: Some(
                 5648,
             ),
-            tag: None,
         },
         "NM_001407745.1": Transcript {
             biotype: Some(
@@ -31187,6 +31354,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -31200,7 +31369,6 @@ Container {
             stop_codon: Some(
                 5597,
             ),
-            tag: None,
         },
         "NM_001407746.1": Transcript {
             biotype: Some(
@@ -31408,6 +31576,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -31421,7 +31591,6 @@ Container {
             stop_codon: Some(
                 5713,
             ),
-            tag: None,
         },
         "NM_001407747.1": Transcript {
             biotype: Some(
@@ -31613,6 +31782,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -31626,7 +31797,6 @@ Container {
             stop_codon: Some(
                 5543,
             ),
-            tag: None,
         },
         "NM_001407748.1": Transcript {
             biotype: Some(
@@ -31842,6 +32012,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -31855,7 +32027,6 @@ Container {
             stop_codon: Some(
                 5815,
             ),
-            tag: None,
         },
         "NM_001407749.1": Transcript {
             biotype: Some(
@@ -32071,6 +32242,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -32084,7 +32257,6 @@ Container {
             stop_codon: Some(
                 5812,
             ),
-            tag: None,
         },
         "NM_001407750.1": Transcript {
             biotype: Some(
@@ -32284,6 +32456,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -32297,7 +32471,6 @@ Container {
             stop_codon: Some(
                 5648,
             ),
-            tag: None,
         },
         "NM_001407751.1": Transcript {
             biotype: Some(
@@ -32505,6 +32678,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -32518,7 +32693,6 @@ Container {
             stop_codon: Some(
                 5767,
             ),
-            tag: None,
         },
         "NM_001407752.1": Transcript {
             biotype: Some(
@@ -32734,6 +32908,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -32747,7 +32923,6 @@ Container {
             stop_codon: Some(
                 5815,
             ),
-            tag: None,
         },
         "NM_001407838.1": Transcript {
             biotype: Some(
@@ -32963,6 +33138,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -32976,7 +33153,6 @@ Container {
             stop_codon: Some(
                 6352,
             ),
-            tag: None,
         },
         "NM_001407839.1": Transcript {
             biotype: Some(
@@ -33176,6 +33352,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -33189,7 +33367,6 @@ Container {
             stop_codon: Some(
                 5594,
             ),
-            tag: None,
         },
         "NM_001407841.1": Transcript {
             biotype: Some(
@@ -33397,6 +33574,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -33410,7 +33589,6 @@ Container {
             stop_codon: Some(
                 5784,
             ),
-            tag: None,
         },
         "NM_001407842.1": Transcript {
             biotype: Some(
@@ -33626,6 +33804,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -33639,7 +33819,6 @@ Container {
             stop_codon: Some(
                 5809,
             ),
-            tag: None,
         },
         "NM_001407843.1": Transcript {
             biotype: Some(
@@ -33855,6 +34034,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -33868,7 +34049,6 @@ Container {
             stop_codon: Some(
                 5815,
             ),
-            tag: None,
         },
         "NM_001407844.1": Transcript {
             biotype: Some(
@@ -34068,6 +34248,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -34081,7 +34263,6 @@ Container {
             stop_codon: Some(
                 5600,
             ),
-            tag: None,
         },
         "NM_001407845.1": Transcript {
             biotype: Some(
@@ -34281,6 +34462,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -34294,7 +34477,6 @@ Container {
             stop_codon: Some(
                 5645,
             ),
-            tag: None,
         },
         "NM_001407846.1": Transcript {
             biotype: Some(
@@ -34510,6 +34692,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -34523,7 +34707,6 @@ Container {
             stop_codon: Some(
                 5838,
             ),
-            tag: None,
         },
         "NM_001407847.1": Transcript {
             biotype: Some(
@@ -34739,6 +34922,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -34752,7 +34937,6 @@ Container {
             stop_codon: Some(
                 5818,
             ),
-            tag: None,
         },
         "NM_001407848.1": Transcript {
             biotype: Some(
@@ -34952,6 +35136,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -34965,7 +35151,6 @@ Container {
             stop_codon: Some(
                 5594,
             ),
-            tag: None,
         },
         "NM_001407849.1": Transcript {
             biotype: Some(
@@ -35165,6 +35350,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -35178,7 +35365,6 @@ Container {
             stop_codon: Some(
                 5645,
             ),
-            tag: None,
         },
         "NM_001407850.1": Transcript {
             biotype: Some(
@@ -35394,6 +35580,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -35407,7 +35595,6 @@ Container {
             stop_codon: Some(
                 5812,
             ),
-            tag: None,
         },
         "NM_001407851.1": Transcript {
             biotype: Some(
@@ -35607,6 +35794,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -35620,7 +35809,6 @@ Container {
             stop_codon: Some(
                 5600,
             ),
-            tag: None,
         },
         "NM_001407852.1": Transcript {
             biotype: Some(
@@ -35820,6 +36008,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -35833,7 +36023,6 @@ Container {
             stop_codon: Some(
                 5645,
             ),
-            tag: None,
         },
         "NM_001407853.1": Transcript {
             biotype: Some(
@@ -36049,6 +36238,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -36062,7 +36253,6 @@ Container {
             stop_codon: Some(
                 5746,
             ),
-            tag: None,
         },
         "NM_001407854.1": Transcript {
             biotype: Some(
@@ -36262,6 +36452,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -36275,7 +36467,6 @@ Container {
             stop_codon: Some(
                 5519,
             ),
-            tag: None,
         },
         "NM_001407858.1": Transcript {
             biotype: Some(
@@ -36475,6 +36666,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -36488,7 +36681,6 @@ Container {
             stop_codon: Some(
                 5522,
             ),
-            tag: None,
         },
         "NM_001407859.1": Transcript {
             biotype: Some(
@@ -36688,6 +36880,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -36701,7 +36895,6 @@ Container {
             stop_codon: Some(
                 5611,
             ),
-            tag: None,
         },
         "NM_001407860.1": Transcript {
             biotype: Some(
@@ -36901,6 +37094,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -36914,7 +37109,6 @@ Container {
             stop_codon: Some(
                 5522,
             ),
-            tag: None,
         },
         "NM_001407861.1": Transcript {
             biotype: Some(
@@ -37114,6 +37308,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -37127,7 +37323,6 @@ Container {
             stop_codon: Some(
                 5513,
             ),
-            tag: None,
         },
         "NM_001407862.1": Transcript {
             biotype: Some(
@@ -37311,6 +37506,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -37324,7 +37521,6 @@ Container {
             stop_codon: Some(
                 5504,
             ),
-            tag: None,
         },
         "NM_001407863.1": Transcript {
             biotype: Some(
@@ -37508,6 +37704,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -37521,7 +37719,6 @@ Container {
             stop_codon: Some(
                 5495,
             ),
-            tag: None,
         },
         "NM_001407874.1": Transcript {
             biotype: Some(
@@ -37705,6 +37902,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -37718,7 +37917,6 @@ Container {
             stop_codon: Some(
                 5587,
             ),
-            tag: None,
         },
         "NM_001407875.1": Transcript {
             biotype: Some(
@@ -37902,6 +38100,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -37915,7 +38115,6 @@ Container {
             stop_codon: Some(
                 5492,
             ),
-            tag: None,
         },
         "NM_001407879.1": Transcript {
             biotype: Some(
@@ -38123,6 +38322,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -38136,7 +38337,6 @@ Container {
             stop_codon: Some(
                 5772,
             ),
-            tag: None,
         },
         "NM_001407881.1": Transcript {
             biotype: Some(
@@ -38336,6 +38536,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -38349,7 +38551,6 @@ Container {
             stop_codon: Some(
                 5623,
             ),
-            tag: None,
         },
         "NM_001407882.1": Transcript {
             biotype: Some(
@@ -38557,6 +38758,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -38570,7 +38773,6 @@ Container {
             stop_codon: Some(
                 6217,
             ),
-            tag: None,
         },
         "NM_001407884.1": Transcript {
             biotype: Some(
@@ -38778,6 +38980,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -38791,7 +38995,6 @@ Container {
             stop_codon: Some(
                 5683,
             ),
-            tag: None,
         },
         "NM_001407885.1": Transcript {
             biotype: Some(
@@ -38991,6 +39194,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -39004,7 +39209,6 @@ Container {
             stop_codon: Some(
                 5578,
             ),
-            tag: None,
         },
         "NM_001407886.1": Transcript {
             biotype: Some(
@@ -39212,6 +39416,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -39225,7 +39431,6 @@ Container {
             stop_codon: Some(
                 5664,
             ),
-            tag: None,
         },
         "NM_001407887.1": Transcript {
             biotype: Some(
@@ -39433,6 +39638,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -39446,7 +39653,6 @@ Container {
             stop_codon: Some(
                 5677,
             ),
-            tag: None,
         },
         "NM_001407889.1": Transcript {
             biotype: Some(
@@ -39662,6 +39868,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -39675,7 +39883,6 @@ Container {
             stop_codon: Some(
                 5793,
             ),
-            tag: None,
         },
         "NM_001407894.1": Transcript {
             biotype: Some(
@@ -39883,6 +40090,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -39896,7 +40105,6 @@ Container {
             stop_codon: Some(
                 5674,
             ),
-            tag: None,
         },
         "NM_001407895.1": Transcript {
             biotype: Some(
@@ -40104,6 +40312,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -40117,7 +40327,6 @@ Container {
             stop_codon: Some(
                 5680,
             ),
-            tag: None,
         },
         "NM_001407896.1": Transcript {
             biotype: Some(
@@ -40317,6 +40526,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -40330,7 +40541,6 @@ Container {
             stop_codon: Some(
                 5670,
             ),
-            tag: None,
         },
         "NM_001407897.1": Transcript {
             biotype: Some(
@@ -40538,6 +40748,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -40551,7 +40763,6 @@ Container {
             stop_codon: Some(
                 6214,
             ),
-            tag: None,
         },
         "NM_001407898.1": Transcript {
             biotype: Some(
@@ -40751,6 +40962,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -40764,7 +40977,6 @@ Container {
             stop_codon: Some(
                 5620,
             ),
-            tag: None,
         },
         "NM_001407899.1": Transcript {
             biotype: Some(
@@ -40972,6 +41184,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -40985,7 +41199,6 @@ Container {
             stop_codon: Some(
                 5667,
             ),
-            tag: None,
         },
         "NM_001407900.1": Transcript {
             biotype: Some(
@@ -41193,6 +41406,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -41206,7 +41421,6 @@ Container {
             stop_codon: Some(
                 5786,
             ),
-            tag: None,
         },
         "NM_001407902.1": Transcript {
             biotype: Some(
@@ -41406,6 +41620,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -41419,7 +41635,6 @@ Container {
             stop_codon: Some(
                 6160,
             ),
-            tag: None,
         },
         "NM_001407904.1": Transcript {
             biotype: Some(
@@ -41627,6 +41842,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -41640,7 +41857,6 @@ Container {
             stop_codon: Some(
                 5680,
             ),
-            tag: None,
         },
         "NM_001407906.1": Transcript {
             biotype: Some(
@@ -41848,6 +42064,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -41861,7 +42079,6 @@ Container {
             stop_codon: Some(
                 5674,
             ),
-            tag: None,
         },
         "NM_001407907.1": Transcript {
             biotype: Some(
@@ -42069,6 +42286,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -42082,7 +42301,6 @@ Container {
             stop_codon: Some(
                 5769,
             ),
-            tag: None,
         },
         "NM_001407908.1": Transcript {
             biotype: Some(
@@ -42290,6 +42508,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -42303,7 +42523,6 @@ Container {
             stop_codon: Some(
                 6214,
             ),
-            tag: None,
         },
         "NM_001407909.1": Transcript {
             biotype: Some(
@@ -42511,6 +42730,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -42524,7 +42745,6 @@ Container {
             stop_codon: Some(
                 5674,
             ),
-            tag: None,
         },
         "NM_001407910.1": Transcript {
             biotype: Some(
@@ -42732,6 +42952,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -42745,7 +42967,6 @@ Container {
             stop_codon: Some(
                 5680,
             ),
-            tag: None,
         },
         "NM_001407915.1": Transcript {
             biotype: Some(
@@ -42953,6 +43174,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -42966,7 +43189,6 @@ Container {
             stop_codon: Some(
                 5677,
             ),
-            tag: None,
         },
         "NM_001407916.1": Transcript {
             biotype: Some(
@@ -43174,6 +43396,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -43187,7 +43411,6 @@ Container {
             stop_codon: Some(
                 5677,
             ),
-            tag: None,
         },
         "NM_001407917.1": Transcript {
             biotype: Some(
@@ -43403,6 +43626,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -43416,7 +43641,6 @@ Container {
             stop_codon: Some(
                 5885,
             ),
-            tag: None,
         },
         "NM_001407918.1": Transcript {
             biotype: Some(
@@ -43624,6 +43848,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -43637,7 +43863,6 @@ Container {
             stop_codon: Some(
                 5671,
             ),
-            tag: None,
         },
         "NM_001407919.1": Transcript {
             biotype: Some(
@@ -43813,6 +44038,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -43826,7 +44053,6 @@ Container {
             stop_codon: Some(
                 5987,
             ),
-            tag: None,
         },
         "NM_001407920.1": Transcript {
             biotype: Some(
@@ -44026,6 +44252,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -44039,7 +44267,6 @@ Container {
             stop_codon: Some(
                 5727,
             ),
-            tag: None,
         },
         "NM_001407921.1": Transcript {
             biotype: Some(
@@ -44239,6 +44466,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -44252,7 +44481,6 @@ Container {
             stop_codon: Some(
                 5695,
             ),
-            tag: None,
         },
         "NM_001407922.1": Transcript {
             biotype: Some(
@@ -44436,6 +44664,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -44449,7 +44679,6 @@ Container {
             stop_codon: Some(
                 5477,
             ),
-            tag: None,
         },
         "NM_001407923.1": Transcript {
             biotype: Some(
@@ -44649,6 +44878,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -44662,7 +44893,6 @@ Container {
             stop_codon: Some(
                 5701,
             ),
-            tag: None,
         },
         "NM_001407924.1": Transcript {
             biotype: Some(
@@ -44846,6 +45076,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -44859,7 +45091,6 @@ Container {
             stop_codon: Some(
                 5528,
             ),
-            tag: None,
         },
         "NM_001407925.1": Transcript {
             biotype: Some(
@@ -45043,6 +45274,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -45056,7 +45289,6 @@ Container {
             stop_codon: Some(
                 5522,
             ),
-            tag: None,
         },
         "NM_001407926.1": Transcript {
             biotype: Some(
@@ -45240,6 +45472,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -45253,7 +45487,6 @@ Container {
             stop_codon: Some(
                 5483,
             ),
-            tag: None,
         },
         "NM_001407927.1": Transcript {
             biotype: Some(
@@ -45453,6 +45686,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -45466,7 +45701,6 @@ Container {
             stop_codon: Some(
                 5698,
             ),
-            tag: None,
         },
         "NM_001407928.1": Transcript {
             biotype: Some(
@@ -45650,6 +45884,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -45663,7 +45899,6 @@ Container {
             stop_codon: Some(
                 5519,
             ),
-            tag: None,
         },
         "NM_001407929.1": Transcript {
             biotype: Some(
@@ -45847,6 +46082,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -45860,7 +46097,6 @@ Container {
             stop_codon: Some(
                 5525,
             ),
-            tag: None,
         },
         "NM_001407930.1": Transcript {
             biotype: Some(
@@ -46060,6 +46296,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -46073,7 +46311,6 @@ Container {
             stop_codon: Some(
                 5695,
             ),
-            tag: None,
         },
         "NM_001407931.1": Transcript {
             biotype: Some(
@@ -46249,6 +46486,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -46262,7 +46501,6 @@ Container {
             stop_codon: Some(
                 5420,
             ),
-            tag: None,
         },
         "NM_001407932.1": Transcript {
             biotype: Some(
@@ -46446,6 +46684,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -46459,7 +46699,6 @@ Container {
             stop_codon: Some(
                 5519,
             ),
-            tag: None,
         },
         "NM_001407933.1": Transcript {
             biotype: Some(
@@ -46659,6 +46898,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -46672,7 +46913,6 @@ Container {
             stop_codon: Some(
                 5698,
             ),
-            tag: None,
         },
         "NM_001407934.1": Transcript {
             biotype: Some(
@@ -46872,6 +47112,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -46885,7 +47127,6 @@ Container {
             stop_codon: Some(
                 5693,
             ),
-            tag: None,
         },
         "NM_001407935.1": Transcript {
             biotype: Some(
@@ -47069,6 +47310,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -47082,7 +47325,6 @@ Container {
             stop_codon: Some(
                 5477,
             ),
-            tag: None,
         },
         "NM_001407936.1": Transcript {
             biotype: Some(
@@ -47266,6 +47508,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -47279,7 +47523,6 @@ Container {
             stop_codon: Some(
                 5522,
             ),
-            tag: None,
         },
         "NM_001407937.1": Transcript {
             biotype: Some(
@@ -47463,6 +47706,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -47476,7 +47721,6 @@ Container {
             stop_codon: Some(
                 5936,
             ),
-            tag: None,
         },
         "NM_001407938.1": Transcript {
             biotype: Some(
@@ -47660,6 +47904,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -47673,7 +47919,6 @@ Container {
             stop_codon: Some(
                 5396,
             ),
-            tag: None,
         },
         "NM_001407939.1": Transcript {
             biotype: Some(
@@ -47857,6 +48102,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -47870,7 +48117,6 @@ Container {
             stop_codon: Some(
                 5933,
             ),
-            tag: None,
         },
         "NM_001407940.1": Transcript {
             biotype: Some(
@@ -48054,6 +48300,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -48067,7 +48315,6 @@ Container {
             stop_codon: Some(
                 5393,
             ),
-            tag: None,
         },
         "NM_001407941.1": Transcript {
             biotype: Some(
@@ -48251,6 +48498,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -48264,7 +48513,6 @@ Container {
             stop_codon: Some(
                 5930,
             ),
-            tag: None,
         },
         "NM_001407942.1": Transcript {
             biotype: Some(
@@ -48472,6 +48720,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -48485,7 +48735,6 @@ Container {
             stop_codon: Some(
                 5641,
             ),
-            tag: None,
         },
         "NM_001407943.1": Transcript {
             biotype: Some(
@@ -48693,6 +48942,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -48706,7 +48957,6 @@ Container {
             stop_codon: Some(
                 5635,
             ),
-            tag: None,
         },
         "NM_001407944.1": Transcript {
             biotype: Some(
@@ -48914,6 +49164,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -48927,7 +49179,6 @@ Container {
             stop_codon: Some(
                 5635,
             ),
-            tag: None,
         },
         "NM_001407945.1": Transcript {
             biotype: Some(
@@ -49119,6 +49370,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -49132,7 +49385,6 @@ Container {
             stop_codon: Some(
                 5462,
             ),
-            tag: None,
         },
         "NM_001407946.1": Transcript {
             biotype: Some(
@@ -49324,6 +49576,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -49337,7 +49591,6 @@ Container {
             stop_codon: Some(
                 5560,
             ),
-            tag: None,
         },
         "NM_001407947.1": Transcript {
             biotype: Some(
@@ -49529,6 +49782,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -49542,7 +49797,6 @@ Container {
             stop_codon: Some(
                 6094,
             ),
-            tag: None,
         },
         "NM_001407948.1": Transcript {
             biotype: Some(
@@ -49734,6 +49988,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -49747,7 +50003,6 @@ Container {
             stop_codon: Some(
                 5649,
             ),
-            tag: None,
         },
         "NM_001407949.1": Transcript {
             biotype: Some(
@@ -49939,6 +50194,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -49952,7 +50209,6 @@ Container {
             stop_codon: Some(
                 5554,
             ),
-            tag: None,
         },
         "NM_001407950.1": Transcript {
             biotype: Some(
@@ -50144,6 +50400,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -50157,7 +50415,6 @@ Container {
             stop_codon: Some(
                 5646,
             ),
-            tag: None,
         },
         "NM_001407951.1": Transcript {
             biotype: Some(
@@ -50349,6 +50606,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -50362,7 +50621,6 @@ Container {
             stop_codon: Some(
                 5557,
             ),
-            tag: None,
         },
         "NM_001407952.1": Transcript {
             biotype: Some(
@@ -50554,6 +50812,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -50567,7 +50827,6 @@ Container {
             stop_codon: Some(
                 5633,
             ),
-            tag: None,
         },
         "NM_001407953.1": Transcript {
             biotype: Some(
@@ -50759,6 +51018,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -50772,7 +51033,6 @@ Container {
             stop_codon: Some(
                 5551,
             ),
-            tag: None,
         },
         "NM_001407954.1": Transcript {
             biotype: Some(
@@ -50972,6 +51232,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -50985,7 +51247,6 @@ Container {
             stop_codon: Some(
                 5676,
             ),
-            tag: None,
         },
         "NM_001407955.1": Transcript {
             biotype: Some(
@@ -51177,6 +51438,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -51190,7 +51453,6 @@ Container {
             stop_codon: Some(
                 5557,
             ),
-            tag: None,
         },
         "NM_001407956.1": Transcript {
             biotype: Some(
@@ -51382,6 +51644,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -51395,7 +51659,6 @@ Container {
             stop_codon: Some(
                 6088,
             ),
-            tag: None,
         },
         "NM_001407957.1": Transcript {
             biotype: Some(
@@ -51587,6 +51850,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -51600,7 +51865,6 @@ Container {
             stop_codon: Some(
                 5548,
             ),
-            tag: None,
         },
         "NM_001407958.1": Transcript {
             biotype: Some(
@@ -51792,6 +52056,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -51805,7 +52071,6 @@ Container {
             stop_codon: Some(
                 5554,
             ),
-            tag: None,
         },
         "NM_001407959.1": Transcript {
             biotype: Some(
@@ -51989,6 +52254,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -52002,7 +52269,6 @@ Container {
             stop_codon: Some(
                 5468,
             ),
-            tag: None,
         },
         "NM_001407960.1": Transcript {
             biotype: Some(
@@ -52194,6 +52460,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -52207,7 +52475,6 @@ Container {
             stop_codon: Some(
                 5525,
             ),
-            tag: None,
         },
         "NM_001407962.1": Transcript {
             biotype: Some(
@@ -52399,6 +52666,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -52412,7 +52681,6 @@ Container {
             stop_codon: Some(
                 5519,
             ),
-            tag: None,
         },
         "NM_001407963.1": Transcript {
             biotype: Some(
@@ -52596,6 +52864,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -52609,7 +52879,6 @@ Container {
             stop_codon: Some(
                 5468,
             ),
-            tag: None,
         },
         "NM_001407964.1": Transcript {
             biotype: Some(
@@ -52793,6 +53062,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -52806,7 +53077,6 @@ Container {
             stop_codon: Some(
                 5285,
             ),
-            tag: None,
         },
         "NM_001407965.1": Transcript {
             biotype: Some(
@@ -52998,6 +53268,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -53011,7 +53283,6 @@ Container {
             stop_codon: Some(
                 5617,
             ),
-            tag: None,
         },
         "NM_001407966.1": Transcript {
             biotype: Some(
@@ -53155,6 +53426,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -53168,7 +53441,6 @@ Container {
             stop_codon: Some(
                 5016,
             ),
-            tag: None,
         },
         "NM_001407967.1": Transcript {
             biotype: Some(
@@ -53312,6 +53584,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -53325,7 +53599,6 @@ Container {
             stop_codon: Some(
                 5007,
             ),
-            tag: None,
         },
         "NM_001407968.1": Transcript {
             biotype: Some(
@@ -53541,6 +53814,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -53554,7 +53829,6 @@ Container {
             stop_codon: Some(
                 3095,
             ),
-            tag: None,
         },
         "NM_001407969.1": Transcript {
             biotype: Some(
@@ -53770,6 +54044,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -53783,7 +54059,6 @@ Container {
             stop_codon: Some(
                 3092,
             ),
-            tag: None,
         },
         "NM_001407970.1": Transcript {
             biotype: Some(
@@ -53991,6 +54266,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -54004,7 +54281,6 @@ Container {
             stop_codon: Some(
                 3617,
             ),
-            tag: None,
         },
         "NM_001407971.1": Transcript {
             biotype: Some(
@@ -54220,6 +54496,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -54233,7 +54511,6 @@ Container {
             stop_codon: Some(
                 2462,
             ),
-            tag: None,
         },
         "NM_001407972.1": Transcript {
             biotype: Some(
@@ -54449,6 +54726,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -54462,7 +54741,6 @@ Container {
             stop_codon: Some(
                 2993,
             ),
-            tag: None,
         },
         "NM_001407973.1": Transcript {
             biotype: Some(
@@ -54678,6 +54956,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -54691,7 +54971,6 @@ Container {
             stop_codon: Some(
                 2562,
             ),
-            tag: None,
         },
         "NM_001407974.1": Transcript {
             biotype: Some(
@@ -54899,6 +55178,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -54912,7 +55193,6 @@ Container {
             stop_codon: Some(
                 2390,
             ),
-            tag: None,
         },
         "NM_001407975.1": Transcript {
             biotype: Some(
@@ -55120,6 +55400,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -55133,7 +55415,6 @@ Container {
             stop_codon: Some(
                 2396,
             ),
-            tag: None,
         },
         "NM_001407976.1": Transcript {
             biotype: Some(
@@ -55341,6 +55622,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -55354,7 +55637,6 @@ Container {
             stop_codon: Some(
                 2377,
             ),
-            tag: None,
         },
         "NM_001407977.1": Transcript {
             biotype: Some(
@@ -55562,6 +55844,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -55575,7 +55859,6 @@ Container {
             stop_codon: Some(
                 2930,
             ),
-            tag: None,
         },
         "NM_001407978.1": Transcript {
             biotype: Some(
@@ -55783,6 +56066,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -55796,7 +56081,6 @@ Container {
             stop_codon: Some(
                 2485,
             ),
-            tag: None,
         },
         "NM_001407979.1": Transcript {
             biotype: Some(
@@ -56004,6 +56288,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -56017,7 +56303,6 @@ Container {
             stop_codon: Some(
                 2927,
             ),
-            tag: None,
         },
         "NM_001407980.1": Transcript {
             biotype: Some(
@@ -56225,6 +56510,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -56238,7 +56525,6 @@ Container {
             stop_codon: Some(
                 2374,
             ),
-            tag: None,
         },
         "NM_001407981.1": Transcript {
             biotype: Some(
@@ -56446,6 +56732,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -56459,7 +56747,6 @@ Container {
             stop_codon: Some(
                 2482,
             ),
-            tag: None,
         },
         "NM_001407982.1": Transcript {
             biotype: Some(
@@ -56659,6 +56946,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -56672,7 +56961,6 @@ Container {
             stop_codon: Some(
                 3548,
             ),
-            tag: None,
         },
         "NM_001407983.1": Transcript {
             biotype: Some(
@@ -56880,6 +57168,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -56893,7 +57183,6 @@ Container {
             stop_codon: Some(
                 2393,
             ),
-            tag: None,
         },
         "NM_001407984.1": Transcript {
             biotype: Some(
@@ -57101,6 +57390,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -57114,7 +57405,6 @@ Container {
             stop_codon: Some(
                 2393,
             ),
-            tag: None,
         },
         "NM_001407985.1": Transcript {
             biotype: Some(
@@ -57322,6 +57612,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -57335,7 +57627,6 @@ Container {
             stop_codon: Some(
                 2387,
             ),
-            tag: None,
         },
         "NM_001407986.1": Transcript {
             biotype: Some(
@@ -57543,6 +57834,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -57556,7 +57849,6 @@ Container {
             stop_codon: Some(
                 2927,
             ),
-            tag: None,
         },
         "NM_001407990.1": Transcript {
             biotype: Some(
@@ -57764,6 +58056,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -57777,7 +58071,6 @@ Container {
             stop_codon: Some(
                 2387,
             ),
-            tag: None,
         },
         "NM_001407991.1": Transcript {
             biotype: Some(
@@ -57985,6 +58278,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -57998,7 +58293,6 @@ Container {
             stop_codon: Some(
                 2380,
             ),
-            tag: None,
         },
         "NM_001407992.1": Transcript {
             biotype: Some(
@@ -58206,6 +58500,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -58219,7 +58515,6 @@ Container {
             stop_codon: Some(
                 2482,
             ),
-            tag: None,
         },
         "NM_001407993.1": Transcript {
             biotype: Some(
@@ -58427,6 +58722,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -58440,7 +58737,6 @@ Container {
             stop_codon: Some(
                 2374,
             ),
-            tag: None,
         },
         "NM_001408392.1": Transcript {
             biotype: Some(
@@ -58648,6 +58944,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -58661,7 +58959,6 @@ Container {
             stop_codon: Some(
                 2924,
             ),
-            tag: None,
         },
         "NM_001408396.1": Transcript {
             biotype: Some(
@@ -58869,6 +59166,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -58882,7 +59181,6 @@ Container {
             stop_codon: Some(
                 2384,
             ),
-            tag: None,
         },
         "NM_001408397.1": Transcript {
             biotype: Some(
@@ -59090,6 +59388,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -59103,7 +59403,6 @@ Container {
             stop_codon: Some(
                 2371,
             ),
-            tag: None,
         },
         "NM_001408398.1": Transcript {
             biotype: Some(
@@ -59311,6 +59610,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -59324,7 +59625,6 @@ Container {
             stop_codon: Some(
                 2479,
             ),
-            tag: None,
         },
         "NM_001408399.1": Transcript {
             biotype: Some(
@@ -59532,6 +59832,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -59545,7 +59847,6 @@ Container {
             stop_codon: Some(
                 2390,
             ),
-            tag: None,
         },
         "NM_001408400.1": Transcript {
             biotype: Some(
@@ -59753,6 +60054,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -59766,7 +60069,6 @@ Container {
             stop_codon: Some(
                 2924,
             ),
-            tag: None,
         },
         "NM_001408401.1": Transcript {
             biotype: Some(
@@ -59974,6 +60276,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -59987,7 +60291,6 @@ Container {
             stop_codon: Some(
                 2384,
             ),
-            tag: None,
         },
         "NM_001408402.1": Transcript {
             biotype: Some(
@@ -60195,6 +60498,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -60208,7 +60513,6 @@ Container {
             stop_codon: Some(
                 2390,
             ),
-            tag: None,
         },
         "NM_001408403.1": Transcript {
             biotype: Some(
@@ -60416,6 +60720,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -60429,7 +60735,6 @@ Container {
             stop_codon: Some(
                 2390,
             ),
-            tag: None,
         },
         "NM_001408404.1": Transcript {
             biotype: Some(
@@ -60637,6 +60942,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -60650,7 +60957,6 @@ Container {
             stop_codon: Some(
                 2384,
             ),
-            tag: None,
         },
         "NM_001408406.1": Transcript {
             biotype: Some(
@@ -60858,6 +61164,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -60871,7 +61179,6 @@ Container {
             stop_codon: Some(
                 2387,
             ),
-            tag: None,
         },
         "NM_001408407.1": Transcript {
             biotype: Some(
@@ -61079,6 +61386,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -61092,7 +61401,6 @@ Container {
             stop_codon: Some(
                 2387,
             ),
-            tag: None,
         },
         "NM_001408408.1": Transcript {
             biotype: Some(
@@ -61300,6 +61608,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -61313,7 +61623,6 @@ Container {
             stop_codon: Some(
                 2381,
             ),
-            tag: None,
         },
         "NM_001408409.1": Transcript {
             biotype: Some(
@@ -61521,6 +61830,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -61534,7 +61845,6 @@ Container {
             stop_codon: Some(
                 2384,
             ),
-            tag: None,
         },
         "NM_001408410.1": Transcript {
             biotype: Some(
@@ -61758,6 +62068,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -61771,7 +62083,6 @@ Container {
             stop_codon: Some(
                 3115,
             ),
-            tag: None,
         },
         "NM_001408411.1": Transcript {
             biotype: Some(
@@ -61971,6 +62282,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -61984,7 +62297,6 @@ Container {
             stop_codon: Some(
                 2852,
             ),
-            tag: None,
         },
         "NM_001408412.1": Transcript {
             biotype: Some(
@@ -62184,6 +62496,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -62197,7 +62511,6 @@ Container {
             stop_codon: Some(
                 2309,
             ),
-            tag: None,
         },
         "NM_001408413.1": Transcript {
             biotype: Some(
@@ -62397,6 +62710,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -62410,7 +62725,6 @@ Container {
             stop_codon: Some(
                 2315,
             ),
-            tag: None,
         },
         "NM_001408414.1": Transcript {
             biotype: Some(
@@ -62610,6 +62924,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -62623,7 +62939,6 @@ Container {
             stop_codon: Some(
                 2849,
             ),
-            tag: None,
         },
         "NM_001408415.1": Transcript {
             biotype: Some(
@@ -62815,6 +63130,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -62828,7 +63145,6 @@ Container {
             stop_codon: Some(
                 3470,
             ),
-            tag: None,
         },
         "NM_001408416.1": Transcript {
             biotype: Some(
@@ -63028,6 +63344,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -63041,7 +63359,6 @@ Container {
             stop_codon: Some(
                 2404,
             ),
-            tag: None,
         },
         "NM_001408418.1": Transcript {
             biotype: Some(
@@ -63241,6 +63558,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -63254,7 +63573,6 @@ Container {
             stop_codon: Some(
                 2368,
             ),
-            tag: None,
         },
         "NM_001408419.1": Transcript {
             biotype: Some(
@@ -63454,6 +63772,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -63467,7 +63787,6 @@ Container {
             stop_codon: Some(
                 2279,
             ),
-            tag: None,
         },
         "NM_001408420.1": Transcript {
             biotype: Some(
@@ -63667,6 +63986,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -63680,7 +64001,6 @@ Container {
             stop_codon: Some(
                 2273,
             ),
-            tag: None,
         },
         "NM_001408421.1": Transcript {
             biotype: Some(
@@ -63880,6 +64200,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -63893,7 +64215,6 @@ Container {
             stop_codon: Some(
                 2263,
             ),
-            tag: None,
         },
         "NM_001408422.1": Transcript {
             biotype: Some(
@@ -64101,6 +64422,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -64114,7 +64437,6 @@ Container {
             stop_codon: Some(
                 2448,
             ),
-            tag: None,
         },
         "NM_001408423.1": Transcript {
             biotype: Some(
@@ -64314,6 +64636,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -64327,7 +64651,6 @@ Container {
             stop_codon: Some(
                 2270,
             ),
-            tag: None,
         },
         "NM_001408424.1": Transcript {
             biotype: Some(
@@ -64527,6 +64850,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -64540,7 +64865,6 @@ Container {
             stop_codon: Some(
                 2276,
             ),
-            tag: None,
         },
         "NM_001408425.1": Transcript {
             biotype: Some(
@@ -64732,6 +65056,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -64745,7 +65071,6 @@ Container {
             stop_codon: Some(
                 2273,
             ),
-            tag: None,
         },
         "NM_001408426.1": Transcript {
             biotype: Some(
@@ -64929,6 +65254,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -64942,7 +65269,6 @@ Container {
             stop_codon: Some(
                 3428,
             ),
-            tag: None,
         },
         "NM_001408427.1": Transcript {
             biotype: Some(
@@ -65134,6 +65460,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -65147,7 +65475,6 @@ Container {
             stop_codon: Some(
                 2260,
             ),
-            tag: None,
         },
         "NM_001408428.1": Transcript {
             biotype: Some(
@@ -65339,6 +65666,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -65352,7 +65681,6 @@ Container {
             stop_codon: Some(
                 2362,
             ),
-            tag: None,
         },
         "NM_001408429.1": Transcript {
             biotype: Some(
@@ -65544,6 +65872,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -65557,7 +65887,6 @@ Container {
             stop_codon: Some(
                 2807,
             ),
-            tag: None,
         },
         "NM_001408430.1": Transcript {
             biotype: Some(
@@ -65749,6 +66078,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -65762,7 +66093,6 @@ Container {
             stop_codon: Some(
                 2267,
             ),
-            tag: None,
         },
         "NM_001408431.1": Transcript {
             biotype: Some(
@@ -65962,6 +66292,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -65975,7 +66307,6 @@ Container {
             stop_codon: Some(
                 2273,
             ),
-            tag: None,
         },
         "NM_001408432.1": Transcript {
             biotype: Some(
@@ -66167,6 +66498,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -66180,7 +66513,6 @@ Container {
             stop_codon: Some(
                 2270,
             ),
-            tag: None,
         },
         "NM_001408433.1": Transcript {
             biotype: Some(
@@ -66372,6 +66704,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -66385,7 +66719,6 @@ Container {
             stop_codon: Some(
                 2804,
             ),
-            tag: None,
         },
         "NM_001408434.1": Transcript {
             biotype: Some(
@@ -66577,6 +66910,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -66590,7 +66925,6 @@ Container {
             stop_codon: Some(
                 2359,
             ),
-            tag: None,
         },
         "NM_001408435.1": Transcript {
             biotype: Some(
@@ -66782,6 +67116,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -66795,7 +67131,6 @@ Container {
             stop_codon: Some(
                 2264,
             ),
-            tag: None,
         },
         "NM_001408436.1": Transcript {
             biotype: Some(
@@ -66987,6 +67322,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -67000,7 +67337,6 @@ Container {
             stop_codon: Some(
                 2251,
             ),
-            tag: None,
         },
         "NM_001408437.1": Transcript {
             biotype: Some(
@@ -67192,6 +67528,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -67205,7 +67543,6 @@ Container {
             stop_codon: Some(
                 2804,
             ),
-            tag: None,
         },
         "NM_001408438.1": Transcript {
             biotype: Some(
@@ -67397,6 +67734,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -67410,7 +67749,6 @@ Container {
             stop_codon: Some(
                 2264,
             ),
-            tag: None,
         },
         "NM_001408439.1": Transcript {
             biotype: Some(
@@ -67602,6 +67940,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -67615,7 +67955,6 @@ Container {
             stop_codon: Some(
                 2270,
             ),
-            tag: None,
         },
         "NM_001408440.1": Transcript {
             biotype: Some(
@@ -67807,6 +68146,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -67820,7 +68161,6 @@ Container {
             stop_codon: Some(
                 2359,
             ),
-            tag: None,
         },
         "NM_001408441.1": Transcript {
             biotype: Some(
@@ -68012,6 +68352,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -68025,7 +68367,6 @@ Container {
             stop_codon: Some(
                 2804,
             ),
-            tag: None,
         },
         "NM_001408442.1": Transcript {
             biotype: Some(
@@ -68209,6 +68550,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -68222,7 +68565,6 @@ Container {
             stop_codon: Some(
                 3425,
             ),
-            tag: None,
         },
         "NM_001408443.1": Transcript {
             biotype: Some(
@@ -68414,6 +68756,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -68427,7 +68771,6 @@ Container {
             stop_codon: Some(
                 2270,
             ),
-            tag: None,
         },
         "NM_001408444.1": Transcript {
             biotype: Some(
@@ -68619,6 +68962,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -68632,7 +68977,6 @@ Container {
             stop_codon: Some(
                 2264,
             ),
-            tag: None,
         },
         "NM_001408445.1": Transcript {
             biotype: Some(
@@ -68824,6 +69168,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -68837,7 +69183,6 @@ Container {
             stop_codon: Some(
                 2267,
             ),
-            tag: None,
         },
         "NM_001408446.1": Transcript {
             biotype: Some(
@@ -69029,6 +69374,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -69042,7 +69389,6 @@ Container {
             stop_codon: Some(
                 2261,
             ),
-            tag: None,
         },
         "NM_001408447.1": Transcript {
             biotype: Some(
@@ -69234,6 +69580,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -69247,7 +69595,6 @@ Container {
             stop_codon: Some(
                 2801,
             ),
-            tag: None,
         },
         "NM_001408448.1": Transcript {
             biotype: Some(
@@ -69439,6 +69786,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -69452,7 +69801,6 @@ Container {
             stop_codon: Some(
                 2254,
             ),
-            tag: None,
         },
         "NM_001408450.1": Transcript {
             biotype: Some(
@@ -69644,6 +69992,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -69657,7 +70007,6 @@ Container {
             stop_codon: Some(
                 2356,
             ),
-            tag: None,
         },
         "NM_001408451.1": Transcript {
             biotype: Some(
@@ -69849,6 +70198,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -69862,7 +70213,6 @@ Container {
             stop_codon: Some(
                 2255,
             ),
-            tag: None,
         },
         "NM_001408452.1": Transcript {
             biotype: Some(
@@ -70078,6 +70428,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -70091,7 +70443,6 @@ Container {
             stop_codon: Some(
                 2509,
             ),
-            tag: None,
         },
         "NM_001408453.1": Transcript {
             biotype: Some(
@@ -70291,6 +70642,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -70304,7 +70657,6 @@ Container {
             stop_codon: Some(
                 2291,
             ),
-            tag: None,
         },
         "NM_001408454.1": Transcript {
             biotype: Some(
@@ -70504,6 +70856,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -70517,7 +70871,6 @@ Container {
             stop_codon: Some(
                 2342,
             ),
-            tag: None,
         },
         "NM_001408455.1": Transcript {
             biotype: Some(
@@ -70733,6 +71086,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -70746,7 +71101,6 @@ Container {
             stop_codon: Some(
                 2506,
             ),
-            tag: None,
         },
         "NM_001408456.1": Transcript {
             biotype: Some(
@@ -70962,6 +71316,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -70975,7 +71331,6 @@ Container {
             stop_codon: Some(
                 2512,
             ),
-            tag: None,
         },
         "NM_001408457.1": Transcript {
             biotype: Some(
@@ -71167,6 +71522,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -71180,7 +71537,6 @@ Container {
             stop_codon: Some(
                 2243,
             ),
-            tag: None,
         },
         "NM_001408458.1": Transcript {
             biotype: Some(
@@ -71380,6 +71736,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -71393,7 +71751,6 @@ Container {
             stop_codon: Some(
                 2402,
             ),
-            tag: None,
         },
         "NM_001408459.1": Transcript {
             biotype: Some(
@@ -71593,6 +71950,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -71606,7 +71965,6 @@ Container {
             stop_codon: Some(
                 2333,
             ),
-            tag: None,
         },
         "NM_001408460.1": Transcript {
             biotype: Some(
@@ -71806,6 +72164,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -71819,7 +72179,6 @@ Container {
             stop_codon: Some(
                 2339,
             ),
-            tag: None,
         },
         "NM_001408461.1": Transcript {
             biotype: Some(
@@ -72019,6 +72378,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -72032,7 +72393,6 @@ Container {
             stop_codon: Some(
                 2320,
             ),
-            tag: None,
         },
         "NM_001408462.1": Transcript {
             biotype: Some(
@@ -72248,6 +72608,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -72261,7 +72623,6 @@ Container {
             stop_codon: Some(
                 2601,
             ),
-            tag: None,
         },
         "NM_001408463.1": Transcript {
             biotype: Some(
@@ -72477,6 +72838,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -72490,7 +72853,6 @@ Container {
             stop_codon: Some(
                 2512,
             ),
-            tag: None,
         },
         "NM_001408464.1": Transcript {
             biotype: Some(
@@ -72690,6 +73052,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -72703,7 +73067,6 @@ Container {
             stop_codon: Some(
                 2333,
             ),
-            tag: None,
         },
         "NM_001408465.1": Transcript {
             biotype: Some(
@@ -72919,6 +73282,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -72932,7 +73297,6 @@ Container {
             stop_codon: Some(
                 2513,
             ),
-            tag: None,
         },
         "NM_001408466.1": Transcript {
             biotype: Some(
@@ -73148,6 +73512,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -73161,7 +73527,6 @@ Container {
             stop_codon: Some(
                 2506,
             ),
-            tag: None,
         },
         "NM_001408467.1": Transcript {
             biotype: Some(
@@ -73361,6 +73726,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -73374,7 +73741,6 @@ Container {
             stop_codon: Some(
                 2333,
             ),
-            tag: None,
         },
         "NM_001408468.1": Transcript {
             biotype: Some(
@@ -73590,6 +73956,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -73603,7 +73971,6 @@ Container {
             stop_codon: Some(
                 2500,
             ),
-            tag: None,
         },
         "NM_001408469.1": Transcript {
             biotype: Some(
@@ -73803,6 +74170,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -73816,7 +74185,6 @@ Container {
             stop_codon: Some(
                 2285,
             ),
-            tag: None,
         },
         "NM_001408470.1": Transcript {
             biotype: Some(
@@ -74016,6 +74384,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -74029,7 +74399,6 @@ Container {
             stop_codon: Some(
                 2285,
             ),
-            tag: None,
         },
         "NM_001408472.1": Transcript {
             biotype: Some(
@@ -74229,6 +74598,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -74242,7 +74613,6 @@ Container {
             stop_codon: Some(
                 2207,
             ),
-            tag: None,
         },
         "NM_001408473.1": Transcript {
             biotype: Some(
@@ -74442,6 +74812,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -74455,7 +74827,6 @@ Container {
             stop_codon: Some(
                 2210,
             ),
-            tag: None,
         },
         "NM_001408474.1": Transcript {
             biotype: Some(
@@ -74639,6 +75010,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -74652,7 +75025,6 @@ Container {
             stop_codon: Some(
                 2195,
             ),
-            tag: None,
         },
         "NM_001408475.1": Transcript {
             biotype: Some(
@@ -74836,6 +75208,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -74849,7 +75223,6 @@ Container {
             stop_codon: Some(
                 2186,
             ),
-            tag: None,
         },
         "NM_001408476.1": Transcript {
             biotype: Some(
@@ -75033,6 +75406,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -75046,7 +75421,6 @@ Container {
             stop_codon: Some(
                 2192,
             ),
-            tag: None,
         },
         "NM_001408478.1": Transcript {
             biotype: Some(
@@ -75254,6 +75628,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -75267,7 +75643,6 @@ Container {
             stop_codon: Some(
                 2463,
             ),
-            tag: None,
         },
         "NM_001408479.1": Transcript {
             biotype: Some(
@@ -75475,6 +75850,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -75488,7 +75865,6 @@ Container {
             stop_codon: Some(
                 2374,
             ),
-            tag: None,
         },
         "NM_001408480.1": Transcript {
             biotype: Some(
@@ -75696,6 +76072,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -75709,7 +76087,6 @@ Container {
             stop_codon: Some(
                 2368,
             ),
-            tag: None,
         },
         "NM_001408481.1": Transcript {
             biotype: Some(
@@ -75917,6 +76294,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -75930,7 +76309,6 @@ Container {
             stop_codon: Some(
                 2365,
             ),
-            tag: None,
         },
         "NM_001408482.1": Transcript {
             biotype: Some(
@@ -76146,6 +76524,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -76159,7 +76539,6 @@ Container {
             stop_codon: Some(
                 2516,
             ),
-            tag: None,
         },
         "NM_001408483.1": Transcript {
             biotype: Some(
@@ -76359,6 +76738,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -76372,7 +76753,6 @@ Container {
             stop_codon: Some(
                 3526,
             ),
-            tag: None,
         },
         "NM_001408484.1": Transcript {
             biotype: Some(
@@ -76580,6 +76960,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -76593,7 +76975,6 @@ Container {
             stop_codon: Some(
                 2460,
             ),
-            tag: None,
         },
         "NM_001408485.1": Transcript {
             biotype: Some(
@@ -76801,6 +77182,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -76814,7 +77197,6 @@ Container {
             stop_codon: Some(
                 2905,
             ),
-            tag: None,
         },
         "NM_001408489.1": Transcript {
             biotype: Some(
@@ -77022,6 +77404,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -77035,7 +77419,6 @@ Container {
             stop_codon: Some(
                 2371,
             ),
-            tag: None,
         },
         "NM_001408490.1": Transcript {
             biotype: Some(
@@ -77243,6 +77626,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -77256,7 +77641,6 @@ Container {
             stop_codon: Some(
                 2371,
             ),
-            tag: None,
         },
         "NM_001408491.1": Transcript {
             biotype: Some(
@@ -77464,6 +77848,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -77477,7 +77863,6 @@ Container {
             stop_codon: Some(
                 2365,
             ),
-            tag: None,
         },
         "NM_001408492.1": Transcript {
             biotype: Some(
@@ -77693,6 +78078,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -77706,7 +78093,6 @@ Container {
             stop_codon: Some(
                 2478,
             ),
-            tag: None,
         },
         "NM_001408493.1": Transcript {
             biotype: Some(
@@ -77914,6 +78300,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -77927,7 +78315,6 @@ Container {
             stop_codon: Some(
                 2368,
             ),
-            tag: None,
         },
         "NM_001408494.1": Transcript {
             biotype: Some(
@@ -78111,6 +78498,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -78124,7 +78513,6 @@ Container {
             stop_codon: Some(
                 2150,
             ),
-            tag: None,
         },
         "NM_001408495.1": Transcript {
             biotype: Some(
@@ -78308,6 +78696,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -78321,7 +78711,6 @@ Container {
             stop_codon: Some(
                 2137,
             ),
-            tag: None,
         },
         "NM_001408496.1": Transcript {
             biotype: Some(
@@ -78505,6 +78894,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -78518,7 +78909,6 @@ Container {
             stop_codon: Some(
                 2219,
             ),
-            tag: None,
         },
         "NM_001408497.1": Transcript {
             biotype: Some(
@@ -78718,6 +79108,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -78731,7 +79123,6 @@ Container {
             stop_codon: Some(
                 2390,
             ),
-            tag: None,
         },
         "NM_001408498.1": Transcript {
             biotype: Some(
@@ -78915,6 +79306,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -78928,7 +79321,6 @@ Container {
             stop_codon: Some(
                 2213,
             ),
-            tag: None,
         },
         "NM_001408499.1": Transcript {
             biotype: Some(
@@ -79128,6 +79520,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -79141,7 +79535,6 @@ Container {
             stop_codon: Some(
                 2392,
             ),
-            tag: None,
         },
         "NM_001408500.1": Transcript {
             biotype: Some(
@@ -79341,6 +79734,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -79354,7 +79749,6 @@ Container {
             stop_codon: Some(
                 2386,
             ),
-            tag: None,
         },
         "NM_001408501.1": Transcript {
             biotype: Some(
@@ -79554,6 +79948,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -79567,7 +79963,6 @@ Container {
             stop_codon: Some(
                 2383,
             ),
-            tag: None,
         },
         "NM_001408502.1": Transcript {
             biotype: Some(
@@ -79767,6 +80162,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -79780,7 +80177,6 @@ Container {
             stop_codon: Some(
                 2317,
             ),
-            tag: None,
         },
         "NM_001408503.1": Transcript {
             biotype: Some(
@@ -79980,6 +80376,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -79993,7 +80391,6 @@ Container {
             stop_codon: Some(
                 2383,
             ),
-            tag: None,
         },
         "NM_001408504.1": Transcript {
             biotype: Some(
@@ -80193,6 +80590,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -80206,7 +80605,6 @@ Container {
             stop_codon: Some(
                 2389,
             ),
-            tag: None,
         },
         "NM_001408505.1": Transcript {
             biotype: Some(
@@ -80390,6 +80788,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -80403,7 +80803,6 @@ Container {
             stop_codon: Some(
                 2168,
             ),
-            tag: None,
         },
         "NM_001408506.1": Transcript {
             biotype: Some(
@@ -80603,6 +81002,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -80616,7 +81017,6 @@ Container {
             stop_codon: Some(
                 2251,
             ),
-            tag: None,
         },
         "NM_001408507.1": Transcript {
             biotype: Some(
@@ -80816,6 +81216,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -80829,7 +81231,6 @@ Container {
             stop_codon: Some(
                 2241,
             ),
-            tag: None,
         },
         "NM_001408508.1": Transcript {
             biotype: Some(
@@ -81021,6 +81422,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -81034,7 +81437,6 @@ Container {
             stop_codon: Some(
                 2239,
             ),
-            tag: None,
         },
         "NM_001408509.1": Transcript {
             biotype: Some(
@@ -81226,6 +81628,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -81239,7 +81643,6 @@ Container {
             stop_codon: Some(
                 2236,
             ),
-            tag: None,
         },
         "NM_001408510.1": Transcript {
             biotype: Some(
@@ -81431,6 +81834,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -81444,7 +81849,6 @@ Container {
             stop_codon: Some(
                 2213,
             ),
-            tag: None,
         },
         "NM_001408511.1": Transcript {
             biotype: Some(
@@ -81612,6 +82016,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -81625,7 +82031,6 @@ Container {
             stop_codon: Some(
                 2000,
             ),
-            tag: None,
         },
         "NM_001408512.1": Transcript {
             biotype: Some(
@@ -81801,6 +82206,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -81814,7 +82221,6 @@ Container {
             stop_codon: Some(
                 2090,
             ),
-            tag: None,
         },
         "NM_001408513.1": Transcript {
             biotype: Some(
@@ -82014,6 +82420,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -82027,7 +82435,6 @@ Container {
             stop_codon: Some(
                 2166,
             ),
-            tag: None,
         },
         "NM_001408514.1": Transcript {
             biotype: Some(
@@ -82203,6 +82610,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -82216,7 +82625,6 @@ Container {
             stop_codon: Some(
                 2191,
             ),
-            tag: None,
         },
         "NM_007298.4": Transcript {
             biotype: Some(
@@ -82424,6 +82832,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -82437,7 +82847,6 @@ Container {
             stop_codon: Some(
                 2482,
             ),
-            tag: None,
         },
         "XM_006722029.1": Transcript {
             biotype: Some(
@@ -82645,6 +83054,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -82660,7 +83071,6 @@ Container {
             stop_codon: Some(
                 5785,
             ),
-            tag: None,
         },
         "XM_006722030.1": Transcript {
             biotype: Some(
@@ -82868,6 +83278,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -82883,7 +83295,6 @@ Container {
             stop_codon: Some(
                 5753,
             ),
-            tag: None,
         },
         "XM_006722031.1": Transcript {
             biotype: Some(
@@ -83091,6 +83502,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -83106,7 +83519,6 @@ Container {
             stop_codon: Some(
                 6309,
             ),
-            tag: None,
         },
         "XM_006722032.1": Transcript {
             biotype: Some(
@@ -83314,6 +83726,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -83329,7 +83743,6 @@ Container {
             stop_codon: Some(
                 5734,
             ),
-            tag: None,
         },
         "XM_006722033.1": Transcript {
             biotype: Some(
@@ -83537,6 +83950,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -83552,7 +83967,6 @@ Container {
             stop_codon: Some(
                 5734,
             ),
-            tag: None,
         },
         "XM_006722034.1": Transcript {
             biotype: Some(
@@ -83760,6 +84174,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -83775,7 +84191,6 @@ Container {
             stop_codon: Some(
                 5734,
             ),
-            tag: None,
         },
         "XM_006722035.1": Transcript {
             biotype: Some(
@@ -83983,6 +84398,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -83998,7 +84415,6 @@ Container {
             stop_codon: Some(
                 5746,
             ),
-            tag: None,
         },
         "XM_006722036.1": Transcript {
             biotype: Some(
@@ -84182,6 +84598,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -84197,7 +84615,6 @@ Container {
             stop_codon: Some(
                 5325,
             ),
-            tag: None,
         },
         "XM_006722037.1": Transcript {
             biotype: Some(
@@ -84405,6 +84822,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -84420,7 +84839,6 @@ Container {
             stop_codon: Some(
                 2428,
             ),
-            tag: None,
         },
         "XM_006722038.1": Transcript {
             biotype: Some(
@@ -84628,6 +85046,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -84643,7 +85063,6 @@ Container {
             stop_codon: Some(
                 2425,
             ),
-            tag: None,
         },
         "XM_006722039.1": Transcript {
             biotype: Some(
@@ -84851,6 +85270,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -84866,7 +85287,6 @@ Container {
             stop_codon: Some(
                 2453,
             ),
-            tag: None,
         },
         "XM_006722040.1": Transcript {
             biotype: Some(
@@ -85074,6 +85494,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -85089,7 +85511,6 @@ Container {
             stop_codon: Some(
                 2425,
             ),
-            tag: None,
         },
         "XM_006722041.1": Transcript {
             biotype: Some(
@@ -85281,6 +85702,8 @@ Container {
                         },
                     ],
                     strand: Minus,
+                    tag: None,
+                    note: None,
                 },
             },
             hgnc: Some(
@@ -85296,7 +85719,6 @@ Container {
             stop_codon: Some(
                 2302,
             ),
-            tag: None,
         },
     },
     cdot_version: "0.2.21",
