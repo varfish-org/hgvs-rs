@@ -1252,6 +1252,7 @@ mod test {
                             cds_end_i: record.cds_end_i,
                             lengths: Vec::new(),
                             hgnc: "MOCK".to_string(),
+                            ..Default::default()
                         });
                     }
                 }

@@ -8,7 +8,7 @@ use quick_cache::sync::Cache;
 use std::fmt::Debug;
 use std::sync::Mutex;
 
-use crate::sequences::seq_md5;
+use crate::sequences::{seq_md5, TranslationTable};
 use biocommons_bioutils::assemblies::{Assembly, ASSEMBLY_INFOS};
 
 use crate::data::{
@@ -113,10 +113,21 @@ impl TryFrom<Row> for TxForRegionRecord {
     }
 }
 
+/// HGNC symbols of selenoproteins.
+///
+/// Obtained on 2023-11-19 from https://www.genenames.org/data/genegroup/#!/group/890
+const SELENOPROTEIN_SYMBOLS: [&str; 25] = [
+    "DIO1", "DIO3", "GPX1", "GPX2", "GPX3", "GPX4", "GPX6", "SELENOF", "SELENOH", "SELENOI",
+    "SELENOK", "SELENOM", "SELENON", "SELENOO", "SELENOP", "MSRB1", "SELENOS", "SELENOT",
+    "SELENOV", "SELENOW", "DIO2", "SEPHS2", "TXNRD1", "TXNRD2", "TXNRD3",
+];
+
 impl TryFrom<Row> for TxIdentityInfo {
     type Error = Error;
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
+        let hgnc = row.try_get("hgnc")?;
+        let is_selenoprotein = SELENOPROTEIN_SYMBOLS.contains(&hgnc);
         Ok(Self {
             tx_ac: row.try_get("tx_ac")?,
             alt_ac: row.try_get("alt_ac")?,
@@ -124,7 +135,13 @@ impl TryFrom<Row> for TxIdentityInfo {
             cds_start_i: row.try_get("cds_start_i")?,
             cds_end_i: row.try_get("cds_end_i")?,
             lengths: row.try_get("lengths")?,
-            hgnc: row.try_get("hgnc")?,
+            hgnc: hgnc.to_string(),
+            // UTA database does not support selenoproteins (yet).
+            translation_table: if is_selenoprotein {
+                TranslationTable::Selenocysteine
+            } else {
+                TranslationTable::Standard
+            },
         })
     }
 }
@@ -783,7 +800,8 @@ mod test {
             format!("{:?}", &record),
             "TxIdentityInfo { tx_ac: \"ENST00000421528\", alt_ac: \"ENST00000421528\", \
             alt_aln_method: \"transcript\", cds_start_i: 0, cds_end_i: 985, lengths: \
-            [24, 229, 174, 108, 129, 75, 150, 143, 1073], hgnc: \"OMA1\" }",
+            [24, 229, 174, 108, 129, 75, 150, 143, 1073], hgnc: \"OMA1\", translation_table: \
+            Standard }",
         );
 
         Ok(())

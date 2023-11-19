@@ -10,6 +10,7 @@ use crate::{
         self, GeneInfoRecord, TxExonsRecord, TxForRegionRecord, TxIdentityInfo, TxInfoRecord,
         TxMappingOptionsRecord, TxSimilarityRecord,
     },
+    sequences::TranslationTable,
 };
 use biocommons_bioutils::assemblies::{Assembly, ASSEMBLY_INFOS};
 
@@ -977,6 +978,15 @@ impl TxProvider {
             .get(tx_ac)
             .ok_or(Error::NoTranscriptFound(tx_ac.to_string()))?;
 
+        let needle = "UGA stop codon recoded as selenocysteine";
+        let is_selenoprotein = tx.genome_builds.iter().any(|(_, genome_alignment)| {
+            genome_alignment
+                .note
+                .clone()
+                .unwrap_or_default()
+                .contains(needle)
+        });
+
         let hgnc = tx
             .gene_name
             .as_ref()
@@ -1003,6 +1013,11 @@ impl TxProvider {
             cds_end_i: tx.stop_codon.unwrap_or_default(),
             lengths,
             hgnc,
+            translation_table: if is_selenoprotein {
+                TranslationTable::Selenocysteine
+            } else {
+                TranslationTable::Standard
+            },
         })
     }
 

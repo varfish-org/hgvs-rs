@@ -588,9 +588,22 @@ lazy_static::lazy_static! {
 static IUPAC_AMBIGUITY_CODES: &[u8] = b"BDHVNUWSMKRYZ";
 
 /// Allow selection of translation table.
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub enum TranslationTable {
+    #[default]
     Standard,
-    #[allow(dead_code)]
     Selenocysteine,
 }
 
