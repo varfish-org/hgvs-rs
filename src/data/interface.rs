@@ -3,7 +3,7 @@
 use chrono::NaiveDateTime;
 use indexmap::IndexMap;
 
-use crate::data::error::Error;
+use crate::{data::error::Error, sequences::TranslationTable};
 use biocommons_bioutils::assemblies::Assembly;
 
 /// Information about a gene.
@@ -140,6 +140,8 @@ pub struct TxIdentityInfo {
     pub cds_end_i: i32,
     pub lengths: Vec<i32>,
     pub hgnc: String,
+    /// The translation table to use for this transcript.
+    pub translation_table: TranslationTable,
 }
 
 /// ```text

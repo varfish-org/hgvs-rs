@@ -10,6 +10,7 @@ use crate::{
         self, GeneInfoRecord, TxExonsRecord, TxForRegionRecord, TxIdentityInfo, TxInfoRecord,
         TxMappingOptionsRecord, TxSimilarityRecord,
     },
+    sequences::TranslationTable,
 };
 use biocommons_bioutils::assemblies::{Assembly, ASSEMBLY_INFOS};
 
@@ -200,7 +201,7 @@ pub mod models {
     }
 
     /// Enum for representing the tags for transcripts.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
     pub enum Tag {
         Basic,
         EnsemblCanonical,
@@ -236,10 +237,6 @@ pub mod models {
         /// End position of stop codon of transcript, e.g., `5824` for `"NM_007294.3"` of BRCA1.
         #[serde(default)]
         pub stop_codon: Option<i32>,
-        /// Tags of the transcript.
-        #[serde(default)]
-        #[serde(deserialize_with = "deserialize_tag")]
-        pub tag: Option<Vec<Tag>>,
     }
 
     /// Representation of the strand.
@@ -287,6 +284,13 @@ pub mod models {
         pub exons: Vec<Exon>,
         /// The strand.
         pub strand: Strand,
+        /// Tags of the transcript.
+        #[serde(default)]
+        #[serde(deserialize_with = "deserialize_tag")]
+        pub tag: Option<Vec<Tag>>,
+        /// Any notes for the transcript.
+        #[serde(default)]
+        pub note: Option<String>,
     }
 
     /// Enum for representing the biotypes.
@@ -974,6 +978,15 @@ impl TxProvider {
             .get(tx_ac)
             .ok_or(Error::NoTranscriptFound(tx_ac.to_string()))?;
 
+        let needle = "UGA stop codon recoded as selenocysteine";
+        let is_selenoprotein = tx.genome_builds.iter().any(|(_, genome_alignment)| {
+            genome_alignment
+                .note
+                .clone()
+                .unwrap_or_default()
+                .contains(needle)
+        });
+
         let hgnc = tx
             .gene_name
             .as_ref()
@@ -1000,6 +1013,11 @@ impl TxProvider {
             cds_end_i: tx.stop_codon.unwrap_or_default(),
             lengths,
             hgnc,
+            translation_table: if is_selenoprotein {
+                TranslationTable::Selenocysteine
+            } else {
+                TranslationTable::Standard
+            },
         })
     }
 

@@ -24,6 +24,8 @@ pub struct RefTranscriptData {
     pub cds_stop: i32,
     /// Accession of the protein or `MD5_${md5sum}`.
     pub protein_accession: String,
+    /// The translation table to use.
+    pub translation_table: TranslationTable,
 }
 
 impl RefTranscriptData {
@@ -56,8 +58,7 @@ impl RefTranscriptData {
             ));
         }
 
-        let aa_sequence =
-            translate_cds(tx_seq_to_translate, true, "*", TranslationTable::Standard)?;
+        let aa_sequence = translate_cds(tx_seq_to_translate, true, "*", tx_info.translation_table)?;
         let protein_accession = if let Some(pro_ac) = pro_ac {
             pro_ac.to_owned()
         } else if let Some(pro_ac) = provider.as_ref().get_pro_ac_for_tx_ac(tx_ac)? {
@@ -84,6 +85,7 @@ impl RefTranscriptData {
             cds_start,
             cds_stop,
             protein_accession,
+            translation_table: tx_info.translation_table,
         })
     }
 }
@@ -130,12 +132,13 @@ impl AltTranscriptData {
         ref_aa_sequence: &str,
         is_substitution: bool,
         is_ambiguous: bool,
+        translation_table: TranslationTable,
     ) -> Result<Self, Error> {
         let transcript_sequence = seq.to_owned();
         let aa_sequence = if !seq.is_empty() {
             let seq_cds = &transcript_sequence[((cds_start - 1) as usize)..];
             let seq_aa = if variant_start_aa.is_some() {
-                translate_cds(seq_cds, false, "X", TranslationTable::Standard)?
+                translate_cds(seq_cds, false, "X", translation_table)?
             } else {
                 ref_aa_sequence.to_owned()
             };
@@ -442,6 +445,7 @@ impl AltSeqBuilder {
             &self.reference_data.aa_sequence,
             is_substitution,
             self.ref_has_multiple_stops && self.first_stop_pos.map(|p| p <= start).unwrap_or(false),
+            self.reference_data.translation_table,
         )
     }
 
@@ -474,6 +478,7 @@ impl AltSeqBuilder {
             &self.reference_data.aa_sequence,
             false,
             self.ref_has_multiple_stops && self.first_stop_pos.map(|p| p <= start).unwrap_or(false),
+            self.reference_data.translation_table,
         )
     }
 
@@ -505,6 +510,7 @@ impl AltSeqBuilder {
             &self.reference_data.aa_sequence,
             false,
             self.ref_has_multiple_stops && self.first_stop_pos.map(|p| p <= start).unwrap_or(false),
+            self.reference_data.translation_table,
         )
     }
 
@@ -520,6 +526,7 @@ impl AltSeqBuilder {
             &self.reference_data.aa_sequence,
             false,
             true,
+            self.reference_data.translation_table,
         )
     }
 
@@ -535,6 +542,7 @@ impl AltSeqBuilder {
             &self.reference_data.aa_sequence,
             false,
             false,
+            self.reference_data.translation_table,
         )
     }
 }
