@@ -316,6 +316,8 @@ pub mod models {
         DGeneSegment,
         #[serde(rename = "D_segment")]
         DSegment,
+        #[serde(rename = "guide_RNA")]
+        GuideRna,
         #[serde(rename = "IG_C_gene")]
         IgCGene,
         #[serde(rename = "IG_C_pseudogene")]
