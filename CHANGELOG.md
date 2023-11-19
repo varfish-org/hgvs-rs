@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/bihealth/hgvs-rs/compare/v0.13.2...v0.14.0) (2023-11-19)
+
+
+### Features
+
+* adding support for selenoproteins ([#145](https://github.com/bihealth/hgvs-rs/issues/145)) ([#146](https://github.com/bihealth/hgvs-rs/issues/146)) ([c5e21e2](https://github.com/bihealth/hgvs-rs/commit/c5e21e28aa9de2bd4738e1f52cd96930fb1a3e48))
+
 ## [0.13.2](https://github.com/bihealth/hgvs-rs/compare/v0.13.1...v0.13.2) (2023-11-08)
 
 
