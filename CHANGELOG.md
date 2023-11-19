@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/bihealth/hgvs-rs/compare/v0.14.0...v0.14.1) (2023-11-19)
+
+
+### Bug Fixes
+
+* allow import of BioType guide_RNA ([#148](https://github.com/bihealth/hgvs-rs/issues/148)) ([0e1240f](https://github.com/bihealth/hgvs-rs/commit/0e1240f3522d5dbf2b53e60ddc2df2d6f81d3b3a))
+
 ## [0.14.0](https://github.com/bihealth/hgvs-rs/compare/v0.13.2...v0.14.0) (2023-11-19)
 
 
