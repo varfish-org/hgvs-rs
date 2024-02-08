@@ -10,7 +10,7 @@ jobs:
     if: github.repository_owner == 'bihealth'
     runs-on: ubuntu-latest
     steps:
-      - uses: GoogleCloudPlatform/release-please-action@v3
+      - uses: GoogleCloudPlatform/release-please-action@v4
         id: release
         with:
           release-type: rust
