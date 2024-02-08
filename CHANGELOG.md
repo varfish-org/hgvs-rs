@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/varfish-org/hgvs-rs/compare/v0.14.1...v0.15.0) (2024-02-08)
+
+
+### Miscellaneous Chores
+
+* bumping dependencies ([#157](https://github.com/varfish-org/hgvs-rs/issues/157)) ([6e75cd5](https://github.com/varfish-org/hgvs-rs/commit/6e75cd5dac6b5a885e682fdf57046497a8a45373))
+
 ## [0.14.1](https://github.com/varfish-org/hgvs-rs/compare/v0.14.0...v0.14.1) (2023-11-19)
 
 
