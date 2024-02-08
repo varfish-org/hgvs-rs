@@ -2,7 +2,7 @@
 //!
 //! * https://github.com/biocommons/uta
 //! * https://github.com/biocommons/biocommons.seqrepo
-//! * https://github.com/bihealth/seqrepo-rs
+//! * https://github.com/varfish-org/seqrepo-rs
 
 use std::path::PathBuf;
 use std::sync::Arc;
