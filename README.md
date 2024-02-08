@@ -1,8 +1,8 @@
 [![Crates.io](https://img.shields.io/crates/d/hgvs.svg)](https://crates.io/crates/hgvs)
 [![Crates.io](https://img.shields.io/crates/v/hgvs.svg)](https://crates.io/crates/hgvs)
 [![Crates.io](https://img.shields.io/crates/l/hgvs.svg)](https://crates.io/crates/hgvs)
-[![CI](https://github.com/bihealth/hgvs-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/bihealth/hgvs-rs/actions/workflows/rust.yml)
-[![codecov](https://codecov.io/gh/bihealth/hgvs-rs/branch/main/graph/badge.svg?token=aZchhLWdzt)](https://codecov.io/gh/bihealth/hgvs-rs)
+[![CI](https://github.com/varfish-org/hgvs-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/varfish-org/hgvs-rs/actions/workflows/rust.yml)
+[![codecov](https://codecov.io/gh/varfish-org/hgvs-rs/branch/main/graph/badge.svg?token=aZchhLWdzt)](https://codecov.io/gh/varfish-org/hgvs-rs)
 [![DOI](https://zenodo.org/badge/601272076.svg)](https://zenodo.org/badge/latestdoi/601272076)
 
 # hgvs-rs
@@ -22,7 +22,7 @@ export TEST_UTA_DATABASE_URL=postgres://anonymous:anonymous@uta.biocommons.org:/
 export TEST_UTA_DATABASE_SCHEMA=uta_20210129
 ```
 
-Note that [seqrepo-rs](https://github.com/bihealth/seqrepo-rs) is used for access to the genome contig sequence.
+Note that [seqrepo-rs](https://github.com/varfish-org/seqrepo-rs) is used for access to the genome contig sequence.
 It is inconvenient to provide sub sets of sequences in SeqRepo format.
 Instead, we use a build-cache/read-cache approach that is also used by `biocommons/hgvs`.
 
