@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/varfish-org/hgvs-rs/compare/v0.15.0...v0.16.0) (2024-03-05)
+
+
+### Features
+
+* adding vertebrate mitochondrial code ([#160](https://github.com/varfish-org/hgvs-rs/issues/160)) ([#161](https://github.com/varfish-org/hgvs-rs/issues/161)) ([eb6739b](https://github.com/varfish-org/hgvs-rs/commit/eb6739b4e19d00beb4bae60bbced6fa16f33cd06))
+
 ## [0.15.0](https://github.com/varfish-org/hgvs-rs/compare/v0.14.1...v0.15.0) (2024-02-08)
 
 
