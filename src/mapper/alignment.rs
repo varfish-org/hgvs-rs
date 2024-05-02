@@ -22,6 +22,7 @@
 //    n.        -2    -1  !  1     2     3     4     5     6     7     8     9
 //    g.   ... 123   124   125   126   127   128   129   130   131   132   133 ...
 
+use std::iter::once;
 use std::sync::Arc;
 
 use crate::{
@@ -162,21 +163,18 @@ impl Mapper {
                 // exons are adjacent. Assert that here.
                 let mut sorted_exons = tx_exons.clone();
                 sorted_exons
-                    .sort_by(|a, b| a.ord.partial_cmp(&b.ord).expect("comparison failed / NaN?"));
-                let offenders = sorted_exons
-                    .windows(2)
-                    .filter(|pair| {
-                        let lhs = &pair[0];
-                        let rhs = &pair[1];
-                        lhs.tx_end_i != rhs.tx_start_i
-                    })
-                    .collect::<Vec<_>>();
-                if !offenders.is_empty() {
+                    .sort_unstable_by(|a, b| a.ord.partial_cmp(&b.ord).expect("comparison failed / NaN?"));
+                let mut offenders = sorted_exons.windows(2).filter(|pair| {
+                    let lhs = &pair[0];
+                    let rhs = &pair[1];
+                    lhs.tx_end_i != rhs.tx_start_i
+                });
+                if let Some(offender) = offenders.next() {
                     return Err(Error::NonAdjacentExons(
                         tx_ac.to_string(),
                         alt_ac.to_string(),
                         alt_aln_method.to_string(),
-                        format!("{:?}", offenders),
+                        format!("{:?}", (once(offender).chain(offenders)).collect::<Vec<_>>()),
                     ));
                 }
 
