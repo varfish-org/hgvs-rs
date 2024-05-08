@@ -2,6 +2,9 @@
 
 use std::{cmp::Ordering, sync::Arc};
 
+use cached::proc_macro::cached;
+use cached::SizedCache;
+
 use crate::{
     data::interface::Provider,
     mapper::error::Error,
@@ -26,6 +29,23 @@ pub struct RefTranscriptData {
     pub protein_accession: String,
     /// The translation table to use.
     pub translation_table: TranslationTable,
+}
+
+#[cached(
+    ty = "SizedCache<String, Result<RefTranscriptData, Error>>",
+    create = "{ SizedCache::with_size(1000) }",
+    convert = r#"{ format!("{}{}{}{:?}",
+                       provider.data_version(),
+                       provider.schema_version(),
+                       tx_ac,
+                       pro_ac) }"#
+)]
+pub(crate) fn ref_transcript_data_cached(
+    provider: Arc<dyn Provider + Send + Sync>,
+    tx_ac: &str,
+    pro_ac: Option<&str>,
+) -> Result<RefTranscriptData, Error> {
+    RefTranscriptData::new(provider, tx_ac, pro_ac)
 }
 
 impl RefTranscriptData {

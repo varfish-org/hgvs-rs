@@ -16,7 +16,7 @@ use crate::{
 
 mod error {
     /// Error type for normalization of HGVS expressins.
-    #[derive(thiserror::Error, Debug)]
+    #[derive(thiserror::Error, Debug, Clone)]
     pub enum Error {
         #[error("integer conversion failed")]
         IntegerConversion(#[from] std::num::TryFromIntError),

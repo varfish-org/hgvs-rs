@@ -9,7 +9,7 @@ pub use crate::sequences::error::Error;
 
 mod error {
     /// Error type for normalization of HGVS expressins.
-    #[derive(thiserror::Error, Debug)]
+    #[derive(thiserror::Error, Debug, Clone)]
     pub enum Error {
         #[error("invalid 1-letter aminoacid: {0} at {1}")]
         InvalidOneLetterAminoAcid(String, String),
@@ -1038,7 +1038,7 @@ impl CodonTranslator {
 
     /// Helper function to extract normalized codon to `self.codon`.
     fn normalize_codon(&mut self, codon: &[u8]) {
-        for (i, c) in codon.iter().enumerate() {
+        for (i, c) in codon[..3].iter().enumerate() {
             self.codon[i] = self.dna_ascii_map[*c as usize];
         }
     }

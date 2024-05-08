@@ -1,12 +1,13 @@
 //! Error type definition.
 
+use std::sync::Arc;
 use thiserror::Error;
 
 /// Error type for data.
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum Error {
     #[error("UTA Postgres access error")]
-    UtaPostgresError(#[from] postgres::Error),
+    UtaPostgresError(#[from] Arc<postgres::Error>),
     #[error("sequence operation failed")]
     SequenceOperationFailed(#[from] crate::sequences::Error),
     #[error("problem with seqrepo access")]

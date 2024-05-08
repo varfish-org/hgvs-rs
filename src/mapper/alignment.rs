@@ -116,6 +116,7 @@ impl Default for Config {
 
 /// Map HGVS location objects between genomic (g), non-coding (n) and cds (c)
 /// coordinates according to a CIGAR string.
+#[derive(Clone)]
 pub struct Mapper {
     /// Configuration for alignment mapping.
     pub config: Config,
@@ -163,7 +164,7 @@ impl Mapper {
                 // exons are adjacent. Assert that here.
                 let mut sorted_exons = tx_exons.clone();
                 sorted_exons
-                    .sort_unstable_by(|a, b| a.ord.partial_cmp(&b.ord).expect("comparison failed / NaN?"));
+                    .sort_by(|a, b| a.ord.partial_cmp(&b.ord).expect("comparison failed / NaN?"));
                 let mut offenders = sorted_exons.windows(2).filter(|pair| {
                     let lhs = &pair[0];
                     let rhs = &pair[1];
