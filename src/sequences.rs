@@ -2,8 +2,8 @@
 //!
 //! Partially ported over from `bioutils.sequences`.
 
+use ahash::AHashMap;
 use md5::{Digest, Md5};
-use rustc_hash::FxHashMap;
 
 pub use crate::sequences::error::Error;
 
@@ -713,42 +713,48 @@ lazy_static::lazy_static! {
         ("YTR", "L"),
     ];
 
-    static ref AA1_TO_AA3: FxHashMap<&'static [u8], &'static str> = {
-        let mut m = FxHashMap::default();
+    static ref AA1_TO_AA3: AHashMap<&'static [u8], &'static str> = {
+        let mut m = AHashMap::default();
         for (aa3, aa1) in AA3_TO_AA1_VEC.iter() {
             m.insert(aa1.as_bytes(), *aa3);
         }
         m
     };
 
-    static ref AA3_TO_AA1: FxHashMap<&'static [u8], &'static str> = {
-        let mut m = FxHashMap::default();
+    static ref AA3_TO_AA1: AHashMap<&'static [u8], &'static str> = {
+        let mut m = AHashMap::default();
         for (aa3, aa1) in AA3_TO_AA1_VEC.iter() {
             m.insert(aa3.as_bytes(), *aa1);
         }
         m
     };
 
-    static ref DNA_TO_AA1_LUT: FxHashMap<Vec<u8>, u8> = {
-        let mut m = FxHashMap::default();
+    static ref DNA_TO_AA1_LUT: AHashMap<Codon, u8> = {
+        let mut m = AHashMap::default();
         for (dna, aa1) in DNA_TO_AA1_LUT_VEC.iter() {
-            m.insert(Vec::from(dna.as_bytes()), aa1.as_bytes()[0]);
+            assert_eq!(dna.len(), 3);
+            let d = dna.as_bytes();
+            m.insert([d[0], d[1], d[2]], aa1.as_bytes()[0]);
         }
         m
     };
 
-    static ref DNA_TO_AA1_SEC: FxHashMap<Vec<u8>, u8> = {
-        let mut m = FxHashMap::default();
+    static ref DNA_TO_AA1_SEC: AHashMap<Codon, u8> = {
+        let mut m = AHashMap::default();
         for (dna, aa1) in DNA_TO_AA1_SEC_VEC.iter() {
-            m.insert(Vec::from(dna.as_bytes()), aa1.as_bytes()[0]);
+            assert_eq!(dna.len(), 3);
+            let d = dna.as_bytes();
+            m.insert([d[0], d[1], d[2]], aa1.as_bytes()[0]);
         }
         m
     };
 
-    static ref DNA_TO_AA1_CHRMT_VERTEBRATE: FxHashMap<Vec<u8>, u8> = {
-        let mut m = FxHashMap::default();
+    static ref DNA_TO_AA1_CHRMT_VERTEBRATE: AHashMap<Codon, u8> = {
+        let mut m = AHashMap::default();
         for (dna, aa1) in DNA_TO_AA1_CHRMT_VERTEBRATE_VEC.iter() {
-            m.insert(Vec::from(dna.as_bytes()), aa1.as_bytes()[0]);
+            assert_eq!(dna.len(), 3);
+            let d = dna.as_bytes();
+            m.insert([d[0], d[1], d[2]], aa1.as_bytes()[0]);
         }
         m
     };
@@ -926,6 +932,8 @@ fn looks_like_aa3_p(seq: &str) -> bool {
     seq.len() % 3 == 0 && seq.chars().nth(1).map(|c| c.is_lowercase()).unwrap_or(true)
 }
 
+type Codon = [u8; 3];
+
 /// Allow translation of `&[u8]` DNA codons to `u8` amino acids.
 ///
 /// We use separate structs here to encapsulate getting the lazy static global data.
@@ -940,10 +948,10 @@ struct CodonTranslator {
     /// Mapping from 2bit DNA codon to amino acid 1-letter ASCII.
     codon_2bit_to_aa1: &'static [u8; 64],
     /// Mapping from DNA 2-bit to amino acid 1-letter ASCII including degenerate codons.
-    full_dna_to_aa1: &'static FxHashMap<Vec<u8>, u8>,
+    full_dna_to_aa1: &'static AHashMap<Codon, u8>,
 
     /// Buffer.
-    codon: Vec<u8>,
+    codon: Codon,
 }
 
 impl CodonTranslator {
@@ -965,7 +973,7 @@ impl CodonTranslator {
                 TranslationTable::VertebrateMitochondrial => &DNA_TO_AA1_CHRMT_VERTEBRATE,
             },
 
-            codon: Vec::with_capacity(3),
+            codon: [0; 3],
         }
     }
 
@@ -981,31 +989,31 @@ impl CodonTranslator {
     pub fn translate(&mut self, codon: &[u8]) -> Result<u8, Error> {
         // Normalize (to upper case etc.) codon.
         self.normalize_codon(codon);
-        // Attempt fast translation of codon.
-        if let Some(aa) = self.codon_to_aa1(&self.codon) {
-            return Ok(aa);
-        }
-        if let Some(aa) = self.full_dna_to_aa1.get(&self.codon) {
+
+        let translation = self
+            // Attempt fast translation of codon
+            .codon_to_aa1(&self.codon)
             // Fast translation fails, but slower hash map succeeded.
-            Ok(*aa)
-        } else {
+            .or_else(|| self.full_dna_to_aa1.get(&self.codon).copied())
             // If this contains an ambiguous code, set aa to X, otherwise, throw error
-            for c in codon.iter() {
-                if self.iupac_ambiguity_codes.contains(c) {
-                    return Ok(b'X');
-                }
-            }
-            return Err(Error::UndefinedCodon(
+            .or_else(|| {
+                codon
+                    .iter()
+                    .any(|c| self.iupac_ambiguity_codes.contains(c))
+                    .then_some(b'X')
+            });
+        translation.ok_or_else(|| {
+            Error::UndefinedCodon(
                 std::str::from_utf8(codon)
                     .expect("cannot decode UTF-8")
                     .to_owned(),
-            ));
-        }
+            )
+        })
     }
 
     fn dna3_to_2bit(&self, c: &[u8]) -> Option<u8> {
         let mut result = 0;
-        for i in c.iter().take(3) {
+        for i in &c[..3] {
             result <<= 2;
             let tmp = self.dna_ascii_to_2bit[*i as usize];
             if tmp == 255 {
@@ -1018,7 +1026,6 @@ impl CodonTranslator {
 
     /// Helper function to extract normalized codon to `self.codon`.
     fn normalize_codon(&mut self, codon: &[u8]) {
-        self.codon.resize(3, 0);
         for (i, c) in codon.iter().enumerate() {
             self.codon[i] = self.dna_ascii_map[*c as usize];
         }

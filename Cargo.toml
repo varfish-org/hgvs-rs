@@ -33,6 +33,7 @@ serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0"
 indexmap = { version = "2", features = ["serde"] }
 biocommons-bioutils = "0.1.0"
+ahash = "0.8.11"
 
 [dev-dependencies]
 anyhow = "1.0"
