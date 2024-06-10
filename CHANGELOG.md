@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.16.1](https://github.com/varfish-org/hgvs-rs/compare/v0.16.0...v0.16.1) (2024-06-10)
+
+
+### Bug Fixes
+
+* use array instead of Vec for Codon representation ([#169](https://github.com/varfish-org/hgvs-rs/issues/169)) ([e455168](https://github.com/varfish-org/hgvs-rs/commit/e455168bf72b36f7e1c662bfa5dc3c10d2e448b0))
+
+
+### Performance Improvements
+
+* cache mappers, avoid allocations, codons are arrays ([#172](https://github.com/varfish-org/hgvs-rs/issues/172)) ([34acaf4](https://github.com/varfish-org/hgvs-rs/commit/34acaf4e5151de7186ce06ef42850ae6be716e18))
+
 ## [0.16.0](https://github.com/varfish-org/hgvs-rs/compare/v0.15.0...v0.16.0) (2024-03-05)
 
 
