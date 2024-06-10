@@ -10,7 +10,6 @@ use std::sync::{Arc, Mutex};
 
 use crate::sequences::{seq_md5, TranslationTable};
 use biocommons_bioutils::assemblies::{Assembly, ASSEMBLY_INFOS};
-use postgres::fallible_iterator::FallibleIterator;
 
 use crate::data::{
     error::Error, interface, interface::GeneInfoRecord, interface::TxExonsRecord,
@@ -43,15 +42,15 @@ impl TryFrom<Row> for GeneInfoRecord {
     type Error = Error;
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
-        let aliases: String = row.try_get("aliases").map_err(|e| Arc::new(e))?;
+        let aliases: String = row.try_get("aliases").map_err(Arc::new)?;
         let aliases = aliases.split(',').map(|s| s.to_owned()).collect::<Vec<_>>();
         Ok(Self {
-            hgnc: row.try_get("hgnc").map_err(|e| Arc::new(e))?,
-            maploc: row.try_get("maploc").map_err(|e| Arc::new(e))?,
-            descr: row.try_get("descr").map_err(|e| Arc::new(e))?,
-            summary: row.try_get("summary").map_err(|e| Arc::new(e))?,
+            hgnc: row.try_get("hgnc").map_err(Arc::new)?,
+            maploc: row.try_get("maploc").map_err(Arc::new)?,
+            descr: row.try_get("descr").map_err(Arc::new)?,
+            summary: row.try_get("summary").map_err(Arc::new)?,
             aliases,
-            added: row.try_get("added").map_err(|e| Arc::new(e))?,
+            added: row.try_get("added").map_err(Arc::new)?,
         })
     }
 }
@@ -61,8 +60,8 @@ impl TryFrom<Row> for TxSimilarityRecord {
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
         Ok(Self {
-            tx_ac1: row.try_get("tx_ac1").map_err(|e| Arc::new(e))?,
-            tx_ac2: row.try_get("tx_ac2").map_err(|e| Arc::new(e))?,
+            tx_ac1: row.try_get("tx_ac1").map_err(Arc::new)?,
+            tx_ac2: row.try_get("tx_ac2").map_err(Arc::new)?,
             hgnc_eq: row.try_get("hgnc_eq").unwrap_or(false),
             cds_eq: row.try_get("cds_eq").unwrap_or(false),
             es_fp_eq: row.try_get("es_fp_eq").unwrap_or(false),
@@ -77,24 +76,24 @@ impl TryFrom<Row> for TxExonsRecord {
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
         Ok(Self {
-            hgnc: row.try_get("hgnc").map_err(|e| Arc::new(e))?,
-            tx_ac: row.try_get("tx_ac").map_err(|e| Arc::new(e))?,
-            alt_ac: row.try_get("alt_ac").map_err(|e| Arc::new(e))?,
-            alt_aln_method: row.try_get("alt_aln_method").map_err(|e| Arc::new(e))?,
-            alt_strand: row.try_get("alt_strand").map_err(|e| Arc::new(e))?,
-            ord: row.try_get("ord").map_err(|e| Arc::new(e))?,
-            tx_start_i: row.try_get("tx_start_i").map_err(|e| Arc::new(e))?,
-            tx_end_i: row.try_get("tx_end_i").map_err(|e| Arc::new(e))?,
-            alt_start_i: row.try_get("alt_start_i").map_err(|e| Arc::new(e))?,
-            alt_end_i: row.try_get("alt_end_i").map_err(|e| Arc::new(e))?,
-            cigar: row.try_get("cigar").map_err(|e| Arc::new(e))?,
-            tx_aseq: row.try_get("tx_aseq").map_err(|e| Arc::new(e))?,
-            alt_aseq: row.try_get("alt_aseq").map_err(|e| Arc::new(e))?,
-            tx_exon_set_id: row.try_get("tx_exon_set_id").map_err(|e| Arc::new(e))?,
-            alt_exon_set_id: row.try_get("alt_exon_set_id").map_err(|e| Arc::new(e))?,
-            tx_exon_id: row.try_get("tx_exon_id").map_err(|e| Arc::new(e))?,
-            alt_exon_id: row.try_get("alt_exon_id").map_err(|e| Arc::new(e))?,
-            exon_aln_id: row.try_get("exon_aln_id").map_err(|e| Arc::new(e))?,
+            hgnc: row.try_get("hgnc").map_err(Arc::new)?,
+            tx_ac: row.try_get("tx_ac").map_err(Arc::new)?,
+            alt_ac: row.try_get("alt_ac").map_err(Arc::new)?,
+            alt_aln_method: row.try_get("alt_aln_method").map_err(Arc::new)?,
+            alt_strand: row.try_get("alt_strand").map_err(Arc::new)?,
+            ord: row.try_get("ord").map_err(Arc::new)?,
+            tx_start_i: row.try_get("tx_start_i").map_err(Arc::new)?,
+            tx_end_i: row.try_get("tx_end_i").map_err(Arc::new)?,
+            alt_start_i: row.try_get("alt_start_i").map_err(Arc::new)?,
+            alt_end_i: row.try_get("alt_end_i").map_err(Arc::new)?,
+            cigar: row.try_get("cigar").map_err(Arc::new)?,
+            tx_aseq: row.try_get("tx_aseq").map_err(Arc::new)?,
+            alt_aseq: row.try_get("alt_aseq").map_err(Arc::new)?,
+            tx_exon_set_id: row.try_get("tx_exon_set_id").map_err(Arc::new)?,
+            alt_exon_set_id: row.try_get("alt_exon_set_id").map_err(Arc::new)?,
+            tx_exon_id: row.try_get("tx_exon_id").map_err(Arc::new)?,
+            alt_exon_id: row.try_get("alt_exon_id").map_err(Arc::new)?,
+            exon_aln_id: row.try_get("exon_aln_id").map_err(Arc::new)?,
         })
     }
 }
@@ -104,12 +103,12 @@ impl TryFrom<Row> for TxForRegionRecord {
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
         Ok(Self {
-            tx_ac: row.try_get("tx_ac").map_err(|e| Arc::new(e))?,
-            alt_ac: row.try_get("alt_ac").map_err(|e| Arc::new(e))?,
-            alt_strand: row.try_get("alt_strand").map_err(|e| Arc::new(e))?,
-            alt_aln_method: row.try_get("alt_aln_method").map_err(|e| Arc::new(e))?,
-            start_i: row.try_get("start_i").map_err(|e| Arc::new(e))?,
-            end_i: row.try_get("end_i").map_err(|e| Arc::new(e))?,
+            tx_ac: row.try_get("tx_ac").map_err(Arc::new)?,
+            alt_ac: row.try_get("alt_ac").map_err(Arc::new)?,
+            alt_strand: row.try_get("alt_strand").map_err(Arc::new)?,
+            alt_aln_method: row.try_get("alt_aln_method").map_err(Arc::new)?,
+            start_i: row.try_get("start_i").map_err(Arc::new)?,
+            end_i: row.try_get("end_i").map_err(Arc::new)?,
         })
     }
 }
@@ -127,15 +126,15 @@ impl TryFrom<Row> for TxIdentityInfo {
     type Error = Error;
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
-        let hgnc = row.try_get("hgnc").map_err(|e| Arc::new(e))?;
+        let hgnc = row.try_get("hgnc").map_err(Arc::new)?;
         let is_selenoprotein = SELENOPROTEIN_SYMBOLS.contains(&hgnc);
         Ok(Self {
-            tx_ac: row.try_get("tx_ac").map_err(|e| Arc::new(e))?,
-            alt_ac: row.try_get("alt_ac").map_err(|e| Arc::new(e))?,
-            alt_aln_method: row.try_get("alt_aln_method").map_err(|e| Arc::new(e))?,
-            cds_start_i: row.try_get("cds_start_i").map_err(|e| Arc::new(e))?,
-            cds_end_i: row.try_get("cds_end_i").map_err(|e| Arc::new(e))?,
-            lengths: row.try_get("lengths").map_err(|e| Arc::new(e))?,
+            tx_ac: row.try_get("tx_ac").map_err(Arc::new)?,
+            alt_ac: row.try_get("alt_ac").map_err(Arc::new)?,
+            alt_aln_method: row.try_get("alt_aln_method").map_err(Arc::new)?,
+            cds_start_i: row.try_get("cds_start_i").map_err(Arc::new)?,
+            cds_end_i: row.try_get("cds_end_i").map_err(Arc::new)?,
+            lengths: row.try_get("lengths").map_err(Arc::new)?,
             hgnc: hgnc.to_string(),
             // UTA database does not support selenoproteins (yet).
             translation_table: if is_selenoprotein {
@@ -152,12 +151,12 @@ impl TryFrom<Row> for TxInfoRecord {
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
         Ok(Self {
-            hgnc: row.try_get("hgnc").map_err(|e| Arc::new(e))?,
-            cds_start_i: row.try_get("cds_start_i").map_err(|e| Arc::new(e))?,
-            cds_end_i: row.try_get("cds_end_i").map_err(|e| Arc::new(e))?,
-            tx_ac: row.try_get("tx_ac").map_err(|e| Arc::new(e))?,
-            alt_ac: row.try_get("alt_ac").map_err(|e| Arc::new(e))?,
-            alt_aln_method: row.try_get("alt_aln_method").map_err(|e| Arc::new(e))?,
+            hgnc: row.try_get("hgnc").map_err(Arc::new)?,
+            cds_start_i: row.try_get("cds_start_i").map_err(Arc::new)?,
+            cds_end_i: row.try_get("cds_end_i").map_err(Arc::new)?,
+            tx_ac: row.try_get("tx_ac").map_err(Arc::new)?,
+            alt_ac: row.try_get("alt_ac").map_err(Arc::new)?,
+            alt_aln_method: row.try_get("alt_aln_method").map_err(Arc::new)?,
         })
     }
 }
@@ -167,9 +166,9 @@ impl TryFrom<Row> for TxMappingOptionsRecord {
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
         Ok(Self {
-            tx_ac: row.try_get("tx_ac").map_err(|e| Arc::new(e))?,
-            alt_ac: row.try_get("alt_ac").map_err(|e| Arc::new(e))?,
-            alt_aln_method: row.try_get("alt_aln_method").map_err(|e| Arc::new(e))?,
+            tx_ac: row.try_get("tx_ac").map_err(Arc::new)?,
+            alt_ac: row.try_get("alt_ac").map_err(Arc::new)?,
+            alt_aln_method: row.try_get("alt_aln_method").map_err(Arc::new)?,
         })
     }
 }
@@ -232,7 +231,7 @@ impl Debug for Provider {
 impl Provider {
     pub fn with_config(config: &Config) -> Result<Self, Error> {
         let config = config.clone();
-        let conn = Mutex::new(Client::connect(&config.db_url, NoTls).map_err(|e| Arc::new(e))?);
+        let conn = Mutex::new(Client::connect(&config.db_url, NoTls).map_err(Arc::new)?);
         let schema_version = Self::fetch_schema_version(
             &mut conn.lock().expect("cannot obtain connection lock"),
             &config.db_schema,
@@ -247,7 +246,7 @@ impl Provider {
 
     fn fetch_schema_version(conn: &mut Client, db_schema: &str) -> Result<String, Error> {
         let sql = format!("select key, value from {db_schema}.meta where key = 'schema_version'");
-        let row = conn.query_one(&sql, &[]).map_err(|e| Arc::new(e))?;
+        let row = conn.query_one(&sql, &[]).map_err(Arc::new)?;
         Ok(row.get("value"))
     }
 }
@@ -284,7 +283,7 @@ impl interface::Provider for Provider {
             .lock()
             .expect("cannot obtain connection lock")
             .query_one(&sql, &[&hgnc])
-            .map_err(|e| Arc::new(e))?
+            .map_err(Arc::new)?
             .try_into()?;
 
         self.caches
@@ -308,11 +307,11 @@ impl interface::Provider for Provider {
             .lock()
             .expect("cannot obtain connection lock")
             .query(&sql, &[&tx_ac])
-            .map_err(|e| Arc::new(e))?)
+            .map_err(Arc::new)?)
         .into_iter()
         .next()
         {
-            let result = Some(row.try_get("pro_ac").map_err(|e| Arc::new(e))?);
+            let result = Some(row.try_get("pro_ac").map_err(Arc::new)?);
             self.caches
                 .get_pro_ac_for_tx_ac
                 .insert(tx_ac.to_string(), None);
@@ -341,9 +340,9 @@ impl interface::Provider for Provider {
             .lock()
             .expect("cannot obtain connection lock")
             .query_one(&sql, &[&ac])
-            .map_err(|e| Arc::new(e))?
+            .map_err(Arc::new)?
             .try_get("seq_id")
-            .map_err(|e| Arc::new(e))?;
+            .map_err(Arc::new)?;
 
         let sql = format!(
             "SELECT seq FROM {}.seq WHERE seq_id = $1",
@@ -354,9 +353,9 @@ impl interface::Provider for Provider {
             .lock()
             .expect("cannot obtain connection lock")
             .query_one(&sql, &[&seq_id])
-            .map_err(|e| Arc::new(e))?
+            .map_err(Arc::new)?
             .try_get("seq")
-            .map_err(|e| Arc::new(e))?;
+            .map_err(Arc::new)?;
 
         let begin = begin.unwrap_or_default();
         let end = end
@@ -381,7 +380,7 @@ impl interface::Provider for Provider {
             .lock()
             .expect("cannot obtain connection lock")
             .query(&sql, &[&md5])
-            .map_err(|e| Arc::new(e))?
+            .map_err(Arc::new)?
         {
             result.push(row.get(0));
         }
@@ -411,7 +410,7 @@ impl interface::Provider for Provider {
             .lock()
             .expect("cannot obtain connection lock")
             .query(&sql, &[&tx_ac])
-            .map_err(|e| Arc::new(e))?
+            .map_err(Arc::new)?
         {
             result.push(row.try_into()?);
         }
@@ -449,7 +448,7 @@ impl interface::Provider for Provider {
             .lock()
             .expect("cannot obtain connection lock")
             .query(&sql, &[&tx_ac, &alt_ac, &alt_aln_method])
-            .map_err(|e| Arc::new(e))?
+            .map_err(Arc::new)?
         {
             result.push(row.try_into()?);
         }
@@ -484,7 +483,7 @@ impl interface::Provider for Provider {
             .lock()
             .expect("cannot obtain connection lock")
             .query(&sql, &[&gene])
-            .map_err(|e| Arc::new(e))?
+            .map_err(Arc::new)?
         {
             result.push(row.try_into()?);
         }
@@ -529,7 +528,7 @@ impl interface::Provider for Provider {
             .lock()
             .expect("cannot obtain connection lock")
             .query(&sql, &[&alt_ac, &start_i, &end_i])
-            .map_err(|e| Arc::new(e))?
+            .map_err(Arc::new)?
         {
             let record: TxForRegionRecord = row.try_into()?;
             // NB: The original Python code did not use alt_aln_method in the query either.
@@ -560,7 +559,7 @@ impl interface::Provider for Provider {
             .lock()
             .expect("cannot obtain connection lock")
             .query_one(&sql, &[&tx_ac])
-            .map_err(|e| Arc::new(e))?
+            .map_err(Arc::new)?
             .try_into()?;
 
         self.caches
@@ -597,7 +596,7 @@ impl interface::Provider for Provider {
             .lock()
             .expect("cannot obtain connection lock")
             .query_one(&sql, &[&tx_ac, &alt_ac, &alt_aln_method])
-            .map_err(|e| Arc::new(e))?
+            .map_err(Arc::new)?
             .try_into()?;
 
         self.caches.get_tx_info.insert(key, result.clone());
@@ -622,7 +621,7 @@ impl interface::Provider for Provider {
             .lock()
             .expect("cannot obtain connection lock")
             .query(&sql, &[&tx_ac])
-            .map_err(|e| Arc::new(e))?
+            .map_err(Arc::new)?
         {
             result.push(row.try_into()?);
         }
