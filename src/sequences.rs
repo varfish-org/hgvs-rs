@@ -85,7 +85,7 @@ pub fn revcomp(seq: &str) -> String {
 
 /// Mapping for DNA characters for normalization.
 /// Built via
-/// ```ignore
+/// ```rust,no_run
 /// let mut result = [0; 256];
 /// for c in 0..=255 {
 ///     if c == b'u' || c == b'U' {
@@ -720,15 +720,17 @@ const DNA_TO_AA1_CHRMT_VERTEBRATE_VEC: &[(&str, &str)] = &[
 ];
 
 /// Generated via:
-/// ```ignore
-/// let mut result = [0; 64];
-/// for (i, (dna3, aa1)) in DNA_TO_AA1_LUT_VEC.iter().enumerate() {
-///     if i > 63 {
-///         break;  // skip degenerate codons
+/// ```rust,no_run
+/// const _: &str = stringify!{
+///     let mut result = [0; 64];
+///     for (i, (dna3, aa1)) in DNA_TO_AA1_LUT_VEC.iter().enumerate() {
+///         if i > 63 {
+///             break;  // skip degenerate codons
+///         }
+///         let dna3_2bit = dna3_to_2bit(dna3.as_bytes()).expect("invalid dna3");
+///         result[dna3_2bit as usize] = aa1.as_bytes()[0];
 ///     }
-///     let dna3_2bit = dna3_to_2bit(dna3.as_bytes()).expect("invalid dna3");
-///     result[dna3_2bit as usize] = aa1.as_bytes()[0];
-/// }
+/// };
 /// ```
 ///
 const CODON_2BIT_TO_AA1_LUT: [u8; 64] = [
