@@ -766,13 +766,9 @@ impl TxProvider {
                 .as_ref()
                 .expect("cannot happen; genes without map_location are not imported")
                 .clone(),
-            descr: gene
-                .description
-                .as_ref()
-                .map(Clone::clone)
-                .unwrap_or_default(),
-            summary: gene.summary.as_ref().map(Clone::clone).unwrap_or_default(),
-            aliases: gene.aliases.as_ref().map(Clone::clone).unwrap_or_default(),
+            descr: gene.description.clone().unwrap_or_default(),
+            summary: gene.summary.clone().unwrap_or_default(),
+            aliases: gene.aliases.clone().unwrap_or_default(),
             added: NaiveDateTime::default(),
         })
     }
