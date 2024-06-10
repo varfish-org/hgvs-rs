@@ -5,7 +5,6 @@ use indexmap::IndexMap;
 
 use crate::{data::error::Error, sequences::TranslationTable};
 use biocommons_bioutils::assemblies::Assembly;
-use cached::proc_macro::cached;
 
 /// Information about a gene.
 ///

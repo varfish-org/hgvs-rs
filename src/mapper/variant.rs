@@ -1164,6 +1164,8 @@ mod test {
             data::interface::TxIdentityInfo,
             mapper::variant::{Config, Mapper},
         };
+        use std::sync::atomic::AtomicUsize;
+        static PROVIDER_COUNT: AtomicUsize = AtomicUsize::new(0);
 
         #[derive(Debug, serde::Deserialize)]
         struct ProviderRecord {
@@ -1174,6 +1176,8 @@ mod test {
         }
 
         pub struct Provider {
+            data_version: String,
+            schema_version: String,
             records: Vec<ProviderRecord>,
         }
 
@@ -1188,18 +1192,23 @@ mod test {
                 for record in rdr.deserialize() {
                     records.push(record?);
                 }
-
-                Ok(Self { records })
+                let number = PROVIDER_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let dummy_version = format!("provider_{number}");
+                Ok(Self {
+                    records,
+                    data_version: dummy_version.clone(),
+                    schema_version: dummy_version,
+                })
             }
         }
 
         impl interface::Provider for Provider {
             fn data_version(&self) -> &str {
-                panic!("for test use only");
+                &self.data_version
             }
 
             fn schema_version(&self) -> &str {
-                panic!("for test use only");
+                &self.schema_version
             }
 
             fn get_assembly_map(
