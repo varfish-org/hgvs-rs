@@ -190,7 +190,7 @@ pub fn parse_cigar_string(input: &str) -> Result<CigarString, Error> {
 /// bases.  They often look similar to zero-based, right open coordinates. (But don't call them
 /// that.  It upsets me deeply.)  The most important difference is that zero width intervals
 /// neatly represent insertions between bases (or before or after the sequence).
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct CigarMapper {
     pub cigar_string: CigarString,
     pub ref_pos: Vec<i32>,

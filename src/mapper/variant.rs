@@ -1,10 +1,12 @@
 //! Code for mapping variants between sequences.
 
+use std::ops::Deref;
 use std::{ops::Range, sync::Arc};
 
+use cached::proc_macro::cached;
+use cached::SizedCache;
 use log::{debug, info};
 
-use super::alignment;
 use crate::{
     data::interface::Provider,
     mapper::Error,
@@ -16,7 +18,8 @@ use crate::{
     sequences::revcomp,
     validator::{ValidationLevel, Validator},
 };
-use std::ops::Deref;
+
+use super::alignment;
 
 /// Configuration for Mapper.
 ///
@@ -121,12 +124,19 @@ impl Mapper {
         alt_ac: &str,
         alt_aln_method: &str,
     ) -> Result<alignment::Mapper, Error> {
-        // TODO: implement caching
-        alignment::Mapper::new(
-            &alignment::Config {
-                strict_bounds: self.config.strict_bounds,
-            },
+        // // TODO: implement caching
+        // alignment::Mapper::new(
+        //     &alignment::Config {
+        //         strict_bounds: self.config.strict_bounds,
+        //     },
+        //     self.provider.clone(),
+        //     tx_ac,
+        //     alt_ac,
+        //     alt_aln_method,
+        // )
+        build_alignment_mapper_cached(
             self.provider.clone(),
+            self.config.strict_bounds,
             tx_ac,
             alt_ac,
             alt_aln_method,
@@ -704,7 +714,7 @@ impl Mapper {
                 var_c.clone()
             };
 
-            let reference_data = RefTranscriptData::new(
+            let reference_data = ref_transcript_data_cached(
                 self.provider.clone(),
                 accession.deref(),
                 prot_ac.map(|s| s.to_string()).as_deref(),
@@ -941,15 +951,56 @@ impl Mapper {
     }
 }
 
+/// A LRU cached version of `alignment::Mapper::new`.
+/// The indirection here is due to the fact that `cached` cannot deal with `self` arguments.
+/// The `convert` argument constructs the key to be used in the cache.
+/// All of this function's arguments contribute to the key;
+/// that is why the supplied provider's `data_version` and `schema_version`
+/// should return sensible values which allow distinguishing them from other providers.
+///
+/// Because the cached value must implement `Clone`
+/// and the type is `Result<alignment::Mapper, Error>`,
+/// `Error`, too, must implement `Clone`.
+/// Sadly, postgres Errors do not do that, so either:
+/// 1. wrap non-clonable errors in `Arc`
+/// 2. convert the result to an option instead
+/// 3. return a generic error instead
+#[cached(
+    ty = "SizedCache<String, Result<alignment::Mapper, Error>>",
+    create = "{ SizedCache::with_size(1000) }",
+    convert = r#"{ format!("{}{}{}{}{}{}",
+                       provider.data_version(),
+                       provider.schema_version(),
+                       strict_bounds,
+                       tx_ac,
+                       alt_ac,
+                       alt_aln_method) }"#
+)]
+fn build_alignment_mapper_cached(
+    provider: Arc<dyn Provider + Send + Sync>,
+    strict_bounds: bool,
+    tx_ac: &str,
+    alt_ac: &str,
+    alt_aln_method: &str,
+) -> Result<alignment::Mapper, Error> {
+    alignment::Mapper::new(
+        &alignment::Config { strict_bounds },
+        provider,
+        tx_ac,
+        alt_ac,
+        alt_aln_method,
+    )
+}
 #[cfg(test)]
 mod test {
-    use anyhow::Error;
-    use pretty_assertions::assert_eq;
-    use regex::Regex;
     use std::{
         path::{Path, PathBuf},
         str::FromStr,
     };
+
+    use anyhow::Error;
+    use pretty_assertions::assert_eq;
+    use regex::Regex;
     use test_log::test;
 
     use crate::{
@@ -1101,17 +1152,20 @@ mod test {
     /// in the `sanity_mock` module.
 
     mod sanity_mock {
-        use anyhow::Error;
         use std::{
             path::{Path, PathBuf},
             sync::Arc,
         };
+
+        use anyhow::Error;
 
         use crate::data::interface;
         use crate::{
             data::interface::TxIdentityInfo,
             mapper::variant::{Config, Mapper},
         };
+        use std::sync::atomic::AtomicUsize;
+        static PROVIDER_COUNT: AtomicUsize = AtomicUsize::new(0);
 
         #[derive(Debug, serde::Deserialize)]
         struct ProviderRecord {
@@ -1122,6 +1176,8 @@ mod test {
         }
 
         pub struct Provider {
+            data_version: String,
+            schema_version: String,
             records: Vec<ProviderRecord>,
         }
 
@@ -1136,18 +1192,23 @@ mod test {
                 for record in rdr.deserialize() {
                     records.push(record?);
                 }
-
-                Ok(Self { records })
+                let number = PROVIDER_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let dummy_version = format!("provider_{number}");
+                Ok(Self {
+                    records,
+                    data_version: dummy_version.clone(),
+                    schema_version: dummy_version,
+                })
             }
         }
 
         impl interface::Provider for Provider {
             fn data_version(&self) -> &str {
-                panic!("for test use only");
+                &self.data_version
             }
 
             fn schema_version(&self) -> &str {
-                panic!("for test use only");
+                &self.schema_version
             }
 
             fn get_assembly_map(
@@ -1685,8 +1746,9 @@ mod test {
     }
 
     mod gcp_tests {
-        use anyhow::Error;
         use std::path::Path;
+
+        use anyhow::Error;
 
         #[derive(Debug, serde::Deserialize)]
         pub struct Record {

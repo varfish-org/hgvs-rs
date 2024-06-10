@@ -3,7 +3,7 @@
 use thiserror::Error;
 
 /// Error type for variant mapping.
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum Error {
     #[error("validation error")]
     ValidationFailed(#[from] crate::validator::Error),
@@ -99,4 +99,6 @@ pub enum Error {
     CannotConvertIntervalStart(i32),
     #[error("cannot convert interval end: {0} to usize")]
     CannotConvertIntervalEnd(i32),
+    #[error("general mapper error")]
+    General,
 }

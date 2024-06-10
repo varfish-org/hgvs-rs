@@ -27,13 +27,14 @@ postgres = { version = "0.19", features = ["with-chrono-0_4"] }
 quick_cache = "0.5"
 regex = "1.7"
 rustc-hash = "1.1"
-seqrepo = { version = "0.10", features = ["cached"] }
+seqrepo = { version = "0.10.2", features = ["cached"] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0"
 indexmap = { version = "2", features = ["serde"] }
 biocommons-bioutils = "0.1.0"
 ahash = "0.8.11"
+cached = "0.50.0"
 
 [dev-dependencies]
 anyhow = "1.0"

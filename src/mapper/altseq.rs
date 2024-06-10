@@ -2,6 +2,9 @@
 
 use std::{cmp::Ordering, sync::Arc};
 
+use cached::proc_macro::cached;
+use cached::SizedCache;
+
 use crate::{
     data::interface::Provider,
     mapper::error::Error,
@@ -26,6 +29,23 @@ pub struct RefTranscriptData {
     pub protein_accession: String,
     /// The translation table to use.
     pub translation_table: TranslationTable,
+}
+
+#[cached(
+    ty = "SizedCache<String, Result<RefTranscriptData, Error>>",
+    create = "{ SizedCache::with_size(1000) }",
+    convert = r#"{ format!("{}{}{}{:?}",
+                       provider.data_version(),
+                       provider.schema_version(),
+                       tx_ac,
+                       pro_ac) }"#
+)]
+pub(crate) fn ref_transcript_data_cached(
+    provider: Arc<dyn Provider + Send + Sync>,
+    tx_ac: &str,
+    pro_ac: Option<&str>,
+) -> Result<RefTranscriptData, Error> {
+    RefTranscriptData::new(provider, tx_ac, pro_ac)
 }
 
 impl RefTranscriptData {
@@ -858,7 +878,7 @@ impl AltSeqToHgvsp {
             });
             aa_end = aa_start.clone();
 
-            reference = "".to_owned();
+            "".clone_into(&mut reference);
             alternative = insertion
                 .chars()
                 .next()
@@ -877,7 +897,7 @@ impl AltSeqToHgvsp {
             });
             aa_end = aa_start.clone();
 
-            reference = "".to_owned();
+            "".clone_into(&mut reference);
             alternative = insertion
                 .chars()
                 .next()
@@ -908,12 +928,12 @@ impl AltSeqToHgvsp {
                 number: *start,
             });
             aa_end = aa_start.clone();
-            reference = "".to_owned();
-            alternative = insertion.clone();
+            "".clone_into(&mut reference);
+            alternative.clone_from(insertion);
             is_sub = true;
         } else if !deletion.is_empty() {
             // delins OR deletion OR stop codon at variant position
-            reference = deletion.clone();
+            reference.clone_from(deletion);
             let end = start + deletion.len() as i32 - 1;
 
             aa_start = Some(ProtPos {
@@ -938,7 +958,7 @@ impl AltSeqToHgvsp {
                 } else {
                     aa_start.clone()
                 };
-                alternative = insertion.clone();
+                alternative.clone_from(insertion);
             } else {
                 // deletion OR stop codon at variant position
                 if deletion.len() as i32 + start == self.ref_seq().len() as i32 {
@@ -989,7 +1009,7 @@ impl AltSeqToHgvsp {
                     number: dup_end,
                 });
                 reference = "".to_string();
-                alternative = reference.clone();
+                alternative.clone_from(&reference);
             } else {
                 // is non-dup insertion
                 let start = std::cmp::max(2, *start as usize) - 1;
@@ -1004,7 +1024,7 @@ impl AltSeqToHgvsp {
                     number: end as i32,
                 });
                 reference = "".to_string();
-                alternative = insertion.clone();
+                alternative.clone_from(insertion);
             }
         } else {
             panic!("Unexpected variant: {:?}", &record);

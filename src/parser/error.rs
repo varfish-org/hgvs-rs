@@ -3,7 +3,7 @@
 use thiserror::Error;
 
 /// Error type for parsing of HGVS expressions.
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum Error {
     /// Invalid genome interval.
     #[error("{0} is not a valid genome interval")]
