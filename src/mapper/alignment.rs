@@ -58,7 +58,7 @@ fn hgvs_to_zbc(i: i32) -> i32 {
 ///
 /// The input exons are expected to be in transcript order, and the resulting CIGAR is also
 /// in transcript order.
-pub fn build_tx_cigar(exons: &Vec<TxExonsRecord>, strand: i16) -> Result<CigarString, Error> {
+pub fn build_tx_cigar(exons: &[TxExonsRecord], strand: i16) -> Result<CigarString, Error> {
     if exons.is_empty() {
         return Err(Error::EmptyExons);
     }
