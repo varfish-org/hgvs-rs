@@ -175,7 +175,10 @@ impl Mapper {
                         tx_ac.to_string(),
                         alt_ac.to_string(),
                         alt_aln_method.to_string(),
-                        format!("{:?}", (once(offender).chain(offenders)).collect::<Vec<_>>()),
+                        format!(
+                            "{:?}",
+                            (once(offender).chain(offenders)).collect::<Vec<_>>()
+                        ),
                     ));
                 }
 

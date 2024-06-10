@@ -283,7 +283,8 @@ impl interface::Provider for Provider {
             .conn
             .lock()
             .expect("cannot obtain connection lock")
-            .query_one(&sql, &[&hgnc]).map_err(|e| Arc::new(e))?
+            .query_one(&sql, &[&hgnc])
+            .map_err(|e| Arc::new(e))?
             .try_into()?;
 
         self.caches
@@ -306,7 +307,8 @@ impl interface::Provider for Provider {
             .conn
             .lock()
             .expect("cannot obtain connection lock")
-            .query(&sql, &[&tx_ac]).map_err(|e| Arc::new(e))?)
+            .query(&sql, &[&tx_ac])
+            .map_err(|e| Arc::new(e))?)
         .into_iter()
         .next()
         {
@@ -338,8 +340,10 @@ impl interface::Provider for Provider {
             .conn
             .lock()
             .expect("cannot obtain connection lock")
-            .query_one(&sql, &[&ac]).map_err(|e| Arc::new(e))?
-            .try_get("seq_id").map_err(|e| Arc::new(e))?;
+            .query_one(&sql, &[&ac])
+            .map_err(|e| Arc::new(e))?
+            .try_get("seq_id")
+            .map_err(|e| Arc::new(e))?;
 
         let sql = format!(
             "SELECT seq FROM {}.seq WHERE seq_id = $1",
@@ -349,8 +353,10 @@ impl interface::Provider for Provider {
             .conn
             .lock()
             .expect("cannot obtain connection lock")
-            .query_one(&sql, &[&seq_id]).map_err(|e| Arc::new(e))?
-            .try_get("seq").map_err(|e| Arc::new(e))?;
+            .query_one(&sql, &[&seq_id])
+            .map_err(|e| Arc::new(e))?
+            .try_get("seq")
+            .map_err(|e| Arc::new(e))?;
 
         let begin = begin.unwrap_or_default();
         let end = end
@@ -374,7 +380,8 @@ impl interface::Provider for Provider {
             .conn
             .lock()
             .expect("cannot obtain connection lock")
-            .query(&sql, &[&md5]).map_err(|e| Arc::new(e))?
+            .query(&sql, &[&md5])
+            .map_err(|e| Arc::new(e))?
         {
             result.push(row.get(0));
         }
@@ -403,7 +410,8 @@ impl interface::Provider for Provider {
             .conn
             .lock()
             .expect("cannot obtain connection lock")
-            .query(&sql, &[&tx_ac]).map_err(|e| Arc::new(e))?
+            .query(&sql, &[&tx_ac])
+            .map_err(|e| Arc::new(e))?
         {
             result.push(row.try_into()?);
         }
@@ -440,7 +448,8 @@ impl interface::Provider for Provider {
             .conn
             .lock()
             .expect("cannot obtain connection lock")
-            .query(&sql, &[&tx_ac, &alt_ac, &alt_aln_method]).map_err(|e| Arc::new(e))?
+            .query(&sql, &[&tx_ac, &alt_ac, &alt_aln_method])
+            .map_err(|e| Arc::new(e))?
         {
             result.push(row.try_into()?);
         }
@@ -474,7 +483,8 @@ impl interface::Provider for Provider {
             .conn
             .lock()
             .expect("cannot obtain connection lock")
-            .query(&sql, &[&gene]).map_err(|e| Arc::new(e))?
+            .query(&sql, &[&gene])
+            .map_err(|e| Arc::new(e))?
         {
             result.push(row.try_into()?);
         }
@@ -518,7 +528,8 @@ impl interface::Provider for Provider {
             .conn
             .lock()
             .expect("cannot obtain connection lock")
-            .query(&sql, &[&alt_ac, &start_i, &end_i]).map_err(|e| Arc::new(e))?
+            .query(&sql, &[&alt_ac, &start_i, &end_i])
+            .map_err(|e| Arc::new(e))?
         {
             let record: TxForRegionRecord = row.try_into()?;
             // NB: The original Python code did not use alt_aln_method in the query either.
@@ -548,7 +559,8 @@ impl interface::Provider for Provider {
             .conn
             .lock()
             .expect("cannot obtain connection lock")
-            .query_one(&sql, &[&tx_ac]).map_err(|e| Arc::new(e))?
+            .query_one(&sql, &[&tx_ac])
+            .map_err(|e| Arc::new(e))?
             .try_into()?;
 
         self.caches
@@ -584,7 +596,8 @@ impl interface::Provider for Provider {
             .conn
             .lock()
             .expect("cannot obtain connection lock")
-            .query_one(&sql, &[&tx_ac, &alt_ac, &alt_aln_method]).map_err(|e| Arc::new(e))?
+            .query_one(&sql, &[&tx_ac, &alt_ac, &alt_aln_method])
+            .map_err(|e| Arc::new(e))?
             .try_into()?;
 
         self.caches.get_tx_info.insert(key, result.clone());
@@ -608,7 +621,8 @@ impl interface::Provider for Provider {
             .conn
             .lock()
             .expect("cannot obtain connection lock")
-            .query(&sql, &[&tx_ac]).map_err(|e| Arc::new(e))?
+            .query(&sql, &[&tx_ac])
+            .map_err(|e| Arc::new(e))?
         {
             result.push(row.try_into()?);
         }
