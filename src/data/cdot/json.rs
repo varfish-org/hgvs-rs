@@ -189,10 +189,10 @@ impl interface::Provider for Provider {
 /// Data structures used for deserializing from cdot.
 pub mod models {
     use indexmap::IndexMap;
-    use serde::{Deserialize, Deserializer};
+    use serde::{Deserialize, Deserializer, Serialize};
 
     /// Container for a cDot data file.
-    #[derive(Deserialize, Debug, Clone)]
+    #[derive(Deserialize, Serialize, Debug, Clone)]
     pub struct Container {
         pub transcripts: IndexMap<String, Transcript>,
         pub cdot_version: String,
@@ -201,7 +201,7 @@ pub mod models {
     }
 
     /// Enum for representing the tags for transcripts.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+    #[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
     pub enum Tag {
         Basic,
         EnsemblCanonical,
@@ -210,7 +210,7 @@ pub mod models {
         RefSeqSelect,
     }
 
-    #[derive(Deserialize, Debug, Clone)]
+    #[derive(Deserialize, Serialize, Debug, Clone)]
     pub struct Transcript {
         /// Transcript biotype, e.g., `vec![BioType::ProteinCoding]` for BRCA1.
         #[serde(default)]
@@ -240,7 +240,7 @@ pub mod models {
     }
 
     /// Representation of the strand.
-    #[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq)]
     pub enum Strand {
         #[serde(rename = "+")]
         Plus,
@@ -249,11 +249,11 @@ pub mod models {
     }
 
     /// Representation of an exon in the JSON.
-    #[derive(Deserialize, Debug, Clone)]
+    #[derive(Deserialize, Serialize, Debug, Clone)]
     struct ExonHelper(i32, i32, i32, i32, i32, Option<String>);
 
     /// Representation of an exon after loading.
-    #[derive(Debug, Clone)]
+    #[derive(Serialize, Debug, Clone)]
     pub struct Exon {
         /// Start position on reference.
         pub alt_start_i: i32,
@@ -270,7 +270,7 @@ pub mod models {
     }
 
     /// Representation of `transcripts.*.genome_builds` value.
-    #[derive(Deserialize, Debug, Clone)]
+    #[derive(Deserialize, Serialize, Debug, Clone)]
     pub struct GenomeAlignment {
         /// CDS end position.
         #[serde(default)]
@@ -294,7 +294,7 @@ pub mod models {
     }
 
     /// Enum for representing the biotypes.
-    #[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq)]
     pub enum BioType {
         #[serde(rename = "3prime_overlapping_ncrna")]
         ThreePrimeOverlappingNcRna,
@@ -452,7 +452,7 @@ pub mod models {
         YRna,
     }
 
-    #[derive(Deserialize, Debug, Clone)]
+    #[derive(Deserialize, Serialize, Debug, Clone)]
     pub struct Gene {
         #[serde(default)]
         #[serde(deserialize_with = "deserialize_gene_aliases")]
@@ -529,7 +529,7 @@ pub mod models {
         }
     }
 
-    #[derive(Debug, Deserialize)]
+    #[derive(Debug, Deserialize, Serialize)]
     struct WrappedString(String);
 
     fn deserialize_tag<'de, D>(deserializer: D) -> Result<Option<Vec<Tag>>, D::Error>
