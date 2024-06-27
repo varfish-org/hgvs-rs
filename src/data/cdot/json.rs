@@ -228,6 +228,8 @@ pub mod models {
         pub hgnc: Option<String>,
         /// Identifier of the transcript, same as key in `transcripts`, e.g., `"NM_007294.3"` for BRCA1.
         pub id: String,
+        /// When the transcript does not match the primary assembly (`"NC_"`) perfectly / the assembly itself is wrong/partial
+        pub partial: Option<u8>,
         /// Identifier of corresponding protein, e.g., `"NP_009225.1"` for `"NM_007294.3"` of BRCA1.
         #[serde(default)]
         pub protein: Option<String>,
