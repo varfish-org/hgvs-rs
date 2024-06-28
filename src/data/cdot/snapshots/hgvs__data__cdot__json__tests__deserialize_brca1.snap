@@ -420,6 +420,7 @@ Container {
                 "1100",
             ),
             id: "NM_007294.3",
+            partial: None,
             protein: Some(
                 "NP_009225.1",
             ),
@@ -850,6 +851,7 @@ Container {
                 "1100",
             ),
             id: "NM_007294.4",
+            partial: None,
             protein: Some(
                 "NP_009225.1",
             ),
@@ -1256,6 +1258,7 @@ Container {
                 "1100",
             ),
             id: "NM_007297.3",
+            partial: None,
             protein: Some(
                 "NP_009228.2",
             ),
@@ -1662,6 +1665,7 @@ Container {
                 "1100",
             ),
             id: "NM_007297.4",
+            partial: None,
             protein: None,
             start_codon: Some(
                 194,
@@ -2066,6 +2070,7 @@ Container {
                 "1100",
             ),
             id: "NM_007298.3",
+            partial: None,
             protein: Some(
                 "NP_009229.2",
             ),
@@ -2472,6 +2477,7 @@ Container {
                 "1100",
             ),
             id: "NM_007299.3",
+            partial: None,
             protein: Some(
                 "NP_009230.2",
             ),
@@ -2878,6 +2884,7 @@ Container {
                 "1100",
             ),
             id: "NM_007299.4",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -3314,6 +3321,7 @@ Container {
                 "1100",
             ),
             id: "NM_007300.3",
+            partial: None,
             protein: Some(
                 "NP_009231.2",
             ),
@@ -3752,6 +3760,7 @@ Container {
                 "1100",
             ),
             id: "NM_007300.4",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -4164,6 +4173,7 @@ Container {
                 "1100",
             ),
             id: "NR_027676.1",
+            partial: None,
             protein: None,
             start_codon: None,
             stop_codon: None,
@@ -4572,6 +4582,7 @@ Container {
                 "1100",
             ),
             id: "NR_027676.2",
+            partial: None,
             protein: None,
             start_codon: None,
             stop_codon: None,
@@ -4790,6 +4801,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407571.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 390,
@@ -5020,6 +5032,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407581.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -5250,6 +5263,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407582.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -5480,6 +5494,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407583.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -5710,6 +5725,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407585.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 100,
@@ -5940,6 +5956,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407587.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -6170,6 +6187,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407590.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -6400,6 +6418,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407591.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -6614,6 +6633,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407593.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 1268,
@@ -6836,6 +6856,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407594.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -7066,6 +7087,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407596.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 279,
@@ -7288,6 +7310,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407597.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -7510,6 +7533,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407598.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -7732,6 +7756,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407602.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 100,
@@ -7954,6 +7979,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407603.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 94,
@@ -8176,6 +8202,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407605.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 634,
@@ -8390,6 +8417,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407610.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 1268,
@@ -8612,6 +8640,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407611.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -8834,6 +8863,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407612.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -9056,6 +9086,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407613.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 94,
@@ -9278,6 +9309,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407614.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -9500,6 +9532,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407615.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -9722,6 +9755,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407616.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -9944,6 +9978,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407617.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -10166,6 +10201,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407618.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 94,
@@ -10388,6 +10424,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407619.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -10610,6 +10647,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407620.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -10824,6 +10862,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407621.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 1268,
@@ -11046,6 +11085,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407622.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 100,
@@ -11268,6 +11308,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407623.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 634,
@@ -11490,6 +11531,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407624.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -11712,6 +11754,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407625.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -11934,6 +11977,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407626.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -12156,6 +12200,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407627.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -12378,6 +12423,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407628.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -12600,6 +12646,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407629.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -12822,6 +12869,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407630.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -13044,6 +13092,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407631.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 100,
@@ -13266,6 +13315,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407632.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 94,
@@ -13488,6 +13538,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407633.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -13702,6 +13753,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407634.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 1268,
@@ -13924,6 +13976,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407635.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -14146,6 +14199,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407636.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -14368,6 +14422,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407637.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -14590,6 +14645,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407638.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 100,
@@ -14812,6 +14868,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407639.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -15034,6 +15091,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407640.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -15256,6 +15314,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407641.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -15478,6 +15537,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407642.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -15700,6 +15760,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407644.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -15922,6 +15983,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407645.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -16144,6 +16206,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407646.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -16366,6 +16429,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407647.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -16580,6 +16644,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407648.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -16794,6 +16859,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407649.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -17008,6 +17074,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407652.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -17222,6 +17289,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407653.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -17436,6 +17504,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407654.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -17650,6 +17719,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407655.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -17864,6 +17934,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407656.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -18078,6 +18149,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407657.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -18292,6 +18364,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407658.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -18506,6 +18579,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407659.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -18720,6 +18794,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407660.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -18934,6 +19009,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407661.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -19148,6 +19224,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407662.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -19362,6 +19439,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407663.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -19568,6 +19646,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407664.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -19774,6 +19853,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407665.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 94,
@@ -19980,6 +20060,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407666.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -20186,6 +20267,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407667.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -20392,6 +20474,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407668.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 100,
@@ -20598,6 +20681,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407669.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -20804,6 +20888,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407670.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -21010,6 +21095,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407671.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -21216,6 +21302,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407672.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -21422,6 +21509,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407673.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -21628,6 +21716,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407674.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -21834,6 +21923,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407675.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -22040,6 +22130,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407676.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -22246,6 +22337,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407677.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -22452,6 +22544,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407678.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -22658,6 +22751,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407679.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -22864,6 +22958,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407680.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -23070,6 +23165,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407681.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -23276,6 +23372,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407682.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -23482,6 +23579,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407683.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -23688,6 +23786,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407684.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -23894,6 +23993,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407685.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -24100,6 +24200,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407686.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 94,
@@ -24306,6 +24407,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407687.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -24512,6 +24614,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407688.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -24718,6 +24821,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407689.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -24924,6 +25028,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407690.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -25130,6 +25235,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407691.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -25336,6 +25442,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407692.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 101,
@@ -25566,6 +25673,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407694.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 370,
@@ -25796,6 +25904,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407695.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 368,
@@ -26034,6 +26143,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407696.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 515,
@@ -26264,6 +26374,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407697.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 933,
@@ -26478,6 +26589,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407698.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 200,
@@ -26708,6 +26820,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407724.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 904,
@@ -26938,6 +27051,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407725.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 373,
@@ -27160,6 +27274,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407726.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 313,
@@ -27398,6 +27513,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407727.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 542,
@@ -27612,6 +27728,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407728.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 149,
@@ -27826,6 +27943,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407729.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 155,
@@ -28056,6 +28174,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407730.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 367,
@@ -28286,6 +28405,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407731.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 364,
@@ -28500,6 +28620,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407732.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 200,
@@ -28730,6 +28851,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407733.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 370,
@@ -28960,6 +29082,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407734.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 367,
@@ -29174,6 +29297,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407735.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 155,
@@ -29388,6 +29512,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407736.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 194,
@@ -29602,6 +29727,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407737.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 149,
@@ -29816,6 +29942,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407738.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 181,
@@ -30046,6 +30173,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407739.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 373,
@@ -30276,6 +30404,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407740.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 373,
@@ -30506,6 +30635,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407741.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 911,
@@ -30720,6 +30850,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407742.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 194,
@@ -30934,6 +31065,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407743.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 155,
@@ -31148,6 +31280,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407744.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 200,
@@ -31362,6 +31495,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407745.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 149,
@@ -31584,6 +31718,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407746.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 265,
@@ -31790,6 +31925,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407747.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 95,
@@ -32020,6 +32156,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407748.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 367,
@@ -32250,6 +32387,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407749.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 364,
@@ -32464,6 +32602,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407750.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 200,
@@ -32686,6 +32825,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407751.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 319,
@@ -32916,6 +33056,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407752.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 367,
@@ -33146,6 +33287,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407838.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 907,
@@ -33360,6 +33502,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407839.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 149,
@@ -33582,6 +33725,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407841.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 339,
@@ -33812,6 +33956,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407842.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 364,
@@ -34042,6 +34187,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407843.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 370,
@@ -34256,6 +34402,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407844.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 155,
@@ -34470,6 +34617,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407845.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 200,
@@ -34700,6 +34848,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407846.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 393,
@@ -34930,6 +35079,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407847.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 373,
@@ -35144,6 +35294,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407848.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 149,
@@ -35358,6 +35509,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407849.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 200,
@@ -35588,6 +35740,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407850.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 367,
@@ -35802,6 +35955,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407851.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 155,
@@ -36016,6 +36170,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407852.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 200,
@@ -36246,6 +36401,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407853.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 301,
@@ -36460,6 +36616,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407854.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -36674,6 +36831,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407858.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -36888,6 +37046,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407859.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -37102,6 +37261,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407860.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -37316,6 +37476,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407861.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -37514,6 +37675,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407862.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -37712,6 +37874,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407863.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -37910,6 +38073,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407874.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -38108,6 +38272,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407875.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -38330,6 +38495,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407879.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 390,
@@ -38544,6 +38710,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407881.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 241,
@@ -38766,6 +38933,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407882.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 835,
@@ -38988,6 +39156,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407884.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 301,
@@ -39202,6 +39371,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407885.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 196,
@@ -39424,6 +39594,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407886.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 282,
@@ -39646,6 +39817,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407887.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 295,
@@ -39876,6 +40048,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407889.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 411,
@@ -40098,6 +40271,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407894.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 295,
@@ -40320,6 +40494,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407895.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 301,
@@ -40534,6 +40709,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407896.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 291,
@@ -40756,6 +40932,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407897.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 835,
@@ -40970,6 +41147,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407898.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 241,
@@ -41192,6 +41370,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407899.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 288,
@@ -41414,6 +41593,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407900.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 407,
@@ -41628,6 +41808,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407902.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 781,
@@ -41850,6 +42031,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407904.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 301,
@@ -42072,6 +42254,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407906.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 295,
@@ -42294,6 +42477,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407907.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 390,
@@ -42516,6 +42700,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407908.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 835,
@@ -42738,6 +42923,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407909.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 295,
@@ -42960,6 +43146,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407910.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 301,
@@ -43182,6 +43369,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407915.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 301,
@@ -43404,6 +43592,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407916.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 301,
@@ -43634,6 +43823,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407917.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 509,
@@ -43856,6 +44046,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407918.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 295,
@@ -44046,6 +44237,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407919.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -44260,6 +44452,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407920.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 399,
@@ -44474,6 +44667,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407921.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 367,
@@ -44672,6 +44866,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407922.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 149,
@@ -44886,6 +45081,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407923.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 373,
@@ -45084,6 +45280,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407924.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 200,
@@ -45282,6 +45479,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407925.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 194,
@@ -45480,6 +45678,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407926.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 155,
@@ -45694,6 +45893,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407927.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 373,
@@ -45892,6 +46092,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407928.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 194,
@@ -46090,6 +46291,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407929.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 200,
@@ -46304,6 +46506,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407930.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 370,
@@ -46494,6 +46697,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407931.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 95,
@@ -46692,6 +46896,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407932.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 194,
@@ -46906,6 +47111,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407933.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 373,
@@ -47120,6 +47326,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407934.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 371,
@@ -47318,6 +47525,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407935.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 155,
@@ -47516,6 +47724,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407936.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 200,
@@ -47714,6 +47923,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407937.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -47912,6 +48122,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407938.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -48110,6 +48321,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407939.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -48308,6 +48520,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407940.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -48506,6 +48719,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407941.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -48728,6 +48942,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407942.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 370,
@@ -48950,6 +49165,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407943.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 367,
@@ -49172,6 +49388,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407944.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 367,
@@ -49378,6 +49595,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407945.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 194,
@@ -49584,6 +49802,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407946.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 301,
@@ -49790,6 +50009,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407947.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 835,
@@ -49996,6 +50216,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407948.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 390,
@@ -50202,6 +50423,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407949.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 295,
@@ -50408,6 +50630,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407950.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 390,
@@ -50614,6 +50837,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407951.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 301,
@@ -50820,6 +51044,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407952.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 377,
@@ -51026,6 +51251,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407953.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 295,
@@ -51240,6 +51466,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407954.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 420,
@@ -51446,6 +51673,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407955.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 301,
@@ -51652,6 +51880,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407956.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 835,
@@ -51858,6 +52087,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407957.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 295,
@@ -52064,6 +52294,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407958.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 301,
@@ -52262,6 +52493,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407959.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 257,
@@ -52468,6 +52700,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407960.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 317,
@@ -52674,6 +52907,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407962.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 311,
@@ -52872,6 +53106,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407963.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 263,
@@ -53070,6 +53305,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407964.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 155,
@@ -53276,6 +53512,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407965.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 532,
@@ -53434,6 +53671,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407966.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 312,
@@ -53592,6 +53830,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407967.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 306,
@@ -53822,6 +54061,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407968.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -54052,6 +54292,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407969.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -54274,6 +54515,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407970.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 1268,
@@ -54504,6 +54746,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407971.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -54734,6 +54977,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407972.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -54964,6 +55208,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407973.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 279,
@@ -55186,6 +55431,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407974.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -55408,6 +55654,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407975.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -55630,6 +55877,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407976.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 94,
@@ -55852,6 +56100,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407977.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -56074,6 +56323,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407978.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -56296,6 +56546,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407979.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -56518,6 +56769,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407980.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 94,
@@ -56740,6 +56992,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407981.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -56954,6 +57207,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407982.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 1268,
@@ -57176,6 +57430,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407983.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -57398,6 +57653,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407984.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -57620,6 +57876,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407985.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -57842,6 +58099,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407986.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -58064,6 +58322,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407990.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -58286,6 +58545,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407991.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 100,
@@ -58508,6 +58768,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407992.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -58730,6 +58991,7 @@ Container {
                 "1100",
             ),
             id: "NM_001407993.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 94,
@@ -58952,6 +59214,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408392.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -59174,6 +59437,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408396.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -59396,6 +59660,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408397.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 94,
@@ -59618,6 +59883,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408398.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -59840,6 +60106,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408399.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -60062,6 +60329,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408400.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -60284,6 +60552,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408401.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -60506,6 +60775,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408402.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -60728,6 +60998,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408403.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -60950,6 +61221,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408404.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -61172,6 +61444,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408406.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -61394,6 +61667,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408407.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -61616,6 +61890,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408408.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -61838,6 +62113,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408409.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -62076,6 +62352,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408410.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 907,
@@ -62290,6 +62567,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408411.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -62504,6 +62782,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408412.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -62718,6 +62997,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408413.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -62932,6 +63212,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408414.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -63138,6 +63419,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408415.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 1268,
@@ -63352,6 +63634,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408416.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -63566,6 +63849,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408418.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -63780,6 +64064,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408419.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -63994,6 +64279,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408420.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -64208,6 +64494,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408421.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 100,
@@ -64430,6 +64717,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408422.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 285,
@@ -64644,6 +64932,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408423.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -64858,6 +65147,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408424.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -65064,6 +65354,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408425.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -65262,6 +65553,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408426.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 1268,
@@ -65468,6 +65760,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408427.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 100,
@@ -65674,6 +65967,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408428.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -65880,6 +66174,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408429.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -66086,6 +66381,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408430.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -66300,6 +66596,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408431.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -66506,6 +66803,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408432.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -66712,6 +67010,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408433.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -66918,6 +67217,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408434.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -67124,6 +67424,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408435.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -67330,6 +67631,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408436.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 94,
@@ -67536,6 +67838,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408437.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -67742,6 +68045,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408438.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -67948,6 +68252,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408439.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -68154,6 +68459,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408440.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -68360,6 +68666,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408441.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -68558,6 +68865,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408442.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 1268,
@@ -68764,6 +69072,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408443.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -68970,6 +69279,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408444.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -69176,6 +69486,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408445.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -69382,6 +69693,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408446.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -69588,6 +69900,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408447.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 647,
@@ -69794,6 +70107,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408448.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 100,
@@ -70000,6 +70314,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408450.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -70206,6 +70521,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408451.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -70436,6 +70752,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408452.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 367,
@@ -70650,6 +70967,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408453.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 149,
@@ -70864,6 +71182,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408454.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 200,
@@ -71094,6 +71413,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408455.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 364,
@@ -71324,6 +71644,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408456.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 370,
@@ -71530,6 +71851,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408457.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 101,
@@ -71744,6 +72066,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408458.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 263,
@@ -71958,6 +72281,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408459.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 194,
@@ -72172,6 +72496,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408460.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 200,
@@ -72386,6 +72711,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408461.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 181,
@@ -72616,6 +72942,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408462.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 462,
@@ -72846,6 +73173,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408463.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 373,
@@ -73060,6 +73388,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408464.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 194,
@@ -73290,6 +73619,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408465.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 374,
@@ -73520,6 +73850,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408466.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 367,
@@ -73734,6 +74065,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408467.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 194,
@@ -73964,6 +74296,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408468.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 364,
@@ -74178,6 +74511,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408469.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 149,
@@ -74392,6 +74726,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408470.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 149,
@@ -74606,6 +74941,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408472.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -74820,6 +75156,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408473.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -75018,6 +75355,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408474.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -75216,6 +75554,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408475.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -75414,6 +75753,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408476.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 113,
@@ -75636,6 +75976,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408478.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 390,
@@ -75858,6 +76199,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408479.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 301,
@@ -76080,6 +76422,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408480.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 295,
@@ -76302,6 +76645,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408481.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 295,
@@ -76532,6 +76876,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408482.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 446,
@@ -76746,6 +77091,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408483.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 1456,
@@ -76968,6 +77314,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408484.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 390,
@@ -77190,6 +77537,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408485.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 835,
@@ -77412,6 +77760,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408489.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 301,
@@ -77634,6 +77983,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408490.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 301,
@@ -77856,6 +78206,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408491.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 295,
@@ -78086,6 +78437,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408492.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 411,
@@ -78308,6 +78660,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408493.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 301,
@@ -78506,6 +78859,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408494.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 107,
@@ -78704,6 +79058,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408495.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 100,
@@ -78902,6 +79257,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408496.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 200,
@@ -79116,6 +79472,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408497.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 371,
@@ -79314,6 +79671,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408498.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 194,
@@ -79528,6 +79886,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408499.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 373,
@@ -79742,6 +80101,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408500.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 367,
@@ -79956,6 +80316,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408501.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 364,
@@ -80170,6 +80531,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408502.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 301,
@@ -80384,6 +80746,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408503.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 367,
@@ -80598,6 +80961,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408504.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 373,
@@ -80796,6 +81160,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408505.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 155,
@@ -81010,6 +81375,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408506.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 295,
@@ -81224,6 +81590,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408507.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 288,
@@ -81430,6 +81797,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408508.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 295,
@@ -81636,6 +82004,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408509.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 295,
@@ -81842,6 +82211,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408510.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 311,
@@ -82024,6 +82394,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408511.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 101,
@@ -82214,6 +82585,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408512.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 311,
@@ -82428,6 +82800,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408513.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 414,
@@ -82618,6 +82991,7 @@ Container {
                 "1100",
             ),
             id: "NM_001408514.1",
+            partial: None,
             protein: None,
             start_codon: Some(
                 835,
@@ -82840,6 +83214,7 @@ Container {
                 "1100",
             ),
             id: "NM_007298.4",
+            partial: None,
             protein: None,
             start_codon: Some(
                 202,
@@ -83062,6 +83437,7 @@ Container {
                 "1100",
             ),
             id: "XM_006722029.1",
+            partial: None,
             protein: Some(
                 "XP_006722092.1",
             ),
@@ -83286,6 +83662,7 @@ Container {
                 "1100",
             ),
             id: "XM_006722030.1",
+            partial: None,
             protein: Some(
                 "XP_006722093.1",
             ),
@@ -83510,6 +83887,7 @@ Container {
                 "1100",
             ),
             id: "XM_006722031.1",
+            partial: None,
             protein: Some(
                 "XP_006722094.1",
             ),
@@ -83734,6 +84112,7 @@ Container {
                 "1100",
             ),
             id: "XM_006722032.1",
+            partial: None,
             protein: Some(
                 "XP_006722095.1",
             ),
@@ -83958,6 +84337,7 @@ Container {
                 "1100",
             ),
             id: "XM_006722033.1",
+            partial: None,
             protein: Some(
                 "XP_006722096.1",
             ),
@@ -84182,6 +84562,7 @@ Container {
                 "1100",
             ),
             id: "XM_006722034.1",
+            partial: None,
             protein: Some(
                 "XP_006722097.1",
             ),
@@ -84406,6 +84787,7 @@ Container {
                 "1100",
             ),
             id: "XM_006722035.1",
+            partial: None,
             protein: Some(
                 "XP_006722098.1",
             ),
@@ -84606,6 +84988,7 @@ Container {
                 "1100",
             ),
             id: "XM_006722036.1",
+            partial: None,
             protein: Some(
                 "XP_006722099.1",
             ),
@@ -84830,6 +85213,7 @@ Container {
                 "1100",
             ),
             id: "XM_006722037.1",
+            partial: None,
             protein: Some(
                 "XP_006722100.1",
             ),
@@ -85054,6 +85438,7 @@ Container {
                 "1100",
             ),
             id: "XM_006722038.1",
+            partial: None,
             protein: Some(
                 "XP_006722101.1",
             ),
@@ -85278,6 +85663,7 @@ Container {
                 "1100",
             ),
             id: "XM_006722039.1",
+            partial: None,
             protein: Some(
                 "XP_006722102.1",
             ),
@@ -85502,6 +85888,7 @@ Container {
                 "1100",
             ),
             id: "XM_006722040.1",
+            partial: None,
             protein: Some(
                 "XP_006722103.1",
             ),
@@ -85710,6 +86097,7 @@ Container {
                 "1100",
             ),
             id: "XM_006722041.1",
+            partial: None,
             protein: Some(
                 "XP_006722104.1",
             ),
