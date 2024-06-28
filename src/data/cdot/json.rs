@@ -446,6 +446,8 @@ pub mod models {
         UnprocessedPseudogene,
         #[serde(rename = "vault_RNA")]
         VaultRna,
+        #[serde(rename = "vaultRNA_primary_transcript")]
+        VaultRnaPrimaryTranscript,
         #[serde(rename = "V_segment")]
         VSegment,
         #[serde(rename = "V_gene_segment")]
