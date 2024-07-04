@@ -39,7 +39,7 @@ pub struct Config {
 /// The method are not implemented.
 ///
 /// The method `get_tx_exons()` returns `None` for record entries `tx_aseq`, and `alt_aseq`
-/// and `std::i32::MAX` for `tx_exon-set_id`, `alt_exon_set_id`, `tx_exon_id`, `alt_exon_id`,
+/// and `i32::MAX` for `tx_exon-set_id`, `alt_exon_set_id`, `tx_exon_id`, `alt_exon_id`,
 /// `exon_aln_id`.
 pub struct Provider {
     inner: TxProvider,
@@ -853,11 +853,11 @@ impl TxProvider {
                     cigar: exon.cigar.clone(),
                     tx_aseq: None,
                     alt_aseq: None,
-                    tx_exon_set_id: std::i32::MAX,
-                    alt_exon_set_id: std::i32::MAX,
-                    tx_exon_id: std::i32::MAX,
-                    alt_exon_id: std::i32::MAX,
-                    exon_aln_id: std::i32::MAX,
+                    tx_exon_set_id: i32::MAX,
+                    alt_exon_set_id: i32::MAX,
+                    tx_exon_id: i32::MAX,
+                    alt_exon_id: i32::MAX,
+                    exon_aln_id: i32::MAX,
                 })
                 .collect())
         } else {

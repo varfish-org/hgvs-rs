@@ -483,20 +483,14 @@ impl HgvsVariant {
                 .try_into()
                 .ok()
                 .map(|l| Mu::from(l, loc_edit.loc.is_certain())),
-            HgvsVariant::TxVariant { loc_edit, .. } => loc_edit
-                .loc
-                .inner()
-                .clone()
-                .try_into()
-                .ok()
-                .map(|l| Mu::from(l, loc_edit.loc.is_certain())),
-            HgvsVariant::RnaVariant { loc_edit, .. } => loc_edit
-                .loc
-                .inner()
-                .clone()
-                .try_into()
-                .ok()
-                .map(|l| Mu::from(l, loc_edit.loc.is_certain())),
+            HgvsVariant::TxVariant { loc_edit, .. } => {
+                Some(From::from(loc_edit.loc.inner().clone()))
+                    .map(|l| Mu::from(l, loc_edit.loc.is_certain()))
+            }
+            HgvsVariant::RnaVariant { loc_edit, .. } => {
+                Some(From::from(loc_edit.loc.inner().clone()))
+                    .map(|l| Mu::from(l, loc_edit.loc.is_certain()))
+            }
             HgvsVariant::ProtVariant {
                 loc_edit: ProtLocEdit::Ordinary { loc, .. },
                 ..

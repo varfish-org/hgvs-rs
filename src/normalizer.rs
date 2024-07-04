@@ -299,11 +299,11 @@ impl<'a> Normalizer<'a> {
                     .last()
                     .expect("should not happen; must have at least one exon"),
             );
-            exon_ends.push(std::i32::MAX);
+            exon_ends.push(i32::MAX);
 
             // Find the end pos of the exon where the var locates.
             let _left = 0;
-            let _right = std::i32::MAX;
+            let _right = i32::MAX;
 
             // NB: the following content is from the original Python code.
             // TODO: #242: implement methods to find tx regions
@@ -357,7 +357,7 @@ impl<'a> Normalizer<'a> {
             Ok(left..right)
         } else {
             // For variant types g., m., etc.
-            Ok(0..std::i32::MAX)
+            Ok(0..i32::MAX)
         }
     }
 
@@ -846,7 +846,7 @@ impl<'a> Normalizer<'a> {
                 var,
                 HgvsVariant::GenomeVariant { .. } | HgvsVariant::MtVariant { .. }
             ) {
-                std::i32::MAX
+                i32::MAX
             } else {
                 let id_info = self.provider.get_tx_identity_info(var.accession())?;
                 id_info.lengths.into_iter().sum()
