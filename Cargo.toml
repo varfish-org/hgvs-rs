@@ -15,7 +15,7 @@ path = "src/lib.rs"
 
 [dependencies]
 base16ct = "0.2"
-bio = "1.1"
+bio = "2.0"
 chrono = "0.4"
 enum-map = "2.4"
 flate2 = "1.0"
