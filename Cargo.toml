@@ -24,7 +24,7 @@ log = "0.4"
 md-5 = "0.10"
 nom = "7.1"
 postgres = { version = "0.19", features = ["with-chrono-0_4"] }
-quick_cache = "0.5"
+quick_cache = "0.6"
 regex = "1.7"
 rustc-hash = "2.0"
 seqrepo = { version = "0.10.2", features = ["cached"] }
