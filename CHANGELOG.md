@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.16.2](https://github.com/varfish-org/hgvs-rs/compare/v0.16.1...v0.16.2) (2024-07-14)
+
+
+### Bug Fixes
+
+* add biotype vaultRNA_primary_transcript ([#180](https://github.com/varfish-org/hgvs-rs/issues/180)) ([d59783c](https://github.com/varfish-org/hgvs-rs/commit/d59783c51c30feeb36c389b2c8242e79ef9b5ad4))
+* add biotype vaultRNA_primary_transcript ([#183](https://github.com/varfish-org/hgvs-rs/issues/183)) ([4345377](https://github.com/varfish-org/hgvs-rs/commit/4345377031220063a63e34be8b1af90c567e94f2))
+* add partial field to cdot json representation struct ([#179](https://github.com/varfish-org/hgvs-rs/issues/179)) ([113a06a](https://github.com/varfish-org/hgvs-rs/commit/113a06a4646e6418b739da2423f953eadaac4ccc))
+* add Serialize to data::cdot::json representations ([#176](https://github.com/varfish-org/hgvs-rs/issues/176)) ([2de1b8a](https://github.com/varfish-org/hgvs-rs/commit/2de1b8ab03d7671099b04e9bdfe58251f80e94f9))
+
 ## [0.16.1](https://github.com/varfish-org/hgvs-rs/compare/v0.16.0...v0.16.1) (2024-06-10)
 
 
