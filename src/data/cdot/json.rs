@@ -298,7 +298,7 @@ pub mod models {
     }
 
     /// Enum for representing the biotypes.
-    #[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum BioType {
         #[serde(rename = "3prime_overlapping_ncrna")]
         ThreePrimeOverlappingNcRna,
