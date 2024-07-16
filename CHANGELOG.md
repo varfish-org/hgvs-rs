@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.3](https://github.com/varfish-org/hgvs-rs/compare/v0.16.2...v0.16.3) (2024-07-16)
+
+
+### Bug Fixes
+
+* BioType naming for Ig* types, derive Hash for BioType ([#189](https://github.com/varfish-org/hgvs-rs/issues/189)) ([62519c7](https://github.com/varfish-org/hgvs-rs/commit/62519c7c6344b465fb65964aa52d503688b091a2))
+
 ## [0.16.2](https://github.com/varfish-org/hgvs-rs/compare/v0.16.1...v0.16.2) (2024-07-14)
 
 
