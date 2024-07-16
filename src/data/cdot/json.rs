@@ -329,11 +329,11 @@ pub mod models {
         #[serde(rename = "IG_D_gene")]
         IgDGene,
         #[serde(rename = "IG_J_gene")]
-        IdJGene,
+        IgJGene,
         #[serde(rename = "IG_J_pseudogene")]
-        IdJPseudogene,
+        IgJPseudogene,
         #[serde(rename = "IG_pseudogene")]
-        IdPseudogene,
+        IgPseudogene,
         #[serde(rename = "IG_V_gene")]
         IgVGene,
         #[serde(rename = "IG_V_pseudogene")]
