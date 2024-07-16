@@ -298,7 +298,7 @@ pub mod models {
     }
 
     /// Enum for representing the biotypes.
-    #[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum BioType {
         #[serde(rename = "3prime_overlapping_ncrna")]
         ThreePrimeOverlappingNcRna,
@@ -329,11 +329,11 @@ pub mod models {
         #[serde(rename = "IG_D_gene")]
         IgDGene,
         #[serde(rename = "IG_J_gene")]
-        IdJGene,
+        IgJGene,
         #[serde(rename = "IG_J_pseudogene")]
-        IdJPseudogene,
+        IgJPseudogene,
         #[serde(rename = "IG_pseudogene")]
-        IdPseudogene,
+        IgPseudogene,
         #[serde(rename = "IG_V_gene")]
         IgVGene,
         #[serde(rename = "IG_V_pseudogene")]
