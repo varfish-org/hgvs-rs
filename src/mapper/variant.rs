@@ -1136,6 +1136,28 @@ mod test {
         Ok(())
     }
 
+    #[test]
+    fn map_of_ins_three_prime_utr() -> Result<(), Error> {
+        let mapper = build_mapper()?;
+        let hgvs_c = "NM_004985.4:c.567_*1insCCC"; // gene KRAS
+        let var_c = HgvsVariant::from_str(hgvs_c)?;
+        let var_p = mapper.c_to_p(&var_c, None)?;
+        assert_eq!(format!("{}", &var_p), "NP_004976.2:p.?");
+
+        Ok(())
+    }
+
+    #[test]
+    fn map_of_dup_three_prime_utr() -> Result<(), Error> {
+        let mapper = build_mapper()?;
+        let hgvs_c = "NM_153223.3:c.2959_*1dup"; // gene CEP120
+        let var_c = HgvsVariant::from_str(hgvs_c)?;
+        let var_p = mapper.c_to_p(&var_c, None)?;
+        assert_eq!(format!("{}", &var_p), "NP_694955.2:p.?");
+
+        Ok(())
+    }
+
     // TODO(#17): Need to implement validation.
     // #[test]
     // fn map_of_c_out_of_reference_bound() -> Result<(), Error> {
@@ -1622,8 +1644,26 @@ mod test {
     }
 
     #[test]
-    fn hgvs_c_to_p_three_prime_utr() -> Result<(), Error> {
+    fn hgvs_c_to_p_sub_three_prime_ut() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.*3G>A";
+        let hgvsp_expected = "MOCK:p.?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_ins_three_prime_utr() -> Result<(), Error> {
+        let hgvsc = "NM_999999.1:c.39_*1insA";
+        let hgvsp_expected = "MOCK:p.?";
+        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn hgvs_c_to_p_dup_three_prime_utr() -> Result<(), Error> {
+        let hgvsc = "NM_999999.1:c.12_*1dup";
         let hgvsp_expected = "MOCK:p.?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
