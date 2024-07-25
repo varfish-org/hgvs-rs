@@ -321,7 +321,13 @@ impl AltSeqBuilder {
         match &self.var_c {
             HgvsVariant::CdsVariant { loc_edit, .. } => {
                 let loc = loc_edit.loc.inner();
-                if loc.start.cds_from == CdsFrom::End && loc.end.cds_from == CdsFrom::End {
+                let edit = loc_edit.edit.inner();
+                #[allow(clippy::nonminimal_bool)]
+                if loc.start.cds_from == CdsFrom::End && loc.end.cds_from == CdsFrom::End
+                    || ((edit.is_ins() || edit.is_dup()) && loc.end.cds_from == CdsFrom::End)
+                {
+                    // 3' UTR if both ends are 3' UTR or if the variant is an insertion/duplication
+                    // and the end is 3' UTR.
                     VariantLocation::ThreePrimeUtr
                 } else if loc.start.base < 0 && loc.end.base < 0 {
                     VariantLocation::FivePrimeUtr

@@ -116,6 +116,16 @@ impl NaEdit {
         }
     }
 
+    /// Returns whether the edit is an insertion.
+    pub fn is_ins(&self) -> bool {
+        matches!(self, NaEdit::Ins { .. })
+    }
+
+    /// Returns whether the edit is a duplication.
+    pub fn is_dup(&self) -> bool {
+        matches!(self, NaEdit::Dup { .. })
+    }
+
     /// Ensures that the reference is a count and no reference bases.
     pub fn with_num(&self) -> Self {
         match self {
