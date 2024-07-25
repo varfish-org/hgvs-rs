@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/varfish-org/hgvs-rs/compare/v0.16.3...v0.17.0) (2024-07-25)
+
+
+### Features
+
+* add variant region condition for dups ending in 3' UTR ([#192](https://github.com/varfish-org/hgvs-rs/issues/192)) ([#195](https://github.com/varfish-org/hgvs-rs/issues/195)) ([362909c](https://github.com/varfish-org/hgvs-rs/commit/362909ca0a7887cda6588f7da5671cb01ee4500f))
+
 ## [0.16.3](https://github.com/varfish-org/hgvs-rs/compare/v0.16.2...v0.16.3) (2024-07-16)
 
 
