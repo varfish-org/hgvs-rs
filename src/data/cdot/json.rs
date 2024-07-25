@@ -398,6 +398,8 @@ pub mod models {
         RRna,
         #[serde(rename = "rRNA_pseudogene")]
         RnaPseudogene,
+        #[serde(rename = "selenoprotein")]
+        Selenoprotein,
         #[serde(rename = "sense_intronic")]
         SenseIntronic,
         #[serde(rename = "sense_overlapping")]
