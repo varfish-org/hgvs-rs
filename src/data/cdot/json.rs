@@ -992,6 +992,10 @@ impl TxProvider {
                 .unwrap_or_default()
                 .contains(needle)
         });
+        let is_selenoprotein = is_selenoprotein
+            || tx.biotype.as_ref().map_or(false, |bt| {
+                bt.contains(&crate::data::cdot::json::models::BioType::Selenoprotein)
+            });
 
         let hgnc = tx
             .gene_name
