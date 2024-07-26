@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.1](https://github.com/varfish-org/hgvs-rs/compare/v0.17.0...v0.17.1) (2024-07-26)
+
+
+### Bug Fixes
+
+* add selenoprotein biotype ([#197](https://github.com/varfish-org/hgvs-rs/issues/197)) ([e4a43b6](https://github.com/varfish-org/hgvs-rs/commit/e4a43b6e0027b819b243b2926bbdf026c0c77cd3))
+
 ## [0.17.0](https://github.com/varfish-org/hgvs-rs/compare/v0.16.3...v0.17.0) (2024-07-25)
 
 
