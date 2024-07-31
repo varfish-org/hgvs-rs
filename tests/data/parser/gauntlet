@@ -48,9 +48,9 @@ AC_01234.5:g.1_22A>T
 #!unsupported: AC_01234.5:g.123_124[4]
 #!unsupported: AC_01234.5:g.123_678conNG_012232.1:g.9456_10011
 AC_01234.5:g.5dup
-AC_01234.5:g.5dupT
+AC_01234.5:g.5dup
 AC_01234.5:g.7_8dup
-AC_01234.5:g.7_8dupTG
+AC_01234.5:g.7_8dup
 
 
 # complex -- same allele (maybe)
@@ -88,9 +88,9 @@ AC_01234.5:c.76A>C
 AC_01234.5:c.76_77delinsTT
 AC_01234.5:c.76_77insT
 AC_01234.5:c.76_78del
-AC_01234.5:c.76_78delACT
+AC_01234.5:c.76_78del
 AC_01234.5:c.77_79dup
-AC_01234.5:c.77_79dupCTG
+AC_01234.5:c.77_79dup
 AC_01234.5:c.88+1G>T
 AC_01234.5:c.89-2A>C
 
@@ -100,9 +100,9 @@ AC_01234.5:c.89-2A>C
 #!unsupported: AC_01234.5:g.123_124[4]
 #!unsupported: AC_01234.5:g.123_678conNG_012232.1:g.9456_10011
 AC_01234.5:g.5dup
-AC_01234.5:g.5dupT
+AC_01234.5:g.5dup
 AC_01234.5:g.7_8dup
-AC_01234.5:g.7_8dupTG
+AC_01234.5:g.7_8dup
 
 
 

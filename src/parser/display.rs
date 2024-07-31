@@ -782,7 +782,7 @@ mod test {
                     reference: "T".to_string()
                 }
             ),
-            "delT".to_string()
+            "del".to_string()
         );
     }
 
@@ -816,7 +816,7 @@ mod test {
                     reference: "T".to_string()
                 }
             ),
-            "dupT".to_string()
+            "dup".to_string()
         );
     }
 
