@@ -86,10 +86,10 @@ impl Display for NaEdit {
                 (_, 0) => write!(f, "del{count}ins"),
                 (_, _) => write!(f, "del{count}ins{alternative}"),
             },
-            NaEdit::DelRef { reference } => write!(f, "del{reference}"),
+            NaEdit::DelRef { .. } => write!(f, "del"),
             NaEdit::DelNum { count } => write!(f, "del{count}"),
             NaEdit::Ins { alternative } => write!(f, "ins{alternative}"),
-            NaEdit::Dup { reference } => write!(f, "dup{reference}"),
+            NaEdit::Dup { .. } => write!(f, "dup"),
             NaEdit::InvRef { reference } => write!(f, "inv{reference}"),
             NaEdit::InvNum { count } => write!(f, "inv{count}"),
         }
