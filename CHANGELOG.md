@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.2](https://github.com/varfish-org/hgvs-rs/compare/v0.17.1...v0.17.2) (2024-08-06)
+
+
+### Bug Fixes
+
+* add support for tag 'GENCODE Primary' in cdot json ([#201](https://github.com/varfish-org/hgvs-rs/issues/201)) ([0b37341](https://github.com/varfish-org/hgvs-rs/commit/0b37341359ca1f616cda86a8b0dd928dc3144f2f))
+
 ## [0.17.1](https://github.com/varfish-org/hgvs-rs/compare/v0.17.0...v0.17.1) (2024-07-26)
 
 
