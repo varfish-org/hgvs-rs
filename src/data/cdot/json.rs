@@ -208,6 +208,7 @@ pub mod models {
         ManeSelect,
         ManePlusClinical,
         RefSeqSelect,
+        GencodePrimary,
     }
 
     #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -533,6 +534,7 @@ pub mod models {
             "MANE_Plus_Clinical" | "MANE Plus Clinical" => Tag::ManePlusClinical,
             "MANE_Select" | "MANE Select" => Tag::ManeSelect,
             "RefSeq Select" => Tag::RefSeqSelect,
+            "GENCODE Primary" => Tag::GencodePrimary,
             _ => panic!("Invalid transcript tag {s:?}"),
         }
     }
