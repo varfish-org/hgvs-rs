@@ -437,17 +437,28 @@ impl AltSeqBuilder {
 
         // Incorporate the variant into the sequence (depending on the type).
         let mut is_substitution = false;
+        let range = if end >= seq.len() && reference.is_some() {
+            log::warn!(
+                    "Altered sequence range {:?} is incompatible with sequence length {:?}, clamping. Variant description is {}",
+                    start..end,
+                    seq.len(),
+                    &self.var_c
+                );
+            start..seq.len()
+        } else {
+            start..end
+        };
         match (reference, alternative) {
             (Some(reference), Some(alternative)) => {
                 // delins or SNP
-                seq.replace_range(start..end, &alternative);
+                seq.replace_range(range, &alternative);
                 if reference.len() == 1 && alternative.len() == 1 {
                     is_substitution = true;
                 }
             }
             (Some(_reference), None) => {
                 // deletion
-                seq.replace_range(start..end, "");
+                seq.replace_range(range, "");
             }
             (None, Some(alternative)) => {
                 // insertion
