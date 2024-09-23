@@ -189,6 +189,7 @@ impl interface::Provider for Provider {
 /// Data structures used for deserializing from cdot.
 pub mod models {
     use indexmap::IndexMap;
+    use log::debug;
     use serde::{Deserialize, Deserializer, Serialize};
 
     /// Container for a cDot data file.
@@ -209,7 +210,7 @@ pub mod models {
         ManePlusClinical,
         RefSeqSelect,
         GencodePrimary,
-        CCDS,
+        Other,
     }
 
     #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -536,8 +537,10 @@ pub mod models {
             "MANE_Select" | "MANE Select" => Tag::ManeSelect,
             "RefSeq Select" => Tag::RefSeqSelect,
             "GENCODE Primary" => Tag::GencodePrimary,
-            "CCDS" => Tag::CCDS,
-            _ => panic!("Invalid transcript tag {s:?}"),
+            _ => {
+                log::trace!("unknown tag: {}", s);
+                Tag::Other
+            },
         }
     }
 
