@@ -52,8 +52,9 @@ mod error {
 }
 
 /// A direction with respect to a sequence.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 pub enum Direction {
+    #[default]
     ThreeToFive,
     FiveToThree,
 }
@@ -77,7 +78,7 @@ impl Default for Config {
         Self {
             alt_aln_method: "splign".to_string(),
             cross_boundaries: false,
-            shuffle_direction: Direction::FiveToThree,
+            shuffle_direction: Default::default(),
             replace_reference: true,
             validate: true,
             window_size: 20,
