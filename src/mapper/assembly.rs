@@ -281,7 +281,7 @@ impl Mapper {
     /// Normalize variant if requested and ignore errors.  This is better than checking whether
     /// the variant is intronic because future UTAs will support LRG, which will enable checking
     /// intronic variants.
-    fn maybe_normalize(&self, var: &HgvsVariant) -> Result<HgvsVariant, Error> {
+    pub fn maybe_normalize(&self, var: &HgvsVariant) -> Result<HgvsVariant, Error> {
         if self.config.normalize {
             let normalizer = self.inner.normalizer()?;
             normalizer.normalize(var).or_else(|_| {
