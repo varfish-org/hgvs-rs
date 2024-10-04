@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.3](https://github.com/varfish-org/hgvs-rs/compare/v0.17.2...v0.17.3) (2024-10-04)
+
+
+### Bug Fixes
+
+* Add catch-all tag `Other` to account for future cdot tag changes ([#204](https://github.com/varfish-org/hgvs-rs/issues/204)) ([e02c98c](https://github.com/varfish-org/hgvs-rs/commit/e02c98c56e5d52ff8d834484139fdad9124dd100))
+
 ## [0.17.2](https://github.com/varfish-org/hgvs-rs/compare/v0.17.1...v0.17.2) (2024-08-06)
 
 
