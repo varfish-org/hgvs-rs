@@ -539,7 +539,7 @@ pub mod models {
             _ => {
                 log::trace!("unknown tag: {}", s);
                 Tag::Other
-            },
+            }
         }
     }
 
