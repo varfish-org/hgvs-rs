@@ -7,8 +7,6 @@ use cached::proc_macro::cached;
 use cached::SizedCache;
 use log::{debug, info};
 
-use super::alignment;
-use crate::normalizer::Direction;
 use crate::{
     data::interface::Provider,
     mapper::Error,
@@ -20,6 +18,8 @@ use crate::{
     sequences::revcomp,
     validator::{ValidationLevel, Validator},
 };
+
+use super::alignment;
 
 /// Configuration for Mapper.
 ///
@@ -37,8 +37,6 @@ pub struct Config {
     /// Use the genome sequence in case of uncertain g-to-n projections.  This
     /// can be switched off so genome sequence does not have to be available.
     pub genome_seq_available: bool,
-    pub shuffle_direction: Direction,
-    pub window_size: usize,
 }
 
 impl Default for Config {
@@ -51,8 +49,6 @@ impl Default for Config {
             strict_bounds: true,
             renormalize_g: true,
             genome_seq_available: true,
-            shuffle_direction: Default::default(),
-            window_size: 20,
         }
     }
 }
@@ -155,8 +151,6 @@ impl Mapper {
             self.validator.clone(),
             normalizer::Config {
                 replace_reference: self.config.replace_reference,
-                shuffle_direction: self.config.shuffle_direction,
-                window_size: self.config.window_size,
                 ..Default::default()
             },
         ))
@@ -261,7 +255,7 @@ impl Mapper {
                     (Mu::Certain((*pos_n).clone()), edit_n)
                 }
             } else {
-                // This is how the original code handles uncertain positions.  We will reach
+                // This is the how the original code handles uncertain positions.  We will reach
                 // here if the position is uncertain and we have the genome sequence.
                 let pos_g = mapper.n_to_g(pos_n)?;
                 let edit_n = NaEdit::RefAlt {
@@ -792,17 +786,6 @@ impl Mapper {
             .loc_range()
             .ok_or(Error::NoAlteredSequenceForMissingPositions)?;
         let r = ((r.start - interval.start) as usize)..((r.end - interval.start) as usize);
-        let r = if r.end >= seq.len() {
-            log::warn!(
-                    "Altered sequence range {:?} is incompatible with sequence length {:?}, clamping. Variant description is {}",
-                    r,
-                    seq.len(),
-                    &var
-                );
-            r.start..seq.len()
-        } else {
-            r
-        };
 
         let na_edit = var.na_edit().ok_or(Error::NaEditMissing)?;
 
@@ -810,11 +793,7 @@ impl Mapper {
             NaEdit::RefAlt { alternative, .. } | NaEdit::NumAlt { alternative, .. } => {
                 seq.replace_range(r, alternative)
             }
-            NaEdit::DelRef { .. } | NaEdit::DelNum { .. } => {
-                // FIXME the original code in python simply does `del seq[pos_start:pos_end]`,
-                //  which does not error if `pos_end > len(seq)`. Check if this is intended or not.
-                seq.replace_range(r, "")
-            }
+            NaEdit::DelRef { .. } | NaEdit::DelNum { .. } => seq.replace_range(r, ""),
             NaEdit::Ins { alternative } => {
                 seq.replace_range((r.start + 1)..(r.start + 1), alternative)
             }

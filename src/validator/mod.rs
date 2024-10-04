@@ -134,8 +134,6 @@ impl ExtrinsicValidator {
             strict_bounds: true,
             renormalize_g: false,
             genome_seq_available: true,
-            shuffle_direction: Default::default(),
-            window_size: 20,
         };
         Self {
             strict,
