@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use crate::mapper::error::Error;
 use crate::mapper::variant;
+use crate::normalizer::Direction;
 use crate::parser::HgvsVariant;
 use crate::{data::interface::Provider, validator::ValidationLevel};
 use biocommons_bioutils::assemblies::Assembly;
@@ -47,6 +48,8 @@ pub struct Config {
     /// Use the genome sequence in case of uncertain g-to-n projections.  This
     /// can be switched off so genome sequence does not have to be available.
     pub genome_seq_available: bool,
+    pub shuffle_direction: Direction,
+    pub window_size: usize,
 }
 
 impl Default for Config {
@@ -63,6 +66,8 @@ impl Default for Config {
             add_gene_symbol: false,
             renormalize_g: true,
             genome_seq_available: true,
+            shuffle_direction: Default::default(),
+            window_size: 20,
         }
     }
 }
@@ -111,6 +116,8 @@ impl Mapper {
             strict_bounds: config.strict_bounds,
             renormalize_g: config.renormalize_g,
             genome_seq_available: config.genome_seq_available,
+            shuffle_direction: config.shuffle_direction,
+            window_size: config.window_size,
         };
         let inner = variant::Mapper::new(&inner_config, provider.clone());
         let asm_accessions = provider
