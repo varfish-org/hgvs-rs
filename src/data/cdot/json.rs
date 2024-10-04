@@ -189,7 +189,6 @@ impl interface::Provider for Provider {
 /// Data structures used for deserializing from cdot.
 pub mod models {
     use indexmap::IndexMap;
-    use log::debug;
     use serde::{Deserialize, Deserializer, Serialize};
 
     /// Container for a cDot data file.
