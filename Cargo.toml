@@ -30,7 +30,7 @@ rustc-hash = "2.0"
 seqrepo = { version = "0.10.3", features = ["cached"] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-thiserror = "1.0"
+thiserror = "2.0"
 indexmap = { version = "2", features = ["serde"] }
 biocommons-bioutils = "0.1.0"
 ahash = "0.8.11"
