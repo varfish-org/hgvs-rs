@@ -68,6 +68,29 @@ impl RefTranscriptData {
         let cds_start = tx_info.cds_start_i + 1;
         let cds_stop = tx_info.cds_end_i;
 
+        // Fix cds_stop position for selenoprotein cases, when the reported cds_end_i (from cdot)
+        // is actually a Sec, not a stop codon.
+        let cds_stop = if tx_info.translation_table == TranslationTable::Selenocysteine {
+            translate_cds(
+                &transcript_sequence[((cds_start - 1) as usize)..],
+                true,
+                "*",
+                tx_info.translation_table,
+            )?
+            .find('*')
+            .map(|p| {
+                // make sure the trailing '*' is kept, otherwise
+                // the `self.ref_seq().len() == self.alt_seq().len()` check in `build_hgvsp`
+                // will fail and lead to problems.
+                (i32::try_from(p).expect("within tx sequence position should fit into i32") + 1) * 3
+                    + cds_start
+                    - 1
+            })
+            .unwrap_or(cds_stop)
+        } else {
+            cds_stop
+        };
+
         // Coding sequences that are not divisable by 3 are not yet supported.
         let tx_seq_to_translate =
             &transcript_sequence[((cds_start - 1) as usize)..(cds_stop as usize)];
