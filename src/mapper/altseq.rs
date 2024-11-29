@@ -1093,7 +1093,7 @@ impl AltSeqToHgvsp {
         is_init_met: bool,
         is_frameshift: bool,
     ) -> Result<HgvsVariant, Error> {
-        assert!(start.is_some() == end.is_some());
+        assert_eq!(start.is_some(), end.is_some());
 
         // If the `alternative` contains a stop codon (`*`/`X`) then we have to truncate
         // after it.
