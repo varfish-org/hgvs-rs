@@ -16,15 +16,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          override: true
           components: rustfmt
 
       - name: Check format
-        run: |
-          cargo fmt -- --check
+        run: cargo fmt --check
 
   Linting:
     runs-on: ubuntu-latest
@@ -35,19 +32,15 @@ jobs:
           lfs: true
 
       - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          override: true
           components: clippy
 
       - name: Lint with clippy
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo clippy --no-deps  # --all-targets --all-features
 
   Testing:
-    needs: Formatting
+    needs: [Formatting, Linting]
     runs-on: ubuntu-latest
 
     strategy:
@@ -79,6 +72,9 @@ jobs:
         with:
           lfs: 'true'
 
+      - name: Install host libraries
+        run: sudo apt-get install -y libsqlite3-dev libsqlite3-0
+
       - name: Import test database.
         run: |
           set -euo pipefail
@@ -89,18 +85,17 @@ jobs:
           PGPASSWORD: uta_admin
 
       - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          override: true
+          components: llvm-tools-preview  # needed for cargo llvm-cov
 
       - uses: Swatinem/rust-cache@v2.7.3
 
-      - name: Run cargo-tarpaulin with fast tests
-        uses: actions-rs/tarpaulin@v0.1
-        with:
-          version: 0.21.0
-          args: "-- --test-threads 1"
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Run cargo-llvm-cov with fast tests
+        run: cargo llvm-cov --lcov --output-path lcov.info -- --test-threads 1
         env:
           TEST_UTA_DATABASE_URL: postgres://uta_admin:uta_admin@0.0.0.0/uta
           TEST_UTA_DATABASE_SCHEMA: uta_20210129
@@ -109,10 +104,7 @@ jobs:
         if: ${{ matrix.label == 'fast' }}
 
       - name: Run cargo-test with full tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: "--release -- --include-ignored"
+        run: "cargo test --release -- --include-ignored"
         env:
           TEST_UTA_DATABASE_URL: postgres://uta_admin:uta_admin@0.0.0.0/uta
           TEST_UTA_DATABASE_SCHEMA: uta_20210129
