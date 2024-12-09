@@ -88,6 +88,9 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2.7.3
 
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
       - name: Run cargo-llvm-cov with fast tests
         run: cargo llvm-cov --lcov --output-path lcov.info -- --test-threads 1
         env:
