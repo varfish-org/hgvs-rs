@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.4](https://github.com/varfish-org/hgvs-rs/compare/v0.17.3...v0.17.4) (2024-12-09)
+
+
+### Bug Fixes
+
+* Sec and Stop coincide in SEPHS2 ([#214](https://github.com/varfish-org/hgvs-rs/issues/214)) ([8ae7e73](https://github.com/varfish-org/hgvs-rs/commit/8ae7e73336a1d8142f316b42209a1461f2608f0a))
+
 ## [0.17.3](https://github.com/varfish-org/hgvs-rs/compare/v0.17.2...v0.17.3) (2024-10-04)
 
 
