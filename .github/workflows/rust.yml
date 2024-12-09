@@ -87,7 +87,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2.7.3
 
       - name: Run cargo-llvm-cov with fast tests
-        run: cargo llvm-cov -- --test-threads 1
+        run: cargo llvm-cov --lcov --output-path lcov.info -- --test-threads 1
         env:
           TEST_UTA_DATABASE_URL: postgres://uta_admin:uta_admin@0.0.0.0/uta
           TEST_UTA_DATABASE_SCHEMA: uta_20210129
