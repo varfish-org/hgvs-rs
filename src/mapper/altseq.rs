@@ -156,7 +156,19 @@ impl AltTranscriptData {
     ) -> Result<Self, Error> {
         let transcript_sequence = seq.to_owned();
         let aa_sequence = if !seq.is_empty() {
-            let seq_cds = &transcript_sequence[((cds_start - 1) as usize)..];
+            // In case of SEPHS2 / HGNC:19686, the last amino acid is both a selenocysteine
+            // and a stop codon.
+            // We handle this by explicitly truncating the sequence at the Sec + stop codon.
+            // This heuristic may not always be correct;
+            // alternatively/additionally, we could check `protein_accession` for known cases.
+            let seq_cds = if translation_table == TranslationTable::Selenocysteine
+                && ref_aa_sequence.ends_with('U')
+            {
+                &transcript_sequence[((cds_start - 1) as usize)..cds_stop as usize]
+            } else {
+                &transcript_sequence[((cds_start - 1) as usize)..]
+            };
+
             let seq_aa = if variant_start_aa.is_some() {
                 translate_cds(seq_cds, false, "X", translation_table)?
             } else {
