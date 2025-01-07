@@ -96,7 +96,7 @@ impl Display for NaEdit {
     }
 }
 
-impl<'a> Display for NoRef<'a, NaEdit> {
+impl Display for NoRef<'_, NaEdit> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             NoRef(NaEdit::RefAlt {
@@ -309,7 +309,7 @@ impl Display for ProtLocEdit {
     }
 }
 
-impl<'a> Display for NoRef<'a, ProtLocEdit> {
+impl Display for NoRef<'_, ProtLocEdit> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.inner().fmt(f)
     }
@@ -321,7 +321,7 @@ impl Display for CdsLocEdit {
     }
 }
 
-impl<'a> Display for NoRef<'a, CdsLocEdit> {
+impl Display for NoRef<'_, CdsLocEdit> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{}", self.inner().loc, NoRef(&self.inner().edit))
     }
@@ -362,7 +362,7 @@ impl Display for TxLocEdit {
     }
 }
 
-impl<'a> Display for NoRef<'a, TxLocEdit> {
+impl Display for NoRef<'_, TxLocEdit> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{}", self.inner().loc, NoRef(&self.inner().edit))
     }
@@ -399,7 +399,7 @@ impl Display for RnaLocEdit {
     }
 }
 
-impl<'a> Display for NoRef<'a, RnaLocEdit> {
+impl Display for NoRef<'_, RnaLocEdit> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{}", self.inner().loc, NoRef(&self.inner().edit))
     }
@@ -436,7 +436,7 @@ impl Display for GenomeLocEdit {
     }
 }
 
-impl<'a> Display for NoRef<'a, GenomeLocEdit> {
+impl Display for NoRef<'_, GenomeLocEdit> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{}", self.inner().loc, NoRef(&self.inner().edit))
     }
@@ -464,7 +464,7 @@ impl Display for MtLocEdit {
     }
 }
 
-impl<'a> Display for NoRef<'a, MtLocEdit> {
+impl Display for NoRef<'_, MtLocEdit> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{}", self.inner().loc, NoRef(&self.inner().edit))
     }
@@ -559,7 +559,7 @@ impl Display for HgvsVariant {
     }
 }
 
-impl<'a> Display for NoRef<'a, HgvsVariant> {
+impl Display for NoRef<'_, HgvsVariant> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             NoRef(HgvsVariant::CdsVariant {
