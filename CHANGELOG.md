@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.5](https://github.com/varfish-org/hgvs-rs/compare/v0.17.4...v0.17.5) (2025-01-07)
+
+
+### Bug Fixes
+
+* Produce Ident protein edits ([#218](https://github.com/varfish-org/hgvs-rs/issues/218)) ([44ab9d1](https://github.com/varfish-org/hgvs-rs/commit/44ab9d1bf61fdccd1fa1c666b9f4f870ee340629))
+
 ## [0.17.4](https://github.com/varfish-org/hgvs-rs/compare/v0.17.3...v0.17.4) (2024-12-09)
 
 

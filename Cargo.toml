@@ -1,6 +1,6 @@
 [package]
 name = "hgvs"
-version = "0.17.4"
+version = "0.17.5"
 edition = "2021"
 authors = ["Manuel Holtgrewe <manuel.holtgrewe@bih-charite.de>"]
 description = "Port of biocommons/hgvs to Rust"
