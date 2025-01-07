@@ -196,7 +196,7 @@ pub fn aa3_to_aa1(seq: &str) -> Result<String, Error> {
     let mut result = String::with_capacity(seq.len() / 3);
 
     for (i, aa3) in seq.as_bytes().chunks(3).enumerate() {
-        let aa1 = _aa3_to_aa1(aa3).ok_or(Error::InvalidOneLetterAminoAcid(
+        let aa1 = _aa3_to_aa1(aa3).ok_or(Error::InvalidThreeLetterAminoAcid(
             format!("{:?}", aa3),
             format!("{}", i + 1),
         ))? as char;
