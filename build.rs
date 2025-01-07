@@ -157,7 +157,6 @@ fn dna3_to_2bit(c: &[u8]) -> Option<u8> {
 }
 
 // Hard-coded translation tables from src/tables.rs
-const IUPAC_AMBIGUITY_CODES: [u8; 13] = *b"BDHVNUWSMKRYZ";
 
 pub const AA3_TO_AA1_VEC: &[(&str, &str)] = &[
     ("Ala", "A"),
