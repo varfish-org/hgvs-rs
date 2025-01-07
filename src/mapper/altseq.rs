@@ -1111,10 +1111,18 @@ impl AltSeqToHgvsp {
             // of protein prediction is certain or uncertain by a global configuration
             // variable.
             ProtLocEdit::Ordinary {
-                loc: Mu::Certain(interval),
                 edit: Mu::Certain(if is_sub {
-                    ProteinEdit::Subst {
-                        alternative: alternative.to_string(),
+                    // cases like Ter525Ter should be Ter525=
+                    if reference == alternative
+                        || alternative.len() == 1
+                            && interval.start.aa == alternative
+                            && interval.start.number == interval.end.number
+                    {
+                        ProteinEdit::Ident
+                    } else {
+                        ProteinEdit::Subst {
+                            alternative: alternative.to_string(),
+                        }
                     }
                 } else if is_ext {
                     ProteinEdit::Ext {
@@ -1147,6 +1155,7 @@ impl AltSeqToHgvsp {
                         alternative: alternative.to_string(),
                     }
                 }),
+                loc: Mu::Certain(interval),
             }
         };
 
