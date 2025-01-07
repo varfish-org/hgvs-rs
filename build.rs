@@ -16,6 +16,7 @@ fn main() -> Result<()> {
     generate_codon_2bit_to_aa1_chrmt_vertebrate(&mut f)?;
 
     generate_aa1_to_aa3_str_lookup_function(&mut f)?;
+    generate_aa1_to_aa3_str_lookup_table(&mut f)?;
     generate_aa3_to_aa1_lookup_function(&mut f)?;
 
     f.flush()?;
@@ -95,7 +96,10 @@ fn generate_codon_2bit_to_aa1_chrmt_vertebrate(f: &mut BufWriter<File>) -> Resul
 }
 
 fn generate_aa1_to_aa3_str_lookup_function(f: &mut BufWriter<File>) -> Result<()> {
-    writeln!(f, "fn _aa1_to_aa3_str(aa1: u8) -> Option<&'static str> {{")?;
+    writeln!(
+        f,
+        "const fn _aa1_to_aa3_str(aa1: u8) -> Option<&'static str> {{"
+    )?;
     writeln!(f, "    match aa1 {{")?;
     for (aa3, aa1) in AA3_TO_AA1_VEC {
         writeln!(f, "        b'{}' => Some(\"{}\"),", aa1, aa3)?;
@@ -106,8 +110,25 @@ fn generate_aa1_to_aa3_str_lookup_function(f: &mut BufWriter<File>) -> Result<()
     Ok(())
 }
 
+fn generate_aa1_to_aa3_str_lookup_table(f: &mut BufWriter<File>) -> Result<()> {
+    let mut result = [""; 256];
+    for (aa3, aa1) in AA3_TO_AA1_VEC {
+        result[aa1.as_bytes()[0] as usize] = aa3;
+    }
+    write!(f, "const AA1_TO_AA3_STR: [Option<&str>; 256] = [")?;
+    for v in result {
+        if v.is_empty() {
+            write!(f, "None, ")?;
+        } else {
+            write!(f, r##"Some("{}"), "##, v)?;
+        }
+    }
+    writeln!(f, "];")?;
+    Ok(())
+}
+
 fn generate_aa3_to_aa1_lookup_function(f: &mut BufWriter<File>) -> Result<()> {
-    writeln!(f, "fn _aa3_to_aa1(aa3: &[u8]) -> Option<u8> {{")?;
+    writeln!(f, "const fn _aa3_to_aa1(aa3: &[u8]) -> Option<u8> {{")?;
     writeln!(f, "    match aa3 {{")?;
     for (aa3, aa1) in AA3_TO_AA1_VEC {
         writeln!(f, "        b\"{}\" => Some(b'{}'),", aa3, aa1)?;

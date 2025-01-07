@@ -167,7 +167,7 @@ pub fn aa1_to_aa3(seq: &str) -> Result<String, Error> {
     let mut result = String::with_capacity(seq.len() * 3);
 
     for (i, aa1) in seq.as_bytes().iter().enumerate() {
-        let aa3 = _aa1_to_aa3_str(*aa1).ok_or_else(|| {
+        let aa3 = AA1_TO_AA3_STR[*aa1 as usize].ok_or_else(|| {
             Error::InvalidOneLetterAminoAcid(format!("{:?}", aa1), format!("{}", i + 1))
         })?;
         result.push_str(aa3);

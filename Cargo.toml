@@ -7,7 +7,7 @@ description = "Port of biocommons/hgvs to Rust"
 license = "Apache-2.0"
 repository = "https://github.com/varfish-org/hgvs-rs"
 readme = "README.md"
-rust-version = "1.77.0"
+rust-version = "1.80.0"
 
 [lib]
 name = "hgvs"
