@@ -295,21 +295,21 @@ impl AltSeqBuilder {
             | VariantLocation::FivePrimeUtr
             | VariantLocation::ThreePrimeUtr => EditType::NotCds,
             VariantLocation::WholeGene => match na_edit {
-                NaEdit::DelRef {..} |
+                NaEdit::DelRef { .. } |
                 NaEdit::DelNum { .. } => EditType::WholeGeneDeleted,
                 NaEdit::Dup { .. } => {
                     log::warn!("Whole-gene duplication; consequence assumed to not affect protein product");
                     EditType::NotCds
-                },
+                }
                 NaEdit::InvRef { .. } |
                 NaEdit::InvNum { .. } => {
                     log::warn!("Whole-gene inversion; consequence assumed to not affected protein product");
                     EditType::NotCds
-                },
-                NaEdit::RefAlt {.. } => {
+                }
+                NaEdit::RefAlt { .. } => {
                     log::warn!("The whole-gene variant {} is not a clean deletion. Assuming whole gene deletion.", self.var_c);
                     EditType::WholeGeneDeleted
-                },
+                }
                 _ => panic!("Invalid combination of whole gene variant location and NaEdit {na_edit:?}"),
             },
         };
