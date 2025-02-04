@@ -132,7 +132,7 @@ pub mod protein_edit {
         Ok((
             rest,
             ProteinEdit::Subst {
-                alternative: "?".to_owned(),
+                alternative: b"?".to_vec(),
             },
         ))
     }
@@ -142,7 +142,7 @@ pub mod protein_edit {
         Ok((
             rest,
             ProteinEdit::Subst {
-                alternative: seq.to_owned(),
+                alternative: seq.as_bytes().to_vec(),
             },
         ))
     }
@@ -152,7 +152,7 @@ pub mod protein_edit {
         Ok((
             rest,
             ProteinEdit::DelIns {
-                alternative: seq.join(""),
+                alternative: seq.join("").as_bytes().to_vec(),
             },
         ))
     }
@@ -167,7 +167,7 @@ pub mod protein_edit {
         Ok((
             rest,
             ProteinEdit::Ins {
-                alternative: seq.join(""),
+                alternative: seq.join("").as_bytes().to_vec(),
             },
         ))
     }
@@ -189,8 +189,10 @@ pub mod protein_edit {
                 Ok((
                     rest,
                     ProteinEdit::Fs {
-                        alternative: alternative.map(str::to_owned),
-                        terminal: Some(terminal.to_string()),
+                        alternative: alternative
+                            .map(str::to_owned)
+                            .map(|s| s.as_bytes().to_vec()),
+                        terminal: Some(terminal.as_bytes().to_vec()),
                         length: if qm.is_some() {
                             UncertainLengthChange::Unknown
                         } else {
@@ -202,11 +204,12 @@ pub mod protein_edit {
                 Ok((
                     rest,
                     ProteinEdit::Fs {
-                        alternative: alternative.map(str::to_owned),
-                        terminal: Some(terminal.to_string()),
+                        alternative: alternative.map(str::to_owned)
+                            .map(|s| s.as_bytes().to_vec()),
+                        terminal: Some(terminal.as_bytes().to_vec()),
                         length: UncertainLengthChange::Known(
                             str::parse::<i32>(count)
-                            .expect("should not happen; previous parsing should guarantee string with digits")
+                                .expect("should not happen; previous parsing should guarantee string with digits")
                         ),
                     },
                 ))
@@ -215,7 +218,9 @@ pub mod protein_edit {
             Ok((
                 rest,
                 ProteinEdit::Fs {
-                    alternative: alternative.map(str::to_owned),
+                    alternative: alternative
+                        .map(str::to_owned)
+                        .map(|s| s.as_bytes().to_vec()),
                     terminal: None,
                     length: UncertainLengthChange::None,
                 },
@@ -232,8 +237,8 @@ pub mod protein_edit {
         Ok((
             rest,
             ProteinEdit::Ext {
-                aa_ext: aa_ext.map(str::to_owned),
-                ext_aa: ext_aa.map(str::to_owned),
+                aa_ext: aa_ext.map(str::to_owned).map(|s| s.as_bytes().to_vec()),
+                ext_aa: ext_aa.map(str::to_owned).map(|s| s.as_bytes().to_vec()),
                 change: UncertainLengthChange::Known(-str::parse::<i32>(offset).expect(
                     "should not happen; previous parsing should guarantee string with digits",
                 )),
@@ -251,8 +256,8 @@ pub mod protein_edit {
             Ok((
                 rest,
                 ProteinEdit::Ext {
-                    aa_ext: aa_ext.map(str::to_owned),
-                    ext_aa: Some(ext_aa.to_string()),
+                    aa_ext: aa_ext.map(str::to_owned).map(|s| s.as_bytes().to_vec()),
+                    ext_aa: Some(ext_aa.to_string().as_bytes().to_vec()),
                     change: if offset == "?" {
                         UncertainLengthChange::Unknown
                     } else {
@@ -264,8 +269,8 @@ pub mod protein_edit {
             Ok((
                 rest,
                 ProteinEdit::Ext {
-                    aa_ext: aa_ext.map(str::to_owned),
-                    ext_aa: Some(ext_aa.to_string()),
+                    aa_ext: aa_ext.map(str::to_owned).map(|s| s.as_bytes().to_vec()),
+                    ext_aa: Some(ext_aa.to_string().as_bytes().to_vec()),
                     change: UncertainLengthChange::None,
                 },
             ))
@@ -279,7 +284,7 @@ pub mod protein_edit {
         Ok((
             rest,
             ProteinEdit::Ext {
-                aa_ext: aa_ext.map(str::to_owned),
+                aa_ext: aa_ext.map(str::to_owned).map(|s| s.as_bytes().to_vec()),
                 ext_aa: None,
                 change: UncertainLengthChange::None,
             },
@@ -332,8 +337,8 @@ pub mod na_edit {
         Ok((
             rest,
             NaEdit::RefAlt {
-                reference: dna.clone(),
-                alternative: dna,
+                reference: dna.clone().as_bytes().to_vec(),
+                alternative: dna.as_bytes().to_vec(),
             },
         ))
     }
@@ -343,15 +348,15 @@ pub mod na_edit {
         Ok((
             rest,
             NaEdit::RefAlt {
-                reference: src.to_string(),
-                alternative: dst.to_string(),
+                reference: src.to_string().as_bytes().to_vec(),
+                alternative: dst.to_string().as_bytes().to_vec(),
             },
         ))
     }
 
     pub fn del_ref(input: &str) -> IResult<&str, NaEdit> {
         map(tuple((tag("del"), na0)), |(_, reference)| NaEdit::DelRef {
-            reference: reference.to_string(),
+            reference: reference.to_string().as_bytes().to_vec(),
         })(input)
     }
 
@@ -368,8 +373,8 @@ pub mod na_edit {
         Ok((
             rest,
             NaEdit::RefAlt {
-                reference: reference.to_string(),
-                alternative: alternative.to_string(),
+                reference: reference.to_string().as_bytes().to_vec(),
+                alternative: alternative.to_string().as_bytes().to_vec(),
             },
         ))
     }
@@ -383,7 +388,7 @@ pub mod na_edit {
                 count: count.parse::<i32>().expect(
                     "should not happen; previous parsing should guarantee string with digits",
                 ),
-                alternative: alternative.to_string(),
+                alternative: alternative.to_string().as_bytes().to_vec(),
             },
         ))
     }
@@ -393,7 +398,7 @@ pub mod na_edit {
         Ok((
             rest,
             NaEdit::Ins {
-                alternative: alternative.to_string(),
+                alternative: alternative.to_string().as_bytes().to_vec(),
             },
         ))
     }
@@ -403,7 +408,7 @@ pub mod na_edit {
         Ok((
             rest,
             NaEdit::Dup {
-                reference: reference.to_string(),
+                reference: reference.to_string().as_bytes().to_vec(),
             },
         ))
     }
@@ -425,7 +430,7 @@ pub mod na_edit {
         Ok((
             rest,
             NaEdit::InvRef {
-                reference: reference.to_string(),
+                reference: reference.to_string().as_bytes().to_vec(),
             },
         ))
     }
@@ -685,16 +690,23 @@ pub mod prot_pos {
         IResult,
     };
 
-    use crate::parser::{ProtInterval, ProtPos};
-
     use super::protein::{aat1, aat3};
+    use crate::parser::{ProtInterval, ProtPos};
+    use crate::sequences::aa3_to_aa1;
 
     pub fn pos(input: &str) -> IResult<&str, ProtPos> {
         let (rest, (aa, number)) = pair(alt((aat3, aat1)), digit1)(input)?;
+        let aa = if aa.len() == 3 {
+            aa3_to_aa1(aa.as_bytes())
+                .expect("Must be valid triplet at this point")
+                .as_bytes()[0]
+        } else {
+            aa.as_bytes()[0]
+        };
         Ok((
             rest,
             ProtPos {
-                aa: aa.to_string(),
+                aa,
                 number: str::parse::<i32>(number).expect(
                     "should not happen; previous parsing should guarantee string with digits",
                 ),
@@ -868,7 +880,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Subst {
-                    alternative: "?".to_owned()
+                    alternative: b"?".to_vec()
                 }
             ))
         );
@@ -881,7 +893,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Subst {
-                    alternative: "L".to_owned()
+                    alternative: b"L".to_vec()
                 }
             ))
         );
@@ -890,7 +902,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Subst {
-                    alternative: "X".to_owned()
+                    alternative: b"X".to_vec()
                 }
             ))
         );
@@ -899,7 +911,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Subst {
-                    alternative: "*".to_owned()
+                    alternative: b"*".to_vec()
                 }
             ))
         );
@@ -912,7 +924,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Subst {
-                    alternative: "Leu".to_owned()
+                    alternative: b"Leu".to_vec()
                 }
             ))
         );
@@ -921,7 +933,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Subst {
-                    alternative: "Ter".to_owned()
+                    alternative: b"Ter".to_vec()
                 }
             ))
         );
@@ -934,7 +946,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::DelIns {
-                    alternative: "Leu".to_owned()
+                    alternative: b"Leu".to_vec()
                 }
             ))
         );
@@ -943,7 +955,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::DelIns {
-                    alternative: "LeuTer".to_owned()
+                    alternative: b"LeuTer".to_vec()
                 }
             ))
         );
@@ -956,7 +968,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::DelIns {
-                    alternative: "L".to_owned()
+                    alternative: b"L".to_vec()
                 }
             ))
         );
@@ -965,7 +977,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::DelIns {
-                    alternative: "L*".to_owned()
+                    alternative: b"L*".to_vec()
                 }
             ))
         );
@@ -974,7 +986,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::DelIns {
-                    alternative: "LX".to_owned()
+                    alternative: b"LX".to_vec()
                 }
             ))
         );
@@ -992,7 +1004,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Fs {
-                    alternative: Some("L".to_owned()),
+                    alternative: Some(b"L".to_vec()),
                     terminal: None,
                     length: UncertainLengthChange::None,
                 }
@@ -1015,7 +1027,7 @@ mod test {
                 "",
                 ProteinEdit::Fs {
                     alternative: None,
-                    terminal: Some("*".to_owned()),
+                    terminal: Some(b"*".to_vec()),
                     length: UncertainLengthChange::None
                 }
             ))
@@ -1026,7 +1038,7 @@ mod test {
                 "",
                 ProteinEdit::Fs {
                     alternative: None,
-                    terminal: Some("X".to_owned()),
+                    terminal: Some(b"X".to_vec()),
                     length: UncertainLengthChange::None
                 }
             ))
@@ -1037,7 +1049,7 @@ mod test {
                 "",
                 ProteinEdit::Fs {
                     alternative: None,
-                    terminal: Some("*".to_owned()),
+                    terminal: Some(b"*".to_vec()),
                     length: UncertainLengthChange::Unknown
                 }
             ))
@@ -1048,7 +1060,7 @@ mod test {
                 "",
                 ProteinEdit::Fs {
                     alternative: None,
-                    terminal: Some("X".to_owned()),
+                    terminal: Some(b"X".to_vec()),
                     length: UncertainLengthChange::Unknown
                 }
             ))
@@ -1059,7 +1071,7 @@ mod test {
                 "",
                 ProteinEdit::Fs {
                     alternative: None,
-                    terminal: Some("*".to_owned()),
+                    terminal: Some(b"*".to_vec()),
                     length: UncertainLengthChange::Known(12)
                 }
             ))
@@ -1070,7 +1082,7 @@ mod test {
                 "",
                 ProteinEdit::Fs {
                     alternative: None,
-                    terminal: Some("X".to_owned()),
+                    terminal: Some(b"X".to_vec()),
                     length: UncertainLengthChange::Known(12)
                 }
             ))
@@ -1095,8 +1107,8 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Ext {
-                    aa_ext: Some("L".to_owned()),
-                    ext_aa: Some("M".to_string()),
+                    aa_ext: Some(b"L".to_vec()),
+                    ext_aa: Some(b"M".to_vec()),
                     change: UncertainLengthChange::Known(-1),
                 }
             ))
@@ -1106,8 +1118,8 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Ext {
-                    aa_ext: Some("Leu".to_owned()),
-                    ext_aa: Some("Met".to_string()),
+                    aa_ext: Some(b"Leu".to_vec()),
+                    ext_aa: Some(b"Met".to_vec()),
                     change: UncertainLengthChange::Known(-1),
                 }
             ))
@@ -1121,8 +1133,8 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Ext {
-                    aa_ext: Some("L".to_owned()),
-                    ext_aa: Some("X".to_string()),
+                    aa_ext: Some(b"L".to_vec()),
+                    ext_aa: Some(b"X".to_vec()),
                     change: UncertainLengthChange::None,
                 }
             ))
@@ -1132,8 +1144,8 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Ext {
-                    aa_ext: Some("L".to_owned()),
-                    ext_aa: Some("*".to_string()),
+                    aa_ext: Some(b"L".to_vec()),
+                    ext_aa: Some(b"*".to_vec()),
                     change: UncertainLengthChange::None,
                 }
             ))
@@ -1143,8 +1155,8 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Ext {
-                    aa_ext: Some("Leu".to_owned()),
-                    ext_aa: Some("Ter".to_string()),
+                    aa_ext: Some(b"Leu".to_vec()),
+                    ext_aa: Some(b"Ter".to_vec()),
                     change: UncertainLengthChange::None,
                 }
             ))
@@ -1155,7 +1167,7 @@ mod test {
                 "",
                 ProteinEdit::Ext {
                     aa_ext: None,
-                    ext_aa: Some("X".to_string()),
+                    ext_aa: Some(b"X".to_vec()),
                     change: UncertainLengthChange::None,
                 }
             ))
@@ -1166,7 +1178,7 @@ mod test {
                 "",
                 ProteinEdit::Ext {
                     aa_ext: None,
-                    ext_aa: Some("*".to_string()),
+                    ext_aa: Some(b"*".to_vec()),
                     change: UncertainLengthChange::None,
                 }
             ))
@@ -1177,7 +1189,7 @@ mod test {
                 "",
                 ProteinEdit::Ext {
                     aa_ext: None,
-                    ext_aa: Some("Ter".to_string()),
+                    ext_aa: Some(b"Ter".to_vec()),
                     change: UncertainLengthChange::None,
                 }
             ))
@@ -1188,8 +1200,8 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Ext {
-                    aa_ext: Some("L".to_owned()),
-                    ext_aa: Some("X".to_string()),
+                    aa_ext: Some(b"L".to_vec()),
+                    ext_aa: Some(b"X".to_vec()),
                     change: UncertainLengthChange::Unknown,
                 }
             ))
@@ -1199,8 +1211,8 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Ext {
-                    aa_ext: Some("L".to_owned()),
-                    ext_aa: Some("*".to_string()),
+                    aa_ext: Some(b"L".to_vec()),
+                    ext_aa: Some(b"*".to_vec()),
                     change: UncertainLengthChange::Unknown,
                 }
             ))
@@ -1210,8 +1222,8 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Ext {
-                    aa_ext: Some("Leu".to_owned()),
-                    ext_aa: Some("Ter".to_string()),
+                    aa_ext: Some(b"Leu".to_vec()),
+                    ext_aa: Some(b"Ter".to_vec()),
                     change: UncertainLengthChange::Unknown,
                 }
             ))
@@ -1222,7 +1234,7 @@ mod test {
                 "",
                 ProteinEdit::Ext {
                     aa_ext: None,
-                    ext_aa: Some("X".to_string()),
+                    ext_aa: Some(b"X".to_vec()),
                     change: UncertainLengthChange::Unknown,
                 }
             ))
@@ -1233,7 +1245,7 @@ mod test {
                 "",
                 ProteinEdit::Ext {
                     aa_ext: None,
-                    ext_aa: Some("*".to_string()),
+                    ext_aa: Some(b"*".to_vec()),
                     change: UncertainLengthChange::Unknown,
                 }
             ))
@@ -1244,7 +1256,7 @@ mod test {
                 "",
                 ProteinEdit::Ext {
                     aa_ext: None,
-                    ext_aa: Some("Ter".to_string()),
+                    ext_aa: Some(b"Ter".to_vec()),
                     change: UncertainLengthChange::Unknown,
                 }
             ))
@@ -1255,8 +1267,8 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Ext {
-                    aa_ext: Some("L".to_owned()),
-                    ext_aa: Some("X".to_string()),
+                    aa_ext: Some(b"L".to_vec()),
+                    ext_aa: Some(b"X".to_vec()),
                     change: UncertainLengthChange::Known(10),
                 }
             ))
@@ -1266,8 +1278,8 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Ext {
-                    aa_ext: Some("L".to_owned()),
-                    ext_aa: Some("*".to_string()),
+                    aa_ext: Some(b"L".to_vec()),
+                    ext_aa: Some(b"*".to_vec()),
                     change: UncertainLengthChange::Known(10),
                 }
             ))
@@ -1277,8 +1289,8 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Ext {
-                    aa_ext: Some("Leu".to_owned()),
-                    ext_aa: Some("Ter".to_string()),
+                    aa_ext: Some(b"Leu".to_vec()),
+                    ext_aa: Some(b"Ter".to_vec()),
                     change: UncertainLengthChange::Known(10),
                 }
             ))
@@ -1289,7 +1301,7 @@ mod test {
                 "",
                 ProteinEdit::Ext {
                     aa_ext: None,
-                    ext_aa: Some("X".to_string()),
+                    ext_aa: Some(b"X".to_vec()),
                     change: UncertainLengthChange::Known(10),
                 }
             ))
@@ -1300,7 +1312,7 @@ mod test {
                 "",
                 ProteinEdit::Ext {
                     aa_ext: None,
-                    ext_aa: Some("*".to_string()),
+                    ext_aa: Some(b"*".to_vec()),
                     change: UncertainLengthChange::Known(10),
                 }
             ))
@@ -1311,7 +1323,7 @@ mod test {
                 "",
                 ProteinEdit::Ext {
                     aa_ext: None,
-                    ext_aa: Some("Ter".to_string()),
+                    ext_aa: Some(b"Ter".to_vec()),
                     change: UncertainLengthChange::Known(10),
                 }
             ))
@@ -1325,7 +1337,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Ext {
-                    aa_ext: Some("L".to_owned()),
+                    aa_ext: Some(b"L".to_vec()),
                     ext_aa: None,
                     change: UncertainLengthChange::None,
                 }
@@ -1336,7 +1348,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Ext {
-                    aa_ext: Some("Leu".to_owned()),
+                    aa_ext: Some(b"Leu".to_vec()),
                     ext_aa: None,
                     change: UncertainLengthChange::None,
                 }
@@ -1371,7 +1383,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Ins {
-                    alternative: "L".to_owned()
+                    alternative: b"L".to_vec()
                 }
             ))
         );
@@ -1380,7 +1392,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Ins {
-                    alternative: "L*".to_owned()
+                    alternative: b"L*".to_vec()
                 }
             ))
         );
@@ -1389,7 +1401,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Ins {
-                    alternative: "LX".to_owned()
+                    alternative: b"LX".to_vec()
                 }
             ))
         );
@@ -1402,7 +1414,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Ins {
-                    alternative: "Leu".to_owned()
+                    alternative: b"Leu".to_vec()
                 }
             ))
         );
@@ -1411,7 +1423,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Ins {
-                    alternative: "LeuTer".to_owned()
+                    alternative: b"LeuTer".to_vec()
                 }
             ))
         );
@@ -1424,8 +1436,8 @@ mod test {
             Ok((
                 "",
                 NaEdit::RefAlt {
-                    reference: "".to_owned(),
-                    alternative: "".to_owned(),
+                    reference: vec![],
+                    alternative: vec![],
                 }
             ))
         );
@@ -1434,8 +1446,8 @@ mod test {
             Ok((
                 "",
                 NaEdit::RefAlt {
-                    reference: "C".to_owned(),
-                    alternative: "C".to_owned(),
+                    reference: b"C".to_vec(),
+                    alternative: b"C".to_vec(),
                 }
             ))
         );
@@ -1444,8 +1456,8 @@ mod test {
             Ok((
                 "",
                 NaEdit::RefAlt {
-                    reference: "CG".to_owned(),
-                    alternative: "CG".to_owned(),
+                    reference: b"CG".to_vec(),
+                    alternative: b"CG".to_vec(),
                 }
             ))
         );
@@ -1458,8 +1470,8 @@ mod test {
             Ok((
                 "",
                 NaEdit::RefAlt {
-                    reference: "C".to_owned(),
-                    alternative: "T".to_owned(),
+                    reference: b"C".to_vec(),
+                    alternative: b"T".to_vec(),
                 }
             ))
         );
@@ -1472,7 +1484,7 @@ mod test {
             Ok((
                 "",
                 NaEdit::DelRef {
-                    reference: "T".to_owned(),
+                    reference: b"T".to_vec(),
                 }
             ))
         );
@@ -1481,7 +1493,7 @@ mod test {
             Ok((
                 "",
                 NaEdit::DelRef {
-                    reference: "".to_owned(),
+                    reference: vec![],
                 }
             ))
         );
@@ -1502,8 +1514,8 @@ mod test {
             Ok((
                 "",
                 NaEdit::RefAlt {
-                    reference: "".to_owned(),
-                    alternative: "T".to_owned(),
+                    reference: vec![],
+                    alternative: b"T".to_vec(),
                 }
             ))
         );
@@ -1512,8 +1524,8 @@ mod test {
             Ok((
                 "",
                 NaEdit::RefAlt {
-                    reference: "G".to_owned(),
-                    alternative: "T".to_owned(),
+                    reference: b"G".to_vec(),
+                    alternative: b"T".to_vec(),
                 }
             ))
         );
@@ -1527,7 +1539,7 @@ mod test {
                 "",
                 NaEdit::NumAlt {
                     count: 1,
-                    alternative: "T".to_owned(),
+                    alternative: b"T".to_vec(),
                 }
             ))
         );
@@ -1537,7 +1549,7 @@ mod test {
                 "",
                 NaEdit::NumAlt {
                     count: 1,
-                    alternative: "TT".to_owned(),
+                    alternative: b"TT".to_vec(),
                 }
             ))
         );
@@ -1550,7 +1562,7 @@ mod test {
             Ok((
                 "",
                 NaEdit::Ins {
-                    alternative: "T".to_owned(),
+                    alternative: b"T".to_vec(),
                 }
             ))
         );
@@ -1559,7 +1571,7 @@ mod test {
             Ok((
                 "",
                 NaEdit::Ins {
-                    alternative: "TT".to_owned(),
+                    alternative: b"TT".to_vec(),
                 }
             ))
         );
@@ -1572,7 +1584,7 @@ mod test {
             Ok((
                 "",
                 NaEdit::Dup {
-                    reference: "".to_owned(),
+                    reference: vec![],
                 }
             ))
         );
@@ -1581,7 +1593,7 @@ mod test {
             Ok((
                 "",
                 NaEdit::Dup {
-                    reference: "T".to_owned(),
+                    reference: b"T".to_vec(),
                 }
             ))
         );
@@ -1590,7 +1602,7 @@ mod test {
             Ok((
                 "",
                 NaEdit::Dup {
-                    reference: "TT".to_owned(),
+                    reference: b"TT".to_vec(),
                 }
             ))
         );
@@ -1603,7 +1615,7 @@ mod test {
             Ok((
                 "",
                 NaEdit::InvRef {
-                    reference: "".to_owned(),
+                    reference: vec![],
                 }
             ))
         );
@@ -1612,7 +1624,7 @@ mod test {
             Ok((
                 "",
                 NaEdit::InvRef {
-                    reference: "C".to_owned(),
+                    reference: b"C".to_vec(),
                 }
             ))
         );
@@ -1621,7 +1633,7 @@ mod test {
             Ok((
                 "",
                 NaEdit::InvRef {
-                    reference: "CT".to_owned(),
+                    reference: b"CT".to_vec(),
                 }
             ))
         );
@@ -2610,7 +2622,7 @@ mod test {
             Ok((
                 "",
                 ProtPos {
-                    aa: "Leu".to_string(),
+                    aa: b'L',
                     number: 123
                 }
             ))
@@ -2620,7 +2632,7 @@ mod test {
             Ok((
                 "",
                 ProtPos {
-                    aa: "L".to_string(),
+                    aa: b'L',
                     number: 123
                 }
             ))
@@ -2630,7 +2642,7 @@ mod test {
             Ok((
                 "",
                 ProtPos {
-                    aa: "Ter".to_string(),
+                    aa: b'*',
                     number: 123
                 }
             ))
@@ -2640,7 +2652,7 @@ mod test {
             Ok((
                 "",
                 ProtPos {
-                    aa: "*".to_string(),
+                    aa: b'*',
                     number: 123
                 }
             ))
@@ -2650,7 +2662,7 @@ mod test {
             Ok((
                 "",
                 ProtPos {
-                    aa: "X".to_string(),
+                    aa: b'X',
                     number: 123
                 }
             ))
@@ -2665,11 +2677,11 @@ mod test {
                 "",
                 ProtInterval {
                     start: ProtPos {
-                        aa: "Leu".to_string(),
+                        aa: b'L',
                         number: 10
                     },
                     end: ProtPos {
-                        aa: "Leu".to_string(),
+                        aa: b'L',
                         number: 10
                     }
                 },
@@ -2685,11 +2697,11 @@ mod test {
                 "",
                 ProtInterval {
                     start: ProtPos {
-                        aa: "Leu".to_string(),
+                        aa: b'L',
                         number: 10
                     },
                     end: ProtPos {
-                        aa: "Leu".to_string(),
+                        aa: b'L',
                         number: 123
                     }
                 },
@@ -2701,11 +2713,11 @@ mod test {
                 "",
                 ProtInterval {
                     start: ProtPos {
-                        aa: "L".to_string(),
+                        aa: b'L',
                         number: 10
                     },
                     end: ProtPos {
-                        aa: "L".to_string(),
+                        aa: b'L',
                         number: 123
                     }
                 },
@@ -2717,11 +2729,11 @@ mod test {
                 "",
                 ProtInterval {
                     start: ProtPos {
-                        aa: "Leu".to_string(),
+                        aa: b'L',
                         number: 10
                     },
                     end: ProtPos {
-                        aa: "Ter".to_string(),
+                        aa: b'*',
                         number: 123
                     }
                 },
@@ -2733,11 +2745,11 @@ mod test {
                 "",
                 ProtInterval {
                     start: ProtPos {
-                        aa: "L".to_string(),
+                        aa: b'L',
                         number: 10
                     },
                     end: ProtPos {
-                        aa: "*".to_string(),
+                        aa: b'*',
                         number: 123
                     }
                 },
@@ -2749,11 +2761,11 @@ mod test {
                 "",
                 ProtInterval {
                     start: ProtPos {
-                        aa: "L".to_string(),
+                        aa: b'L',
                         number: 10
                     },
                     end: ProtPos {
-                        aa: "X".to_string(),
+                        aa: b'X',
                         number: 123
                     }
                 },

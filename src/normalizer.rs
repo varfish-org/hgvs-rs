@@ -1,18 +1,12 @@
 //! Variant normalization.
 
 use std::{cmp::Ordering, ops::Range, sync::Arc};
-
+use bstr::ByteSlice;
 pub use crate::normalizer::error::Error;
-use crate::{
-    data::interface::Provider,
-    mapper::variant,
-    parser::{
-        GenomeInterval, GenomeLocEdit, HgvsVariant, MtInterval, MtLocEdit, Mu, NaEdit, RnaInterval,
-        RnaLocEdit, RnaPos, TxInterval, TxLocEdit, TxPos,
-    },
-    sequences::{revcomp, trim_common_prefixes, trim_common_suffixes},
-    validator::Validator,
-};
+use crate::{data::interface::Provider, mapper::variant, parser::{
+    GenomeInterval, GenomeLocEdit, HgvsVariant, MtInterval, MtLocEdit, Mu, NaEdit, RnaInterval,
+    RnaLocEdit, RnaPos, TxInterval, TxLocEdit, TxPos,
+}, sequences::{revcomp, trim_common_prefixes, trim_common_suffixes}, validator::Validator, Sequence};
 
 mod error {
     /// Error type for normalization of HGVS expressins.
@@ -366,7 +360,7 @@ impl<'a> Normalizer<'a> {
         &self,
         var: &HgvsVariant,
         boundary: Range<i32>,
-    ) -> Result<(i32, i32, String, String), Error> {
+    ) -> Result<(i32, i32, Sequence, Sequence), Error> {
         let (reference, alternative) = self.get_ref_alt(var, &boundary)?;
         let win_size = self.config.window_size;
 
@@ -391,12 +385,12 @@ impl<'a> Normalizer<'a> {
 
     fn normalize_alleles_5_to_3(
         &self,
-        reference: String,
-        alternative: String,
+        reference: Sequence,
+        alternative: Sequence,
         win_size: i32,
         var: &HgvsVariant,
         boundary: Range<i32>,
-    ) -> Result<(i32, i32, String, String), Error> {
+    ) -> Result<(i32, i32, Sequence, Sequence), Error> {
         let mut reference = reference;
         let mut alternative = alternative;
         let loc_range = var
@@ -447,12 +441,12 @@ impl<'a> Normalizer<'a> {
 
     fn normalize_alleles_3_to_5(
         &self,
-        reference: String,
-        alternative: String,
+        reference: Sequence,
+        alternative: Sequence,
         win_size: i32,
         var: &HgvsVariant,
         boundary: Range<i32>,
-    ) -> Result<(i32, i32, String, String), Error> {
+    ) -> Result<(i32, i32, Sequence, Sequence), Error> {
         let mut reference = reference;
         let mut alternative = alternative;
         let loc_range = var
@@ -508,8 +502,8 @@ impl<'a> Normalizer<'a> {
         var: HgvsVariant,
         start: i32,
         end: i32,
-        reference: String,
-        alternative: String,
+        reference: Sequence,
+        alternative: Sequence,
         boundary: Range<i32>,
         cds_to_tx: bool,
     ) -> Result<HgvsVariant, Error> {
@@ -538,7 +532,7 @@ impl<'a> Normalizer<'a> {
         // Ensure the start is not 0.
         let (ref_start, ref_end, edit, _reference, alternative) = if ref_start == 0 {
             let reference = self.fetch_bounded_seq(&var, 0, 1, 0, &boundary)?;
-            let alternative = format!("{}{}", alternative, &reference);
+            let alternative = [alternative, reference.clone()].concat();
 
             (
                 1,
@@ -558,7 +552,7 @@ impl<'a> Normalizer<'a> {
         let tgt_len = self.get_tgt_len(&var)?;
         let (ref_start, ref_end, edit) = if ref_end == tgt_len.saturating_add(1) {
             let reference = self.fetch_bounded_seq(&var, tgt_len - 1, tgt_len, 0, &boundary)?;
-            let alternative = format!("{}{}", &reference, alternative);
+            let alternative = [reference.clone(), alternative].concat();
             (
                 tgt_len,
                 tgt_len,
@@ -679,8 +673,8 @@ impl<'a> Normalizer<'a> {
         alt_len: i32,
         end: i32,
         boundary: &Range<i32>,
-        alternative: &String,
-        reference: &str,
+        alternative: &[u8],
+        reference: &[u8],
     ) -> Result<(i32, i32, NaEdit), Error> {
         Ok(if ref_len == 0 {
             let adj_seq = if self.config.shuffle_direction == Direction::FiveToThree {
@@ -695,7 +689,7 @@ impl<'a> Normalizer<'a> {
                     start - 1,
                     end,
                     NaEdit::Ins {
-                        alternative: alternative.clone(),
+                        alternative: alternative.to_vec(),
                     },
                 )
             } else {
@@ -705,7 +699,7 @@ impl<'a> Normalizer<'a> {
                         start - alt_len,
                         end - 1,
                         NaEdit::Dup {
-                            reference: alternative.clone(),
+                            reference: alternative.to_vec(),
                         },
                     )
                 } else {
@@ -713,7 +707,7 @@ impl<'a> Normalizer<'a> {
                         start,
                         start + alt_len - 1,
                         NaEdit::Dup {
-                            reference: alternative.clone(),
+                            reference: alternative.to_vec(),
                         },
                     )
                 }
@@ -724,8 +718,8 @@ impl<'a> Normalizer<'a> {
                 start,
                 end - 1,
                 NaEdit::RefAlt {
-                    reference: reference.to_owned(),
-                    alternative: alternative.clone(),
+                    reference: reference.to_vec(),
+                    alternative: alternative.to_vec(),
                 },
             )
         })
@@ -737,8 +731,8 @@ impl<'a> Normalizer<'a> {
         start: i32,
         end: i32,
         alt_len: i32,
-        reference: &str,
-        alternative: &str,
+        reference: &[u8],
+        alternative: &[u8],
     ) -> (i32, i32, NaEdit) {
         (
             start,
@@ -762,8 +756,8 @@ impl<'a> Normalizer<'a> {
         start: i32,
         end: i32,
         ref_len: i32,
-        reference: &str,
-        alternative: &str,
+        reference: &[u8],
+        alternative: &[u8],
         alt_len: i32,
     ) -> (i32, i32, NaEdit) {
         let ref_start = start;
@@ -817,13 +811,13 @@ impl<'a> Normalizer<'a> {
         end: i32,
         window_size: i32,
         boundary: &Range<i32>,
-    ) -> Result<String, Error> {
+    ) -> Result<Sequence, Error> {
         let var_len = end - start - window_size;
 
         let start = std::cmp::max(start, boundary.start);
         let end = std::cmp::min(end, boundary.end);
         if start >= end {
-            return Ok("".to_string());
+            return Ok(vec![]);
         }
 
         let seq = self.provider.get_seq_part(
@@ -858,13 +852,13 @@ impl<'a> Normalizer<'a> {
         &self,
         var: &HgvsVariant,
         boundary: &Range<i32>,
-    ) -> Result<(String, String), Error> {
+    ) -> Result<(Sequence, Sequence), Error> {
         // Get reference allele.
         let reference = match var
             .na_edit()
             .expect("should not happen; must have a NAEdit")
         {
-            NaEdit::Ins { .. } | NaEdit::Dup { .. } => "".to_string(),
+            NaEdit::Ins { .. } | NaEdit::Dup { .. } => vec![],
             NaEdit::RefAlt { .. } | NaEdit::InvRef { .. } | NaEdit::DelRef { .. } => {
                 let loc_range = var
                     .loc_range()
@@ -879,9 +873,9 @@ impl<'a> Normalizer<'a> {
             .na_edit()
             .expect("should not happen; must have a NAEdit")
         {
-            NaEdit::DelRef { .. } => "".to_string(),
+            NaEdit::DelRef { .. } => vec![],
             NaEdit::RefAlt { alternative, .. } | NaEdit::Ins { alternative } => {
-                alternative.to_string()
+                alternative.to_vec()
             }
             NaEdit::Dup { .. } => {
                 let loc_range = var
@@ -899,15 +893,15 @@ impl<'a> Normalizer<'a> {
 
 #[allow(clippy::too_many_arguments)]
 fn normalize_alleles(
-    ref_seq: &str,
+    ref_seq: &[u8],
     start: i32,
     stop: i32,
-    reference: String,
-    alternative: String,
+    reference: Sequence,
+    alternative: Sequence,
     bound: usize,
     ref_step: i32,
     left: bool,
-) -> Result<(i32, i32, String, String), Error> {
+) -> Result<(i32, i32, Sequence, Sequence), Error> {
     if left {
         normalize_alleles_left(
             ref_seq,
@@ -932,14 +926,14 @@ fn normalize_alleles(
 }
 
 fn normalize_alleles_left(
-    ref_seq: &str,
+    ref_seq: &[u8],
     start: usize,
     stop: usize,
-    reference: String,
-    alternative: String,
+    reference: Sequence,
+    alternative: Sequence,
     bound: usize,
     ref_step: usize,
-) -> Result<(i32, i32, String, String), Error> {
+) -> Result<(i32, i32, Sequence, Sequence), Error> {
     // Step 1: Trim common suffix./
     let (trimmed, reference, alternative) = trim_common_suffixes(&reference, &alternative);
     let mut stop = stop - trimmed;
@@ -956,8 +950,8 @@ fn normalize_alleles_left(
         let step = std::cmp::min(ref_step, start - bound);
 
         let r = ref_seq[(start - step)..(start - bound)].to_uppercase();
-        let new_reference = format!("{r}{reference}");
-        let new_alternative = format!("{r}{alternative}");
+        let new_reference = [r.clone(), reference.clone()].concat();
+        let new_alternative = [r, alternative.clone()].concat();
 
         let (trimmed, new_reference, new_alternative) =
             trim_common_suffixes(&new_reference, &new_alternative);
@@ -975,8 +969,8 @@ fn normalize_alleles_left(
         } else {
             let left = step - trimmed;
             let r = left..;
-            reference = new_reference[r.clone()].to_string();
-            alternative = new_alternative[r].to_string();
+            reference = new_reference[r.clone()].into();
+            alternative = new_alternative[r].into();
             break;
         }
     }
@@ -985,14 +979,14 @@ fn normalize_alleles_left(
 }
 
 fn normalize_alleles_right(
-    ref_seq: &str,
+    ref_seq: &[u8],
     start: usize,
     stop: usize,
-    reference: String,
-    alternative: String,
+    reference: Sequence,
+    alternative: Sequence,
     bound: usize,
     ref_step: usize,
-) -> Result<(i32, i32, String, String), Error> {
+) -> Result<(i32, i32, Sequence, Sequence), Error> {
     // Step 1: Trim common prefix.
     let (trimmed, reference, alternative) = trim_common_prefixes(&reference, &alternative);
     let mut start = start + trimmed;
@@ -1009,8 +1003,8 @@ fn normalize_alleles_right(
         let step = std::cmp::min(ref_step, bound - stop);
 
         let r = ref_seq[stop..(stop + step)].to_uppercase();
-        let new_reference = format!("{reference}{r}");
-        let new_alternative = format!("{alternative}{r}");
+        let new_reference = [reference.clone(), r.clone()].concat();
+        let new_alternative = [alternative.clone(), r].concat();
 
         let (trimmed, new_reference, new_alternative) =
             trim_common_prefixes(&new_reference, &new_alternative);
@@ -1028,9 +1022,9 @@ fn normalize_alleles_right(
         } else {
             let left = step - trimmed;
             let r = ..(new_reference.len() - left);
-            reference = new_reference[r].to_string();
+            reference = new_reference[r].to_vec();
             let r = ..(new_alternative.len() - left);
-            alternative = new_alternative[r].to_string();
+            alternative = new_alternative[r].to_vec();
             break;
         }
     }

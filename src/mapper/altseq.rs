@@ -1,9 +1,9 @@
 //! Code for building alternative sequence and convertion to HGVS.p.
 
-use std::{cmp::Ordering, sync::Arc};
-
+use bstr::{ByteSlice, ByteVec};
 use cached::proc_macro::cached;
 use cached::SizedCache;
+use std::{cmp::Ordering, sync::Arc};
 
 use crate::{
     data::interface::Provider,
@@ -13,14 +13,15 @@ use crate::{
         ProteinEdit, UncertainLengthChange,
     },
     sequences::{revcomp, translate_cds, TranslationTable},
+    Sequence,
 };
 
 #[derive(Debug, Clone)]
 pub struct RefTranscriptData {
     /// Transcript nucleotide sequence.
-    pub transcript_sequence: String,
+    pub transcript_sequence: Sequence,
     /// Translated amino acid sequence.
-    pub aa_sequence: String,
+    pub aa_sequence: Sequence,
     /// 1-based CDS start position on transcript.
     pub cds_start: i32,
     /// 1-based CDS end position on transcript.
@@ -78,7 +79,8 @@ impl RefTranscriptData {
             ));
         }
 
-        let aa_sequence = translate_cds(tx_seq_to_translate, true, "*", tx_info.translation_table)?;
+        let aa_sequence =
+            translate_cds(tx_seq_to_translate, true, b'*', tx_info.translation_table)?;
         let protein_accession = if let Some(pro_ac) = pro_ac {
             pro_ac.to_owned()
         } else if let Some(pro_ac) = provider.as_ref().get_pro_ac_for_tx_ac(tx_ac)? {
@@ -114,9 +116,9 @@ impl RefTranscriptData {
 pub struct AltTranscriptData {
     /// Transcript nucleotide sequence.
     #[allow(dead_code)]
-    transcript_sequence: String,
+    transcript_sequence: Sequence,
     /// 1-letter amino acid sequence.
-    aa_sequence: String,
+    aa_sequence: Sequence,
     /// 1-based CDS start position.
     #[allow(dead_code)]
     cds_start: i32,
@@ -130,7 +132,7 @@ pub struct AltTranscriptData {
     is_frameshift: bool,
     /// 1-based AA start index for this variant.
     variant_start_aa: Option<i32>,
-    /// Starting position (AA ref index) of the last framewshift which affects the rest of the
+    /// Starting position (AA ref index) of the last frameshift which affects the rest of the
     /// sequence, ie.e., not offset by subsequent frameshifts.
     frameshift_start: Option<i32>,
     /// Whether this is a substitution AA variant.
@@ -143,13 +145,13 @@ impl AltTranscriptData {
     /// Create a variant sequence using inputs from `VariantInserter`.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        seq: &str,
+        seq: &[u8],
         cds_start: i32,
         cds_stop: i32,
         is_frameshift: bool,
         variant_start_aa: Option<i32>,
         protein_accession: &str,
-        ref_aa_sequence: &str,
+        ref_aa_sequence: &[u8],
         is_substitution: bool,
         is_ambiguous: bool,
         translation_table: TranslationTable,
@@ -162,7 +164,7 @@ impl AltTranscriptData {
             // This heuristic may not always be correct;
             // alternatively/additionally, we could check `protein_accession` for known cases.
             let seq_cds = if translation_table == TranslationTable::Selenocysteine
-                && ref_aa_sequence.ends_with('U')
+                && ref_aa_sequence.ends_with(b"U")
             {
                 &transcript_sequence[((cds_start - 1) as usize)..cds_stop as usize]
             } else {
@@ -170,7 +172,7 @@ impl AltTranscriptData {
             };
 
             let seq_aa = if variant_start_aa.is_some() {
-                translate_cds(seq_cds, false, "X", translation_table)?
+                translate_cds(seq_cds, false, b'X', translation_table)?
             } else {
                 ref_aa_sequence.to_owned()
             };
@@ -181,22 +183,22 @@ impl AltTranscriptData {
             let orig_aa_len = (cds_stop - cds_start + 1) as usize / 3;
             let orig_aa_len = std::cmp::min(orig_aa_len, seq_aa.len());
             let stop_pos = seq_aa[..orig_aa_len]
-                .rfind('*')
-                .or_else(|| seq_aa.find('*'));
+                .rfind(b"*")
+                .or_else(|| seq_aa.find(b"*"));
             if let Some(stop_pos) = stop_pos {
                 seq_aa[..(stop_pos + 1)].to_owned()
             } else {
                 // Double-check whether we have a stop codon in the reference AA sequence.
                 // If this is not the case then use the original CDS.  Otherwise, we fall
                 // back to the full alternative sequence in `seq_aa`.
-                if let Some(_pos) = ref_aa_sequence.find('*') {
+                if let Some(_pos) = ref_aa_sequence.find(b"*") {
                     seq_aa
                 } else {
                     seq_aa[..orig_aa_len].to_owned()
                 }
             }
         } else {
-            "".to_owned()
+            vec![]
         };
 
         Ok(Self {
@@ -254,8 +256,13 @@ impl AltSeqBuilder {
         if !matches!(&var_c, HgvsVariant::CdsVariant { .. }) {
             panic!("Must initialize with HgvsVariant::CdsVariant");
         }
-        let ref_has_multiple_stops = reference_data.aa_sequence.matches('*').count() > 1;
-        let first_stop_pos = reference_data.aa_sequence.find('*');
+        let ref_has_multiple_stops = reference_data
+            .aa_sequence
+            .iter()
+            .filter(|c| **c == b'*')
+            .count()
+            > 1;
+        let first_stop_pos = reference_data.aa_sequence.find(b"*");
 
         Self {
             var_c,
@@ -363,7 +370,7 @@ impl AltSeqBuilder {
     ///
     /// `(transcript sequence, cds start [1-based], cds stop [1-based], cds start index in
     /// seq [inc, 0-based], cds end index in seq [excl, 0-based])`
-    fn setup_incorporate(&self) -> (String, i32, i32, usize, usize) {
+    fn setup_incorporate(&self) -> (Sequence, i32, i32, usize, usize) {
         let mut start_end = Vec::new();
 
         match &self.var_c {
@@ -490,13 +497,13 @@ impl AltSeqBuilder {
     fn incorporate_dup(&self) -> Result<AltTranscriptData, Error> {
         let (seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
 
-        let seq = format!(
-            "{}{}{}{}",
+        let seq = [
             &seq[..start],
             &seq[start..end],
             &seq[start..end],
-            &seq[end..]
-        );
+            &seq[end..],
+        ]
+        .concat();
 
         let is_frameshift = (end - start) % 3 != 0;
 
@@ -524,12 +531,7 @@ impl AltSeqBuilder {
     fn incorporate_inv(&self) -> Result<AltTranscriptData, Error> {
         let (seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
 
-        let seq = format!(
-            "{}{}{}",
-            &seq[..start],
-            revcomp(&seq[start..end]),
-            &seq[end..]
-        );
+        let seq = [&seq[..start], &revcomp(&seq[start..end]), &seq[end..]].concat();
 
         let loc_start = match &self.var_c {
             HgvsVariant::CdsVariant { loc_edit, .. } => loc_edit.loc.inner().start.base,
@@ -571,7 +573,7 @@ impl AltSeqBuilder {
     /// Create a no-protein result.
     fn create_no_protein(&self) -> Result<AltTranscriptData, Error> {
         AltTranscriptData::new(
-            "",
+            b"",
             -1,
             -1,
             false,
@@ -594,8 +596,8 @@ pub struct AltSeqToHgvsp {
 #[derive(Debug)]
 struct AdHocRecord {
     start: i32,
-    ins: String,
-    del: String,
+    ins: Sequence,
+    del: Sequence,
     is_frameshift: bool,
 }
 
@@ -603,8 +605,8 @@ impl Default for AdHocRecord {
     fn default() -> Self {
         Self {
             start: -1,
-            ins: "".to_owned(),
-            del: "".to_owned(),
+            ins: b"".into(),
+            del: b"".into(),
             is_frameshift: false,
         }
     }
@@ -626,16 +628,14 @@ impl AltSeqToHgvsp {
                 let start = self.alt_data.variant_start_aa;
                 let record = if let Some(start) = start {
                     if start - 1 < self.ref_seq().len() as i32 {
-                        let del = &self
+                        let del = self
                             .ref_seq()
-                            .chars()
-                            .nth(start as usize - 1)
-                            .ok_or(Error::StartPosOutOfRange)?
-                            .to_string();
+                            .get(start as usize - 1)
+                            .ok_or(Error::StartPosOutOfRange)?;
                         AdHocRecord {
                             start,
-                            ins: del.clone(),
-                            del: del.clone(),
+                            ins: vec![*del],
+                            del: vec![*del],
                             is_frameshift: self.alt_data.is_frameshift,
                         }
                     } else {
@@ -647,15 +647,15 @@ impl AltSeqToHgvsp {
                 records.push(record);
                 do_delins = false;
             } else if self.is_substitution() && self.ref_seq().len() == self.alt_seq().len() {
-                let r = self.ref_seq().chars();
-                let a = self.alt_seq().chars();
-                let e = r.zip(a).enumerate();
+                let r = self.ref_seq();
+                let a = self.alt_seq();
+                let e = r.into_iter().zip(a).enumerate();
                 let mut diff_records = e
                     .filter(|(_i, (r, a))| r != a)
                     .map(|(i, (r, a))| AdHocRecord {
                         start: i as i32 + 1,
-                        del: r.to_string(),
-                        ins: a.to_string(),
+                        del: vec![*r],
+                        ins: vec![*a],
                         is_frameshift: self.alt_data.is_frameshift,
                     })
                     .collect::<Vec<_>>();
@@ -697,28 +697,33 @@ impl AltSeqToHgvsp {
                     let delta = self.alt_seq().len() as isize - self.ref_seq().len() as isize;
                     let offset = start + delta.unsigned_abs();
 
-                    let (insertion, deletion, ref_sub, alt_sub) = match delta.cmp(&0) {
+                    let (insertion, deletion, ref_sub, alt_sub): (
+                        Sequence,
+                        Sequence,
+                        Sequence,
+                        Sequence,
+                    ) = match delta.cmp(&0) {
                         // if delta > 0 {
                         Ordering::Greater => (
                             // net insertion
-                            self.alt_seq()[start..offset].to_owned(),
-                            "".to_string(),
-                            self.ref_seq()[start..].to_owned(),
-                            self.alt_seq()[offset..].to_owned(),
+                            self.alt_seq()[start..offset].into(),
+                            vec![],
+                            self.ref_seq()[start..].into(),
+                            self.alt_seq()[offset..].into(),
                         ),
                         Ordering::Less => (
                             // net deletion
-                            "".to_string(),
-                            self.ref_seq()[start..offset].to_owned(),
-                            self.ref_seq()[offset..].to_owned(),
-                            self.alt_seq()[start..].to_owned(),
+                            vec![],
+                            self.ref_seq()[start..offset].into(),
+                            self.ref_seq()[offset..].into(),
+                            self.alt_seq()[start..].into(),
                         ),
                         Ordering::Equal => (
                             // size remains the same
-                            "".to_string(),
-                            "".to_string(),
-                            self.ref_seq()[start..].to_owned(),
-                            self.alt_seq()[start..].to_owned(),
+                            vec![],
+                            vec![],
+                            self.ref_seq()[start..].into(),
+                            self.alt_seq()[start..].into(),
                         ),
                     };
 
@@ -733,7 +738,7 @@ impl AltSeqToHgvsp {
                         .collect::<Vec<_>>();
                     let diff_indices = if diff_indices.is_empty()
                         && deletion.is_empty()
-                        && insertion.starts_with('*')
+                        && insertion.starts_with(b"*")
                     {
                         vec![0]
                     } else {
@@ -748,8 +753,8 @@ impl AltSeqToHgvsp {
                             (deletion.clone(), insertion.clone())
                         } else {
                             (
-                                format!("{}{}", deletion, &ref_sub[..max_diff]),
-                                format!("{}{}", insertion, &alt_sub[..max_diff]),
+                                [deletion, ref_sub[..max_diff].into()].concat(),
+                                [insertion, alt_sub[..max_diff].into()].concat(),
                             )
                         }
                     } else {
@@ -770,8 +775,8 @@ impl AltSeqToHgvsp {
             Ok(self.create_variant(
                 None,
                 None,
-                "",
-                "",
+                b"",
+                b"",
                 UncertainLengthChange::None,
                 false,
                 self.protein_accession(),
@@ -786,8 +791,8 @@ impl AltSeqToHgvsp {
             Ok(self.create_variant(
                 None,
                 None,
-                "",
-                "",
+                b"",
+                b"",
                 UncertainLengthChange::None,
                 false,
                 self.protein_accession(),
@@ -809,11 +814,11 @@ impl AltSeqToHgvsp {
         &self.ref_data.protein_accession
     }
 
-    fn ref_seq(&self) -> &str {
+    fn ref_seq(&self) -> &[u8] {
         &self.ref_data.aa_sequence
     }
 
-    fn alt_seq(&self) -> &str {
+    fn alt_seq(&self) -> &[u8] {
         &self.alt_data.aa_sequence
     }
 
@@ -853,8 +858,8 @@ impl AltSeqToHgvsp {
         let mut is_ambiguous = self.alt_data.is_ambiguous;
         let aa_start;
         let aa_end;
-        let mut reference = String::new();
-        let mut alternative = String::new();
+        let mut reference = Vec::new();
+        let mut alternative = Vec::new();
 
         if *start == 1 {
             // initial methionine is modified
@@ -868,62 +873,46 @@ impl AltSeqToHgvsp {
             is_ambiguous = true;
         }
 
-        if insertion.starts_with('*') {
+        if insertion.starts_with(b"*") {
             // stop codon at variant position
             aa_start = Some(ProtPos {
-                aa: deletion
-                    .chars()
-                    .next()
-                    .ok_or(Error::DeletionSequenceEmpty)?
-                    .to_string(),
+                aa: *deletion.get(0).ok_or(Error::DeletionSequenceEmpty)?,
                 number: *start,
             });
             aa_end = aa_start.clone();
-            reference = "".to_string();
-            alternative = "*".to_string();
+            reference = vec![];
+            alternative = b"*".into();
             is_sub = true;
         } else if *start as usize == self.ref_seq().len() {
             // extension
-            fsext_len = if self.alt_seq().ends_with('*') {
+            fsext_len = if self.alt_seq().ends_with(b"*") {
                 UncertainLengthChange::Known(insertion.len() as i32 - deletion.len() as i32)
             } else {
                 UncertainLengthChange::Unknown
             };
 
             aa_start = Some(ProtPos {
-                aa: "*".to_owned(),
+                aa: b'*',
                 number: *start,
             });
             aa_end = aa_start.clone();
 
-            "".clone_into(&mut reference);
-            alternative = insertion
-                .chars()
-                .next()
-                .map(|c| c.to_string())
-                .unwrap_or_default();
+            reference.clear();
+            alternative = insertion.get(0).map(|c| vec![*c]).unwrap_or_default();
             is_ext = true;
         } else if *is_frameshift {
             // frameshift
             aa_start = Some(ProtPos {
-                aa: deletion
-                    .chars()
-                    .next()
-                    .ok_or(Error::DeletionSequenceEmpty)?
-                    .to_string(),
+                aa: *deletion.get(0).ok_or(Error::DeletionSequenceEmpty)?,
                 number: *start,
             });
             aa_end = aa_start.clone();
 
-            "".clone_into(&mut reference);
-            alternative = insertion
-                .chars()
-                .next()
-                .map(|c| c.to_string())
-                .unwrap_or_default();
+            reference.clear();
+            alternative = insertion.get(0).map(|c| vec![*c]).unwrap_or_default();
 
             fsext_len = insertion
-                .find('*')
+                .find(b"*")
                 .map(|pos| UncertainLengthChange::Known(pos as i32 + 1))
                 .unwrap_or(UncertainLengthChange::Unknown);
 
@@ -933,8 +922,10 @@ impl AltSeqToHgvsp {
             aa_start = if *start == -1 {
                 None
             } else {
+                // TODO: check length: was deletion.get(0) was deletion.clone() before
+                assert_eq!(deletion.len(), 1);
                 Some(ProtPos {
-                    aa: deletion.clone(),
+                    aa: *deletion.get(0).ok_or(Error::DeletionSequenceEmpty)?,
                     number: *start,
                 })
             };
@@ -942,11 +933,11 @@ impl AltSeqToHgvsp {
         } else if insertion.len() == 1 && deletion.len() == 1 {
             // substitution
             aa_start = Some(ProtPos {
-                aa: deletion.clone(),
+                aa: *deletion.get(0).ok_or(Error::DeletionSequenceEmpty)?,
                 number: *start,
             });
             aa_end = aa_start.clone();
-            "".clone_into(&mut reference);
+            reference.clear();
             alternative.clone_from(insertion);
             is_sub = true;
         } else if !deletion.is_empty() {
@@ -955,22 +946,16 @@ impl AltSeqToHgvsp {
             let end = start + deletion.len() as i32 - 1;
 
             aa_start = Some(ProtPos {
-                aa: deletion
-                    .chars()
-                    .next()
-                    .ok_or(Error::DeletionSequenceEmpty)?
-                    .to_string(),
+                aa: *deletion.get(0).ok_or(Error::DeletionSequenceEmpty)?,
                 number: *start,
             });
             if !insertion.is_empty() {
                 // delins
                 aa_end = if end > *start {
                     Some(ProtPos {
-                        aa: deletion
-                            .chars()
-                            .last()
-                            .ok_or(Error::DeletionSequenceEmpty)?
-                            .to_string(),
+                        aa: *deletion
+                            .get(deletion.len() - 1)
+                            .ok_or(Error::DeletionSequenceEmpty)?,
                         number: end,
                     })
                 } else {
@@ -982,24 +967,22 @@ impl AltSeqToHgvsp {
                 if deletion.len() as i32 + start == self.ref_seq().len() as i32 {
                     // stop codon at variant position
                     aa_end = aa_start.clone();
-                    reference = "".to_string();
-                    alternative = "*".to_string();
+                    reference = vec![];
+                    alternative = b"*".into();
                     is_sub = true;
                 } else {
                     // deletion
                     aa_end = if end > *start {
                         Some(ProtPos {
-                            aa: deletion
-                                .chars()
-                                .last()
-                                .ok_or(Error::DeletionSequenceEmpty)?
-                                .to_string(),
+                            aa: *deletion
+                                .get(deletion.len() - 1)
+                                .ok_or(Error::DeletionSequenceEmpty)?,
                             number: end,
                         })
                     } else {
                         aa_start.clone()
                     };
-                    alternative = "".to_string()
+                    alternative = b"".into();
                 }
             }
         } else if deletion.is_empty() {
@@ -1011,22 +994,16 @@ impl AltSeqToHgvsp {
                 // is duplication
                 let dup_end = dup_start + insertion.len() as i32 - 1;
                 aa_start = Some(ProtPos {
-                    aa: insertion
-                        .chars()
-                        .next()
-                        .ok_or(Error::InsertionSequenceEmpty)?
-                        .to_string(),
+                    aa: *insertion.get(0).ok_or(Error::InsertionSequenceEmpty)?,
                     number: dup_start,
                 });
                 aa_end = Some(ProtPos {
-                    aa: insertion
-                        .chars()
-                        .last()
-                        .ok_or(Error::InsertionSequenceEmpty)?
-                        .to_string(),
+                    aa: *insertion
+                        .get(insertion.len() - 1)
+                        .ok_or(Error::InsertionSequenceEmpty)?,
                     number: dup_end,
                 });
-                reference = "".to_string();
+                reference = vec![];
                 alternative.clone_from(&reference);
             } else {
                 // is non-dup insertion
@@ -1034,14 +1011,14 @@ impl AltSeqToHgvsp {
                 let end = start + 1;
 
                 aa_start = Some(ProtPos {
-                    aa: self.ref_seq()[(start - 1)..start].to_owned(),
+                    aa: self.ref_seq()[start - 1],
                     number: start as i32,
                 });
                 aa_end = Some(ProtPos {
-                    aa: self.ref_seq()[(end - 1)..end].to_owned(),
+                    aa: self.ref_seq()[end - 1],
                     number: end as i32,
                 });
-                reference = "".to_string();
+                reference = vec![];
                 alternative.clone_from(insertion);
             }
         } else {
@@ -1070,8 +1047,8 @@ impl AltSeqToHgvsp {
         &self,
         start: Option<ProtPos>,
         end: Option<ProtPos>,
-        reference: &str,
-        alternative: &str,
+        reference: &[u8],
+        alternative: &[u8],
         fsext_len: UncertainLengthChange,
         is_dup: bool,
         acc: &str,
@@ -1082,16 +1059,16 @@ impl AltSeqToHgvsp {
         is_init_met: bool,
         is_frameshift: bool,
     ) -> Result<HgvsVariant, Error> {
-        assert!(start.is_some() == end.is_some());
+        assert_eq!(start.is_some(), end.is_some());
 
         // If the `alternative` contains a stop codon (`*`/`X`) then we have to truncate
         // after it.
-        let alternative = if let Some(pos) = alternative.find('*').or_else(|| alternative.find('X'))
-        {
-            &alternative[..=pos]
-        } else {
-            alternative
-        };
+        let alternative =
+            if let Some(pos) = alternative.find(b"*").or_else(|| alternative.find(b"X")) {
+                &alternative[..=pos]
+            } else {
+                alternative
+            };
 
         let loc_edit = if is_init_met {
             ProtLocEdit::InitiationUncertain
@@ -1115,25 +1092,25 @@ impl AltSeqToHgvsp {
                     // cases like Ter525Ter should be Ter525=
                     if reference == alternative
                         || alternative.len() == 1
-                            && interval.start.aa == alternative
+                            && &[interval.start.aa] == alternative
                             && interval.start.number == interval.end.number
                     {
                         ProteinEdit::Ident
                     } else {
                         ProteinEdit::Subst {
-                            alternative: alternative.to_string(),
+                            alternative: alternative.into(),
                         }
                     }
                 } else if is_ext {
                     ProteinEdit::Ext {
-                        aa_ext: Some(alternative.to_string()),
-                        ext_aa: Some("*".to_string()),
+                        aa_ext: Some(alternative.into()),
+                        ext_aa: Some(b"*".into()),
                         change: fsext_len,
                     }
                 } else if is_frameshift {
                     ProteinEdit::Fs {
-                        alternative: Some(alternative.to_string()),
-                        terminal: Some("*".to_owned()),
+                        alternative: Some(alternative.into()),
+                        terminal: Some(b"*".into()),
                         length: fsext_len,
                     }
                 } else if is_dup {
@@ -1141,18 +1118,18 @@ impl AltSeqToHgvsp {
                 } else if reference.is_empty() == alternative.is_empty() {
                     if reference.len() > 1 || alternative.len() > 1 {
                         ProteinEdit::DelIns {
-                            alternative: alternative.to_string(),
+                            alternative: alternative.into(),
                         }
                     } else {
                         ProteinEdit::Subst {
-                            alternative: alternative.to_string(),
+                            alternative: alternative.into(),
                         }
                     }
                 } else if alternative.is_empty() {
                     ProteinEdit::Del
                 } else {
                     ProteinEdit::Ins {
-                        alternative: alternative.to_string(),
+                        alternative: alternative.into(),
                     }
                 }),
                 loc: Mu::Certain(interval),
@@ -1167,7 +1144,7 @@ impl AltSeqToHgvsp {
     }
 
     /// Helper to identity an insertion as a duplicate.
-    fn check_if_ins_is_dup(&self, start: i32, insertion: &str) -> (bool, i32) {
+    fn check_if_ins_is_dup(&self, start: i32, insertion: &[u8]) -> (bool, i32) {
         if insertion.len() + 1 >= start as usize {
             return (false, -1);
         }

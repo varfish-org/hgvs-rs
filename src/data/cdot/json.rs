@@ -4,14 +4,10 @@
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Instant};
 
-use crate::{
-    data::error::Error,
-    data::interface::{
-        self, GeneInfoRecord, TxExonsRecord, TxForRegionRecord, TxIdentityInfo, TxInfoRecord,
-        TxMappingOptionsRecord, TxSimilarityRecord,
-    },
-    sequences::TranslationTable,
-};
+use crate::{data::error::Error, data::interface::{
+    self, GeneInfoRecord, TxExonsRecord, TxForRegionRecord, TxIdentityInfo, TxInfoRecord,
+    TxMappingOptionsRecord, TxSimilarityRecord,
+}, sequences::TranslationTable, Sequence};
 use biocommons_bioutils::assemblies::{Assembly, ASSEMBLY_INFOS};
 
 use bio::data_structures::interval_tree::ArrayBackedIntervalTree;
@@ -123,7 +119,7 @@ impl interface::Provider for Provider {
         ac: &str,
         begin: Option<usize>,
         end: Option<usize>,
-    ) -> Result<String, Error> {
+    ) -> Result<Sequence, Error> {
         self.seqrepo
             .fetch_sequence_part(
                 &seqrepo::AliasOrSeqId::Alias {
@@ -136,7 +132,7 @@ impl interface::Provider for Provider {
             .map_err(Error::SeqRepoError)
     }
 
-    fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, Error> {
+    fn get_acs_for_protein_seq(&self, seq: &[u8]) -> Result<Vec<String>, Error> {
         self.inner.get_acs_for_protein_seq(seq)
     }
 
@@ -800,7 +796,7 @@ impl TxProvider {
     /// This is not implemented. The only caller has comment: 'TODO: drop get_acs_for_protein_seq'
     /// And is only ever called as a backup when get_pro_ac_for_tx_ac fails
     #[allow(dead_code)]
-    fn get_acs_for_protein_seq(&self, _seq: &str) -> Result<Vec<String>, Error> {
+    fn get_acs_for_protein_seq(&self, _seq: &[u8]) -> Result<Vec<String>, Error> {
         log::warn!(
             "cdot::data::json::TxProvider::get_acs_for_protein_seq() \
             This has not been implemented"
@@ -1242,7 +1238,7 @@ pub mod tests {
         let provider = build_provider()?;
 
         assert_eq!(
-            provider.get_acs_for_protein_seq("XXX")?,
+            provider.get_acs_for_protein_seq(b"XXX")?,
             Vec::<String>::new()
         );
 

@@ -16,6 +16,7 @@ use crate::data::{
     interface::TxForRegionRecord, interface::TxIdentityInfo, interface::TxInfoRecord,
     interface::TxMappingOptionsRecord, interface::TxSimilarityRecord,
 };
+use crate::Sequence;
 
 /// Configuration for the `data::uta::Provider`.
 #[derive(Debug, PartialEq, Clone)]
@@ -329,7 +330,7 @@ impl interface::Provider for Provider {
         ac: &str,
         begin: Option<usize>,
         end: Option<usize>,
-    ) -> Result<String, Error> {
+    ) -> Result<Sequence, Error> {
         // NB: no caching
         let sql = format!(
             "SELECT seq_id FROM {}.seq_anno WHERE ac = $1",
@@ -364,7 +365,7 @@ impl interface::Provider for Provider {
         Ok(seq[begin..end].into())
     }
 
-    fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, Error> {
+    fn get_acs_for_protein_seq(&self, seq: &[u8]) -> Result<Vec<String>, Error> {
         let md5 = seq_md5(seq, true)?;
         if let Some(result) = self.caches.get_acs_for_protein_seq.get(&md5) {
             return Ok(result);

@@ -4,6 +4,7 @@ use std::ops::{Deref, Range};
 
 use crate::parser::error::Error;
 use log::warn;
+use crate::Sequence;
 
 /// Expression of "maybe uncertain".
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -84,21 +85,21 @@ pub enum NaEdit {
     /// A substitution where both reference and alternative allele are nucleic acid strings
     /// (or empty).
     RefAlt {
-        reference: String,
-        alternative: String,
+        reference: Sequence,
+        alternative: Sequence,
     },
     /// A substitution where the reference is a number and alternative is a count.
-    NumAlt { count: i32, alternative: String },
+    NumAlt { count: i32, alternative: Sequence },
     /// Deletion of one or more nucleic acid characters.
-    DelRef { reference: String },
+    DelRef { reference: Sequence },
     /// Deletion of a number of characters.
     DelNum { count: i32 },
     /// Insertion of one or more nucleic acid characters.
-    Ins { alternative: String },
+    Ins { alternative: Sequence },
     /// Duplication of nucleic acid reference sequence.
-    Dup { reference: String },
+    Dup { reference: Sequence },
     /// Inversion of a (potentially empty) nucleic acid reference sequence.
-    InvRef { reference: String },
+    InvRef { reference: Sequence },
     /// Inversion of a stretch given by its length.
     InvNum { count: i32 },
 }
@@ -151,7 +152,7 @@ impl NaEdit {
     }
 
     /// Return whether the reference equals the given value.
-    pub fn reference_equals(&self, value: &str) -> bool {
+    pub fn reference_equals(&self, value: &[u8]) -> bool {
         match self {
             NaEdit::RefAlt { reference, .. }
             | NaEdit::DelRef { reference }
@@ -162,7 +163,7 @@ impl NaEdit {
     }
 
     /// Return an updated `NaEdit` that has the reference replaced with the given sequence.
-    pub fn with_reference(self, reference: String) -> Self {
+    pub fn with_reference(self, reference: Sequence) -> Self {
         match self {
             NaEdit::RefAlt {
                 alternative,
@@ -237,28 +238,28 @@ impl Accession {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ProteinEdit {
     Fs {
-        alternative: Option<String>,
-        terminal: Option<String>,
+        alternative: Option<Sequence>,
+        terminal: Option<Sequence>,
         length: UncertainLengthChange,
     },
     Ext {
         /// Amino acid before "ext"
-        aa_ext: Option<String>,
+        aa_ext: Option<Sequence>,
         /// Amino acid after "ext", terminal if shift is positive.
-        ext_aa: Option<String>,
+        ext_aa: Option<Sequence>,
         /// Change in protein length.
         change: UncertainLengthChange,
     },
     Subst {
-        alternative: String,
+        alternative: Sequence,
     },
     /// `delins`
     DelIns {
-        alternative: String,
+        alternative: Sequence,
     },
     /// `ins`
     Ins {
-        alternative: String,
+        alternative: Sequence,
     },
     /// `del`
     Del,
@@ -383,7 +384,7 @@ impl HgvsVariant {
     }
 
     /// Replace reference sequence.
-    pub fn with_reference(self, value: String) -> Self {
+    pub fn with_reference(self, value: Sequence) -> Self {
         match self {
             HgvsVariant::CdsVariant {
                 accession,
@@ -577,7 +578,7 @@ pub struct CdsLocEdit {
 
 impl CdsLocEdit {
     /// Return the LocEdit with the reference replaced by `reference`.
-    fn with_reference(self, reference: String) -> Self {
+    fn with_reference(self, reference: Sequence) -> Self {
         CdsLocEdit {
             loc: self.loc,
             edit: match self.edit {
@@ -659,7 +660,7 @@ pub struct GenomeLocEdit {
 
 impl GenomeLocEdit {
     /// Return the LocEdit with the reference replaced by `reference`.
-    fn with_reference(self, reference: String) -> Self {
+    fn with_reference(self, reference: Sequence) -> Self {
         GenomeLocEdit {
             loc: self.loc,
             edit: match self.edit {
@@ -715,7 +716,7 @@ pub struct MtLocEdit {
 
 impl MtLocEdit {
     /// Return the LocEdit with the reference replaced by `reference`.
-    fn with_reference(self, reference: String) -> Self {
+    fn with_reference(self, reference: Sequence) -> Self {
         MtLocEdit {
             loc: self.loc,
             edit: match self.edit {
@@ -770,7 +771,7 @@ pub struct TxLocEdit {
 
 impl TxLocEdit {
     /// Return the LocEdit with the reference replaced by `reference`.
-    fn with_reference(self, reference: String) -> Self {
+    fn with_reference(self, reference: Sequence) -> Self {
         TxLocEdit {
             loc: self.loc,
             edit: match self.edit {
@@ -836,7 +837,7 @@ pub struct RnaLocEdit {
 
 impl RnaLocEdit {
     /// Return the LocEdit with the reference replaced by `reference`.
-    fn with_reference(self, reference: String) -> Self {
+    fn with_reference(self, reference: Sequence) -> Self {
         RnaLocEdit {
             loc: self.loc,
             edit: match self.edit {
@@ -934,7 +935,7 @@ impl From<ProtInterval> for Range<i32> {
 #[derive(Clone, Debug, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct ProtPos {
     /// Amino acid value.
-    pub aa: String,
+    pub aa: u8,
     /// Number of `aa`.
     pub number: i32,
 }

@@ -3,7 +3,7 @@
 use chrono::NaiveDateTime;
 use indexmap::IndexMap;
 
-use crate::{data::error::Error, sequences::TranslationTable};
+use crate::{data::error::Error, sequences::TranslationTable, Sequence};
 use biocommons_bioutils::assemblies::Assembly;
 
 /// Information about a gene.
@@ -217,7 +217,7 @@ pub trait Provider {
     /// # Arguments
     ///
     /// * `ac` -- accession
-    fn get_seq(&self, ac: &str) -> Result<String, Error> {
+    fn get_seq(&self, ac: &str) -> Result<Sequence, Error> {
         self.get_seq_part(ac, None, None)
     }
 
@@ -233,13 +233,13 @@ pub trait Provider {
         ac: &str,
         begin: Option<usize>,
         end: Option<usize>,
-    ) -> Result<String, Error>;
+    ) -> Result<Sequence, Error>;
 
     /// Returns a list of protein accessions for a given sequence.
     ///
     /// The list is guaranteed to contain at least one element with the MD5-based accession
     /// (MD5_01234abc..def56789) at the end of the list.
-    fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, Error>;
+    fn get_acs_for_protein_seq(&self, seq: &[u8]) -> Result<Vec<String>, Error>;
 
     /// Return a list of transcripts that are similar to the given transcript, with relevant
     /// similarity criteria.

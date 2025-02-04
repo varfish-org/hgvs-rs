@@ -14,6 +14,7 @@ use crate::data::{
     interface::TxMappingOptionsRecord, interface::TxSimilarityRecord,
 };
 use seqrepo::{self, AliasOrSeqId, SeqRepo};
+use crate::Sequence;
 
 /// Configuration for the `data::uta_sr::Provider`.
 #[derive(Debug, PartialEq, Clone)]
@@ -110,7 +111,7 @@ impl interface::Provider for Provider {
         ac: &str,
         begin: Option<usize>,
         end: Option<usize>,
-    ) -> Result<String, Error> {
+    ) -> Result<Sequence, Error> {
         let aos = AliasOrSeqId::Alias {
             value: ac.to_owned(),
             namespace: None,
@@ -120,7 +121,7 @@ impl interface::Provider for Provider {
             .map_err(Error::SeqRepoError)
     }
 
-    fn get_acs_for_protein_seq(&self, seq: &str) -> Result<Vec<String>, Error> {
+    fn get_acs_for_protein_seq(&self, seq: &[u8]) -> Result<Vec<String>, Error> {
         self.inner.get_acs_for_protein_seq(seq)
     }
 

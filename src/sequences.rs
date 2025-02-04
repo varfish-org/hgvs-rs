@@ -2,11 +2,11 @@
 //!
 //! Partially ported over from `bioutils.sequences`.
 
+pub use crate::sequences::error::Error;
+use crate::Sequence;
 use ahash::AHashMap;
 use md5::{Digest, Md5};
 use std::sync::LazyLock;
-
-pub use crate::sequences::error::Error;
 
 include!(concat!(env!("OUT_DIR"), "/tables_gen.rs"));
 
@@ -29,30 +29,26 @@ mod error {
     }
 }
 
-pub fn trim_common_prefixes(reference: &str, alternative: &str) -> (usize, String, String) {
+pub fn trim_common_prefixes(reference: &[u8], alternative: &[u8]) -> (usize, Sequence, Sequence) {
     if reference.is_empty() || alternative.is_empty() {
-        return (0, reference.to_string(), alternative.to_string());
+        return (0, reference.to_vec(), alternative.to_vec());
     }
 
     let mut trim = 0;
     while trim < reference.len() && trim < alternative.len() {
-        if reference.chars().nth(trim) != alternative.chars().nth(trim) {
+        if reference.get(trim) != alternative.get(trim) {
             break;
         }
 
         trim += 1;
     }
 
-    (
-        trim,
-        reference[trim..].to_string(),
-        alternative[trim..].to_string(),
-    )
+    (trim, reference[trim..].into(), alternative[trim..].into())
 }
 
-pub fn trim_common_suffixes(reference: &str, alternative: &str) -> (usize, String, String) {
+pub fn trim_common_suffixes(reference: &[u8], alternative: &[u8]) -> (usize, Sequence, Sequence) {
     if reference.is_empty() || alternative.is_empty() {
-        return (0, reference.to_string(), alternative.to_string());
+        return (0, reference.into(), alternative.into());
     }
 
     let mut trim = 0;
@@ -66,7 +62,7 @@ pub fn trim_common_suffixes(reference: &str, alternative: &str) -> (usize, Strin
         i_r -= 1;
         i_a -= 1;
 
-        if reference.chars().nth(i_r) != alternative.chars().nth(i_a) {
+        if reference.get(i_r) != alternative.get(i_a) {
             pad = 1;
             break;
         }
@@ -74,16 +70,14 @@ pub fn trim_common_suffixes(reference: &str, alternative: &str) -> (usize, Strin
 
     (
         trim - pad,
-        reference[..(i_r + pad)].to_string(),
-        alternative[..(i_a + pad)].to_string(),
+        reference[..(i_r + pad)].into(),
+        alternative[..(i_a + pad)].into(),
     )
 }
 
 /// Reverse complementing shortcut.
-pub fn revcomp(seq: &str) -> String {
-    std::str::from_utf8(&bio::alphabets::dna::revcomp(seq.as_bytes()))
-        .expect("invalid utf-8 encoding")
-        .to_string()
+pub fn revcomp(seq: &[u8]) -> Sequence {
+    bio::alphabets::dna::revcomp(seq)
 }
 
 /// Allow selection of translation table.
@@ -119,11 +113,11 @@ pub enum TranslationTable {
 ///
 /// The sequence as one of 1-letter amino acids.
 #[allow(dead_code)]
-pub fn aa_to_aa1(seq: &str) -> Result<String, Error> {
+pub fn aa_to_aa1(seq: &[u8]) -> Result<String, Error> {
     if looks_like_aa3_p(seq) {
         aa3_to_aa1(seq)
     } else {
-        Ok(seq.to_string())
+        Ok(String::from_utf8_lossy(seq).to_string())
     }
 }
 
@@ -139,9 +133,9 @@ pub fn aa_to_aa1(seq: &str) -> Result<String, Error> {
 ///
 /// The sequence as one of 1-letter amino acids.
 #[allow(dead_code)]
-pub fn aa_to_aa3(seq: &str) -> Result<String, Error> {
+pub fn aa_to_aa3(seq: &[u8]) -> Result<String, Error> {
     if looks_like_aa3_p(seq) {
-        Ok(seq.to_string())
+        Ok(String::from_utf8_lossy(seq).to_string())
     } else {
         aa1_to_aa3(seq)
     }
@@ -159,14 +153,14 @@ pub fn aa_to_aa3(seq: &str) -> Result<String, Error> {
 ///
 /// The sequence as 3-letter amino acids.
 #[allow(dead_code)]
-pub fn aa1_to_aa3(seq: &str) -> Result<String, Error> {
+pub fn aa1_to_aa3(seq: &[u8]) -> Result<String, Error> {
     if seq.is_empty() {
         return Ok(String::new());
     }
 
     let mut result = String::with_capacity(seq.len() * 3);
 
-    for (i, aa1) in seq.as_bytes().iter().enumerate() {
+    for (i, aa1) in seq.iter().enumerate() {
         let aa3 = AA1_TO_AA3_STR[*aa1 as usize].ok_or_else(|| {
             Error::InvalidOneLetterAminoAcid(format!("{:?}", aa1), format!("{}", i + 1))
         })?;
@@ -188,14 +182,14 @@ pub fn aa1_to_aa3(seq: &str) -> Result<String, Error> {
 ///
 /// The sequence as 1-letter amino acids.
 #[allow(dead_code)]
-pub fn aa3_to_aa1(seq: &str) -> Result<String, Error> {
+pub fn aa3_to_aa1(seq: &[u8]) -> Result<String, Error> {
     if seq.len() % 3 != 0 {
         return Err(Error::InvalidThreeLetterAminoAcidLength(seq.len()));
     }
 
     let mut result = String::with_capacity(seq.len() / 3);
 
-    for (i, aa3) in seq.as_bytes().chunks(3).enumerate() {
+    for (i, aa3) in seq.chunks(3).enumerate() {
         let aa1 = _aa3_to_aa1(aa3).ok_or_else(|| {
             Error::InvalidThreeLetterAminoAcid(format!("{:?}", aa3), format!("{}", i + 1))
         })? as char;
@@ -215,8 +209,8 @@ pub fn aa3_to_aa1(seq: &str) -> Result<String, Error> {
 ///
 /// Whether the string is of the format of a 3-letter AA string.
 #[allow(dead_code)]
-fn looks_like_aa3_p(seq: &str) -> bool {
-    seq.len() % 3 == 0 && seq.chars().nth(1).map(|c| c.is_lowercase()).unwrap_or(true)
+fn looks_like_aa3_p(seq: &[u8]) -> bool {
+    seq.len() % 3 == 0 && seq.get(1).map(|c| c.is_ascii_lowercase()).unwrap_or(true)
 }
 
 type Codon = [u8; 3];
@@ -382,13 +376,13 @@ impl CodonTranslator {
 ///
 /// The corresponding single letter amino acid sequence.
 pub fn translate_cds(
-    seq: &str,
+    seq: &[u8],
     full_codons: bool,
-    ter_symbol: &str,
+    ter_symbol: u8,
     translation_table: TranslationTable,
-) -> Result<String, Error> {
+) -> Result<Sequence, Error> {
     if seq.is_empty() {
-        return Ok("".to_string());
+        return Ok(b"".into());
     }
 
     if full_codons && seq.len() % 3 != 0 {
@@ -397,14 +391,14 @@ pub fn translate_cds(
 
     // Translate the codons from the input to result.
     let mut translator = CodonTranslator::new(translation_table);
-    let mut result = String::with_capacity(seq.len() / 3);
-    for chunk in seq.as_bytes().chunks_exact(3) {
-        result.push(char::from(translator.translate(chunk)?));
+    let mut result = Vec::with_capacity(seq.len() / 3);
+    for chunk in seq.chunks_exact(3) {
+        result.push(translator.translate(chunk)?);
     }
 
     // Check for trailing bases and add the ter symbol if required.
     if !full_codons && seq.len() % 3 != 0 {
-        result.push_str(ter_symbol);
+        result.push(ter_symbol);
     }
 
     Ok(result)
@@ -421,16 +415,16 @@ pub fn translate_cds(
 /// # Returns
 ///
 /// The sequence as a string of uppercase letters.
-pub fn normalize_sequence(seq: &str) -> Result<String, Error> {
-    let mut result = String::new();
+pub fn normalize_sequence(seq: &[u8]) -> Result<Sequence, Error> {
+    let mut result = Sequence::new();
 
-    for c in seq.chars() {
-        if !c.is_whitespace() && c != '*' {
+    for c in seq {
+        if !c.is_ascii_whitespace() && *c != b'*' {
             let c = c.to_ascii_uppercase();
-            if c.is_alphabetic() {
+            if c.is_ascii_alphabetic() {
                 result.push(c)
             } else {
-                return Err(Error::NotAlphabetic(c));
+                return Err(Error::NotAlphabetic(c as char));
             }
         }
     }
@@ -451,7 +445,7 @@ pub fn normalize_sequence(seq: &str) -> Result<String, Error> {
 /// # Returns
 ///
 /// Unicode MD5 hex digest representation of sequence.
-pub fn seq_md5(seq: &str, normalize: bool) -> Result<String, Error> {
+pub fn seq_md5(seq: &[u8], normalize: bool) -> Result<String, Error> {
     let seq = if normalize {
         normalize_sequence(seq)?
     } else {
@@ -475,69 +469,69 @@ mod test {
     #[test]
     fn suffix_trimming() {
         assert_eq!(
-            trim_common_suffixes("", ""),
-            (0, "".to_string(), "".to_string())
+            trim_common_suffixes(b"", b""),
+            (0, vec![], vec![])
         );
         assert_eq!(
-            trim_common_suffixes("", "C"),
-            (0, "".to_string(), "C".to_string())
+            trim_common_suffixes(b"", b"C"),
+            (0, vec![], b"C".to_vec())
         );
         assert_eq!(
-            trim_common_suffixes("C", ""),
-            (0, "C".to_string(), "".to_string())
+            trim_common_suffixes(b"C", b""),
+            (0, b"C".to_vec(), vec![])
         );
         assert_eq!(
-            trim_common_suffixes("A", "AA"),
-            (1, "".to_string(), "A".to_string())
+            trim_common_suffixes(b"A", b"AA"),
+            (1, vec![], b"A".to_vec())
         );
         assert_eq!(
-            trim_common_suffixes("AT", "AG"),
-            (0, "AT".to_string(), "AG".to_string())
+            trim_common_suffixes(b"AT", b"AG"),
+            (0, b"AT".to_vec(), b"AG".to_vec())
         );
         assert_eq!(
-            trim_common_suffixes("ATCG", "AGCG"),
-            (2, "AT".to_string(), "AG".to_string())
+            trim_common_suffixes(b"ATCG", b"AGCG"),
+            (2, b"AT".to_vec(), b"AG".to_vec())
         );
     }
 
     #[test]
     fn prefix_trimming() {
         assert_eq!(
-            trim_common_prefixes("", ""),
-            (0, "".to_string(), "".to_string())
+            trim_common_prefixes(b"", b""),
+            (0, vec![], vec![])
         );
         assert_eq!(
-            trim_common_prefixes("", "C"),
-            (0, "".to_string(), "C".to_string())
+            trim_common_prefixes(b"", b"C"),
+            (0, vec![], b"C".to_vec())
         );
         assert_eq!(
-            trim_common_prefixes("C", ""),
-            (0, "C".to_string(), "".to_string())
+            trim_common_prefixes(b"C", b""),
+            (0, b"C".to_vec(), vec![])
         );
         assert_eq!(
-            trim_common_prefixes("TA", "GA"),
-            (0, "TA".to_string(), "GA".to_string())
+            trim_common_prefixes(b"TA", b"GA"),
+            (0, b"TA".to_vec(), b"GA".to_vec())
         );
         assert_eq!(
-            trim_common_prefixes("CGTA", "CGGA"),
-            (2, "TA".to_string(), "GA".to_string())
+            trim_common_prefixes(b"CGTA", b"CGGA"),
+            (2, b"TA".to_vec(), b"GA".to_vec())
         );
     }
 
     #[test]
     fn revcomp_cases() {
-        assert_eq!(revcomp(""), "");
-        assert_eq!(revcomp("A"), "T");
-        assert_eq!(revcomp("AG"), "CT");
-        assert_eq!(revcomp("CGAG"), "CTCG");
+        assert_eq!(revcomp(b""), b"");
+        assert_eq!(revcomp(b"A"), b"T");
+        assert_eq!(revcomp(b"AG"), b"CT");
+        assert_eq!(revcomp(b"CGAG"), b"CTCG");
     }
 
     #[test]
     fn aa_to_aa1_examples() -> Result<(), Error> {
-        assert_eq!(aa_to_aa1("")?, "");
-        assert_eq!(aa_to_aa1("CATSARELAME")?, "CATSARELAME");
+        assert_eq!(aa_to_aa1(b"")?, "");
+        assert_eq!(aa_to_aa1(b"CATSARELAME")?, "CATSARELAME");
         assert_eq!(
-            aa_to_aa1("CysAlaThrSerAlaArgGluLeuAlaMetGlu")?,
+            aa_to_aa1(b"CysAlaThrSerAlaArgGluLeuAlaMetGlu")?,
             "CATSARELAME"
         );
 
@@ -546,9 +540,9 @@ mod test {
 
     #[test]
     fn aa1_to_aa3_examples() -> Result<(), Error> {
-        assert_eq!(aa1_to_aa3("")?, "");
+        assert_eq!(aa1_to_aa3(b"")?, "");
         assert_eq!(
-            aa1_to_aa3("CATSARELAME")?,
+            aa1_to_aa3(b"CATSARELAME")?,
             "CysAlaThrSerAlaArgGluLeuAlaMetGlu"
         );
 
@@ -557,10 +551,10 @@ mod test {
 
     #[test]
     fn aa3_to_aa1_examples() -> Result<(), Error> {
-        assert!(aa3_to_aa1("Te").is_err());
-        assert_eq!(aa3_to_aa1("")?, "");
+        assert!(aa3_to_aa1(b"Te").is_err());
+        assert_eq!(aa3_to_aa1(b"")?, "");
         assert_eq!(
-            aa3_to_aa1("CysAlaThrSerAlaArgGluLeuAlaMetGlu")?,
+            aa3_to_aa1(b"CysAlaThrSerAlaArgGluLeuAlaMetGlu")?,
             "CATSARELAME"
         );
 
@@ -570,91 +564,91 @@ mod test {
     #[test]
     fn translate_cds_examples() -> Result<(), Error> {
         assert_eq!(
-            translate_cds("ATGCGA", true, "*", TranslationTable::Standard)?,
-            "MR"
+            translate_cds(b"ATGCGA", true, b'*', TranslationTable::Standard)?,
+            b"MR".to_vec()
         );
         assert_eq!(
-            translate_cds("AUGCGA", true, "*", TranslationTable::Standard)?,
-            "MR"
+            translate_cds(b"AUGCGA", true, b'*', TranslationTable::Standard)?,
+            b"MR".to_vec()
         );
         assert_eq!(
-            translate_cds("", true, "*", TranslationTable::Standard)?,
-            ""
+            translate_cds(b"", true, b'*', TranslationTable::Standard)?,
+            b"".to_vec()
         );
-        assert!(translate_cds("AUGCG", true, "*", TranslationTable::Standard).is_err());
+        assert!(translate_cds(b"AUGCG", true, b'*', TranslationTable::Standard).is_err());
         assert_eq!(
-            translate_cds("AUGCG", false, "*", TranslationTable::Standard)?,
-            "M*"
-        );
-        assert_eq!(
-            translate_cds("ATGTAN", true, "*", TranslationTable::Standard)?,
-            "MX"
+            translate_cds(b"AUGCG", false, b'*', TranslationTable::Standard)?,
+            b"M*".to_vec()
         );
         assert_eq!(
-            translate_cds("CCN", true, "*", TranslationTable::Standard)?,
-            "P"
+            translate_cds(b"ATGTAN", true, b'*', TranslationTable::Standard)?,
+            b"MX".to_vec()
         );
         assert_eq!(
-            translate_cds("TRA", true, "*", TranslationTable::Standard)?,
-            "*"
+            translate_cds(b"CCN", true, b'*', TranslationTable::Standard)?,
+            b"P".to_vec()
         );
         assert_eq!(
-            translate_cds("TTNTA", false, "*", TranslationTable::Standard)?,
-            "X*"
+            translate_cds(b"TRA", true, b'*', TranslationTable::Standard)?,
+            b"*".to_vec()
         );
         assert_eq!(
-            translate_cds("CTB", true, "*", TranslationTable::Standard)?,
-            "L"
+            translate_cds(b"TTNTA", false, b'*', TranslationTable::Standard)?,
+            b"X*".to_vec()
         );
         assert_eq!(
-            translate_cds("AGM", true, "*", TranslationTable::Standard)?,
-            "X"
+            translate_cds(b"CTB", true, b'*', TranslationTable::Standard)?,
+            b"L".to_vec()
         );
         assert_eq!(
-            translate_cds("GAS", true, "*", TranslationTable::Standard)?,
-            "X"
+            translate_cds(b"AGM", true, b'*', TranslationTable::Standard)?,
+            b"X".to_vec()
         );
         assert_eq!(
-            translate_cds("CUN", true, "*", TranslationTable::Standard)?,
-            "L"
+            translate_cds(b"GAS", true, b'*', TranslationTable::Standard)?,
+            b"X".to_vec()
         );
-        assert!(translate_cds("AUGCGQ", true, "*", TranslationTable::Standard).is_err());
+        assert_eq!(
+            translate_cds(b"CUN", true, b'*', TranslationTable::Standard)?,
+            b"L".to_vec()
+        );
+        assert!(translate_cds(b"AUGCGQ", true, b'*', TranslationTable::Standard).is_err());
 
         Ok(())
     }
 
     #[test]
     fn seq_md5_examples() -> Result<(), Error> {
-        assert_eq!(seq_md5("", true)?, "d41d8cd98f00b204e9800998ecf8427e");
-        assert_eq!(seq_md5("ACGT", true)?, "f1f8f4bf413b16ad135722aa4591043e");
-        assert_eq!(seq_md5("ACGT*", true)?, "f1f8f4bf413b16ad135722aa4591043e");
+        assert_eq!(seq_md5(b"", true)?, "d41d8cd98f00b204e9800998ecf8427e");
+        assert_eq!(seq_md5(b"ACGT", true)?, "f1f8f4bf413b16ad135722aa4591043e");
+        assert_eq!(seq_md5(b"ACGT*", true)?, "f1f8f4bf413b16ad135722aa4591043e");
         assert_eq!(
-            seq_md5(" A C G T ", true)?,
+            seq_md5(b" A C G T ", true)?,
             "f1f8f4bf413b16ad135722aa4591043e"
         );
-        assert_eq!(seq_md5("acgt", true)?, "f1f8f4bf413b16ad135722aa4591043e");
-        assert_eq!(seq_md5("acgt", false)?, "db516c3913e179338b162b2476d1c23f");
+        assert_eq!(seq_md5(b"acgt", true)?, "f1f8f4bf413b16ad135722aa4591043e");
+        assert_eq!(seq_md5(b"acgt", false)?, "db516c3913e179338b162b2476d1c23f");
 
         Ok(())
     }
 
     #[test]
     fn normalize_sequence_examples() -> Result<(), Error> {
-        assert_eq!(normalize_sequence("ACGT")?, "ACGT");
-        assert_eq!(normalize_sequence("  A C G T * ")?, "ACGT");
-        assert!(normalize_sequence("ACGT1").is_err());
+        assert_eq!(normalize_sequence(b"ACGT")?, b"ACGT".to_vec());
+        assert_eq!(normalize_sequence(b"  A C G T * ")?, b"ACGT".to_vec());
+        assert!(normalize_sequence(b"ACGT1").is_err());
 
         Ok(())
     }
 
     #[test]
     fn exercise_lazy_ds() {
-        assert!(DNA_ASCII_MAP[0] == b'\0');
-        assert!(DNA_ASCII_TO_2BIT[b'A' as usize] == 0);
-        assert!(AA3_TO_AA1_VEC[0] == ("Ala", "A"));
-        assert!(DNA_TO_AA1_LUT_VEC[0] == ("AAA", "K"));
-        assert!(DNA_TO_AA1_SEC_VEC[0] == ("AAA", "K"));
-        assert!(DNA_TO_AA1_CHRMT_VERTEBRATE_VEC[0] == ("AAA", "K"));
+        assert_eq!(DNA_ASCII_MAP[0], b'\0');
+        assert_eq!(DNA_ASCII_TO_2BIT[b'A' as usize], 0);
+        assert_eq!(AA3_TO_AA1_VEC[0], ("Ala", "A"));
+        assert_eq!(DNA_TO_AA1_LUT_VEC[0], ("AAA", "K"));
+        assert_eq!(DNA_TO_AA1_SEC_VEC[0], ("AAA", "K"));
+        assert_eq!(DNA_TO_AA1_CHRMT_VERTEBRATE_VEC[0], ("AAA", "K"));
     }
 
     #[test]

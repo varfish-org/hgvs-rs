@@ -856,15 +856,15 @@ mod test {
             let var_g = HgvsVariant::from_str(hgvs_g)?;
             let var_n = HgvsVariant::from_str(hgvs_n)?;
 
-            let var_c = var_c.with_reference("NNNNNN".to_string());
+            let var_c = var_c.with_reference(b"NNNNNN".into());
             let fixed_c = mapper.replace_reference(var_c)?;
             assert_eq!(format!("{}", &fixed_c), hgvs_c, "gene={gene}");
 
-            let var_g = var_g.with_reference("NNNNNN".to_string());
+            let var_g = var_g.with_reference(b"NNNNNN".into());
             let fixed_g = mapper.replace_reference(var_g)?;
             assert_eq!(format!("{}", &fixed_g), hgvs_g, "gene={gene}");
 
-            let var_n = var_n.with_reference("NNNNNN".to_string());
+            let var_n = var_n.with_reference(b"NNNNNN".into());
             let fixed_n = mapper.replace_reference(var_n)?;
             assert_eq!(format!("{}", &fixed_n), hgvs_n, "gene={gene}");
 

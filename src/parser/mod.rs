@@ -96,8 +96,8 @@ mod test {
                         }
                     }),
                     edit: Mu::Certain(NaEdit::RefAlt {
-                        reference: "A".to_string(),
-                        alternative: "T".to_string()
+                        reference: b"A".to_vec(),
+                        alternative: b"T".to_vec()
                     })
                 }
             }

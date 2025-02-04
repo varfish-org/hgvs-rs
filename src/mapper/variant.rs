@@ -2,22 +2,15 @@
 
 use std::ops::Deref;
 use std::{ops::Range, sync::Arc};
-
+use bstr::ByteVec;
 use cached::proc_macro::cached;
 use cached::SizedCache;
 use log::{debug, info};
 
-use crate::{
-    data::interface::Provider,
-    mapper::Error,
-    normalizer::{self, Normalizer},
-    parser::{
-        Accession, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval, GenomeLocEdit,
-        HgvsVariant, Mu, NaEdit, TxInterval, TxLocEdit, TxPos,
-    },
-    sequences::revcomp,
-    validator::{ValidationLevel, Validator},
-};
+use crate::{data::interface::Provider, mapper::Error, normalizer::{self, Normalizer}, parser::{
+    Accession, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval, GenomeLocEdit,
+    HgvsVariant, Mu, NaEdit, TxInterval, TxLocEdit, TxPos,
+}, sequences::revcomp, validator::{ValidationLevel, Validator}, Sequence};
 
 use super::alignment;
 
@@ -244,7 +237,7 @@ impl Mapper {
                                 },
                             }),
                             Mu::Certain(NaEdit::RefAlt {
-                                reference: "".to_string(),
+                                reference: vec![],
                                 alternative: alternative.clone(),
                             }),
                         )
@@ -255,17 +248,27 @@ impl Mapper {
                     (Mu::Certain((*pos_n).clone()), edit_n)
                 }
             } else {
-                // This is the how the original code handles uncertain positions.  We will reach
+                // This is how the original code handles uncertain positions.  We will reach
                 // here if the position is uncertain and we have the genome sequence.
                 let pos_g = mapper.n_to_g(pos_n)?;
                 let edit_n = NaEdit::RefAlt {
-                    reference: "".to_string(),
+                    reference: vec![],
                     alternative: self.get_altered_sequence(
                         mapper.strand,
                         pos_g.inner().clone().try_into()?,
                         &var_g,
                     )?,
                 };
+
+                // let pos_g = var_g.loc_range().expect("Genome variant must have a range");
+                // let edit_n = NaEdit::RefAlt {
+                //     reference: vec![],
+                //     alternative: self.get_altered_sequence(
+                //         mapper.strand,
+                //         pos_g,
+                //         &var_g,
+                //     )?,
+                // };
                 (Mu::Certain((*pos_n).clone()), Mu::Certain(edit_n))
             };
 
@@ -333,7 +336,7 @@ impl Mapper {
                             }),
                             Mu::from(
                                 NaEdit::RefAlt {
-                                    reference: "".to_string(),
+                                    reference: vec![],
                                     alternative: alternative.to_owned(),
                                 },
                                 edit_g.is_certain(),
@@ -349,7 +352,7 @@ impl Mapper {
                 // variant at alignment gap
                 let pos_n = mapper.g_to_n(pos_g.inner())?;
                 let edit_g = NaEdit::RefAlt {
-                    reference: "".to_string(),
+                    reference: vec![],
                     alternative: self.get_altered_sequence(
                         mapper.strand,
                         pos_n.inner().clone().into(),
@@ -432,7 +435,7 @@ impl Mapper {
                                 },
                             }),
                             Mu::Certain(NaEdit::RefAlt {
-                                reference: "".to_string(),
+                                reference: vec![],
                                 alternative: alternative.clone(),
                             }),
                         )
@@ -445,7 +448,7 @@ impl Mapper {
             } else {
                 let pos_g = mapper.c_to_g(pos_c.inner())?;
                 let edit_c = NaEdit::RefAlt {
-                    reference: "".to_string(),
+                    reference: vec![],
                     alternative: self.get_altered_sequence(
                         mapper.strand,
                         pos_g.inner().clone().try_into()?,
@@ -517,7 +520,7 @@ impl Mapper {
                             }),
                             Mu::from(
                                 NaEdit::RefAlt {
-                                    reference: "".to_string(),
+                                    reference: vec![],
                                     alternative: alternative.clone(),
                                 },
                                 edit_g.is_certain(),
@@ -546,7 +549,7 @@ impl Mapper {
                     },
                 };
                 let edit_n = NaEdit::RefAlt {
-                    reference: "".to_string(),
+                    reference: vec![],
                     alternative: self.get_altered_sequence(
                         mapper.strand,
                         pos_n.inner().clone().into(),
@@ -765,7 +768,7 @@ impl Mapper {
         strand: i16,
         interval: Range<i32>,
         var: &HgvsVariant,
-    ) -> Result<String, Error> {
+    ) -> Result<Sequence, Error> {
         let mut seq = self.provider.as_ref().get_seq_part(
             var.accession(),
             Some(
@@ -787,6 +790,16 @@ impl Mapper {
             .ok_or(Error::NoAlteredSequenceForMissingPositions)?;
         let r = ((r.start - interval.start) as usize)..((r.end - interval.start) as usize);
 
+        // dbg!(
+        //     var,
+        //     strand,
+        //     &interval,
+        //     interval.end - interval.start,
+        //     &r,
+        //     &seq,
+        //     seq.len()
+        // );
+
         let na_edit = var.na_edit().ok_or(Error::NaEditMissing)?;
 
         match na_edit {
@@ -798,7 +811,7 @@ impl Mapper {
                 seq.replace_range((r.start + 1)..(r.start + 1), alternative)
             }
             NaEdit::Dup { .. } => {
-                let seg = seq[r.clone()].to_string();
+                let seg = seq[r.clone()].to_vec();
                 seq.replace_range(r.end..r.end, &seg);
             }
             NaEdit::InvRef { .. } | NaEdit::InvNum { .. } => {
@@ -1182,17 +1195,15 @@ mod test {
         use anyhow::Error;
 
         use crate::data::interface;
-        use crate::{
-            data::interface::TxIdentityInfo,
-            mapper::variant::{Config, Mapper},
-        };
+        use crate::{data::interface::TxIdentityInfo, mapper::variant::{Config, Mapper}, Sequence};
         use std::sync::atomic::AtomicUsize;
         static PROVIDER_COUNT: AtomicUsize = AtomicUsize::new(0);
 
         #[derive(Debug, serde::Deserialize)]
         struct ProviderRecord {
             pub accession: String,
-            pub transcript_sequence: String,
+            #[serde(with = "serde_bytes")]
+            pub transcript_sequence: Sequence,
             pub cds_start_i: i32,
             pub cds_end_i: i32,
         }
@@ -1260,15 +1271,15 @@ mod test {
                 tx_ac: &str,
                 begin: Option<usize>,
                 end: Option<usize>,
-            ) -> Result<String, crate::data::error::Error> {
+            ) -> Result<Sequence, crate::data::error::Error> {
                 for record in &self.records {
                     if record.accession == tx_ac {
                         let seq = &record.transcript_sequence;
                         return match (begin, end) {
-                            (None, None) => Ok(seq.to_string()),
-                            (None, Some(end)) => Ok(seq[..end].to_string()),
-                            (Some(begin), None) => Ok(seq[begin..].to_string()),
-                            (Some(begin), Some(end)) => Ok(seq[begin..end].to_string()),
+                            (None, None) => Ok(seq.clone()),
+                            (None, Some(end)) => Ok(seq[..end].into()),
+                            (Some(begin), None) => Ok(seq[begin..].into()),
+                            (Some(begin), Some(end)) => Ok(seq[begin..end].into()),
                         };
                     }
                 }
@@ -1279,7 +1290,7 @@ mod test {
 
             fn get_acs_for_protein_seq(
                 &self,
-                _seq: &str,
+                _seq: &[u8],
             ) -> Result<Vec<String>, crate::data::error::Error> {
                 panic!("for test use only");
             }

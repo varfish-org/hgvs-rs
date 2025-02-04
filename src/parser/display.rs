@@ -57,6 +57,7 @@ impl Display for GeneSymbol {
 
 impl Display for NaEdit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // TODO let Sequence be a new type and/or define a new trait - and implement Display for it.
         match self {
             NaEdit::RefAlt {
                 reference,
@@ -67,30 +68,58 @@ impl Display for NaEdit {
                     if reference == alternative {
                         write!(f, "=")
                     } else {
+                        let reference = String::from_utf8_lossy(&reference);
+                        let alternative = String::from_utf8_lossy(&alternative);
                         write!(f, "{reference}>{alternative}")
                     }
                 }
-                (0, _) => write!(f, "delins{alternative}"),
-                (_, 0) => write!(f, "del{reference}ins"),
+                (0, _) => {
+                    let alternative = String::from_utf8_lossy(&alternative);
+                    write!(f, "delins{alternative}")
+                }
+                (_, 0) => {
+                    let reference = String::from_utf8_lossy(&reference);
+                    write!(f, "del{reference}ins")
+                }
                 (_, _) => {
                     if reference == alternative {
                         write!(f, "=")
                     } else {
+                        let reference = String::from_utf8_lossy(&reference);
+                        let alternative = String::from_utf8_lossy(&alternative);
                         write!(f, "del{reference}ins{alternative}")
                     }
                 }
             },
             NaEdit::NumAlt { count, alternative } => match (count, alternative.len()) {
                 (0, 0) => write!(f, "="),
-                (0, _) => write!(f, "delins{alternative}"),
+                (0, _) => {
+                    let alternative = String::from_utf8_lossy(&alternative);
+                    write!(f, "delins{alternative}")
+                }
                 (_, 0) => write!(f, "del{count}ins"),
-                (_, _) => write!(f, "del{count}ins{alternative}"),
+                (_, _) => {
+                    let alternative = String::from_utf8_lossy(&alternative);
+                    write!(f, "del{count}ins{alternative}")
+                }
             },
-            NaEdit::DelRef { reference } => write!(f, "del{reference}"),
+            NaEdit::DelRef { reference } => {
+                let reference = String::from_utf8_lossy(&reference);
+                write!(f, "del{reference}")
+            }
             NaEdit::DelNum { count } => write!(f, "del{count}"),
-            NaEdit::Ins { alternative } => write!(f, "ins{alternative}"),
-            NaEdit::Dup { reference } => write!(f, "dup{reference}"),
-            NaEdit::InvRef { reference } => write!(f, "inv{reference}"),
+            NaEdit::Ins { alternative } => {
+                let alternative = String::from_utf8_lossy(&alternative);
+                write!(f, "ins{alternative}")
+            }
+            NaEdit::Dup { reference } => {
+                let reference = String::from_utf8_lossy(&reference);
+                write!(f, "dup{reference}")
+            }
+            NaEdit::InvRef { reference } => {
+                let reference = String::from_utf8_lossy(&reference);
+                write!(f, "inv{reference}")
+            }
             NaEdit::InvNum { count } => write!(f, "inv{count}"),
         }
     }
@@ -108,6 +137,8 @@ impl Display for NoRef<'_, NaEdit> {
                     if reference == alternative {
                         write!(f, "=")
                     } else {
+                        let reference = String::from_utf8_lossy(&reference);
+                        let alternative = String::from_utf8_lossy(&alternative);
                         write!(f, "{reference}>{alternative}")
                     }
                 }
@@ -116,6 +147,7 @@ impl Display for NoRef<'_, NaEdit> {
                     if reference == alternative {
                         write!(f, "=")
                     } else {
+                        let alternative = String::from_utf8_lossy(&alternative);
                         write!(f, "delins{alternative}")
                     }
                 }
@@ -123,10 +155,16 @@ impl Display for NoRef<'_, NaEdit> {
             NoRef(NaEdit::NumAlt { count, alternative }) => match (count, alternative.len()) {
                 (0, 0) => write!(f, "="),
                 (_, 0) => write!(f, "delins"),
-                (_, _) => write!(f, "delins{alternative}"),
+                (_, _) => {
+                    let alternative = String::from_utf8_lossy(&alternative);
+                    write!(f, "delins{alternative}")
+                }
             },
             NoRef(NaEdit::DelRef { .. }) | NoRef(NaEdit::DelNum { .. }) => write!(f, "del"),
-            NoRef(NaEdit::Ins { alternative }) => write!(f, "ins{alternative}"),
+            NoRef(NaEdit::Ins { alternative }) => {
+                let alternative = String::from_utf8_lossy(&alternative);
+                write!(f, "ins{alternative}")
+            }
             NoRef(NaEdit::Dup { .. }) => write!(f, "dup"),
             NoRef(NaEdit::InvRef { .. }) | NoRef(NaEdit::InvNum { .. }) => write!(f, "inv"),
         }
@@ -160,8 +198,14 @@ impl Display for ProteinEdit {
                 (None, None, UncertainLengthChange::None) => write!(f, "fsTer"),
                 (None, None, UncertainLengthChange::Unknown) => write!(f, "fsTer?"),
                 (None, None, UncertainLengthChange::Known(count)) => write!(f, "fsTer{count}"),
-                (Some(alt), None, UncertainLengthChange::None) => write!(f, "{alt}fsTer"),
-                (Some(alt), None, UncertainLengthChange::Unknown) => write!(f, "{alt}fsTer?"),
+                (Some(alt), None, UncertainLengthChange::None) => {
+                    let alt = String::from_utf8_lossy(&alt);
+                    write!(f, "{alt}fsTer")
+                }
+                (Some(alt), None, UncertainLengthChange::Unknown) => {
+                    let alt = String::from_utf8_lossy(&alt);
+                    write!(f, "{alt}fsTer?")
+                }
                 (Some(alt), None, UncertainLengthChange::Known(count)) => {
                     let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
                     write!(f, "{alt}fsTer{count}")
@@ -232,8 +276,14 @@ impl Display for ProteinEdit {
                     let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
                     write!(f, "{alt}ext{count}")
                 }
-                (None, Some(ter), UncertainLengthChange::None) => write!(f, "ext{ter}"),
-                (None, Some(ter), UncertainLengthChange::Unknown) => write!(f, "ext{ter}?"),
+                (None, Some(ter), UncertainLengthChange::None) => {
+                    let ter = String::from_utf8_lossy(&ter);
+                    write!(f, "ext{ter}")
+                }
+                (None, Some(ter), UncertainLengthChange::Unknown) => {
+                    let ter = String::from_utf8_lossy(&ter);
+                    write!(f, "ext{ter}?")
+                }
                 (None, Some(ter), UncertainLengthChange::Known(count)) => {
                     let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
                     write!(f, "ext{ter}{count}")
@@ -279,7 +329,7 @@ impl Display for ProteinEdit {
 
 impl Display for ProtPos {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let aa = aa_to_aa3(&self.aa).expect("aa_to_aa3 conversion failed");
+        let aa = aa_to_aa3(&vec![self.aa]).expect("aa_to_aa3 conversion failed");
         write!(f, "{aa}{}", self.number)
     }
 }
@@ -675,8 +725,8 @@ mod test {
             format!(
                 "{}",
                 NaEdit::RefAlt {
-                    reference: "".to_string(),
-                    alternative: "".to_string()
+                    reference: vec![],
+                    alternative: vec![],
                 }
             ),
             "=".to_string()
@@ -686,8 +736,8 @@ mod test {
             format!(
                 "{}",
                 NaEdit::RefAlt {
-                    reference: "C".to_string(),
-                    alternative: "T".to_string()
+                    reference: b"C".to_vec(),
+                    alternative: b"T".to_vec(),
                 }
             ),
             "C>T".to_string()
@@ -697,8 +747,8 @@ mod test {
             format!(
                 "{}",
                 NaEdit::RefAlt {
-                    reference: "CC".to_string(),
-                    alternative: "T".to_string()
+                    reference: b"CC".to_vec(),
+                    alternative: b"T".to_vec()
                 }
             ),
             "delCCinsT".to_string()
@@ -708,8 +758,8 @@ mod test {
             format!(
                 "{}",
                 NaEdit::RefAlt {
-                    reference: "C".to_string(),
-                    alternative: "".to_string()
+                    reference: b"C".to_vec(),
+                    alternative: vec![]
                 }
             ),
             "delCins".to_string()
@@ -719,8 +769,8 @@ mod test {
             format!(
                 "{}",
                 NaEdit::RefAlt {
-                    reference: "".to_string(),
-                    alternative: "C".to_string()
+                    reference: vec![],
+                    alternative: b"C".to_vec()
                 }
             ),
             "delinsC".to_string()
@@ -734,7 +784,7 @@ mod test {
                 "{}",
                 NaEdit::NumAlt {
                     count: 0,
-                    alternative: "".to_string()
+                    alternative: vec![]
                 }
             ),
             "=".to_string()
@@ -745,7 +795,7 @@ mod test {
                 "{}",
                 NaEdit::NumAlt {
                     count: 0,
-                    alternative: "T".to_string()
+                    alternative: b"T".to_vec()
                 }
             ),
             "delinsT".to_string()
@@ -755,7 +805,7 @@ mod test {
                 "{}",
                 NaEdit::NumAlt {
                     count: 3,
-                    alternative: "".to_string()
+                    alternative: vec![]
                 }
             ),
             "del3ins".to_string()
@@ -766,7 +816,7 @@ mod test {
                 "{}",
                 NaEdit::NumAlt {
                     count: 3,
-                    alternative: "T".to_string()
+                    alternative: b"T".to_vec()
                 }
             ),
             "del3insT".to_string()
@@ -779,7 +829,7 @@ mod test {
             format!(
                 "{}",
                 NaEdit::DelRef {
-                    reference: "T".to_string()
+                    reference: b"T".to_vec()
                 }
             ),
             "delT".to_string()
@@ -800,7 +850,7 @@ mod test {
             format!(
                 "{}",
                 NaEdit::Ins {
-                    alternative: "T".to_string()
+                    alternative: b"T".to_vec()
                 }
             ),
             "insT".to_string()
@@ -813,7 +863,7 @@ mod test {
             format!(
                 "{}",
                 NaEdit::Dup {
-                    reference: "T".to_string()
+                    reference: b"T".to_vec()
                 }
             ),
             "dupT".to_string()
@@ -826,7 +876,7 @@ mod test {
             format!(
                 "{}",
                 NaEdit::InvRef {
-                    reference: "T".to_string()
+                    reference: b"T".to_vec()
                 }
             ),
             "invT".to_string()
@@ -907,7 +957,7 @@ mod test {
             format!(
                 "{}",
                 ProteinEdit::Fs {
-                    alternative: Some("Leu".to_string()),
+                    alternative: Some(b"Leu".to_vec()),
                     terminal: None,
                     length: UncertainLengthChange::None,
                 }
@@ -918,7 +968,7 @@ mod test {
             format!(
                 "{}",
                 ProteinEdit::Fs {
-                    alternative: Some("Leu".to_string()),
+                    alternative: Some(b"Leu".to_vec()),
                     terminal: None,
                     length: UncertainLengthChange::Unknown,
                 }
@@ -929,7 +979,7 @@ mod test {
             format!(
                 "{}",
                 ProteinEdit::Fs {
-                    alternative: Some("Leu".to_string()),
+                    alternative: Some(b"Leu".to_vec()),
                     terminal: None,
                     length: UncertainLengthChange::Known(42),
                 }
@@ -942,7 +992,7 @@ mod test {
                 "{}",
                 ProteinEdit::Fs {
                     alternative: None,
-                    terminal: Some("Ter".to_string()),
+                    terminal: Some(b"Ter".to_vec()),
                     length: UncertainLengthChange::None,
                 }
             ),
@@ -953,7 +1003,7 @@ mod test {
                 "{}",
                 ProteinEdit::Fs {
                     alternative: None,
-                    terminal: Some("Ter".to_string()),
+                    terminal: Some(b"Ter".to_vec()),
                     length: UncertainLengthChange::Unknown,
                 }
             ),
@@ -964,7 +1014,7 @@ mod test {
                 "{}",
                 ProteinEdit::Fs {
                     alternative: None,
-                    terminal: Some("Ter".to_string()),
+                    terminal: Some(b"Ter".to_vec()),
                     length: UncertainLengthChange::Known(42),
                 }
             ),
@@ -975,8 +1025,8 @@ mod test {
             format!(
                 "{}",
                 ProteinEdit::Fs {
-                    alternative: Some("Leu".to_string()),
-                    terminal: Some("Ter".to_string()),
+                    alternative: Some(b"Leu".to_vec()),
+                    terminal: Some(b"Ter".to_vec()),
                     length: UncertainLengthChange::None,
                 }
             ),
@@ -986,8 +1036,8 @@ mod test {
             format!(
                 "{}",
                 ProteinEdit::Fs {
-                    alternative: Some("Leu".to_string()),
-                    terminal: Some("Ter".to_string()),
+                    alternative: Some(b"Leu".to_vec()),
+                    terminal: Some(b"Ter".to_vec()),
                     length: UncertainLengthChange::Unknown,
                 }
             ),
@@ -997,8 +1047,8 @@ mod test {
             format!(
                 "{}",
                 ProteinEdit::Fs {
-                    alternative: Some("Leu".to_string()),
-                    terminal: Some("Ter".to_string()),
+                    alternative: Some(b"Leu".to_vec()),
+                    terminal: Some(b"Ter".to_vec()),
                     length: UncertainLengthChange::Known(42),
                 }
             ),
@@ -1046,7 +1096,7 @@ mod test {
             format!(
                 "{}",
                 ProteinEdit::Ext {
-                    aa_ext: Some("Leu".to_string()),
+                    aa_ext: Some(b"Leu".to_vec()),
                     ext_aa: None,
                     change: UncertainLengthChange::None,
                 }
@@ -1057,7 +1107,7 @@ mod test {
             format!(
                 "{}",
                 ProteinEdit::Ext {
-                    aa_ext: Some("Leu".to_string()),
+                    aa_ext: Some(b"Leu".to_vec()),
                     ext_aa: None,
                     change: UncertainLengthChange::Unknown,
                 }
@@ -1068,7 +1118,7 @@ mod test {
             format!(
                 "{}",
                 ProteinEdit::Ext {
-                    aa_ext: Some("Leu".to_string()),
+                    aa_ext: Some(b"Leu".to_vec()),
                     ext_aa: None,
                     change: UncertainLengthChange::Known(42),
                 }
@@ -1081,7 +1131,7 @@ mod test {
                 "{}",
                 ProteinEdit::Ext {
                     aa_ext: None,
-                    ext_aa: Some("Thr".to_string()),
+                    ext_aa: Some(b"Thr".to_vec()),
                     change: UncertainLengthChange::None,
                 }
             ),
@@ -1092,7 +1142,7 @@ mod test {
                 "{}",
                 ProteinEdit::Ext {
                     aa_ext: None,
-                    ext_aa: Some("Thr".to_string()),
+                    ext_aa: Some(b"Thr".to_vec()),
                     change: UncertainLengthChange::Unknown,
                 }
             ),
@@ -1103,7 +1153,7 @@ mod test {
                 "{}",
                 ProteinEdit::Ext {
                     aa_ext: None,
-                    ext_aa: Some("Thr".to_string()),
+                    ext_aa: Some(b"Thr".to_vec()),
                     change: UncertainLengthChange::Known(42),
                 }
             ),
@@ -1114,8 +1164,8 @@ mod test {
             format!(
                 "{}",
                 ProteinEdit::Ext {
-                    aa_ext: Some("Leu".to_string()),
-                    ext_aa: Some("Thr".to_string()),
+                    aa_ext: Some(b"Leu".to_vec()),
+                    ext_aa: Some(b"Thr".to_vec()),
                     change: UncertainLengthChange::None,
                 }
             ),
@@ -1125,8 +1175,8 @@ mod test {
             format!(
                 "{}",
                 ProteinEdit::Ext {
-                    aa_ext: Some("Leu".to_string()),
-                    ext_aa: Some("Thr".to_string()),
+                    aa_ext: Some(b"Leu".to_vec()),
+                    ext_aa: Some(b"Thr".to_vec()),
                     change: UncertainLengthChange::Unknown,
                 }
             ),
@@ -1136,8 +1186,8 @@ mod test {
             format!(
                 "{}",
                 ProteinEdit::Ext {
-                    aa_ext: Some("Leu".to_string()),
-                    ext_aa: Some("Thr".to_string()),
+                    aa_ext: Some(b"Leu".to_vec()),
+                    ext_aa: Some(b"Thr".to_vec()),
                     change: UncertainLengthChange::Known(42),
                 }
             ),
@@ -1151,7 +1201,7 @@ mod test {
             format!(
                 "{}",
                 ProteinEdit::Subst {
-                    alternative: "Leu".to_string()
+                    alternative: b"Leu".to_vec()
                 }
             ),
             "Leu".to_string(),
@@ -1164,7 +1214,7 @@ mod test {
             format!(
                 "{}",
                 ProteinEdit::DelIns {
-                    alternative: "Leu".to_string()
+                    alternative: b"Leu".to_vec()
                 }
             ),
             "delinsLeu".to_string(),
@@ -1177,7 +1227,7 @@ mod test {
             format!(
                 "{}",
                 ProteinEdit::Ins {
-                    alternative: "Leu".to_string()
+                    alternative: b"Leu".to_vec()
                 }
             ),
             "insLeu".to_string(),
@@ -1334,8 +1384,8 @@ mod test {
                         }
                     }),
                     edit: Mu::Certain(NaEdit::RefAlt {
-                        reference: "".to_string(),
-                        alternative: "".to_string()
+                        reference: vec![],
+                        alternative: vec![]
                     })
                 }
             ),
@@ -1433,8 +1483,8 @@ mod test {
                         }
                     }),
                     edit: Mu::Certain(NaEdit::RefAlt {
-                        reference: "".to_string(),
-                        alternative: "".to_string()
+                        reference: vec![],
+                        alternative: vec![]
                     })
                 }
             ),
@@ -1531,8 +1581,8 @@ mod test {
                         }
                     }),
                     edit: Mu::Certain(NaEdit::RefAlt {
-                        reference: "".to_string(),
-                        alternative: "".to_string()
+                        reference: vec![],
+                        alternative: vec![]
                     })
                 }
             ),
@@ -1609,8 +1659,8 @@ mod test {
                         end: Some(20)
                     }),
                     edit: Mu::Certain(NaEdit::RefAlt {
-                        reference: "C".to_string(),
-                        alternative: "T".to_string()
+                        reference: b"C".to_vec(),
+                        alternative: b"T".to_vec()
                     })
                 }
             ),
@@ -1687,8 +1737,8 @@ mod test {
                         end: Some(20)
                     }),
                     edit: Mu::Certain(NaEdit::RefAlt {
-                        reference: "C".to_string(),
-                        alternative: "T".to_string()
+                        reference: b"C".to_vec(),
+                        alternative: b"T".to_vec()
                     })
                 }
             ),
@@ -1702,7 +1752,7 @@ mod test {
             format!(
                 "{}",
                 ProtPos {
-                    aa: "Leu".to_string(),
+                    aa: b'L',
                     number: 42
                 }
             ),
@@ -1717,11 +1767,11 @@ mod test {
                 "{}",
                 ProtInterval {
                     start: ProtPos {
-                        aa: "Leu".to_string(),
+                        aa: b'L',
                         number: 42
                     },
                     end: ProtPos {
-                        aa: "Thr".to_string(),
+                        aa: b'T',
                         number: 43
                     },
                 }
@@ -1734,11 +1784,11 @@ mod test {
                 "{}",
                 ProtInterval {
                     start: ProtPos {
-                        aa: "Leu".to_string(),
+                        aa: b'L',
                         number: 42
                     },
                     end: ProtPos {
-                        aa: "Leu".to_string(),
+                        aa: b'L',
                         number: 42
                     },
                 }
@@ -1755,11 +1805,11 @@ mod test {
                 ProtLocEdit::Ordinary {
                     loc: Mu::Certain(ProtInterval {
                         start: ProtPos {
-                            aa: "Leu".to_string(),
+                            aa: b'L',
                             number: 42
                         },
                         end: ProtPos {
-                            aa: "Thr".to_string(),
+                            aa: b'T',
                             number: 43
                         },
                     },),
@@ -1810,8 +1860,8 @@ mod test {
                             }
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
-                            reference: "C".to_string(),
-                            alternative: "T".to_string()
+                            reference: b"C".to_vec(),
+                            alternative: b"T".to_vec()
                         })
                     }
                 }
@@ -1841,8 +1891,8 @@ mod test {
                             }
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
-                            reference: "C".to_string(),
-                            alternative: "T".to_string()
+                            reference: b"C".to_vec(),
+                            alternative: b"T".to_vec()
                         })
                     }
                 }
@@ -1869,8 +1919,8 @@ mod test {
                             end: Some(100)
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
-                            reference: "C".to_string(),
-                            alternative: "T".to_string()
+                            reference: b"C".to_vec(),
+                            alternative: b"T".to_vec()
                         })
                     }
                 }
@@ -1892,8 +1942,8 @@ mod test {
                             end: Some(100)
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
-                            reference: "C".to_string(),
-                            alternative: "T".to_string()
+                            reference: b"C".to_vec(),
+                            alternative: b"T".to_vec()
                         })
                     }
                 }
@@ -1920,8 +1970,8 @@ mod test {
                             end: Some(100)
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
-                            reference: "C".to_string(),
-                            alternative: "T".to_string()
+                            reference: b"C".to_vec(),
+                            alternative: b"T".to_vec()
                         })
                     }
                 }
@@ -1943,8 +1993,8 @@ mod test {
                             end: Some(100)
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
-                            reference: "C".to_string(),
-                            alternative: "T".to_string()
+                            reference: b"C".to_vec(),
+                            alternative: b"T".to_vec()
                         })
                     }
                 }
@@ -1977,8 +2027,8 @@ mod test {
                             },
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
-                            reference: "C".to_string(),
-                            alternative: "T".to_string()
+                            reference: b"C".to_vec(),
+                            alternative: b"T".to_vec()
                         })
                     }
                 }
@@ -2006,8 +2056,8 @@ mod test {
                             },
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
-                            reference: "C".to_string(),
-                            alternative: "T".to_string()
+                            reference: b"C".to_vec(),
+                            alternative: b"T".to_vec()
                         })
                     }
                 }
@@ -2040,8 +2090,8 @@ mod test {
                             },
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
-                            reference: "C".to_string(),
-                            alternative: "T".to_string()
+                            reference: b"C".to_vec(),
+                            alternative: b"T".to_vec()
                         })
                     }
                 }
@@ -2069,8 +2119,8 @@ mod test {
                             },
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
-                            reference: "C".to_string(),
-                            alternative: "T".to_string()
+                            reference: b"C".to_vec(),
+                            alternative: b"T".to_vec()
                         })
                     }
                 }

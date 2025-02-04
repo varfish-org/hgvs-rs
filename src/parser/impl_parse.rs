@@ -385,8 +385,8 @@ mod test {
                             },
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
-                            reference: "C".to_string(),
-                            alternative: "T".to_string()
+                            reference: b"C".to_vec(),
+                            alternative: b"T".to_vec()
                         })
                     }
                 }
@@ -409,8 +409,8 @@ mod test {
                             end: Some(123),
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
-                            reference: "C".to_string(),
-                            alternative: "T".to_string()
+                            reference: b"C".to_vec(),
+                            alternative: b"T".to_vec()
                         })
                     }
                 }
@@ -433,8 +433,8 @@ mod test {
                             end: Some(123),
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
-                            reference: "C".to_string(),
-                            alternative: "T".to_string()
+                            reference: b"C".to_vec(),
+                            alternative: b"T".to_vec()
                         })
                     }
                 }
@@ -463,8 +463,8 @@ mod test {
                             },
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
-                            reference: "C".to_string(),
-                            alternative: "T".to_string()
+                            reference: b"C".to_vec(),
+                            alternative: b"T".to_vec()
                         })
                     }
                 }
@@ -493,8 +493,8 @@ mod test {
                             },
                         }),
                         edit: Mu::Certain(NaEdit::RefAlt {
-                            reference: "C".to_string(),
-                            alternative: "T".to_string()
+                            reference: b"C".to_vec(),
+                            alternative: b"T".to_vec()
                         })
                     }
                 }
@@ -514,16 +514,16 @@ mod test {
                     loc_edit: ProtLocEdit::Ordinary {
                         loc: Mu::Certain(ProtInterval {
                             start: ProtPos {
-                                aa: "Leu".to_string(),
+                                aa: b'L',
                                 number: 3
                             },
                             end: ProtPos {
-                                aa: "Leu".to_string(),
+                                aa: b'L',
                                 number: 3
                             },
                         }),
                         edit: Mu::Certain(ProteinEdit::Subst {
-                            alternative: "Thr".to_string()
+                            alternative: b"Thr".to_vec()
                         })
                     }
                 }
@@ -551,8 +551,8 @@ mod test {
                         }
                     }),
                     edit: Mu::Certain(NaEdit::RefAlt {
-                        reference: "C".to_string(),
-                        alternative: "T".to_string()
+                        reference: b"C".to_vec(),
+                        alternative: b"T".to_vec()
                     })
                 }
             ))
@@ -571,8 +571,8 @@ mod test {
                         end: Some(123),
                     }),
                     edit: Mu::Certain(NaEdit::RefAlt {
-                        reference: "C".to_string(),
-                        alternative: "T".to_string()
+                        reference: b"C".to_vec(),
+                        alternative: b"T".to_vec()
                     })
                 }
             ))
@@ -591,8 +591,8 @@ mod test {
                         end: Some(123),
                     }),
                     edit: Mu::Certain(NaEdit::RefAlt {
-                        reference: "C".to_string(),
-                        alternative: "T".to_string()
+                        reference: b"C".to_vec(),
+                        alternative: b"T".to_vec()
                     })
                 }
             ))
@@ -617,8 +617,8 @@ mod test {
                         }
                     }),
                     edit: Mu::Certain(NaEdit::RefAlt {
-                        reference: "C".to_string(),
-                        alternative: "T".to_string()
+                        reference: b"C".to_vec(),
+                        alternative: b"T".to_vec()
                     })
                 }
             ))
@@ -643,8 +643,8 @@ mod test {
                         }
                     }),
                     edit: Mu::Certain(NaEdit::RefAlt {
-                        reference: "C".to_string(),
-                        alternative: "T".to_string()
+                        reference: b"C".to_vec(),
+                        alternative: b"T".to_vec()
                     })
                 }
             ))
@@ -660,16 +660,16 @@ mod test {
                 ProtLocEdit::Ordinary {
                     loc: Mu::Uncertain(ProtInterval {
                         start: ProtPos {
-                            aa: "Leu".to_string(),
+                            aa: b'L',
                             number: 123,
                         },
                         end: ProtPos {
-                            aa: "Leu".to_string(),
+                            aa: b'L',
                             number: 123,
                         }
                     }),
                     edit: Mu::Uncertain(ProteinEdit::Subst {
-                        alternative: "Thr".to_string()
+                        alternative: b"Thr".to_vec()
                     })
                 }
             ))
@@ -784,11 +784,11 @@ mod test {
                 "",
                 ProtInterval {
                     start: ProtPos {
-                        aa: "Leu".to_string(),
+                        aa: b'L',
                         number: 123
                     },
                     end: ProtPos {
-                        aa: "Leu".to_string(),
+                        aa: b'L',
                         number: 123
                     },
                 }
@@ -803,7 +803,7 @@ mod test {
             Ok((
                 "",
                 ProteinEdit::Subst {
-                    alternative: "?".to_owned()
+                    alternative: b"?".to_vec()
                 }
             ))
         );
@@ -816,8 +816,8 @@ mod test {
             Ok((
                 "",
                 NaEdit::RefAlt {
-                    reference: "".to_owned(),
-                    alternative: "".to_owned(),
+                    reference: vec![],
+                    alternative: vec![],
                 }
             ))
         );
