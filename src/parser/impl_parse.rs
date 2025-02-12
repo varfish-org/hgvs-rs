@@ -6,108 +6,115 @@ use nom::{
     character::complete::char,
     character::complete::{alphanumeric1, digit1, satisfy},
     combinator::{all_consuming, map, opt, recognize},
-    sequence::{pair, tuple},
+    sequence::pair,
     AsChar, IResult,
 };
 
 use crate::parser::ds::*;
 use crate::parser::parse_funcs::*;
+use nom::Parser;
 
 impl HgvsVariant {
     fn parse_cds_variant(input: &str) -> IResult<&str, Self> {
         map(
-            tuple((
+            (
                 Accession::parse,
-                opt(tuple((tag("("), GeneSymbol::parse, tag(")")))),
+                opt((tag("("), GeneSymbol::parse, tag(")"))),
                 tag(":c."),
                 CdsLocEdit::parse,
-            )),
+            ),
             |(accession, opt_gs, _, pos_edit)| HgvsVariant::CdsVariant {
                 accession,
                 gene_symbol: opt_gs.map(|(_, gene_symbol, _)| gene_symbol),
                 loc_edit: pos_edit,
             },
-        )(input)
+        )
+        .parse(input)
     }
 
     fn parse_genome_variant(input: &str) -> IResult<&str, Self> {
         map(
-            tuple((
+            (
                 Accession::parse,
-                opt(tuple((tag("("), GeneSymbol::parse, tag(")")))),
+                opt((tag("("), GeneSymbol::parse, tag(")"))),
                 tag(":g."),
                 GenomeLocEdit::parse,
-            )),
+            ),
             |(accession, opt_gs, _, pos_edit)| HgvsVariant::GenomeVariant {
                 accession,
                 gene_symbol: opt_gs.map(|(_, gene_symbol, _)| gene_symbol),
                 loc_edit: pos_edit,
             },
-        )(input)
+        )
+        .parse(input)
     }
 
     fn parse_mt_variant(input: &str) -> IResult<&str, Self> {
         map(
-            tuple((
+            (
                 Accession::parse,
-                opt(tuple((tag("("), GeneSymbol::parse, tag(")")))),
+                opt((tag("("), GeneSymbol::parse, tag(")"))),
                 tag(":m."),
                 MtLocEdit::parse,
-            )),
+            ),
             |(accession, opt_gs, _, pos_edit)| HgvsVariant::MtVariant {
                 accession,
                 gene_symbol: opt_gs.map(|(_, gene_symbol, _)| gene_symbol),
                 loc_edit: pos_edit,
             },
-        )(input)
+        )
+        .parse(input)
     }
 
     fn parse_tx_variant(input: &str) -> IResult<&str, Self> {
         map(
-            tuple((
+            (
                 Accession::parse,
-                opt(tuple((tag("("), GeneSymbol::parse, tag(")")))),
+                opt((tag("("), GeneSymbol::parse, tag(")"))),
                 tag(":n."),
                 TxLocEdit::parse,
-            )),
+            ),
             |(accession, opt_gs, _, pos_edit)| HgvsVariant::TxVariant {
                 accession,
                 gene_symbol: opt_gs.map(|(_, gene_symbol, _)| gene_symbol),
                 loc_edit: pos_edit,
             },
-        )(input)
+        )
+        .parse(input)
     }
 
     fn parse_prot_variant(input: &str) -> IResult<&str, Self> {
         map(
-            tuple((
+            (
                 Accession::parse,
-                opt(tuple((tag("("), GeneSymbol::parse, tag(")")))),
+                opt((tag("("), GeneSymbol::parse, tag(")"))),
                 tag(":p."),
                 ProtLocEdit::parse,
-            )),
+            ),
             |(accession, opt_gs, _, pos_edit)| HgvsVariant::ProtVariant {
                 accession,
                 gene_symbol: opt_gs.map(|(_, gene_symbol, _)| gene_symbol),
                 loc_edit: pos_edit,
             },
-        )(input)
+        )
+        .parse(input)
     }
 
     fn parse_rna_variant(input: &str) -> IResult<&str, Self> {
         map(
-            tuple((
+            (
                 Accession::parse,
-                opt(tuple((tag("("), GeneSymbol::parse, tag(")")))),
+                opt((tag("("), GeneSymbol::parse, tag(")"))),
                 tag(":r."),
                 RnaLocEdit::parse,
-            )),
+            ),
             |(accession, opt_gs, _, pos_edit)| HgvsVariant::RnaVariant {
                 accession,
                 gene_symbol: opt_gs.map(|(_, gene_symbol, _)| gene_symbol),
                 loc_edit: pos_edit,
             },
-        )(input)
+        )
+        .parse(input)
     }
 }
 
@@ -121,7 +128,8 @@ impl Parseable for HgvsVariant {
             Self::parse_tx_variant,
             Self::parse_prot_variant,
             Self::parse_rna_variant,
-        )))(input)
+        )))
+        .parse(input)
     }
 }
 
@@ -145,7 +153,8 @@ impl Parseable for ProteinEdit {
             protein_edit::del,
             protein_edit::ins,
             protein_edit::dup,
-        ))(input)
+        ))
+        .parse(input)
     }
 }
 
@@ -162,24 +171,25 @@ impl Parseable for NaEdit {
             na_edit::dup,
             na_edit::inv_num,
             na_edit::inv_ref,
-        ))(input)
+        ))
+        .parse(input)
     }
 }
 
 impl Parseable for Accession {
     fn parse(input: &str) -> IResult<&str, Self> {
-        let parser_accession = recognize(tuple((
+        let parser_accession = recognize((
             satisfy(|c| c.is_alpha()),
             alphanum::narrowed_alphanumeric1,
             opt(pair(char('_'), alphanumeric1)),
             opt(pair(char('.'), digit1)),
-        )));
+        ));
 
         let mut parser = map(parser_accession, |value| Self {
             value: value.to_string(),
         });
 
-        parser(input)
+        parser.parse(input)
     }
 }
 
@@ -188,7 +198,7 @@ impl GeneSymbol {
         let mut gene_symbol_parser = map(alphanumeric1, |symbol: &str| Self {
             value: symbol.to_owned(),
         });
-        gene_symbol_parser(input)
+        gene_symbol_parser.parse(input)
     }
 }
 
@@ -200,16 +210,17 @@ where
     where
         Self: Sized,
     {
-        map(tuple((tag("("), T::parse, tag(")"))), |(_, value, _)| {
+        map((tag("("), T::parse, tag(")")), |(_, value, _)| {
             Mu::Uncertain(value)
-        })(input)
+        })
+        .parse(input)
     }
 
     fn parse_certain(input: &str) -> IResult<&str, Self>
     where
         Self: Sized,
     {
-        map(T::parse, |value| Mu::Certain(value))(input)
+        map(T::parse, |value| Mu::Certain(value)).parse(input)
     }
 }
 
@@ -221,7 +232,7 @@ where
     where
         Self: Sized,
     {
-        alt((Mu::<T>::parse_uncertain, Mu::<T>::parse_certain))(input)
+        alt((Mu::<T>::parse_uncertain, Mu::<T>::parse_certain)).parse(input)
     }
 }
 
@@ -236,7 +247,8 @@ impl Parseable for CdsLocEdit {
         map(
             pair(Mu::<CdsInterval>::parse, Mu::<NaEdit>::parse),
             |(pos, edit)| CdsLocEdit { loc: pos, edit },
-        )(input)
+        )
+        .parse(input)
     }
 }
 
@@ -251,7 +263,8 @@ impl Parseable for GenomeLocEdit {
         map(
             pair(Mu::<GenomeInterval>::parse, Mu::<NaEdit>::parse),
             |(pos, edit)| GenomeLocEdit { loc: pos, edit },
-        )(input)
+        )
+        .parse(input)
     }
 }
 
@@ -266,7 +279,8 @@ impl Parseable for MtLocEdit {
         map(
             pair(Mu::<MtInterval>::parse, Mu::<NaEdit>::parse),
             |(pos, edit)| MtLocEdit { loc: pos, edit },
-        )(input)
+        )
+        .parse(input)
     }
 }
 
@@ -281,7 +295,8 @@ impl Parseable for TxLocEdit {
         map(
             pair(Mu::<TxInterval>::parse, Mu::<NaEdit>::parse),
             |(pos, edit)| TxLocEdit { loc: pos, edit },
-        )(input)
+        )
+        .parse(input)
     }
 }
 
@@ -296,7 +311,8 @@ impl Parseable for RnaLocEdit {
         map(
             pair(Mu::<RnaInterval>::parse, Mu::<NaEdit>::parse),
             |(pos, edit)| RnaLocEdit { loc: pos, edit },
-        )(input)
+        )
+        .parse(input)
     }
 }
 
@@ -308,34 +324,35 @@ impl Parseable for ProtInterval {
 
 impl ProtLocEdit {
     fn parse_initiation_uncertain(input: &str) -> IResult<&str, Self> {
-        map(tag("Met1?"), |_| ProtLocEdit::InitiationUncertain)(input)
+        map(tag("Met1?"), |_| ProtLocEdit::InitiationUncertain).parse(input)
     }
 
     fn parse_no_change(input: &str) -> IResult<&str, Self> {
-        map(tag("="), |_| ProtLocEdit::NoChange)(input)
+        map(tag("="), |_| ProtLocEdit::NoChange).parse(input)
     }
 
     fn parse_no_change_uncertain(input: &str) -> IResult<&str, Self> {
-        map(tag("(=)"), |_| ProtLocEdit::NoChangeUncertain)(input)
+        map(tag("(=)"), |_| ProtLocEdit::NoChangeUncertain).parse(input)
     }
 
     fn parse_unknown(input: &str) -> IResult<&str, Self> {
-        map(tag("?"), |_| ProtLocEdit::Unknown)(input)
+        map(tag("?"), |_| ProtLocEdit::Unknown).parse(input)
     }
 
     fn parse_no_protein(input: &str) -> IResult<&str, Self> {
-        map(tag("0"), |_| ProtLocEdit::NoProtein)(input)
+        map(tag("0"), |_| ProtLocEdit::NoProtein).parse(input)
     }
 
     fn parse_no_protein_uncertain(input: &str) -> IResult<&str, Self> {
-        map(tag("0?"), |_| ProtLocEdit::NoProteinUncertain)(input)
+        map(tag("0?"), |_| ProtLocEdit::NoProteinUncertain).parse(input)
     }
 
     fn parse_ordinary(input: &str) -> IResult<&str, Self> {
         map(
             pair(Mu::<ProtInterval>::parse, Mu::<ProteinEdit>::parse),
             |(pos, edit)| ProtLocEdit::Ordinary { loc: pos, edit },
-        )(input)
+        )
+        .parse(input)
     }
 }
 
@@ -349,7 +366,8 @@ impl Parseable for ProtLocEdit {
             Self::parse_no_change_uncertain,
             Self::parse_no_change,
             Self::parse_unknown,
-        ))(input)
+        ))
+        .parse(input)
     }
 }
 
@@ -874,6 +892,7 @@ mod test {
     mod grammar_full {
         use anyhow::Error;
         use nom::combinator::all_consuming;
+        use nom::Parser;
 
         use crate::parser::{impl_parse::Parseable, Accession};
 
@@ -917,7 +936,7 @@ mod test {
                     match func {
                         "accn" => {
                             let x = input.clone();
-                            let res = all_consuming(Accession::parse)(&x);
+                            let res = all_consuming(Accession::parse).parse(&x);
                             if is_valid {
                                 let (r, acc) = res.expect("problem with test input file");
                                 assert_eq!(r, "");
