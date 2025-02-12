@@ -3,7 +3,7 @@
 use std::fmt::Display;
 
 use crate::mapper::Error;
-use nom::{combinator::all_consuming, multi::many0};
+use nom::{combinator::all_consuming, multi::many0, Parser};
 
 /// CIGAR operation as parsed from UTA.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
@@ -141,12 +141,10 @@ impl Display for CigarString {
 
 pub mod parse {
     use nom::{
-        bytes::complete::take_while_m_n,
-        character::complete::digit0,
-        error::{context, VerboseError},
-        sequence::pair,
-        IResult,
+        bytes::complete::take_while_m_n, character::complete::digit0, error::context,
+        sequence::pair, IResult, Parser,
     };
+    use nom_language::error::VerboseError;
 
     type Res<T, U> = IResult<T, U, VerboseError<T>>;
 
@@ -160,7 +158,8 @@ pub mod parse {
         context(
             "cigar_element",
             pair(digit0, take_while_m_n(1, 1, is_cigar_op_char)),
-        )(input)
+        )
+        .parse(input)
         .map(|(rest, (count, op))| {
             (
                 rest,
@@ -173,7 +172,8 @@ pub mod parse {
 /// Parse a CIGAR `str` into a real one.
 pub fn parse_cigar_string(input: &str) -> Result<CigarString, Error> {
     Ok(CigarString::from(
-        all_consuming(many0(parse::cigar_element))(input)
+        all_consuming(many0(parse::cigar_element))
+            .parse(input)
             .map_err(|e| Error::InvalidCigarString(e.to_string()))?
             .1,
     ))

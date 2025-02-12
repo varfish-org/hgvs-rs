@@ -18,12 +18,13 @@ pub mod protein {
     use nom::{
         bytes::complete::take,
         multi::{many0, many1},
+        Parser,
     };
 
     pub static AA1: &str = "ACDEFGHIKLMNPQRSTVWYBZXU";
 
     pub fn aa1(input: &str) -> Result<(&str, &str), nom::Err<nom::error::Error<&str>>> {
-        let (rest, c) = take(1usize)(input)?;
+        let (rest, c) = take(1usize).parse(input)?;
         if !AA1.contains(c) {
             Err(nom::Err::Error(nom::error::Error::new(
                 input,
@@ -35,17 +36,17 @@ pub mod protein {
     }
 
     pub fn aa10(input: &str) -> Result<(&str, Vec<&str>), nom::Err<nom::error::Error<&str>>> {
-        many0(aa1)(input)
+        many0(aa1).parse(input)
     }
 
     pub fn aa11(input: &str) -> Result<(&str, Vec<&str>), nom::Err<nom::error::Error<&str>>> {
-        many1(aa1)(input)
+        many1(aa1).parse(input)
     }
 
     pub static AAT1: &str = "ACDEFGHIKLMNPQRSTVWYBZXU*";
 
     pub fn aat1(input: &str) -> Result<(&str, &str), nom::Err<nom::error::Error<&str>>> {
-        let (rest, c) = take(1usize)(input)?;
+        let (rest, c) = take(1usize).parse(input)?;
         if !AAT1.contains(c) {
             Err(nom::Err::Error(nom::error::Error::new(
                 input,
@@ -57,11 +58,11 @@ pub mod protein {
     }
 
     pub fn aat10(input: &str) -> Result<(&str, Vec<&str>), nom::Err<nom::error::Error<&str>>> {
-        many0(aat1)(input)
+        many0(aat1).parse(input)
     }
 
     pub fn aat11(input: &str) -> Result<(&str, Vec<&str>), nom::Err<nom::error::Error<&str>>> {
-        many1(aat1)(input)
+        many1(aat1).parse(input)
     }
 
     pub const AA3: &[&str] = &[
@@ -70,7 +71,7 @@ pub mod protein {
     ];
 
     pub fn aa3(input: &str) -> Result<(&str, &str), nom::Err<nom::error::Error<&str>>> {
-        let (rest, triplet) = take(3usize)(input)?;
+        let (rest, triplet) = take(3usize).parse(input)?;
         if !AA3.contains(&triplet) {
             Err(nom::Err::Error(nom::error::Error::new(
                 input,
@@ -82,11 +83,11 @@ pub mod protein {
     }
 
     pub fn aa30(input: &str) -> Result<(&str, Vec<&str>), nom::Err<nom::error::Error<&str>>> {
-        many0(aa3)(input)
+        many0(aa3).parse(input)
     }
 
     pub fn aa31(input: &str) -> Result<(&str, Vec<&str>), nom::Err<nom::error::Error<&str>>> {
-        many1(aa3)(input)
+        many1(aa3).parse(input)
     }
 
     pub const AAT3: &[&str] = &[
@@ -95,7 +96,7 @@ pub mod protein {
     ];
 
     pub fn aat3(input: &str) -> Result<(&str, &str), nom::Err<nom::error::Error<&str>>> {
-        let (rest, triplet) = take(3usize)(input)?;
+        let (rest, triplet) = take(3usize).parse(input)?;
         if !AAT3.contains(&triplet) {
             Err(nom::Err::Error(nom::error::Error::new(
                 input,
@@ -107,11 +108,11 @@ pub mod protein {
     }
 
     pub fn aat30(input: &str) -> Result<(&str, Vec<&str>), nom::Err<nom::error::Error<&str>>> {
-        many0(aat3)(input)
+        many0(aat3).parse(input)
     }
 
     pub fn aat31(input: &str) -> Result<(&str, Vec<&str>), nom::Err<nom::error::Error<&str>>> {
-        many1(aat3)(input)
+        many1(aat3).parse(input)
     }
 }
 
@@ -120,6 +121,7 @@ pub mod protein_edit {
     use nom::branch::alt;
     use nom::character::complete::{digit0, digit1};
     use nom::combinator::opt;
+    use nom::Parser;
 
     use nom::sequence::pair;
     use nom::{bytes::complete::tag, IResult};
@@ -128,7 +130,7 @@ pub mod protein_edit {
     use crate::parser::ds::{ProteinEdit, UncertainLengthChange};
 
     pub fn subst_qm(input: &str) -> IResult<&str, ProteinEdit> {
-        let (rest, _) = tag("?")(input)?;
+        let (rest, _) = tag("?").parse(input)?;
         Ok((
             rest,
             ProteinEdit::Subst {
@@ -138,7 +140,7 @@ pub mod protein_edit {
     }
 
     pub fn subst_aa(input: &str) -> IResult<&str, ProteinEdit> {
-        let (rest, seq) = alt((aat3, aat1))(input)?;
+        let (rest, seq) = alt((aat3, aat1)).parse(input)?;
         Ok((
             rest,
             ProteinEdit::Subst {
@@ -148,7 +150,7 @@ pub mod protein_edit {
     }
 
     pub fn delins(input: &str) -> IResult<&str, ProteinEdit> {
-        let (rest, (_, seq)) = pair(tag("delins"), alt((aat31, aat11)))(input)?;
+        let (rest, (_, seq)) = pair(tag("delins"), alt((aat31, aat11))).parse(input)?;
         Ok((
             rest,
             ProteinEdit::DelIns {
@@ -158,12 +160,12 @@ pub mod protein_edit {
     }
 
     pub fn del(input: &str) -> IResult<&str, ProteinEdit> {
-        let (rest, _) = tag("del")(input)?;
+        let (rest, _) = tag("del").parse(input)?;
         Ok((rest, ProteinEdit::Del))
     }
 
     pub fn ins(input: &str) -> IResult<&str, ProteinEdit> {
-        let (rest, (_, seq)) = pair(tag("ins"), alt((aat31, aat11)))(input)?;
+        let (rest, (_, seq)) = pair(tag("ins"), alt((aat31, aat11))).parse(input)?;
         Ok((
             rest,
             ProteinEdit::Ins {
@@ -173,19 +175,19 @@ pub mod protein_edit {
     }
 
     pub fn dup(input: &str) -> IResult<&str, ProteinEdit> {
-        let (rest, _) = tag("dup")(input)?;
+        let (rest, _) = tag("dup").parse(input)?;
         Ok((rest, ProteinEdit::Dup))
     }
 
     pub fn fs(input: &str) -> IResult<&str, ProteinEdit> {
-        let (rest, alternative) = opt(alt((aat3, aat1)))(input)?;
+        let (rest, alternative) = opt(alt((aat3, aat1))).parse(input)?;
         let (rest, (_, terminal)) =
-            pair(tag("fs"), opt(alt((tag("Ter"), tag("X"), tag("*")))))(rest)?;
+            pair(tag("fs"), opt(alt((tag("Ter"), tag("X"), tag("*"))))).parse(rest)?;
 
         if let Some(terminal) = terminal {
             let (rest, count) = digit0(rest)?;
             if count.is_empty() {
-                let (rest, qm) = opt(tag("?"))(rest)?;
+                let (rest, qm) = opt(tag("?")).parse(rest)?;
                 Ok((
                     rest,
                     ProteinEdit::Fs {
@@ -224,10 +226,10 @@ pub mod protein_edit {
     }
 
     pub fn ext_neg_shift(input: &str) -> IResult<&str, ProteinEdit> {
-        let (rest, aa_ext) = opt(alt((aat3, aat1)))(input)?;
+        let (rest, aa_ext) = opt(alt((aat3, aat1))).parse(input)?;
         let (rest, _) = tag("ext")(rest)?;
-        let (rest, ext_aa) = opt(alt((aat3, aat1)))(rest)?;
-        let (rest, (_, offset)) = pair(tag("-"), digit1)(rest)?;
+        let (rest, ext_aa) = opt(alt((aat3, aat1))).parse(rest)?;
+        let (rest, (_, offset)) = pair(tag("-"), digit1).parse(rest)?;
 
         Ok((
             rest,
@@ -242,10 +244,10 @@ pub mod protein_edit {
     }
 
     pub fn ext_pos_shift(input: &str) -> IResult<&str, ProteinEdit> {
-        let (rest, aa_ext) = opt(alt((aat3, aat1)))(input)?;
+        let (rest, aa_ext) = opt(alt((aat3, aat1))).parse(input)?;
         let (rest, _) = tag("ext")(rest)?;
-        let (rest, ext_aa) = alt((tag("Ter"), tag("X"), tag("*")))(rest)?;
-        let (rest, offset) = opt(alt((tag("?"), digit1)))(rest)?;
+        let (rest, ext_aa) = alt((tag("Ter"), tag("X"), tag("*"))).parse(rest)?;
+        let (rest, offset) = opt(alt((tag("?"), digit1))).parse(rest)?;
 
         if let Some(offset) = offset {
             Ok((
@@ -273,7 +275,7 @@ pub mod protein_edit {
     }
 
     pub fn ext_minimal(input: &str) -> IResult<&str, ProteinEdit> {
-        let (rest, aa_ext) = opt(alt((aat3, aat1)))(input)?;
+        let (rest, aa_ext) = opt(alt((aat3, aat1))).parse(input)?;
         let (rest, _) = tag("ext")(rest)?;
 
         Ok((
@@ -287,13 +289,14 @@ pub mod protein_edit {
     }
 
     pub fn ident(input: &str) -> IResult<&str, ProteinEdit> {
-        let (rest, _) = tag("=")(input)?;
+        let (rest, _) = tag("=").parse(input)?;
         Ok((rest, ProteinEdit::Ident))
     }
 }
 
 /// Functions for parsing nucleic acid residues and sequences.
 pub mod na {
+    use nom::Parser;
     use nom::{
         bytes::complete::{take_while, take_while1},
         character::complete::one_of,
@@ -302,15 +305,15 @@ pub mod na {
     pub static NA_IUPAC: &str = "ACGTURYMKWSBDHVNacgturymkwsbdhvn";
 
     pub fn na(input: &str) -> Result<(&str, char), nom::Err<nom::error::Error<&str>>> {
-        one_of(NA_IUPAC)(input)
+        one_of(NA_IUPAC).parse(input)
     }
 
     pub fn na0(input: &str) -> Result<(&str, &str), nom::Err<nom::error::Error<&str>>> {
-        take_while(|c: char| NA_IUPAC.contains(c))(input)
+        take_while(|c: char| NA_IUPAC.contains(c)).parse(input)
     }
 
     pub fn na1(input: &str) -> Result<(&str, &str), nom::Err<nom::error::Error<&str>>> {
-        take_while1(|c: char| NA_IUPAC.contains(c))(input)
+        take_while1(|c: char| NA_IUPAC.contains(c)).parse(input)
     }
 }
 
@@ -319,7 +322,7 @@ pub mod na_edit {
     use nom::bytes::complete::tag;
     use nom::character::complete::{char as nom_char, digit1};
     use nom::combinator::map;
-    use nom::sequence::tuple;
+    use nom::Parser;
     use nom::{multi::many0, sequence::pair, IResult};
 
     use crate::parser::NaEdit;
@@ -327,7 +330,7 @@ pub mod na_edit {
     use super::na::{na, na0, na1};
 
     pub fn ident(input: &str) -> IResult<&str, NaEdit> {
-        let (rest, (dna_vec, _)) = pair(many0(na), nom_char('='))(input)?;
+        let (rest, (dna_vec, _)) = pair(many0(na), nom_char('=')).parse(input)?;
         let dna: String = dna_vec.into_iter().collect();
         Ok((
             rest,
@@ -339,7 +342,7 @@ pub mod na_edit {
     }
 
     pub fn subst(input: &str) -> IResult<&str, NaEdit> {
-        let (rest, (src, _, dst)) = tuple((na, nom_char('>'), na))(input)?;
+        let (rest, (src, _, dst)) = ((na, nom_char('>'), na)).parse(input)?;
         Ok((
             rest,
             NaEdit::RefAlt {
@@ -350,21 +353,23 @@ pub mod na_edit {
     }
 
     pub fn del_ref(input: &str) -> IResult<&str, NaEdit> {
-        map(tuple((tag("del"), na0)), |(_, reference)| NaEdit::DelRef {
+        map((tag("del"), na0), |(_, reference)| NaEdit::DelRef {
             reference: reference.to_string(),
-        })(input)
+        })
+        .parse(input)
     }
 
     pub fn del_num(input: &str) -> IResult<&str, NaEdit> {
-        map(tuple((tag("del"), digit1)), |(_, count)| NaEdit::DelNum {
+        map((tag("del"), digit1), |(_, count)| NaEdit::DelNum {
             count: str::parse::<i32>(count)
                 .expect("should not happen; previous parsing should guarantee string with digits"),
-        })(input)
+        })
+        .parse(input)
     }
 
     pub fn delins_ref_alt(input: &str) -> IResult<&str, NaEdit> {
         let (rest, (_, reference, _, alternative)) =
-            tuple((tag("del"), na0, tag("ins"), na1))(input)?;
+            ((tag("del"), na0, tag("ins"), na1)).parse(input)?;
         Ok((
             rest,
             NaEdit::RefAlt {
@@ -376,7 +381,7 @@ pub mod na_edit {
 
     pub fn delins_num_alt(input: &str) -> IResult<&str, NaEdit> {
         let (rest, (_, count, _, alternative)) =
-            tuple((tag("del"), digit1, tag("ins"), na1))(input)?;
+            ((tag("del"), digit1, tag("ins"), na1)).parse(input)?;
         Ok((
             rest,
             NaEdit::NumAlt {
@@ -389,7 +394,7 @@ pub mod na_edit {
     }
 
     pub fn ins(input: &str) -> IResult<&str, NaEdit> {
-        let (rest, (_, alternative)) = tuple((tag("ins"), na1))(input)?;
+        let (rest, (_, alternative)) = ((tag("ins"), na1)).parse(input)?;
         Ok((
             rest,
             NaEdit::Ins {
@@ -399,7 +404,7 @@ pub mod na_edit {
     }
 
     pub fn dup(input: &str) -> IResult<&str, NaEdit> {
-        let (rest, (_, reference)) = tuple((tag("dup"), na0))(input)?;
+        let (rest, (_, reference)) = ((tag("dup"), na0)).parse(input)?;
         Ok((
             rest,
             NaEdit::Dup {
@@ -409,7 +414,7 @@ pub mod na_edit {
     }
 
     pub fn inv_num(input: &str) -> IResult<&str, NaEdit> {
-        let (rest, (_, count)) = tuple((tag("inv"), digit1))(input)?;
+        let (rest, (_, count)) = ((tag("inv"), digit1)).parse(input)?;
         Ok((
             rest,
             NaEdit::InvNum {
@@ -421,7 +426,7 @@ pub mod na_edit {
     }
 
     pub fn inv_ref(input: &str) -> IResult<&str, NaEdit> {
-        let (rest, (_, reference)) = tuple((tag("inv"), na0))(input)?;
+        let (rest, (_, reference)) = ((tag("inv"), na0)).parse(input)?;
         Ok((
             rest,
             NaEdit::InvRef {
@@ -438,15 +443,15 @@ pub mod cds_pos {
         bytes::complete::tag,
         character::complete::digit1,
         combinator::{map, opt, recognize},
-        sequence::{pair, tuple},
-        IResult,
+        sequence::pair,
+        IResult, Parser,
     };
 
     use crate::parser::{CdsFrom, CdsInterval, CdsPos};
 
     fn pos_from_start(input: &str) -> IResult<&str, CdsPos> {
-        let (rest, base) = recognize(pair(opt(alt((tag("+"), tag("-")))), digit1))(input)?;
-        let (rest, offset) = opt(recognize(pair(alt((tag("+"), tag("-"))), digit1)))(rest)?;
+        let (rest, base) = recognize(pair(opt(alt((tag("+"), tag("-")))), digit1)).parse(input)?;
+        let (rest, offset) = opt(recognize(pair(alt((tag("+"), tag("-"))), digit1))).parse(rest)?;
         Ok((
             rest,
             CdsPos {
@@ -464,9 +469,9 @@ pub mod cds_pos {
     }
 
     fn pos_from_end(input: &str) -> IResult<&str, CdsPos> {
-        let (rest, _) = tag("*")(input)?;
+        let (rest, _) = tag("*").parse(input)?;
         let (rest, base) = digit1(rest)?;
-        let (rest, offset) = opt(recognize(pair(alt((tag("+"), tag("-"))), digit1)))(rest)?;
+        let (rest, offset) = opt(recognize(pair(alt((tag("+"), tag("-"))), digit1))).parse(rest)?;
         Ok((
             rest,
             CdsPos {
@@ -484,11 +489,11 @@ pub mod cds_pos {
     }
 
     pub fn pos(input: &str) -> IResult<&str, CdsPos> {
-        alt((pos_from_start, pos_from_end))(input)
+        alt((pos_from_start, pos_from_end)).parse(input)
     }
 
     pub fn int(input: &str) -> IResult<&str, CdsInterval> {
-        let (rest, (begin, _, end)) = tuple((pos, tag("_"), pos))(input)?;
+        let (rest, (begin, _, end)) = ((pos, tag("_"), pos)).parse(input)?;
         Ok((rest, CdsInterval { start: begin, end }))
     }
 
@@ -499,15 +504,16 @@ pub mod cds_pos {
                 start: pos.clone(),
                 end: pos,
             }),
-        ))(input)
+        ))
+        .parse(input)
     }
 }
 
 /// Parsing of Genome position and interval.
 pub mod genome_pos {
     use nom::{
-        branch::alt, bytes::complete::tag, character::complete::digit1, combinator::map,
-        sequence::tuple, IResult,
+        branch::alt, bytes::complete::tag, character::complete::digit1, combinator::map, IResult,
+        Parser,
     };
 
     use crate::parser::GenomeInterval;
@@ -521,13 +527,16 @@ pub mod genome_pos {
                     "should not happen; previous parsing should guarantee string with digits",
                 ))
             }
-        })(input)
+        })
+        .parse(input)
     }
 
     pub fn int(input: &str) -> IResult<&str, GenomeInterval> {
-        map(tuple((pos, tag("_"), pos)), |(begin, _, end)| {
-            GenomeInterval { start: begin, end }
-        })(input)
+        map((pos, tag("_"), pos), |(begin, _, end)| GenomeInterval {
+            start: begin,
+            end,
+        })
+        .parse(input)
     }
 
     pub fn loc(input: &str) -> IResult<&str, GenomeInterval> {
@@ -537,15 +546,16 @@ pub mod genome_pos {
                 start: pos,
                 end: pos,
             }),
-        ))(input)
+        ))
+        .parse(input)
     }
 }
 
 /// Parsing of mt position and interval.
 pub mod mt_pos {
     use nom::{
-        branch::alt, bytes::complete::tag, character::complete::digit1, combinator::map,
-        sequence::tuple, IResult,
+        branch::alt, bytes::complete::tag, character::complete::digit1, combinator::map, IResult,
+        Parser,
     };
 
     use crate::parser::MtInterval;
@@ -559,14 +569,16 @@ pub mod mt_pos {
                     "should not happen; previous parsing should guarantee string with digits",
                 ))
             }
-        })(input)
+        })
+        .parse(input)
     }
 
     pub fn int(input: &str) -> IResult<&str, MtInterval> {
-        map(tuple((pos, tag("_"), pos)), |(begin, _, end)| MtInterval {
+        map((pos, tag("_"), pos), |(begin, _, end)| MtInterval {
             start: begin,
             end,
-        })(input)
+        })
+        .parse(input)
     }
 
     pub fn loc(input: &str) -> IResult<&str, MtInterval> {
@@ -576,7 +588,8 @@ pub mod mt_pos {
                 start: pos,
                 end: pos,
             }),
-        ))(input)
+        ))
+        .parse(input)
     }
 }
 
@@ -587,15 +600,15 @@ pub mod tx_pos {
         bytes::complete::tag,
         character::complete::digit1,
         combinator::{map, opt, recognize},
-        sequence::{pair, tuple},
-        IResult,
+        sequence::pair,
+        IResult, Parser,
     };
 
     use crate::parser::{TxInterval, TxPos};
 
     pub fn pos(input: &str) -> IResult<&str, TxPos> {
-        let (rest, base) = recognize(pair(opt(alt((tag("+"), tag("-")))), digit1))(input)?;
-        let (rest, offset) = opt(recognize(pair(alt((tag("+"), tag("-"))), digit1)))(rest)?;
+        let (rest, base) = recognize(pair(opt(alt((tag("+"), tag("-")))), digit1)).parse(input)?;
+        let (rest, offset) = opt(recognize(pair(alt((tag("+"), tag("-"))), digit1))).parse(rest)?;
         Ok((
             rest,
             TxPos {
@@ -612,7 +625,7 @@ pub mod tx_pos {
     }
 
     pub fn int(input: &str) -> IResult<&str, TxInterval> {
-        let (rest, (begin, _, end)) = tuple((pos, tag("_"), pos))(input)?;
+        let (rest, (begin, _, end)) = ((pos, tag("_"), pos)).parse(input)?;
         Ok((rest, TxInterval { start: begin, end }))
     }
 
@@ -623,7 +636,8 @@ pub mod tx_pos {
                 start: pos.clone(),
                 end: pos,
             }),
-        ))(input)
+        ))
+        .parse(input)
     }
 }
 
@@ -634,15 +648,15 @@ pub mod rna_pos {
         bytes::complete::tag,
         character::complete::digit1,
         combinator::{map, opt, recognize},
-        sequence::{pair, tuple},
-        IResult,
+        sequence::pair,
+        IResult, Parser,
     };
 
     use crate::parser::{RnaInterval, RnaPos};
 
     pub fn pos(input: &str) -> IResult<&str, RnaPos> {
-        let (rest, base) = recognize(pair(opt(alt((tag("+"), tag("-")))), digit1))(input)?;
-        let (rest, offset) = opt(recognize(pair(alt((tag("+"), tag("-"))), digit1)))(rest)?;
+        let (rest, base) = recognize(pair(opt(alt((tag("+"), tag("-")))), digit1)).parse(input)?;
+        let (rest, offset) = opt(recognize(pair(alt((tag("+"), tag("-"))), digit1))).parse(rest)?;
         Ok((
             rest,
             RnaPos {
@@ -659,7 +673,7 @@ pub mod rna_pos {
     }
 
     pub fn int(input: &str) -> IResult<&str, RnaInterval> {
-        let (rest, (begin, _, end)) = tuple((pos, tag("_"), pos))(input)?;
+        let (rest, (begin, _, end)) = ((pos, tag("_"), pos)).parse(input)?;
         Ok((rest, RnaInterval { start: begin, end }))
     }
 
@@ -670,19 +684,16 @@ pub mod rna_pos {
                 start: pos.clone(),
                 end: pos,
             }),
-        ))(input)
+        ))
+        .parse(input)
     }
 }
 
 /// Parsing of protein position and interval
 pub mod prot_pos {
     use nom::{
-        branch::alt,
-        bytes::complete::tag,
-        character::complete::digit1,
-        combinator::map,
-        sequence::{pair, tuple},
-        IResult,
+        branch::alt, bytes::complete::tag, character::complete::digit1, combinator::map,
+        sequence::pair, IResult, Parser,
     };
 
     use crate::parser::{ProtInterval, ProtPos};
@@ -690,7 +701,7 @@ pub mod prot_pos {
     use super::protein::{aat1, aat3};
 
     pub fn pos(input: &str) -> IResult<&str, ProtPos> {
-        let (rest, (aa, number)) = pair(alt((aat3, aat1)), digit1)(input)?;
+        let (rest, (aa, number)) = pair(alt((aat3, aat1)), digit1).parse(input)?;
         Ok((
             rest,
             ProtPos {
@@ -703,7 +714,7 @@ pub mod prot_pos {
     }
 
     pub fn int(input: &str) -> IResult<&str, ProtInterval> {
-        let (rest, (begin, _, end)) = tuple((pos, tag("_"), pos))(input)?;
+        let (rest, (begin, _, end)) = ((pos, tag("_"), pos)).parse(input)?;
         Ok((rest, ProtInterval { start: begin, end }))
     }
 
@@ -714,7 +725,8 @@ pub mod prot_pos {
                 start: pos.clone(),
                 end: pos,
             }),
-        ))(input)
+        ))
+        .parse(input)
     }
 }
 
