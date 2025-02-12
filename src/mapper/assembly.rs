@@ -41,8 +41,8 @@ pub struct Config {
     pub strict_validation: bool,
     pub strict_bounds: bool,
     pub add_gene_symbol: bool,
-    /// Re-normalize out of bounds genome variants on minus strand.  This can be
-    /// switched off so genome sequence does not have to be available in provider.
+    /// Always re-normalize genome variants during g-to-n projections.
+    /// This can be switched off so genome sequence does not have to be available in provider.
     pub renormalize_g: bool,
     /// Use the genome sequence in case of uncertain g-to-n projections.  This
     /// can be switched off so genome sequence does not have to be available.
@@ -391,6 +391,7 @@ mod test {
         let config = Config {
             assembly: Assembly::Grch38,
             normalize,
+            renormalize_g: false,
             ..Config::default()
         };
         Ok(Mapper::new(config, provider))
@@ -401,6 +402,7 @@ mod test {
         let config = Config {
             assembly: Assembly::Grch37,
             normalize,
+            renormalize_g: false,
             ..Config::default()
         };
         Ok(Mapper::new(config, provider))

@@ -5,7 +5,7 @@ use std::{ops::Range, sync::Arc};
 
 use cached::proc_macro::cached;
 use cached::SizedCache;
-use log::{debug, info};
+use log::debug;
 
 use crate::{
     data::interface::Provider,
@@ -197,6 +197,13 @@ impl Mapper {
         } else {
             var_g.clone()
         };
+
+        let var_g = if self.config.renormalize_g && self.config.genome_seq_available {
+            self.normalizer()?.normalize(&var_g)?
+        } else {
+            var_g.clone()
+        };
+
         if let HgvsVariant::GenomeVariant {
             accession,
             loc_edit,
@@ -204,18 +211,6 @@ impl Mapper {
         } = &var_g
         {
             let mapper = self.build_alignment_mapper(tx_ac, &accession.value, alt_aln_method)?;
-
-            let var_g = if mapper.strand == -1
-                && !self.config.strict_bounds
-                && !mapper.is_g_interval_in_bounds(loc_edit.loc.inner())
-                && self.config.renormalize_g
-            {
-                info!("Renormalizing out-of-bounds minus strand variant on genomic sequenc");
-                self.normalizer()?.normalize(&var_g)?
-            } else {
-                var_g.clone()
-            };
-
             let pos_n = mapper.g_to_n(loc_edit.loc.inner())?;
             let pos_n = Mu::from(
                 pos_n.inner(),
@@ -1031,7 +1026,10 @@ mod test {
 
     fn build_mapper() -> Result<Mapper, Error> {
         let provider = build_provider()?;
-        let config = Config::default();
+        let config = Config {
+            renormalize_g: false,
+            ..Default::default()
+        };
         Ok(Mapper::new(&config, provider))
     }
 
@@ -1370,6 +1368,7 @@ mod test {
             let provider = Arc::new(Provider::new(&path)?);
             let config = Config {
                 strict_bounds,
+                renormalize_g: false,
                 ..Default::default()
             };
             Ok(Mapper::new(&config, provider))
