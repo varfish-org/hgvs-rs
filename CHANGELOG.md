@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/varfish-org/hgvs-rs/compare/v0.17.5...v0.18.0) (2025-02-12)
+
+
+### Features
+
+* Renormalize during `g_to_n` if `renormalize_g` is set to true ([#223](https://github.com/varfish-org/hgvs-rs/issues/223)) ([305058d](https://github.com/varfish-org/hgvs-rs/commit/305058d7a491cd2e9a2e0fbdcf5edf928216ff0e))
+
 ## [0.17.5](https://github.com/varfish-org/hgvs-rs/compare/v0.17.4...v0.17.5) (2025-01-07)
 
 
