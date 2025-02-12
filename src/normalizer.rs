@@ -54,8 +54,8 @@ mod error {
 /// A direction with respect to a sequence.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 pub enum Direction {
-    #[default]
     ThreeToFive,
+    #[default]
     FiveToThree,
 }
 
