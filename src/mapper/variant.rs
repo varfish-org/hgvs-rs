@@ -198,7 +198,7 @@ impl Mapper {
             var_g.clone()
         };
 
-        let var_g = if self.config.renormalize_g {
+        let var_g = if self.config.renormalize_g && self.config.genome_seq_available {
             self.normalizer()?.normalize(&var_g)?
         } else {
             var_g.clone()
