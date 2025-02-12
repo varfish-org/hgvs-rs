@@ -5,7 +5,7 @@ use std::{ops::Range, sync::Arc};
 
 use cached::proc_macro::cached;
 use cached::SizedCache;
-use log::{debug, info};
+use log::debug;
 
 use crate::{
     data::interface::Provider,
