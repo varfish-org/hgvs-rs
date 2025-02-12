@@ -1332,6 +1332,7 @@ pub mod tests {
         let config = assembly::Config {
             assembly: Assembly::Grch37,
             normalize,
+            renormalize_g: false,
             ..Default::default()
         };
         Ok(Mapper::new(config, provider))

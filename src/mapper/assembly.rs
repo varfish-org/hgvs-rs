@@ -391,6 +391,7 @@ mod test {
         let config = Config {
             assembly: Assembly::Grch38,
             normalize,
+            renormalize_g: false,
             ..Config::default()
         };
         Ok(Mapper::new(config, provider))
@@ -401,6 +402,7 @@ mod test {
         let config = Config {
             assembly: Assembly::Grch37,
             normalize,
+            renormalize_g: false,
             ..Config::default()
         };
         Ok(Mapper::new(config, provider))
