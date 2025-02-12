@@ -1026,7 +1026,10 @@ mod test {
 
     fn build_mapper() -> Result<Mapper, Error> {
         let provider = build_provider()?;
-        let config = Config::default();
+        let config = Config {
+            renormalize_g: false,
+            ..Default::default()
+        };
         Ok(Mapper::new(&config, provider))
     }
 
@@ -1365,6 +1368,7 @@ mod test {
             let provider = Arc::new(Provider::new(&path)?);
             let config = Config {
                 strict_bounds,
+                renormalize_g: false,
                 ..Default::default()
             };
             Ok(Mapper::new(&config, provider))
