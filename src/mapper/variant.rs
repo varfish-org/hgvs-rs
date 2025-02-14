@@ -7,6 +7,7 @@ use cached::proc_macro::cached;
 use cached::SizedCache;
 use log::debug;
 
+use crate::mapper::alignment;
 use crate::{
     data::interface::Provider,
     mapper::Error,
