@@ -989,29 +989,20 @@ impl AltSeqToHgvsp {
                 };
                 alternative.clone_from(insertion);
             } else {
-                // deletion OR stop codon at variant position
-                if deletion.len() as i32 + start == self.ref_seq().len() as i32 {
-                    // stop codon at variant position
-                    aa_end = aa_start.clone();
-                    reference = "".to_string();
-                    alternative = "*".to_string();
-                    is_sub = true;
+                // deletion
+                aa_end = if end > *start {
+                    Some(ProtPos {
+                        aa: deletion
+                            .chars()
+                            .last()
+                            .ok_or(Error::DeletionSequenceEmpty)?
+                            .to_string(),
+                        number: end,
+                    })
                 } else {
-                    // deletion
-                    aa_end = if end > *start {
-                        Some(ProtPos {
-                            aa: deletion
-                                .chars()
-                                .last()
-                                .ok_or(Error::DeletionSequenceEmpty)?
-                                .to_string(),
-                            number: end,
-                        })
-                    } else {
-                        aa_start.clone()
-                    };
-                    alternative = "".to_string()
-                }
+                    aa_start.clone()
+                };
+                alternative = "".to_string()
             }
         } else if deletion.is_empty() {
             // insertion OR duplication OR extension
