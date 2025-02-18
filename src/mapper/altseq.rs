@@ -40,7 +40,7 @@ pub struct RefTranscriptData {
                        tx_ac,
                        pro_ac) }"#
 )]
-pub(crate) fn ref_transcript_data_cached(
+pub fn ref_transcript_data_cached(
     provider: Arc<dyn Provider + Send + Sync>,
     tx_ac: &str,
     pro_ac: Option<&str>,
@@ -114,29 +114,29 @@ impl RefTranscriptData {
 pub struct AltTranscriptData {
     /// Transcript nucleotide sequence.
     #[allow(dead_code)]
-    transcript_sequence: String,
+    pub transcript_sequence: String,
     /// 1-letter amino acid sequence.
-    aa_sequence: String,
+    pub aa_sequence: String,
     /// 1-based CDS start position.
     #[allow(dead_code)]
-    cds_start: i32,
+    pub cds_start: i32,
     /// 1-based CDS stop position.
     #[allow(dead_code)]
-    cds_stop: i32,
+    pub cds_stop: i32,
     /// Protein accession number, e.g., `"NP_999999.2"`.
     #[allow(dead_code)]
-    protein_accession: String,
+    pub protein_accession: String,
     /// Whether this is a frameshift variant.
-    is_frameshift: bool,
+    pub is_frameshift: bool,
     /// 1-based AA start index for this variant.
-    variant_start_aa: Option<i32>,
+    pub variant_start_aa: Option<i32>,
     /// Starting position (AA ref index) of the last framewshift which affects the rest of the
     /// sequence, ie.e., not offset by subsequent frameshifts.
-    frameshift_start: Option<i32>,
+    pub frameshift_start: Option<i32>,
     /// Whether this is a substitution AA variant.
-    is_substitution: bool,
+    pub is_substitution: bool,
     /// Whether variant is "?".
-    is_ambiguous: bool,
+    pub is_ambiguous: bool,
 }
 
 impl AltTranscriptData {
@@ -1093,7 +1093,7 @@ impl AltSeqToHgvsp {
         is_init_met: bool,
         is_frameshift: bool,
     ) -> Result<HgvsVariant, Error> {
-        assert!(start.is_some() == end.is_some());
+        assert_eq!(start.is_some(), end.is_some());
 
         // If the `alternative` contains a stop codon (`*`/`X`) then we have to truncate
         // after it.
