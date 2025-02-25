@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.1](https://github.com/varfish-org/hgvs-rs/compare/v0.18.0...v0.18.1) (2025-02-25)
+
+
+### Bug Fixes
+
+* introduce clamping to mimick hgvs python behaviour ([#225](https://github.com/varfish-org/hgvs-rs/issues/225)) ([4693f09](https://github.com/varfish-org/hgvs-rs/commit/4693f09c8fd048983430be806f62c206884386db))
+* make altseq public ([#228](https://github.com/varfish-org/hgvs-rs/issues/228)) ([7447835](https://github.com/varfish-org/hgvs-rs/commit/74478359709e9c6a7bebaaabc6e678a7cf1a02d1))
+
 ## [0.18.0](https://github.com/varfish-org/hgvs-rs/compare/v0.17.5...v0.18.0) (2025-02-12)
 
 
