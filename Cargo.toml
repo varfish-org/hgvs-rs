@@ -34,7 +34,7 @@ thiserror = "2.0"
 indexmap = { version = "2", features = ["serde"] }
 biocommons-bioutils = "0.1.0"
 ahash = "0.8.11"
-cached = "0.54.0"
+cached = "0.55.1"
 
 [dev-dependencies]
 anyhow = "1.0"
