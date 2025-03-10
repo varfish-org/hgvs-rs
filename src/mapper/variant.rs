@@ -412,6 +412,7 @@ impl Mapper {
                 if let NaEdit::Ins { alternative } = edit_c.inner() {
                     if pos_c.start.offset.is_none()
                         && pos_c.end.offset.is_none()
+                        && pos_c.start.cds_from == pos_c.end.cds_from
                         && pos_c.end.base - pos_c.start.base > 1
                     {
                         (
@@ -1795,6 +1796,16 @@ mod test {
         // alt_format_p = var_p.format(conf={"p_init_met": False})
         // self.assertEqual(hgvsp_expected_alternative, alt_format_p)
 
+        Ok(())
+    }
+
+    // cf. https://github.com/biocommons/hgvs/pull/765
+    #[test]
+    fn test_765_vm_g_to_c() -> Result<(), Error> {
+        let mapper = build_mapper()?;
+        let var_g = HgvsVariant::from_str("NC_000007.13:g.106545832_106545833insAG")?;
+        let var_c = mapper.g_to_c(&var_g, "NM_002649.2", "splign")?;
+        assert_eq!(var_c.to_string(), "NM_002649.2:c.3309_*1insAG");
         Ok(())
     }
 
