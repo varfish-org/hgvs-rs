@@ -150,6 +150,21 @@ impl Mapper {
             self.validator.clone(),
             normalizer::Config {
                 replace_reference: self.config.replace_reference,
+                shuffle_direction: Direction::FiveToThree,
+                ..Default::default()
+            },
+        ))
+    }
+
+    /// Construct a new normalizer for the variant mapper.
+    pub fn left_normalizer(&self) -> Result<Normalizer, Error> {
+        Ok(Normalizer::new(
+            self,
+            self.provider.clone(),
+            self.validator.clone(),
+            normalizer::Config {
+                replace_reference: self.config.replace_reference,
+                shuffle_direction: Direction::ThreeToFive,
                 ..Default::default()
             },
         ))
@@ -197,19 +212,34 @@ impl Mapper {
             var_g.clone()
         };
 
-        let var_g = if self.config.renormalize_g && self.config.genome_seq_available {
-            self.normalizer()?.normalize(&var_g)?
-        } else {
-            var_g.clone()
+        let (mapper, var_g) = match &var_g {
+            HgvsVariant::GenomeVariant {
+                accession,
+                loc_edit,
+                gene_symbol: _,
+            } => {
+                let mapper =
+                    self.build_alignment_mapper(tx_ac, &accession.value, alt_aln_method)?;
+                if mapper.strand == -1
+                    && !self.config.strict_bounds
+                    && !mapper.is_g_interval_in_bounds(loc_edit.loc.inner())
+                    && self.config.renormalize_g
+                {
+                    info!("Renormalizing out-of-bounds minus strand variant on genomic sequence");
+                    (mapper, self.left_normalizer()?.normalize(&var_g)?)
+                } else {
+                    (mapper, var_g)
+                }
+            }
+            _ => unreachable!(),
         };
 
         if let HgvsVariant::GenomeVariant {
-            accession,
+            accession: _,
             loc_edit,
             gene_symbol,
         } = &var_g
         {
-            let mapper = self.build_alignment_mapper(tx_ac, &accession.value, alt_aln_method)?;
             let pos_n = mapper.g_to_n(loc_edit.loc.inner())?;
             let pos_n = Mu::from(
                 pos_n.inner(),
