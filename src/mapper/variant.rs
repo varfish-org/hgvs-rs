@@ -54,7 +54,7 @@ impl Default for Config {
 
 /// Projects variants between sequences using `alignment::Mapper`.
 pub struct Mapper {
-    config: Config,
+    pub config: Config,
     provider: Arc<dyn Provider + Send + Sync>,
     validator: Arc<dyn Validator + Send + Sync>,
 }
