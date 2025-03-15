@@ -1,13 +1,13 @@
 //! Code for mapping variants between sequences.
 
+use cached::proc_macro::cached;
+use cached::SizedCache;
+use log::{debug, info};
 use std::ops::Deref;
 use std::{ops::Range, sync::Arc};
 
-use cached::proc_macro::cached;
-use cached::SizedCache;
-use log::debug;
-
 use crate::mapper::alignment;
+use crate::normalizer::Direction;
 use crate::{
     data::interface::Provider,
     mapper::Error,
@@ -810,7 +810,32 @@ impl Mapper {
         let r = var
             .loc_range()
             .ok_or(Error::NoAlteredSequenceForMissingPositions)?;
-        let r = ((r.start - interval.start) as usize)..((r.end - interval.start) as usize);
+
+        let (start, end) = if interval.start > r.start || interval.start > r.end {
+            log::warn!(
+                "Altered sequence range start {} is greater than variant range start {} or end {}, clamping. Variant description is {}",
+                interval.start,
+                r.end,
+                r.start,
+                &var
+            );
+            let n = r.len();
+            let mut start = r.start - interval.start;
+            let mut end = r.end - interval.start;
+            if start < 0 {
+                start += n as i32;
+            }
+            if end < 0 {
+                end += n as i32;
+            }
+            (start, end)
+        } else {
+            (r.start - interval.start, r.end - interval.start)
+        };
+
+        let start = usize::try_from(start).map_err(|_| Error::CannotConvertIntervalStart(start))?;
+        let end = usize::try_from(end).map_err(|_| Error::CannotConvertIntervalEnd(end))?;
+        let r = start..end;
         let r = if r.end >= seq.len() {
             log::warn!(
                     "Altered sequence range {:?} is incompatible with sequence length {:?}, clamping. Variant description is {}",
