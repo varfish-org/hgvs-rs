@@ -93,7 +93,7 @@ impl Default for Config {
 pub struct Mapper {
     pub config: Config,
     provider: Arc<dyn Provider + Send + Sync>,
-    inner: variant::Mapper,
+    pub inner: variant::Mapper,
     /// Accessions of contigs in assembly.
     asm_accessions: HashSet<String>,
     /// Map from accession to contig name.
