@@ -8,6 +8,7 @@ use cached::SizedCache;
 use log::debug;
 
 use crate::mapper::alignment;
+use crate::normalizer::Direction;
 use crate::{
     data::interface::Provider,
     mapper::Error,
@@ -36,6 +37,8 @@ pub struct Config {
     /// Use the genome sequence in case of uncertain g-to-n projections.  This
     /// can be switched off so genome sequence does not have to be available.
     pub genome_seq_available: bool,
+    pub shuffle_direction: Direction,
+    pub window_size: usize,
 }
 
 impl Default for Config {
@@ -48,6 +51,8 @@ impl Default for Config {
             strict_bounds: true,
             renormalize_g: true,
             genome_seq_available: true,
+            shuffle_direction: Default::default(),
+            window_size: 20,
         }
     }
 }
@@ -150,6 +155,8 @@ impl Mapper {
             self.validator.clone(),
             normalizer::Config {
                 replace_reference: self.config.replace_reference,
+                shuffle_direction: self.config.shuffle_direction,
+                window_size: self.config.window_size,
                 ..Default::default()
             },
         ))
