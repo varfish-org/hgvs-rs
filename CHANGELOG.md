@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.2](https://github.com/varfish-org/hgvs-rs/compare/v0.18.1...v0.18.2) (2025-03-10)
+
+
+### Bug Fixes
+
+* incorporate biocommons PR 765: fix exception in g_to_c mapping ([#231](https://github.com/varfish-org/hgvs-rs/issues/231)) ([f658e9b](https://github.com/varfish-org/hgvs-rs/commit/f658e9b87e8981cbd3788c9d1cd7b9dc2a1215d2))
+
 ## [0.18.1](https://github.com/varfish-org/hgvs-rs/compare/v0.18.0...v0.18.1) (2025-02-25)
 
 
