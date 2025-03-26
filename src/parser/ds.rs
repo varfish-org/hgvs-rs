@@ -704,16 +704,14 @@ impl TryInto<Range<i32>> for GenomeInterval {
     }
 }
 
-impl TryInto<GenomeInterval> for Range<i32> {
-    type Error = Error;
-
+impl Into<GenomeInterval> for Range<i32> {
     /// The genome interval will be converted from 0-based, half-open Rust range
     /// `[start, end)` to 1-based inclusive coordinates `[start + 1, end]`.
-    fn try_into(self) -> Result<GenomeInterval, Self::Error> {
-        Ok(GenomeInterval {
+    fn into(self) -> GenomeInterval {
+        GenomeInterval {
             start: Some(self.start + 1),
             end: Some(self.end),
-        })
+        }
     }
 }
 
