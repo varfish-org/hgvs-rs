@@ -704,13 +704,13 @@ impl TryInto<Range<i32>> for GenomeInterval {
     }
 }
 
-impl Into<GenomeInterval> for Range<i32> {
+impl From<Range<i32>> for GenomeInterval {
     /// The genome interval will be converted from 0-based, half-open Rust range
     /// `[start, end)` to 1-based inclusive coordinates `[start + 1, end]`.
-    fn into(self) -> GenomeInterval {
-        GenomeInterval {
-            start: Some(self.start + 1),
-            end: Some(self.end),
+    fn from(value: Range<i32>) -> Self {
+        Self {
+            start: Some(value.start + 1),
+            end: Some(value.end + 1),
         }
     }
 }
