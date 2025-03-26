@@ -704,6 +704,17 @@ impl TryInto<Range<i32>> for GenomeInterval {
     }
 }
 
+impl From<Range<i32>> for GenomeInterval {
+    /// The genome interval will be converted from 0-based, half-open Rust range
+    /// `[start, end)` to 1-based inclusive coordinates `[start + 1, end]`.
+    fn from(value: Range<i32>) -> Self {
+        Self {
+            start: Some(value.start + 1),
+            end: Some(value.end + 1),
+        }
+    }
+}
+
 /// Mitochondrial sequence location with edit.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct MtLocEdit {

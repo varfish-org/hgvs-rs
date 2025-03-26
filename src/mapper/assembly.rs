@@ -91,9 +91,9 @@ impl Default for Config {
 /// Note: AssemblyMapper supports only chromosomal references (e.g. NC_000006.11). It does
 /// not support contigs or other genomic sequences (e.g., NT_167249.1).
 pub struct Mapper {
-    config: Config,
+    pub config: Config,
     provider: Arc<dyn Provider + Send + Sync>,
-    inner: variant::Mapper,
+    pub inner: variant::Mapper,
     /// Accessions of contigs in assembly.
     asm_accessions: HashSet<String>,
     /// Map from accession to contig name.
@@ -134,6 +134,10 @@ impl Mapper {
             asm_accessions,
             asm_map,
         }
+    }
+
+    pub fn variant_mapper(&self) -> &variant::Mapper {
+        &self.inner
     }
 
     /// Convert from genome (g.) variant to transcript variant (n.).
