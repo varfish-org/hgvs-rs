@@ -704,6 +704,19 @@ impl TryInto<Range<i32>> for GenomeInterval {
     }
 }
 
+impl TryInto<GenomeInterval> for Range<i32> {
+    type Error = Error;
+
+    /// The genome interval will be converted from 0-based, half-open Rust range
+    /// `[start, end)` to 1-based inclusive coordinates `[start + 1, end]`.
+    fn try_into(self) -> Result<GenomeInterval, Self::Error> {
+        Ok(GenomeInterval {
+            start: Some(self.start + 1),
+            end: Some(self.end),
+        })
+    }
+}
+
 /// Mitochondrial sequence location with edit.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct MtLocEdit {

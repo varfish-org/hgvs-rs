@@ -7,11 +7,10 @@ use std::ops::Deref;
 use std::{ops::Range, sync::Arc};
 
 use crate::mapper::alignment;
-use crate::normalizer::Direction;
 use crate::{
     data::interface::Provider,
     mapper::Error,
-    normalizer::{self, Normalizer},
+    normalizer::{self, Direction, Normalizer},
     parser::{
         Accession, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval, GenomeLocEdit,
         HgvsVariant, Mu, NaEdit, TxInterval, TxLocEdit, TxPos,
@@ -165,6 +164,20 @@ impl Mapper {
             normalizer::Config {
                 replace_reference: self.config.replace_reference,
                 shuffle_direction: Direction::ThreeToFive,
+                ..Default::default()
+            },
+        ))
+    }
+
+    /// Construct a new normalizer for the variant mapper.
+    pub fn right_normalizer(&self) -> Result<Normalizer, Error> {
+        Ok(Normalizer::new(
+            self,
+            self.provider.clone(),
+            self.validator.clone(),
+            normalizer::Config {
+                replace_reference: self.config.replace_reference,
+                shuffle_direction: Direction::FiveToThree,
                 ..Default::default()
             },
         ))
@@ -819,6 +832,8 @@ impl Mapper {
                 r.start,
                 &var
             );
+            // FIXME: workaround for cases that would end up with negative start positions
+            //  this needs more investigation
             let n = r.len();
             let mut start = r.start - interval.start;
             let mut end = r.end - interval.start;
@@ -836,7 +851,7 @@ impl Mapper {
         let start = usize::try_from(start).map_err(|_| Error::CannotConvertIntervalStart(start))?;
         let end = usize::try_from(end).map_err(|_| Error::CannotConvertIntervalEnd(end))?;
         let r = start..end;
-        let r = if r.end >= seq.len() {
+        let r = if r.end > seq.len() {
             log::warn!(
                     "Altered sequence range {:?} is incompatible with sequence length {:?}, clamping. Variant description is {}",
                     r,

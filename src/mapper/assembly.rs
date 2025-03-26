@@ -136,6 +136,10 @@ impl Mapper {
         }
     }
 
+    pub fn variant_mapper(&self) -> &variant::Mapper {
+        &self.inner
+    }
+
     /// Convert from genome (g.) variant to transcript variant (n.).
     ///
     /// # Args
