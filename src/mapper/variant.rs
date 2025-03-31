@@ -1,17 +1,16 @@
 //! Code for mapping variants between sequences.
 
-use std::ops::Deref;
-use std::{ops::Range, sync::Arc};
-
 use cached::proc_macro::cached;
 use cached::SizedCache;
-use log::debug;
+use log::{debug, info};
+use std::ops::Deref;
+use std::{ops::Range, sync::Arc};
 
 use crate::mapper::alignment;
 use crate::{
     data::interface::Provider,
     mapper::Error,
-    normalizer::{self, Normalizer},
+    normalizer::{self, Direction, Normalizer},
     parser::{
         Accession, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval, GenomeLocEdit,
         HgvsVariant, Mu, NaEdit, TxInterval, TxLocEdit, TxPos,
@@ -54,7 +53,7 @@ impl Default for Config {
 
 /// Projects variants between sequences using `alignment::Mapper`.
 pub struct Mapper {
-    config: Config,
+    pub config: Config,
     provider: Arc<dyn Provider + Send + Sync>,
     validator: Arc<dyn Validator + Send + Sync>,
 }
@@ -150,6 +149,35 @@ impl Mapper {
             self.validator.clone(),
             normalizer::Config {
                 replace_reference: self.config.replace_reference,
+                shuffle_direction: Direction::FiveToThree,
+                ..Default::default()
+            },
+        ))
+    }
+
+    /// Construct a new normalizer for the variant mapper.
+    pub fn left_normalizer(&self) -> Result<Normalizer, Error> {
+        Ok(Normalizer::new(
+            self,
+            self.provider.clone(),
+            self.validator.clone(),
+            normalizer::Config {
+                replace_reference: self.config.replace_reference,
+                shuffle_direction: Direction::ThreeToFive,
+                ..Default::default()
+            },
+        ))
+    }
+
+    /// Construct a new normalizer for the variant mapper.
+    pub fn right_normalizer(&self) -> Result<Normalizer, Error> {
+        Ok(Normalizer::new(
+            self,
+            self.provider.clone(),
+            self.validator.clone(),
+            normalizer::Config {
+                replace_reference: self.config.replace_reference,
+                shuffle_direction: Direction::FiveToThree,
                 ..Default::default()
             },
         ))
@@ -197,19 +225,34 @@ impl Mapper {
             var_g.clone()
         };
 
-        let var_g = if self.config.renormalize_g && self.config.genome_seq_available {
-            self.normalizer()?.normalize(&var_g)?
-        } else {
-            var_g.clone()
+        let (mapper, var_g) = match &var_g {
+            HgvsVariant::GenomeVariant {
+                accession,
+                loc_edit,
+                gene_symbol: _,
+            } => {
+                let mapper =
+                    self.build_alignment_mapper(tx_ac, &accession.value, alt_aln_method)?;
+                if mapper.strand == -1
+                    && !self.config.strict_bounds
+                    && !mapper.is_g_interval_in_bounds(loc_edit.loc.inner())
+                    && self.config.renormalize_g
+                {
+                    info!("Renormalizing out-of-bounds minus strand variant on genomic sequence");
+                    (mapper, self.left_normalizer()?.normalize(&var_g)?)
+                } else {
+                    (mapper, var_g)
+                }
+            }
+            _ => unreachable!(),
         };
 
         if let HgvsVariant::GenomeVariant {
-            accession,
+            accession: _,
             loc_edit,
             gene_symbol,
         } = &var_g
         {
-            let mapper = self.build_alignment_mapper(tx_ac, &accession.value, alt_aln_method)?;
             let pos_n = mapper.g_to_n(loc_edit.loc.inner())?;
             let pos_n = Mu::from(
                 pos_n.inner(),
@@ -780,8 +823,35 @@ impl Mapper {
         let r = var
             .loc_range()
             .ok_or(Error::NoAlteredSequenceForMissingPositions)?;
-        let r = ((r.start - interval.start) as usize)..((r.end - interval.start) as usize);
-        let r = if r.end >= seq.len() {
+
+        let (start, end) = if interval.start > r.start || interval.start > r.end {
+            log::warn!(
+                "Altered sequence range start {} is greater than variant range start {} or end {}, clamping. Variant description is {}",
+                interval.start,
+                r.end,
+                r.start,
+                &var
+            );
+            // FIXME: workaround for cases that would end up with negative start positions
+            //  this needs more investigation
+            let n = r.len();
+            let mut start = r.start - interval.start;
+            let mut end = r.end - interval.start;
+            if start < 0 {
+                start += n as i32;
+            }
+            if end < 0 {
+                end += n as i32;
+            }
+            (start, end)
+        } else {
+            (r.start - interval.start, r.end - interval.start)
+        };
+
+        let start = usize::try_from(start).map_err(|_| Error::CannotConvertIntervalStart(start))?;
+        let end = usize::try_from(end).map_err(|_| Error::CannotConvertIntervalEnd(end))?;
+        let r = start..end;
+        let r = if r.end > seq.len() {
             log::warn!(
                     "Altered sequence range {:?} is incompatible with sequence length {:?}, clamping. Variant description is {}",
                     r,

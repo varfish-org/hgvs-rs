@@ -449,7 +449,7 @@ impl AltSeqBuilder {
 
         // Incorporate the variant into the sequence (depending on the type).
         let mut is_substitution = false;
-        let range = if end >= seq.len() && reference.is_some() {
+        let range = if end > seq.len() && reference.is_some() {
             log::warn!(
                     "Altered sequence range {:?} is incompatible with sequence length {:?}, clamping. Variant description is {}",
                     start..end,
