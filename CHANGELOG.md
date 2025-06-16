@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/varfish-org/hgvs-rs/compare/v0.18.2...v0.19.0) (2025-06-16)
+
+
+### Features
+
+* add support for arbitrary tags ([#236](https://github.com/varfish-org/hgvs-rs/issues/236)) ([8ece68f](https://github.com/varfish-org/hgvs-rs/commit/8ece68f875c1597142ee98d1ffa74af3b5fbae91))
+
 ## [0.18.2](https://github.com/varfish-org/hgvs-rs/compare/v0.18.1...v0.18.2) (2025-03-31)
 
 
