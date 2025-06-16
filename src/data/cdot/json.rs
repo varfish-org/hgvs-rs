@@ -201,7 +201,7 @@ pub mod models {
     }
 
     /// Enum for representing the tags for transcripts.
-    #[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+    #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
     pub enum Tag {
         Basic,
         EnsemblCanonical,
@@ -209,7 +209,7 @@ pub mod models {
         ManePlusClinical,
         RefSeqSelect,
         GencodePrimary,
-        Other,
+        Other(String),
     }
 
     #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -538,7 +538,7 @@ pub mod models {
             "GENCODE Primary" => Tag::GencodePrimary,
             _ => {
                 log::trace!("unknown tag: {}", s);
-                Tag::Other
+                Tag::Other(s.to_string())
             }
         }
     }
