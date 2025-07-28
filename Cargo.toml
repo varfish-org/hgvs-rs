@@ -43,7 +43,7 @@ csv = "1.2"
 env_logger = "0.11"
 insta = { version = "1", features = ["yaml"] }
 pretty_assertions = "1.3"
-rstest = "0.25"
+rstest = "0.26"
 test-log = "0.2"
 
 [[bench]]
