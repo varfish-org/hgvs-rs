@@ -35,6 +35,8 @@ pub struct Config {
     /// Use the genome sequence in case of uncertain g-to-n projections.  This
     /// can be switched off so genome sequence does not have to be available.
     pub genome_seq_available: bool,
+    pub shuffle_direction: Direction,
+    pub window_size: usize,
 }
 
 impl Default for Config {
@@ -47,6 +49,8 @@ impl Default for Config {
             strict_bounds: true,
             renormalize_g: true,
             genome_seq_available: true,
+            shuffle_direction: Default::default(),
+            window_size: 20,
         }
     }
 }
@@ -122,16 +126,6 @@ impl Mapper {
         alt_ac: &str,
         alt_aln_method: &str,
     ) -> Result<alignment::Mapper, Error> {
-        // // TODO: implement caching
-        // alignment::Mapper::new(
-        //     &alignment::Config {
-        //         strict_bounds: self.config.strict_bounds,
-        //     },
-        //     self.provider.clone(),
-        //     tx_ac,
-        //     alt_ac,
-        //     alt_aln_method,
-        // )
         build_alignment_mapper_cached(
             self.provider.clone(),
             self.config.strict_bounds,
@@ -149,7 +143,8 @@ impl Mapper {
             self.validator.clone(),
             normalizer::Config {
                 replace_reference: self.config.replace_reference,
-                shuffle_direction: Direction::FiveToThree,
+                shuffle_direction: self.config.shuffle_direction,
+                window_size: self.config.window_size,
                 ..Default::default()
             },
         ))
@@ -989,7 +984,7 @@ impl Mapper {
             // This is an out-of-bounds variant.
             return Ok(var);
         }
-        tracing::debug!("get_seq_part({}, {}, {})", ac, r.start, r.end);
+        tracing::trace!("get_seq_part({}, {}, {})", ac, r.start, r.end);
         let seq = self.provider.as_ref().get_seq_part(
             ac,
             Some(r.start as usize),
