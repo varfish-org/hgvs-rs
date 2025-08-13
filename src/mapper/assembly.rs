@@ -289,7 +289,7 @@ impl Mapper {
         if self.config.normalize {
             let normalizer = self.inner.normalizer()?;
             normalizer.normalize(var).or_else(|_| {
-                log::warn!("Normalization of variable {} failed", &var);
+                tracing::warn!("Normalization of variable {} failed", &var);
                 Ok(var.clone())
             })
         } else {
