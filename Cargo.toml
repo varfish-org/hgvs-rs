@@ -43,6 +43,9 @@ pretty_assertions = "1.3"
 rstest = "0.26"
 test-log = "0.2"
 
+[features]
+deserialization_tests = []
+
 [[bench]]
 name = "translate_cds"
 harness = false
