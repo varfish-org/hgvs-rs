@@ -298,16 +298,16 @@ impl AltSeqBuilder {
                 NaEdit::DelRef { .. } |
                 NaEdit::DelNum { .. } => EditType::WholeGeneDeleted,
                 NaEdit::Dup { .. } => {
-                    log::warn!("Whole-gene duplication; consequence assumed to not affect protein product");
+                    tracing::warn!("Whole-gene duplication; consequence assumed to not affect protein product");
                     EditType::NotCds
                 }
                 NaEdit::InvRef { .. } |
                 NaEdit::InvNum { .. } => {
-                    log::warn!("Whole-gene inversion; consequence assumed to not affected protein product");
+                    tracing::warn!("Whole-gene inversion; consequence assumed to not affected protein product");
                     EditType::NotCds
                 }
                 NaEdit::RefAlt { .. } => {
-                    log::warn!("The whole-gene variant {} is not a clean deletion. Assuming whole gene deletion.", self.var_c);
+                    tracing::warn!("The whole-gene variant {} is not a clean deletion. Assuming whole gene deletion.", self.var_c);
                     EditType::WholeGeneDeleted
                 }
                 _ => panic!("Invalid combination of whole gene variant location and NaEdit {na_edit:?}"),
@@ -450,7 +450,7 @@ impl AltSeqBuilder {
         // Incorporate the variant into the sequence (depending on the type).
         let mut is_substitution = false;
         let range = if end > seq.len() && reference.is_some() {
-            log::warn!(
+            tracing::warn!(
                     "Altered sequence range {:?} is incompatible with sequence length {:?}, clamping. Variant description is {}",
                     start..end,
                     seq.len(),

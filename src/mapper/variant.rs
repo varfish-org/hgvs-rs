@@ -647,7 +647,7 @@ impl Mapper {
     ///
     /// * `var_c` -- `HgvsVariant::CdsVariant` to project
     pub fn c_to_n(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, Error> {
-        log::debug!("c_to_n({})", var_c);
+        tracing::debug!("c_to_n({})", var_c);
         self.validator.validate(var_c)?;
         let var_c = if self.config.replace_reference {
             self.replace_reference(var_c.clone())?
@@ -679,7 +679,7 @@ impl Mapper {
                 var_n
             };
 
-            log::debug!("c_to_n({}) = {}", var_c, &var_n);
+            tracing::debug!("c_to_n({}) = {}", var_c, &var_n);
             Ok(var_n)
         } else {
             Err(Error::ExpectedCdsVariant(format!("{}", &var_c)))
@@ -825,7 +825,7 @@ impl Mapper {
             .ok_or(Error::NoAlteredSequenceForMissingPositions)?;
 
         let (start, end) = if interval.start > r.start || interval.start > r.end {
-            log::warn!(
+            tracing::warn!(
                 "Altered sequence range start {} is greater than variant range start {} or end {}, clamping. Variant description is {}",
                 interval.start,
                 r.end,
@@ -852,7 +852,7 @@ impl Mapper {
         let end = usize::try_from(end).map_err(|_| Error::CannotConvertIntervalEnd(end))?;
         let r = start..end;
         let r = if r.end > seq.len() {
-            log::warn!(
+            tracing::warn!(
                     "Altered sequence range {:?} is incompatible with sequence length {:?}, clamping. Variant description is {}",
                     r,
                     seq.len(),
@@ -989,7 +989,7 @@ impl Mapper {
             // This is an out-of-bounds variant.
             return Ok(var);
         }
-        log::debug!("get_seq_part({}, {}, {})", ac, r.start, r.end);
+        tracing::debug!("get_seq_part({}, {}, {})", ac, r.start, r.end);
         let seq = self.provider.as_ref().get_seq_part(
             ac,
             Some(r.start as usize),
@@ -997,7 +997,7 @@ impl Mapper {
         )?;
         if seq.len() != r.len() {
             // Tried to read beyond seq end; this is an out-of-bounds variant.
-            log::debug!("Bailing out on out-of-bounds variant: {}", &var);
+            tracing::debug!("Bailing out on out-of-bounds variant: {}", &var);
             return Ok(var);
         }
 

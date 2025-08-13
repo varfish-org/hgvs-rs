@@ -537,7 +537,7 @@ pub mod models {
             "RefSeq Select" => Tag::RefSeqSelect,
             "GENCODE Primary" => Tag::GencodePrimary,
             _ => {
-                log::trace!("unknown tag: {}", s);
+                tracing::trace!("unknown tag: {}", s);
                 Tag::Other(s.to_string())
             }
         }
@@ -596,7 +596,7 @@ impl TxProvider {
             )?;
         }
 
-        log::debug!(
+        tracing::debug!(
             "json::TxProvider -- #genes = {}, #transcripts = {}, #transcript_ids_for_gene = {}",
             genes.len(),
             transcripts.len(),
@@ -619,7 +619,7 @@ impl TxProvider {
         genes: &mut HashMap<String, models::Gene>,
         transcripts: &mut HashMap<String, models::Transcript>,
     ) -> Result<(), Error> {
-        log::debug!("Loading cdot transcripts from {:?}", json_path);
+        tracing::debug!("Loading cdot transcripts from {:?}", json_path);
         let start = Instant::now();
         let models::Container {
             genes: c_genes,
@@ -638,7 +638,7 @@ impl TxProvider {
             ))
             .map_err(|_e| Error::CdotJsonParse(json_path.to_string()))?
         };
-        log::debug!(
+        tracing::debug!(
             "loading / deserializing {} genes and {} transcripts from cdot took {:?}",
             c_genes.len(),
             c_txs.len(),
@@ -694,7 +694,7 @@ impl TxProvider {
                     .push(tx.id.clone());
                 transcripts.insert(tx.id.clone(), tx.clone());
             });
-        log::debug!("extracting datastructures took {:?}", start.elapsed());
+        tracing::debug!("extracting datastructures took {:?}", start.elapsed());
         Ok(())
     }
 
@@ -702,7 +702,7 @@ impl TxProvider {
         transcripts: &HashMap<String, models::Transcript>,
     ) -> HashMap<String, IntervalTree> {
         let start = Instant::now();
-        log::debug!("Building interval trees...");
+        tracing::debug!("Building interval trees...");
 
         let mut result = HashMap::new();
         for transcript in transcripts.values() {
@@ -733,7 +733,7 @@ impl TxProvider {
             tree.index();
         }
 
-        log::debug!("Built interval trees in {:?}", start.elapsed());
+        tracing::debug!("Built interval trees in {:?}", start.elapsed());
         result
     }
 }
@@ -801,7 +801,7 @@ impl TxProvider {
     /// And is only ever called as a backup when get_pro_ac_for_tx_ac fails
     #[allow(dead_code)]
     fn get_acs_for_protein_seq(&self, _seq: &str) -> Result<Vec<String>, Error> {
-        log::warn!(
+        tracing::warn!(
             "cdot::data::json::TxProvider::get_acs_for_protein_seq() \
             This has not been implemented"
         );
@@ -814,7 +814,7 @@ impl TxProvider {
     /// This is not used by the HGVS library
     #[allow(dead_code)]
     fn get_similar_transcripts(&self, _tx_ac: &str) -> Result<Vec<TxSimilarityRecord>, Error> {
-        log::warn!(
+        tracing::warn!(
             "cdot::data::json::TxProvider::get_similar_transcripts() \
             This has not been implemented"
         );
@@ -1096,20 +1096,20 @@ pub mod test_helpers {
         let sr_cache_path = std::env::var("TEST_SEQREPO_CACHE_PATH")
             .expect("Environment variable TEST_SEQREPO_CACHE_PATH undefined!");
 
-        log::debug!("building provider...");
+        tracing::debug!("building provider...");
         let seqrepo = if sr_cache_mode == "read" {
-            log::debug!("reading provider...");
+            tracing::debug!("reading provider...");
             let seqrepo: Arc<dyn seqrepo::Interface + Send + Sync> =
                 Arc::new(seqrepo::CacheReadingSeqRepo::new(sr_cache_path)?);
-            log::debug!("construction done...");
+            tracing::debug!("construction done...");
             seqrepo
         } else if sr_cache_mode == "write" {
-            log::debug!("writing provider...");
+            tracing::debug!("writing provider...");
             build_writing_sr(sr_cache_path)?.0
         } else {
             panic!("Invalid cache mode {}", &sr_cache_mode);
         };
-        log::debug!("now returning provider...");
+        tracing::debug!("now returning provider...");
 
         let config = Config {
             json_paths: vec![String::from(

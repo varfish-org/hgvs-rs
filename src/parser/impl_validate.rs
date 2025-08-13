@@ -78,7 +78,7 @@ impl Validateable for CdsLocEdit {
         let range = if let Ok(range) = maybe_range {
             range
         } else {
-            log::trace!(
+            tracing::trace!(
                 "Skipping CDS location because loc cannot be converted to range: {:?}",
                 loc
             );
