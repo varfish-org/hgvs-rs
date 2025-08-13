@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.19.1](https://github.com/varfish-org/hgvs-rs/compare/v0.19.0...v0.19.1) (2025-08-13)
+
+
+### Bug Fixes
+
+* Expose `assembly::mapper` config options ([#206](https://github.com/varfish-org/hgvs-rs/issues/206)) ([0044e09](https://github.com/varfish-org/hgvs-rs/commit/0044e098c7baf8bbc2b27ac2330275239ed4f091))
+* use tracing instead of log ([#242](https://github.com/varfish-org/hgvs-rs/issues/242)) ([9bf18c4](https://github.com/varfish-org/hgvs-rs/commit/9bf18c482ceccabd55083ef1958ed7c81962c38e))
+
 ## [0.19.0](https://github.com/varfish-org/hgvs-rs/compare/v0.18.2...v0.19.0) (2025-06-16)
 
 
