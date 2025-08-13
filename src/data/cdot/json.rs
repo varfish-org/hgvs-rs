@@ -999,7 +999,7 @@ impl TxProvider {
                 .contains(needle)
         });
         let is_selenoprotein = is_selenoprotein
-            || tx.biotype.as_ref().map_or(false, |bt| {
+            || tx.biotype.as_ref().is_some_and(|bt| {
                 bt.contains(&crate::data::cdot::json::models::BioType::Selenoprotein)
             });
 

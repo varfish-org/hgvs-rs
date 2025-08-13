@@ -142,7 +142,7 @@ impl Mapper {
     }
 
     /// Construct a new normalizer for the variant mapper.
-    pub fn normalizer(&self) -> Result<Normalizer, Error> {
+    pub fn normalizer(&self) -> Result<Normalizer<'_>, Error> {
         Ok(Normalizer::new(
             self,
             self.provider.clone(),
@@ -156,7 +156,7 @@ impl Mapper {
     }
 
     /// Construct a new normalizer for the variant mapper.
-    pub fn left_normalizer(&self) -> Result<Normalizer, Error> {
+    pub fn left_normalizer(&self) -> Result<Normalizer<'_>, Error> {
         Ok(Normalizer::new(
             self,
             self.provider.clone(),
@@ -170,7 +170,7 @@ impl Mapper {
     }
 
     /// Construct a new normalizer for the variant mapper.
-    pub fn right_normalizer(&self) -> Result<Normalizer, Error> {
+    pub fn right_normalizer(&self) -> Result<Normalizer<'_>, Error> {
         Ok(Normalizer::new(
             self,
             self.provider.clone(),
@@ -1893,7 +1893,9 @@ mod test {
             pub hgvs_c: String,
             #[serde(alias = "HGVSp")]
             pub hgvs_p: Option<String>,
+            #[allow(dead_code)]
             pub description: Option<String>,
+            #[allow(dead_code)]
             pub alternatives: Option<String>,
         }
 

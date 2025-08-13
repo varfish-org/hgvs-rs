@@ -342,7 +342,7 @@ pub mod na_edit {
     }
 
     pub fn subst(input: &str) -> IResult<&str, NaEdit> {
-        let (rest, (src, _, dst)) = ((na, nom_char('>'), na)).parse(input)?;
+        let (rest, (src, _, dst)) = (na, nom_char('>'), na).parse(input)?;
         Ok((
             rest,
             NaEdit::RefAlt {
@@ -369,7 +369,7 @@ pub mod na_edit {
 
     pub fn delins_ref_alt(input: &str) -> IResult<&str, NaEdit> {
         let (rest, (_, reference, _, alternative)) =
-            ((tag("del"), na0, tag("ins"), na1)).parse(input)?;
+            (tag("del"), na0, tag("ins"), na1).parse(input)?;
         Ok((
             rest,
             NaEdit::RefAlt {
@@ -381,7 +381,7 @@ pub mod na_edit {
 
     pub fn delins_num_alt(input: &str) -> IResult<&str, NaEdit> {
         let (rest, (_, count, _, alternative)) =
-            ((tag("del"), digit1, tag("ins"), na1)).parse(input)?;
+            (tag("del"), digit1, tag("ins"), na1).parse(input)?;
         Ok((
             rest,
             NaEdit::NumAlt {
@@ -394,7 +394,7 @@ pub mod na_edit {
     }
 
     pub fn ins(input: &str) -> IResult<&str, NaEdit> {
-        let (rest, (_, alternative)) = ((tag("ins"), na1)).parse(input)?;
+        let (rest, (_, alternative)) = (tag("ins"), na1).parse(input)?;
         Ok((
             rest,
             NaEdit::Ins {
@@ -404,7 +404,7 @@ pub mod na_edit {
     }
 
     pub fn dup(input: &str) -> IResult<&str, NaEdit> {
-        let (rest, (_, reference)) = ((tag("dup"), na0)).parse(input)?;
+        let (rest, (_, reference)) = (tag("dup"), na0).parse(input)?;
         Ok((
             rest,
             NaEdit::Dup {
@@ -414,7 +414,7 @@ pub mod na_edit {
     }
 
     pub fn inv_num(input: &str) -> IResult<&str, NaEdit> {
-        let (rest, (_, count)) = ((tag("inv"), digit1)).parse(input)?;
+        let (rest, (_, count)) = (tag("inv"), digit1).parse(input)?;
         Ok((
             rest,
             NaEdit::InvNum {
@@ -426,7 +426,7 @@ pub mod na_edit {
     }
 
     pub fn inv_ref(input: &str) -> IResult<&str, NaEdit> {
-        let (rest, (_, reference)) = ((tag("inv"), na0)).parse(input)?;
+        let (rest, (_, reference)) = (tag("inv"), na0).parse(input)?;
         Ok((
             rest,
             NaEdit::InvRef {
@@ -493,7 +493,7 @@ pub mod cds_pos {
     }
 
     pub fn int(input: &str) -> IResult<&str, CdsInterval> {
-        let (rest, (begin, _, end)) = ((pos, tag("_"), pos)).parse(input)?;
+        let (rest, (begin, _, end)) = (pos, tag("_"), pos).parse(input)?;
         Ok((rest, CdsInterval { start: begin, end }))
     }
 
@@ -625,7 +625,7 @@ pub mod tx_pos {
     }
 
     pub fn int(input: &str) -> IResult<&str, TxInterval> {
-        let (rest, (begin, _, end)) = ((pos, tag("_"), pos)).parse(input)?;
+        let (rest, (begin, _, end)) = (pos, tag("_"), pos).parse(input)?;
         Ok((rest, TxInterval { start: begin, end }))
     }
 
@@ -673,7 +673,7 @@ pub mod rna_pos {
     }
 
     pub fn int(input: &str) -> IResult<&str, RnaInterval> {
-        let (rest, (begin, _, end)) = ((pos, tag("_"), pos)).parse(input)?;
+        let (rest, (begin, _, end)) = (pos, tag("_"), pos).parse(input)?;
         Ok((rest, RnaInterval { start: begin, end }))
     }
 
@@ -714,7 +714,7 @@ pub mod prot_pos {
     }
 
     pub fn int(input: &str) -> IResult<&str, ProtInterval> {
-        let (rest, (begin, _, end)) = ((pos, tag("_"), pos)).parse(input)?;
+        let (rest, (begin, _, end)) = (pos, tag("_"), pos).parse(input)?;
         Ok((rest, ProtInterval { start: begin, end }))
     }
 

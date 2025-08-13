@@ -1063,7 +1063,15 @@ mod test {
 
     fn normalizers(
         mapper: &Mapper,
-    ) -> Result<(Normalizer, Normalizer, Normalizer, Normalizer), Error> {
+    ) -> Result<
+        (
+            Normalizer<'_>,
+            Normalizer<'_>,
+            Normalizer<'_>,
+            Normalizer<'_>,
+        ),
+        Error,
+    > {
         let provider = mapper.provider();
         let validator = Arc::new(IntrinsicValidator::new(true));
 
