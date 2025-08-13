@@ -999,7 +999,7 @@ impl TxProvider {
                 .contains(needle)
         });
         let is_selenoprotein = is_selenoprotein
-            || tx.biotype.as_ref().map_or(false, |bt| {
+            || tx.biotype.as_ref().is_some_and(|bt| {
                 bt.contains(&crate::data::cdot::json::models::BioType::Selenoprotein)
             });
 
@@ -1165,7 +1165,7 @@ pub mod tests {
     }
 
     /// Deserialization of the big cdot files for benchmarking.
-    #[cfg(deserialization_tests)]
+    #[cfg(feature = "deserialization_tests")]
     #[test]
     fn deserialize_big_files() -> Result<(), Error> {
         let before = std::time::Instant::now();

@@ -371,11 +371,11 @@ impl CodonTranslator {
 ///
 /// * `seq` -- A nucleotide sequence.
 /// * `full_codons` -- If `true`, forces sequence to have length that is a multiple of 3
-///    and return an `Err` otherwise.  If `false`, `ter_symbol` will be added as the last
-///    amino acid.  This corresponds to biopython's behavior of padding the last codon with
-///    `N` characters.
+///   and return an `Err` otherwise.  If `false`, `ter_symbol` will be added as the last
+///   amino acid.  This corresponds to biopython's behavior of padding the last codon with
+///   `N` characters.
 /// * `ter_symbol` -- Placeholder for the last amino acid if sequence length is not divisible
-///    by three and `full_codons` is `false`.
+///   by three and `full_codons` is `false`.
 /// * `translation_table` -- Indicates which codon to amino acid translation table to use.
 ///
 /// # Returns
