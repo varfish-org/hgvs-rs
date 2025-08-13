@@ -7,7 +7,6 @@ use std::ops::Deref;
 use std::{ops::Range, sync::Arc};
 
 use crate::mapper::alignment;
-use crate::normalizer::Direction;
 use crate::{
     data::interface::Provider,
     mapper::Error,
