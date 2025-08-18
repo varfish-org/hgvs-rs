@@ -17,7 +17,7 @@ jobs:
           package-name: hgvs
           token: ${{ secrets.BOT_TOKEN }}
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         if: ${{ steps.release.outputs.release_created }}
 
       - name: Install stable toolchain
