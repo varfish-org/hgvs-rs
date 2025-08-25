@@ -14,7 +14,7 @@ name = "hgvs"
 path = "src/lib.rs"
 
 [dependencies]
-base16ct = "0.2"
+base16ct = "0.3"
 bio = "2.0"
 chrono = "0.4"
 flate2 = "1.0"
