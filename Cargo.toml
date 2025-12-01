@@ -37,7 +37,7 @@ tracing = "0.1.41"
 
 [dev-dependencies]
 anyhow = "1.0"
-criterion = "0.7"
+criterion = "0.8"
 csv = "1.2"
 insta = { version = "1", features = ["yaml"] }
 pretty_assertions = "1.3"
