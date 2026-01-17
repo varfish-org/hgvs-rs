@@ -131,17 +131,28 @@ pub struct TxForRegionRecord {
 /// lengths        | {707,79,410}
 /// hgnc           | VSX1
 /// ```
+///
+/// For non-coding transcripts (e.g., NR_*), `cds_start_i` and `cds_end_i` are `None`.
 #[derive(Debug, PartialEq, Default, Clone)]
 pub struct TxIdentityInfo {
     pub tx_ac: String,
     pub alt_ac: String,
     pub alt_aln_method: String,
-    pub cds_start_i: i32,
-    pub cds_end_i: i32,
+    /// CDS start position (0-based); `None` for non-coding transcripts.
+    pub cds_start_i: Option<i32>,
+    /// CDS end position (0-based); `None` for non-coding transcripts.
+    pub cds_end_i: Option<i32>,
     pub lengths: Vec<i32>,
     pub hgnc: String,
     /// The translation table to use for this transcript.
     pub translation_table: TranslationTable,
+}
+
+impl TxIdentityInfo {
+    /// Returns `true` if both `cds_start_i` and `cds_end_i` are defined.
+    pub fn has_cds_defined(&self) -> bool {
+        self.cds_start_i.is_some() && self.cds_end_i.is_some()
+    }
 }
 
 /// ```text

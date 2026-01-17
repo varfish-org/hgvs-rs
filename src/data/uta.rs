@@ -813,7 +813,7 @@ mod test {
         assert_eq!(
             format!("{:?}", &record),
             "TxIdentityInfo { tx_ac: \"ENST00000421528\", alt_ac: \"ENST00000421528\", \
-            alt_aln_method: \"transcript\", cds_start_i: 0, cds_end_i: 985, lengths: \
+            alt_aln_method: \"transcript\", cds_start_i: Some(0), cds_end_i: Some(985), lengths: \
             [24, 229, 174, 108, 129, 75, 150, 143, 1073], hgnc: \"OMA1\", translation_table: \
             Standard }",
         );
