@@ -217,8 +217,8 @@ impl Mapper {
             (
                 1, // strand
                 0, // gc_offset
-                Some(cds_start_i),
-                Some(cds_end_i),
+                cds_start_i,
+                cds_end_i,
                 tgt_len,
                 Default::default(),
             )

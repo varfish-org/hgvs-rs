@@ -64,9 +64,15 @@ impl RefTranscriptData {
         let tx_info = provider.as_ref().get_tx_identity_info(tx_ac)?;
         let transcript_sequence = provider.as_ref().get_seq(tx_ac)?;
 
+        // Non-coding transcripts (e.g., NR_*) don't have a CDS defined.
+        let (cds_start_i, cds_end_i) = match (tx_info.cds_start_i, tx_info.cds_end_i) {
+            (Some(start), Some(end)) => (start, end),
+            _ => return Err(Error::CdsUndefined(tx_ac.to_string())),
+        };
+
         // Use 1-based HGVS coordinates.
-        let cds_start = tx_info.cds_start_i + 1;
-        let cds_stop = tx_info.cds_end_i;
+        let cds_start = cds_start_i + 1;
+        let cds_stop = cds_end_i;
 
         // Coding sequences that are not divisable by 3 are not yet supported.
         let tx_seq_to_translate =
