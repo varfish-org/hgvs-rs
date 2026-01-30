@@ -292,15 +292,97 @@ impl Mapper {
     /// Normalize variant if requested and ignore errors.  This is better than checking whether
     /// the variant is intronic because future UTAs will support LRG, which will enable checking
     /// intronic variants.
+    ///
+    /// Includes a special round-trip normalization for intronic variants,
+    /// similar to how VariantValidator does it.
     pub fn maybe_normalize(&self, var: &HgvsVariant) -> Result<HgvsVariant, Error> {
         if self.config.normalize {
+            // spans_intron() checks offsets and returns false for g., m., p.
+            // and returns true for c., n. (and r.) (depending on offsets).
+            if var.spans_intron() {
+                match self.normalize_intronic(var) {
+                    Ok(norm_var) => return Ok(norm_var),
+                    Err(e) => {
+                        tracing::warn!("Intronic normalization of variant {} failed: {}", &var, e);
+                    }
+                }
+            }
+
+            // otherwise (or if intronic normalization failed): do default normalization
             let normalizer = self.inner.normalizer()?;
-            normalizer.normalize(var).or_else(|_| {
-                tracing::warn!("Normalization of variable {} failed", &var);
-                Ok(var.clone())
-            })
+            normalizer
+                .normalize(var)
+                .map_err(|e| tracing::warn!("Normalization of variant {} failed: {}", &var, e))
+                .or_else(|_| Ok(var.clone()))
         } else {
             Ok(var.clone())
+        }
+    }
+
+    /// Normalize intronic variants via genomic round-trip (within bounds).
+    fn normalize_intronic(&self, var: &HgvsVariant) -> Result<HgvsVariant, Error> {
+        // get genomic variant
+        let alt_ac = self.alt_ac_for_tx_ac(var.accession())?;
+        let var_g = self
+            .inner
+            .t_to_g(var, &alt_ac, &self.config.alt_aln_method)?;
+
+        // determine strand & intron bounds
+        let exons =
+            self.provider
+                .get_tx_exons(var.accession(), &alt_ac, &self.config.alt_aln_method)?;
+        let strand = exons
+            .first() // assumes sorted exons
+            .ok_or_else(|| {
+                Error::NoExons(
+                    var.accession().to_string(),
+                    alt_ac.clone(),
+                    self.config.alt_aln_method.clone(),
+                )
+            })?
+            .alt_strand;
+
+        // get genomic start/end of variant
+        let var_range = var_g.loc_range().ok_or(Error::General)?;
+        let var_start = var_range.start;
+        let var_end = var_range.end;
+
+        // find intron "containing" the variant to set boundaries
+        let mut boundary = 0..i32::MAX;
+        // assumes exons are sorted (by alt_start_i)
+        for i in 0..exons.len().saturating_sub(1) {
+            let prev_exon_end = exons[i].alt_end_i;
+            let next_exon_start = exons[i + 1].alt_start_i;
+
+            // check if variant is roughly within this gap
+            if var_start >= prev_exon_end && var_end <= next_exon_start {
+                boundary = prev_exon_end..next_exon_start;
+                break;
+            }
+        }
+
+        // normalize on genomic sequence within bounds
+        let norm_g = if strand == 1 {
+            self.inner
+                .right_normalizer()?
+                .normalize_bounded(&var_g, boundary)?
+        } else {
+            self.inner
+                .left_normalizer()?
+                .normalize_bounded(&var_g, boundary)?
+        };
+
+        // map back to transcript
+        match var {
+            HgvsVariant::CdsVariant { .. } => {
+                self.inner
+                    .g_to_c(&norm_g, var.accession(), &self.config.alt_aln_method)
+            }
+            HgvsVariant::TxVariant { .. } => {
+                self.inner
+                    .g_to_n(&norm_g, var.accession(), &self.config.alt_aln_method)
+            }
+            _ => Err(Error::ExpectedTxVariant(format!("{}", var))),
         }
     }
 
