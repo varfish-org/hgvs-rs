@@ -332,7 +332,7 @@ impl Mapper {
             self.provider
                 .get_tx_exons(var.accession(), &alt_ac, &self.config.alt_aln_method)?;
         let strand = exons
-            .first() // assumes sorted exons
+            .first()
             .ok_or_else(|| {
                 Error::NoExons(
                     var.accession().to_string(),
@@ -349,10 +349,17 @@ impl Mapper {
 
         // find intron "containing" the variant to set boundaries
         let mut boundary = 0..i32::MAX;
-        // assumes exons are sorted (by alt_start_i)
-        for i in 0..exons.len().saturating_sub(1) {
-            let prev_exon_end = exons[i].alt_end_i;
-            let next_exon_start = exons[i + 1].alt_start_i;
+
+        assert!(
+            exons.is_sorted_by_key(|e| e.alt_start_i),
+            "Exons are not sorted by alt_start_i: {:?} (alt_ac={})",
+            exons,
+            alt_ac
+        );
+
+        for w in exons.windows(2) {
+            let prev_exon_end = w[0].alt_end_i;
+            let next_exon_start = w[1].alt_start_i;
 
             // check if variant is roughly within this gap
             if var_start >= prev_exon_end && var_end <= next_exon_start {
