@@ -145,7 +145,7 @@ impl<'a> Normalizer<'a> {
     ///
     /// Used for intronic variants where we want to apply the 3' rule
     /// but prevent the variant from shifting into the adjacent exon.
-     pub fn normalize_bounded(
+    pub fn normalize_bounded(
         &self,
         var: &HgvsVariant,
         boundary: Range<i32>,
