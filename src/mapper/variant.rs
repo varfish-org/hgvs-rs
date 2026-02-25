@@ -1409,8 +1409,8 @@ mod test {
                             tx_ac: record.accession.clone(),
                             alt_ac: record.accession.clone(),
                             alt_aln_method: "splign".to_string(),
-                            cds_start_i: record.cds_start_i,
-                            cds_end_i: record.cds_end_i,
+                            cds_start_i: Some(record.cds_start_i),
+                            cds_end_i: Some(record.cds_end_i),
                             lengths: Vec::new(),
                             hgnc: "MOCK".to_string(),
                             ..Default::default()

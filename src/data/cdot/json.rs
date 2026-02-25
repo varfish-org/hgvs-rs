@@ -1025,8 +1025,11 @@ impl TxProvider {
             tx_ac: tx_ac.to_string(),
             alt_ac: tx_ac.to_string(), // sic(!)
             alt_aln_method: String::from("transcript"),
-            cds_start_i: tx.start_codon.unwrap_or_default(),
-            cds_end_i: tx.stop_codon.unwrap_or_default(),
+            // Pass through Option values directly; previously these used
+            // unwrap_or_default() which silently mapped non-coding transcripts
+            // (NR_*) to cds position 0.
+            cds_start_i: tx.start_codon,
+            cds_end_i: tx.stop_codon,
             lengths,
             hgnc,
             translation_table: if is_selenoprotein {
