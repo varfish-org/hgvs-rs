@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.2](https://github.com/varfish-org/hgvs-rs/compare/v0.19.1...v0.19.2) (2026-02-25)
+
+
+### Bug Fixes
+
+* support non-coding transcripts (NR_) in TxIdentityInfo ([#256](https://github.com/varfish-org/hgvs-rs/issues/256)) ([c092507](https://github.com/varfish-org/hgvs-rs/commit/c092507bb9e521786377ee850fd7ffc18ba2cfaa))
+
 ## [0.19.1](https://github.com/varfish-org/hgvs-rs/compare/v0.19.0...v0.19.1) (2025-08-13)
 
 
