@@ -22,7 +22,7 @@ mod error {
         IntegerConversion(#[from] std::num::TryFromIntError),
         #[error("validation error")]
         ValidationFailed(#[from] crate::validator::Error),
-        #[error("problem accessing data")]
+        #[error("problem accessing data: {0}")]
         DataError(#[from] crate::data::error::Error),
         #[error("replacing reference failed: {0}")]
         ReplaceReferenceFailed(String),
@@ -138,6 +138,35 @@ impl<'a> Normalizer<'a> {
             self.normalize_alleles(&var, boundary.clone())?;
 
         // Build a new variant from the given alleles and possibly project back to the CDS.
+        self.build_result(var, start, end, reference, alternative, boundary, cds_to_tx)
+    }
+
+    /// Normalize the variant, restricting the shuffle to the given boundary.
+    ///
+    /// Used for intronic variants where we want to apply the 3' rule
+    /// but prevent the variant from shifting into the adjacent exon.
+    pub fn normalize_bounded(
+        &self,
+        var: &HgvsVariant,
+        boundary: Range<i32>,
+    ) -> Result<HgvsVariant, Error> {
+        let is_genome = matches!(&var, HgvsVariant::GenomeVariant { .. });
+
+        // Run the pre-normalization checks.
+        let CheckAndGuardResult {
+            var,
+            as_is,
+            cds_to_tx,
+        } = self.check_and_guard(var, is_genome)?;
+        if as_is {
+            return Ok(var);
+        }
+
+        // directly use the provided boundary instead of calling self.get_boundary()
+        let (start, end, reference, alternative) =
+            self.normalize_alleles(&var, boundary.clone())?;
+
+        // build new variant from given alleles
         self.build_result(var, start, end, reference, alternative, boundary, cds_to_tx)
     }
 

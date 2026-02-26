@@ -13,7 +13,7 @@ pub enum Error {
     ParsingFailed(#[from] crate::parser::Error),
     #[error("sequence operation failed")]
     SequenceOperationFailed(#[from] crate::sequences::Error),
-    #[error("problem accessing data")]
+    #[error("problem accessing data: {0}")]
     DataError(#[from] crate::data::error::Error),
     #[error("expected a GenomeVariant but received {0}")]
     ExpectedGenomeVariant(String),
