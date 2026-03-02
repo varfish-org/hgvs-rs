@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.20.0](https://github.com/varfish-org/hgvs-rs/compare/v0.19.1...v0.20.0) (2026-03-02)
+
+
+### Features
+
+* normalize intronic variants ([#257](https://github.com/varfish-org/hgvs-rs/issues/257)) ([712bb81](https://github.com/varfish-org/hgvs-rs/commit/712bb81ad025747a7e77402a5f11de89bdd4cf2e))
+
+
+### Bug Fixes
+
+* support non-coding transcripts (NR_) in TxIdentityInfo ([#256](https://github.com/varfish-org/hgvs-rs/issues/256)) ([c092507](https://github.com/varfish-org/hgvs-rs/commit/c092507bb9e521786377ee850fd7ffc18ba2cfaa))
+
 ## [0.19.1](https://github.com/varfish-org/hgvs-rs/compare/v0.19.0...v0.19.1) (2025-08-13)
 
 
