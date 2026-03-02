@@ -85,6 +85,8 @@ pub enum Error {
     NoExons(String, String, String),
     #[error("non-adjacent exons for tx_ac={0}, alt_ac={1}, alt_aln_method={2}: {3}")]
     NonAdjacentExons(String, String, String, String),
+    #[error("could not determine intron boundaries for {0}")]
+    NoIntronBoundary(String),
     #[error("CDS start and end must both be defined or undefined")]
     InconsistentCdsStartEnd,
     #[error("cannot project genome interval with missing start or end position: {0}")]

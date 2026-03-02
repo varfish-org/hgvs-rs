@@ -343,7 +343,9 @@ impl Mapper {
             .alt_strand;
 
         // get genomic start/end of variant
-        let var_range = var_g.loc_range().ok_or(Error::General)?;
+        let var_range = var_g
+            .loc_range()
+            .ok_or_else(|| Error::MissingGenomeIntervalPosition(format!("{}", var_g)))?;
         let var_start = var_range.start;
         let var_end = var_range.end;
 
@@ -368,7 +370,7 @@ impl Mapper {
             }
         }
 
-        let boundary = boundary.ok_or(Error::General)?;
+        let boundary = boundary.ok_or_else(|| Error::NoIntronBoundary(var.to_string()))?;
 
         // normalize on genomic sequence within bounds
         let norm_g = if strand == 1 {
