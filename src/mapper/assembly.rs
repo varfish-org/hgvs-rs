@@ -348,9 +348,9 @@ impl Mapper {
         let var_end = var_range.end;
 
         // find intron "containing" the variant to set boundaries
-        let mut boundary = 0..i32::MAX;
+        let mut boundary = None;
 
-        assert!(
+        debug_assert!(
             exons.is_sorted_by_key(|e| e.alt_start_i),
             "Exons are not sorted by alt_start_i: {:?} (alt_ac={})",
             exons,
@@ -363,10 +363,12 @@ impl Mapper {
 
             // check if variant is roughly within this gap
             if var_start >= prev_exon_end && var_end <= next_exon_start {
-                boundary = prev_exon_end..next_exon_start;
+                boundary = Some(prev_exon_end..next_exon_start);
                 break;
             }
         }
+
+        let boundary = boundary.ok_or(Error::General)?;
 
         // normalize on genomic sequence within bounds
         let norm_g = if strand == 1 {
