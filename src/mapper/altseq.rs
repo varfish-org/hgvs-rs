@@ -662,16 +662,17 @@ impl AltSeqToHgvsp {
             if ref_seq == alt_seq {
                 // Silent p. variant.
                 if let Some(start) = self.alt_data.variant_start_aa {
-                    let start_idx = start as usize - 1;
-                    if start_idx < ref_len {
-                        let del = (ref_seq.as_bytes()[start_idx] as char).to_string();
-                        records.push(AdHocRecord {
-                            start,
-                            ins: del.clone(),
-                            del: del.clone(),
-                            is_frameshift: self.alt_data.is_frameshift,
-                        });
-                    }
+                    let start_idx = start.checked_sub(1).and_then(|v| usize::try_from(v).ok());
+                    let del = start_idx
+                        .and_then(|i| ref_seq.as_bytes().get(i))
+                        .map(|aa| (*aa as char).to_string())
+                        .unwrap_or_default();
+                    records.push(AdHocRecord {
+                        start,
+                        ins: del.clone(),
+                        del,
+                        is_frameshift: self.alt_data.is_frameshift,
+                    });
                 }
                 do_delins = false;
             } else if self.is_substitution() && ref_len == alt_len {
@@ -700,8 +701,9 @@ impl AltSeqToHgvsp {
                     .alt_data
                     .variant_start_aa
                     .expect("should not happen; must have start AA set")
-                    as usize
-                    - 1;
+                    .checked_sub(1)
+                    .and_then(|v| usize::try_from(v).ok())
+                    .unwrap_or(0);
 
                 let safe_start = clamp_index(initial_start, ref_len.min(alt_len), "shared prefix");
 
