@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.1](https://github.com/varfish-org/hgvs-rs/compare/v0.20.0...v0.20.1) (2026-03-05)
+
+
+### Bug Fixes
+
+* mimic python slice behaviour in build_hgvsp ([#260](https://github.com/varfish-org/hgvs-rs/issues/260)) ([e519539](https://github.com/varfish-org/hgvs-rs/commit/e5195396a0a2f8c32c4e2a034091f2532f0a6299))
+
 ## [0.20.0](https://github.com/varfish-org/hgvs-rs/compare/v0.19.1...v0.20.0) (2026-03-02)
 
 
