@@ -638,116 +638,138 @@ impl AltSeqToHgvsp {
 
         if !self.alt_data.is_ambiguous && !self.alt_seq().is_empty() {
             let mut do_delins = true;
-            if self.ref_seq() == self.alt_seq() {
+
+            let ref_seq = self.ref_seq();
+            let alt_seq = self.alt_seq();
+            let ref_len = ref_seq.len();
+            let alt_len = alt_seq.len();
+
+            // Helper to clamp indices safely and log a warning if out-of-bounds
+            let clamp_index = |idx: usize, seq_len: usize, seq_name: &str| -> usize {
+                let clamped = idx.min(seq_len);
+                if clamped != idx {
+                    log::warn!(
+                        "Variant index {} exceeds {} sequence bounds (len {}). Clamping to {}.",
+                        idx,
+                        seq_name,
+                        seq_len,
+                        clamped
+                    );
+                }
+                clamped
+            };
+
+            if ref_seq == alt_seq {
                 // Silent p. variant.
-                let start = self.alt_data.variant_start_aa;
-                let record = if let Some(start) = start {
-                    if start - 1 < self.ref_seq().len() as i32 {
-                        let del = &self
-                            .ref_seq()
-                            .chars()
-                            .nth(start as usize - 1)
-                            .ok_or(Error::StartPosOutOfRange)?
-                            .to_string();
-                        AdHocRecord {
-                            start,
-                            ins: del.clone(),
-                            del: del.clone(),
-                            is_frameshift: self.alt_data.is_frameshift,
-                        }
-                    } else {
-                        Default::default()
-                    }
-                } else {
-                    Default::default()
-                };
-                records.push(record);
+                if let Some(start) = self.alt_data.variant_start_aa {
+                    let start_idx = start.checked_sub(1).and_then(|v| usize::try_from(v).ok());
+                    let del = start_idx
+                        .and_then(|i| ref_seq.as_bytes().get(i))
+                        .map(|aa| (*aa as char).to_string())
+                        .unwrap_or_default();
+                    records.push(AdHocRecord {
+                        start,
+                        ins: del.clone(),
+                        del,
+                        is_frameshift: self.alt_data.is_frameshift,
+                    });
+                }
                 do_delins = false;
-            } else if self.is_substitution() && self.ref_seq().len() == self.alt_seq().len() {
-                let r = self.ref_seq().chars();
-                let a = self.alt_seq().chars();
-                let e = r.zip(a).enumerate();
-                let mut diff_records = e
+            } else if self.is_substitution() && ref_len == alt_len {
+                let mut diff_records = ref_seq
+                    .as_bytes()
+                    .iter()
+                    .zip(alt_seq.as_bytes().iter())
+                    .enumerate()
                     .filter(|(_i, (r, a))| r != a)
                     .map(|(i, (r, a))| AdHocRecord {
                         start: i as i32 + 1,
-                        del: r.to_string(),
-                        ins: a.to_string(),
+                        del: (*r as char).to_string(),
+                        ins: (*a as char).to_string(),
                         is_frameshift: self.alt_data.is_frameshift,
                     })
                     .collect::<Vec<_>>();
+
                 if diff_records.len() == 1 {
-                    records.push(
-                        diff_records
-                            .drain(..)
-                            .next()
-                            .expect("must have at least one diff. record"),
-                    );
+                    records.push(diff_records.drain(..).next().unwrap());
                     do_delins = false;
                 }
             }
 
             if do_delins {
-                let mut start = self
+                let initial_start = self
                     .alt_data
                     .variant_start_aa
                     .expect("should not happen; must have start AA set")
-                    as usize
-                    - 1;
-                while self.ref_seq().chars().nth(start) == self.alt_seq().chars().nth(start) {
-                    start += 1;
-                }
+                    .checked_sub(1)
+                    .and_then(|v| usize::try_from(v).ok())
+                    .unwrap_or(0);
+
+                let safe_start = clamp_index(initial_start, ref_len.min(alt_len), "shared prefix");
+
+                let matching_len = &ref_seq.as_bytes()[safe_start..]
+                    .iter()
+                    .zip(&alt_seq.as_bytes()[safe_start..])
+                    .take_while(|(r, a)| r == a)
+                    .count();
+
+                let start = safe_start + matching_len;
+
                 if self.alt_data.is_frameshift {
                     // Case: frameshifting delins or dup.
-                    let deletion = &self.ref_seq()[start..];
-                    let insertion = &self.alt_seq()[start..];
+                    let ref_start = clamp_index(start, ref_len, "reference");
+                    let alt_start = clamp_index(start, alt_len, "alt");
+
                     records.push(AdHocRecord {
                         start: start as i32 + 1,
-                        ins: insertion.to_owned(),
-                        del: deletion.to_owned(),
+                        ins: alt_seq[alt_start..].to_owned(),
+                        del: ref_seq[ref_start..].to_owned(),
                         is_frameshift: self.alt_data.is_frameshift,
                     })
                 } else {
                     // Case: non-frameshifting delins or dup.
-                    //
-                    // Get size diff from diff in ref/alt lengths.
-                    let delta = self.alt_seq().len() as isize - self.ref_seq().len() as isize;
+                    let delta = alt_len as isize - ref_len as isize;
                     let offset = start + delta.unsigned_abs();
+
+                    let ref_start = clamp_index(start, ref_len, "reference");
+                    let ref_offset = clamp_index(offset, ref_len, "reference");
+                    let alt_start = clamp_index(start, alt_len, "alt");
+                    let alt_offset = clamp_index(offset, alt_len, "alt");
 
                     let (insertion, deletion, ref_sub, alt_sub) = match delta.cmp(&0) {
                         // if delta > 0 {
                         Ordering::Greater => (
                             // net insertion
-                            self.alt_seq()[start..offset].to_owned(),
+                            alt_seq[alt_start..alt_offset].to_owned(),
                             "".to_string(),
-                            self.ref_seq()[start..].to_owned(),
-                            self.alt_seq()[offset..].to_owned(),
+                            ref_seq[ref_start..].to_owned(),
+                            alt_seq[alt_offset..].to_owned(),
                         ),
                         Ordering::Less => (
                             // net deletion
                             "".to_string(),
-                            self.ref_seq()[start..offset].to_owned(),
-                            self.ref_seq()[offset..].to_owned(),
-                            self.alt_seq()[start..].to_owned(),
+                            ref_seq[ref_start..ref_offset].to_owned(),
+                            ref_seq[ref_offset..].to_owned(),
+                            alt_seq[alt_start..].to_owned(),
                         ),
                         Ordering::Equal => (
                             // size remains the same
                             "".to_string(),
                             "".to_string(),
-                            self.ref_seq()[start..].to_owned(),
-                            self.alt_seq()[start..].to_owned(),
+                            ref_seq[ref_start..].to_owned(),
+                            alt_seq[alt_start..].to_owned(),
                         ),
                     };
 
-                    // From start, get del/ins out to last difference.
-                    let r = ref_sub.chars();
-                    let a = alt_sub.chars();
-                    let diff_indices = r
-                        .zip(a)
+                    let diff_indices = ref_sub
+                        .as_bytes()
+                        .iter()
+                        .zip(alt_sub.as_bytes())
                         .enumerate()
                         .filter(|(_i, (r, a))| r != a)
                         .map(|(i, _)| i)
                         .collect::<Vec<_>>();
+
                     let diff_indices = if diff_indices.is_empty()
                         && deletion.is_empty()
                         && insertion.starts_with('*')
@@ -756,19 +778,17 @@ impl AltSeqToHgvsp {
                     } else {
                         diff_indices
                     };
+
                     let (deletion, insertion) = if !diff_indices.is_empty() {
-                        let max_diff = diff_indices
-                            .last()
-                            .expect("should not happen; checked for being non-empty above")
-                            + 1;
-                        if max_diff > ref_sub.len() || max_diff > alt_sub.len() {
-                            (deletion.clone(), insertion.clone())
-                        } else {
-                            (
-                                format!("{}{}", deletion, &ref_sub[..max_diff]),
-                                format!("{}{}", insertion, &alt_sub[..max_diff]),
-                            )
-                        }
+                        let max_diff = diff_indices.last().unwrap() + 1;
+
+                        let safe_ref_diff = max_diff.min(ref_sub.len());
+                        let safe_alt_diff = max_diff.min(alt_sub.len());
+
+                        (
+                            format!("{}{}", deletion, &ref_sub[..safe_ref_diff]),
+                            format!("{}{}", insertion, &alt_sub[..safe_alt_diff]),
+                        )
                     } else {
                         (deletion, insertion)
                     };
