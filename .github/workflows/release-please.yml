@@ -27,7 +27,7 @@ jobs:
           toolchain: stable
           override: true
 
-      - uses: Swatinem/rust-cache@v2.8.2
+      - uses: Swatinem/rust-cache@v2.9.1
         if: ${{ steps.release.outputs.release_created }}
 
       - name: Publish crate
