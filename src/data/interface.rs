@@ -2,6 +2,7 @@
 
 use chrono::NaiveDateTime;
 use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
 
 use crate::{data::error::Error, sequences::TranslationTable};
 use biocommons_bioutils::assemblies::Assembly;
@@ -16,7 +17,7 @@ use biocommons_bioutils::assemblies::Assembly;
 /// aliases | AT1,ATA,ATC,ATD,ATE,ATDC,TEL1,TELO1
 /// added   | 2014-02-04 21:39:32.57125
 /// ```
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct GeneInfoRecord {
     pub hgnc: String,
     pub maploc: String,
@@ -45,7 +46,7 @@ pub struct GeneInfoRecord {
 /// structure means that the transcripts are defined on the same
 /// reference sequence and have the same exon spans on that
 /// sequence.
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct TxSimilarityRecord {
     /// Accession of first transcript.
     pub tx_ac1: String,
@@ -82,7 +83,7 @@ pub struct TxSimilarityRecord {
 /// alt_exon_id     | 6063334
 /// exon_aln_id     | 3461425
 ///```
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct TxExonsRecord {
     pub hgnc: String,
     pub tx_ac: String,
@@ -112,7 +113,7 @@ pub struct TxExonsRecord {
 /// start_i        | 95226307
 /// end_i          | 95248406
 /// ```
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct TxForRegionRecord {
     pub tx_ac: String,
     pub alt_ac: String,
@@ -133,7 +134,7 @@ pub struct TxForRegionRecord {
 /// ```
 ///
 /// For non-coding transcripts (e.g., NR_*), `cds_start_i` and `cds_end_i` are `None`.
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct TxIdentityInfo {
     pub tx_ac: String,
     pub alt_ac: String,
@@ -163,7 +164,7 @@ impl TxIdentityInfo {
 /// alt_ac         | AC_000143.1
 /// alt_aln_method | splign
 /// ```
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct TxInfoRecord {
     pub hgnc: String,
     pub cds_start_i: Option<i32>,
@@ -183,7 +184,7 @@ pub struct TxInfoRecord {
 /// alt_ac         | NC_000012.11
 /// alt_aln_method | genebuild
 /// ```
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct TxMappingOptionsRecord {
     pub tx_ac: String,
     pub alt_ac: String,
