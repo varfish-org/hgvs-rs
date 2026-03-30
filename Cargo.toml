@@ -19,7 +19,7 @@ bio = "3.0"
 chrono = "0.4"
 flate2 = "1.0"
 log = "0.4"
-md-5 = "0.10"
+md-5 = "0.11"
 nom = "8.0"
 nom-language = "0.1.0"
 postgres = { version = "0.19", features = ["with-chrono-0_4"] }
