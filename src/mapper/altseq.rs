@@ -160,8 +160,35 @@ impl AltTranscriptData {
         is_ambiguous: bool,
         translation_table: TranslationTable,
     ) -> Result<Self, Error> {
-        let transcript_sequence = seq.to_owned();
-        let aa_sequence = if !seq.is_empty() {
+        Self::new_owned(
+            seq.to_owned(),
+            cds_start,
+            cds_stop,
+            is_frameshift,
+            variant_start_aa,
+            protein_accession,
+            ref_aa_sequence,
+            is_substitution,
+            is_ambiguous,
+            translation_table,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new_owned(
+        seq: String,
+        cds_start: i32,
+        cds_stop: i32,
+        is_frameshift: bool,
+        variant_start_aa: Option<i32>,
+        protein_accession: &str,
+        ref_aa_sequence: &str,
+        is_substitution: bool,
+        is_ambiguous: bool,
+        translation_table: TranslationTable,
+    ) -> Result<Self, Error> {
+        let transcript_sequence = seq;
+        let aa_sequence = if !transcript_sequence.is_empty() {
             // In case of SEPHS2 / HGNC:19686, the last amino acid is both a selenocysteine
             // and a stop codon.
             // We handle this by explicitly truncating the sequence at the Sec + stop codon.
@@ -490,8 +517,8 @@ impl AltSeqBuilder {
         // Use max. of mod 3 value and 1 (in the event that the indel starts in the 5' UTR range).
         let variant_start_aa = std::cmp::max((loc_range_start as f64 / 3.0).ceil() as i32, 1);
 
-        AltTranscriptData::new(
-            &seq,
+        AltTranscriptData::new_owned(
+            seq,
             cds_start,
             cds_stop,
             is_frameshift,
@@ -523,8 +550,8 @@ impl AltSeqBuilder {
         };
         let variant_start_aa = ((loc_end + 1) as f64 / 3.0).ceil() as i32;
 
-        AltTranscriptData::new(
-            &seq,
+        AltTranscriptData::new_owned(
+            seq,
             cds_start,
             cds_stop,
             is_frameshift,
@@ -555,8 +582,8 @@ impl AltSeqBuilder {
 
         let variant_start_aa = std::cmp::max(((loc_start as f64) / 3.0).ceil() as i32, 1);
 
-        AltTranscriptData::new(
-            &seq,
+        AltTranscriptData::new_owned(
+            seq,
             cds_start,
             cds_stop,
             false,
@@ -571,8 +598,8 @@ impl AltSeqBuilder {
 
     /// Create an alt seq that matches the reference (for non-CDS variants).
     fn create_alt_equals_ref_noncds(&self) -> Result<AltTranscriptData, Error> {
-        AltTranscriptData::new(
-            &self.reference_data.transcript_sequence,
+        AltTranscriptData::new_owned(
+            self.reference_data.transcript_sequence.clone(),
             self.reference_data.cds_start,
             self.reference_data.cds_stop,
             false,
@@ -587,8 +614,8 @@ impl AltSeqBuilder {
 
     /// Create a no-protein result.
     fn create_no_protein(&self) -> Result<AltTranscriptData, Error> {
-        AltTranscriptData::new(
-            "",
+        AltTranscriptData::new_owned(
+            String::new(),
             -1,
             -1,
             false,
