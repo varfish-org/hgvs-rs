@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.20.2](https://github.com/varfish-org/hgvs-rs/compare/v0.20.1...v0.20.2) (2026-04-01)
+
+
+### Performance Improvements
+
+* avoid double cloning in AltSeq::new internally ([#270](https://github.com/varfish-org/hgvs-rs/issues/270)) ([60f635d](https://github.com/varfish-org/hgvs-rs/commit/60f635d7bd24a88a4f1d73cb6213b5489c5af558))
+* pre calculate dna to iupac lookup tables ([#271](https://github.com/varfish-org/hgvs-rs/issues/271)) ([3d3223a](https://github.com/varfish-org/hgvs-rs/commit/3d3223a7ed4b04220cd7f1327cfdc8ad60e6f6c5))
+
 ## [0.20.1](https://github.com/varfish-org/hgvs-rs/compare/v0.20.0...v0.20.1) (2026-03-05)
 
 
