@@ -388,26 +388,45 @@ pub fn translate_cds(
     translation_table: TranslationTable,
 ) -> Result<String, Error> {
     if seq.is_empty() {
-        return Ok("".to_string());
+        return Ok(String::new());
     }
 
     if full_codons && seq.len() % 3 != 0 {
         return Err(Error::UntranslatableDnaLenth(seq.len()));
     }
 
-    // Translate the codons from the input to result.
     let mut translator = CodonTranslator::new(translation_table);
-    let mut result = String::with_capacity(seq.len() / 3);
+
+    let ascii_to_2bit = &DNA_ASCII_TO_2BIT;
+    let codon_to_aa = translator.codon_2bit_to_aa1;
+
+    let mut result = Vec::with_capacity(seq.len() / 3 + ter_symbol.len());
+
     for chunk in seq.as_bytes().chunks_exact(3) {
-        result.push(char::from(translator.translate(chunk)?));
+        let v0 = ascii_to_2bit[chunk[0] as usize];
+        let v1 = ascii_to_2bit[chunk[1] as usize];
+        let v2 = ascii_to_2bit[chunk[2] as usize];
+
+        // if all 3 bases are valid standard nucleotides, do fast translation
+        if v0 != 255 && v1 != 255 && v2 != 255 {
+            let idx = (v0 << 4) | (v1 << 2) | v2;
+            let aa = codon_to_aa[idx as usize];
+            if aa != 0 {
+                result.push(aa);
+                continue;
+            }
+        }
+
+        // otherwise, fall back to more sophisticated translation
+        result.push(translator.translate(chunk)?);
     }
 
-    // Check for trailing bases and add the ter symbol if required.
     if !full_codons && seq.len() % 3 != 0 {
-        result.push_str(ter_symbol);
+        result.extend_from_slice(ter_symbol.as_bytes());
     }
 
-    Ok(result)
+    // SAFETY: The translation tables and ter_symbol only return valid ASCII bytes.
+    Ok(unsafe { String::from_utf8_unchecked(result) })
 }
 
 /// Converts sequence to normalized representation for hashing.
