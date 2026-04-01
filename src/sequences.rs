@@ -2,9 +2,7 @@
 //!
 //! Partially ported over from `bioutils.sequences`.
 
-use ahash::AHashMap;
 use md5::{Digest, Md5};
-use std::sync::LazyLock;
 
 pub use crate::sequences::error::Error;
 
@@ -219,152 +217,6 @@ fn looks_like_aa3_p(seq: &str) -> bool {
     seq.len() % 3 == 0 && seq.chars().nth(1).map(|c| c.is_lowercase()).unwrap_or(true)
 }
 
-type Codon = [u8; 3];
-
-/// Allow translation of `&[u8]` DNA codons to `u8` amino acids.
-///
-/// We use separate structs here to encapsulate getting the lazy static global data.
-struct CodonTranslator {
-    /// Mapping for "normalizing" DNA ASCII character (to upper case and `U -> T`).
-    dna_ascii_map: [u8; 256],
-
-    /// Mapping from DNA ASCII to 2-bit representation.
-    dna_ascii_to_2bit: [u8; 256],
-
-    /// IUPAC ambiguity codes.
-    iupac_ambiguity_codes: [u8; 13],
-
-    /// Mapping from 2bit DNA codon to amino acid 1-letter ASCII.
-    codon_2bit_to_aa1: [u8; 64],
-
-    /// Mapping from DNA 2-bit to amino acid 1-letter ASCII including degenerate codons.
-    full_dna_to_aa1: &'static AHashMap<Codon, u8>,
-
-    /// Buffer.
-    codon: Codon,
-}
-
-static DNA_TO_AA1_LUT: LazyLock<AHashMap<Codon, u8>> = LazyLock::new(|| {
-    let mut m = AHashMap::default();
-    for (dna, aa1) in DNA_TO_AA1_LUT_VEC {
-        assert_eq!(dna.len(), 3);
-        let d = dna.as_bytes();
-        m.insert([d[0], d[1], d[2]], aa1.as_bytes()[0]);
-    }
-    m
-});
-
-static DNA_TO_AA1_SEC: LazyLock<AHashMap<Codon, u8>> = LazyLock::new(|| {
-    let mut m = AHashMap::default();
-    for (dna, aa1) in DNA_TO_AA1_SEC_VEC {
-        assert_eq!(dna.len(), 3);
-        let d = dna.as_bytes();
-        m.insert([d[0], d[1], d[2]], aa1.as_bytes()[0]);
-    }
-    m
-});
-
-static DNA_TO_AA1_CHRMT_VERTEBRATE: LazyLock<AHashMap<Codon, u8>> = LazyLock::new(|| {
-    let mut m = AHashMap::default();
-    for (dna, aa1) in DNA_TO_AA1_CHRMT_VERTEBRATE_VEC {
-        assert_eq!(dna.len(), 3);
-        let d = dna.as_bytes();
-        m.insert([d[0], d[1], d[2]], aa1.as_bytes()[0]);
-    }
-    m
-});
-
-impl CodonTranslator {
-    /// Initialize the struct.
-    pub fn new(table: TranslationTable) -> Self {
-        Self {
-            dna_ascii_map: DNA_ASCII_MAP,
-            dna_ascii_to_2bit: DNA_ASCII_TO_2BIT,
-            iupac_ambiguity_codes: IUPAC_AMBIGUITY_CODES,
-
-            codon_2bit_to_aa1: match table {
-                TranslationTable::Standard => CODON_2BIT_TO_AA1_LUT,
-                TranslationTable::Selenocysteine => CODON_2BIT_TO_AA1_SEC,
-                TranslationTable::VertebrateMitochondrial => CODON_2BIT_TO_AA1_CHRMT_VERTEBRATE,
-            },
-            full_dna_to_aa1: match table {
-                TranslationTable::Standard => &DNA_TO_AA1_LUT,
-                TranslationTable::Selenocysteine => &DNA_TO_AA1_SEC,
-                TranslationTable::VertebrateMitochondrial => &DNA_TO_AA1_CHRMT_VERTEBRATE,
-            },
-
-            codon: [0; 3],
-        }
-    }
-
-    /// Translate the given codon to an amino acid.
-    ///
-    /// # Args
-    ///
-    /// * `codon` -- A codon.
-    ///
-    /// # Returns
-    ///
-    /// The corresponding amino acid.
-    pub fn translate(&mut self, codon: &[u8]) -> Result<u8, Error> {
-        // Normalize (to upper case etc.) codon.
-        self.normalize_codon(codon);
-
-        let translation = self
-            // Attempt fast translation of codon
-            .codon_to_aa1(&self.codon)
-            // Fast translation fails, but slower hash map succeeded.
-            .or_else(|| self.full_dna_to_aa1.get(&self.codon).copied())
-            // If this contains an ambiguous code, set aa to X, otherwise, throw error
-            .or_else(|| {
-                codon
-                    .iter()
-                    .any(|c| self.iupac_ambiguity_codes.contains(c))
-                    .then_some(b'X')
-            });
-        translation.ok_or_else(|| {
-            Error::UndefinedCodon(
-                std::str::from_utf8(codon)
-                    .expect("cannot decode UTF-8")
-                    .to_owned(),
-            )
-        })
-    }
-
-    fn dna3_to_2bit(&self, c: &[u8]) -> Option<u8> {
-        let mut result = 0;
-        for i in &c[..3] {
-            result <<= 2;
-            let tmp = self.dna_ascii_to_2bit[*i as usize];
-            if tmp == 255 {
-                return None;
-            }
-            result |= tmp;
-        }
-        Some(result)
-    }
-
-    /// Helper function to extract normalized codon to `self.codon`.
-    fn normalize_codon(&mut self, codon: &[u8]) {
-        for (i, c) in codon[..3].iter().enumerate() {
-            self.codon[i] = self.dna_ascii_map[*c as usize];
-        }
-    }
-
-    fn codon_to_aa1(&self, codon: &[u8]) -> Option<u8> {
-        if let Some(val) = self.dna3_to_2bit(codon) {
-            let tmp = self.codon_2bit_to_aa1[val as usize];
-            if tmp == 0 {
-                None
-            } else {
-                Some(tmp)
-            }
-        } else {
-            DNA_TO_AA1_LUT.get(codon).copied()
-        }
-    }
-}
-
 /// Translates a DNA or RNA sequence into a single-letter amino acid sequence.
 ///
 /// # Args
@@ -388,26 +240,45 @@ pub fn translate_cds(
     translation_table: TranslationTable,
 ) -> Result<String, Error> {
     if seq.is_empty() {
-        return Ok("".to_string());
+        return Ok(String::new());
     }
 
     if full_codons && seq.len() % 3 != 0 {
         return Err(Error::UntranslatableDnaLenth(seq.len()));
     }
 
-    // Translate the codons from the input to result.
-    let mut translator = CodonTranslator::new(translation_table);
-    let mut result = String::with_capacity(seq.len() / 3);
+    let lut = match translation_table {
+        TranslationTable::Standard => &CODON_IUPAC_TO_AA1_LUT,
+        TranslationTable::Selenocysteine => &CODON_IUPAC_TO_AA1_SEC,
+        TranslationTable::VertebrateMitochondrial => &CODON_IUPAC_TO_AA1_CHRMT_VERTEBRATE,
+    };
+
+    let mut result = Vec::with_capacity(seq.len() / 3 + ter_symbol.len());
+
     for chunk in seq.as_bytes().chunks_exact(3) {
-        result.push(char::from(translator.translate(chunk)?));
+        // map raw ascii to 4-bit IUPAC (handles U to T and lower to upper implicitly)
+        let v0 = DNA_ASCII_TO_IUPAC[chunk[0] as usize];
+        let v1 = DNA_ASCII_TO_IUPAC[chunk[1] as usize];
+        let v2 = DNA_ASCII_TO_IUPAC[chunk[2] as usize];
+
+        // 255 means invalid character
+        if v0 != 255 && v1 != 255 && v2 != 255 {
+            // pack into 12-bit integer
+            let idx = ((v0 as usize) << 8) | ((v1 as usize) << 4) | (v2 as usize);
+            result.push(lut[idx]);
+        } else {
+            return Err(Error::UndefinedCodon(
+                std::str::from_utf8(chunk).unwrap().to_owned(),
+            ));
+        }
     }
 
-    // Check for trailing bases and add the ter symbol if required.
     if !full_codons && seq.len() % 3 != 0 {
-        result.push_str(ter_symbol);
+        result.extend_from_slice(ter_symbol.as_bytes());
     }
 
-    Ok(result)
+    // SAFETY: The translation tables and ter_symbol only return valid ASCII bytes.
+    Ok(unsafe { String::from_utf8_unchecked(result) })
 }
 
 /// Converts sequence to normalized representation for hashing.
@@ -643,52 +514,6 @@ mod test {
         assert_eq!(normalize_sequence("ACGT")?, "ACGT");
         assert_eq!(normalize_sequence("  A C G T * ")?, "ACGT");
         assert!(normalize_sequence("ACGT1").is_err());
-
-        Ok(())
-    }
-
-    #[test]
-    fn exercise_lazy_ds() {
-        assert!(DNA_ASCII_MAP[0] == b'\0');
-        assert!(DNA_ASCII_TO_2BIT[b'A' as usize] == 0);
-        assert!(AA3_TO_AA1_VEC[0] == ("Ala", "A"));
-        assert!(DNA_TO_AA1_LUT_VEC[0] == ("AAA", "K"));
-        assert!(DNA_TO_AA1_SEC_VEC[0] == ("AAA", "K"));
-        assert!(DNA_TO_AA1_CHRMT_VERTEBRATE_VEC[0] == ("AAA", "K"));
-    }
-
-    #[test]
-    fn codon_translator_standard() -> Result<(), Error> {
-        let mut translator = CodonTranslator::new(TranslationTable::Standard);
-
-        // Non-denenerate codon.
-        assert_eq!(translator.translate(b"AAA")?, b'K');
-        // Degenerate codon.
-        assert_eq!(translator.translate(b"AAR")?, b'K');
-
-        Ok(())
-    }
-
-    #[test]
-    fn codon_translator_sec() -> Result<(), Error> {
-        let mut translator = CodonTranslator::new(TranslationTable::Selenocysteine);
-
-        // Non-denenerate codon.
-        assert_eq!(translator.translate(b"AAA")?, b'K');
-        // Degenerate codon.
-        assert_eq!(translator.translate(b"AAR")?, b'K');
-
-        Ok(())
-    }
-
-    #[test]
-    fn codon_translator_chrmt_vertebrate() -> Result<(), Error> {
-        let mut translator = CodonTranslator::new(TranslationTable::Selenocysteine);
-
-        // Non-denenerate codon.
-        assert_eq!(translator.translate(b"AAA")?, b'K');
-        // Degenerate codon.
-        assert_eq!(translator.translate(b"AAR")?, b'K');
 
         Ok(())
     }
