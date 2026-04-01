@@ -88,7 +88,7 @@ pub const DNA_TO_AA1_CHRMT_VERTEBRATE_VEC: &[(&str, &str)] = &[
     // degenerate codons
     ("AAR", "K"), ("AAY", "N"), ("ACB", "T"), ("ACD", "T"), ("ACH", "T"), ("ACK", "T"),
     ("ACM", "T"), ("ACN", "T"), ("ACR", "T"), ("ACS", "T"), ("ACV", "T"), ("ACW", "T"),
-    ("ACY", "T"), ("AGR", "R"), ("AGY", "S"), ("ATH", "I"), ("ATM", "I"), ("ATW", "I"),
+    ("ACY", "T"), ("AGR", "*"), ("AGY", "S"), ("ATH", "I"), ("ATM", "I"), ("ATW", "I"),
     ("ATY", "I"), ("CAR", "Q"), ("CAY", "H"), ("CCB", "P"), ("CCD", "P"), ("CCH", "P"),
     ("CCK", "P"), ("CCM", "P"), ("CCN", "P"), ("CCR", "P"), ("CCS", "P"), ("CCV", "P"),
     ("CCW", "P"), ("CCY", "P"), ("CGB", "R"), ("CGD", "R"), ("CGH", "R"), ("CGK", "R"),
