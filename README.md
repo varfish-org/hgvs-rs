@@ -10,6 +10,27 @@
 This is a port of [biocommons/hgvs](https://github.com/biocommons/hgvs) to the Rust programming language.
 The `data::cdot::*` code is based on a port of  [SACGF/cdot](https://github.com/SACGF/cdot) to Rust.
 
+## Choosing a Provider
+
+The crate includes three `Provider` implementations for accessing transcript and sequence data:
+
+| Provider | Data Source | Best For |
+|---|---|---|
+| `data::uta::Provider` | PostgreSQL (UTA) | Testing, development |
+| `data::uta_sr::Provider` | PostgreSQL (UTA) + SeqRepo | Testing with genome contigs |
+| `data::cdot::json::Provider` | cDOT JSON + SeqRepo | Offline use without PostgreSQL |
+
+All three providers incur I/O overhead per query (database round-trips or filesystem access), which
+can dominate normalization throughput for high-volume workloads.
+
+For **production use**, consider implementing the `Provider` trait with an in-memory or
+purpose-built data store. Two examples of this approach:
+
+- [mehari](https://github.com/varfish-org/mehari) deserializes a protobuf-encoded transcript
+  database into memory and indexes it with interval trees, backed by RocksDB for sequence storage.
+- [ferro-hgvs](https://github.com/fulcrumgenomics/ferro-hgvs) uses indexed FASTA files with
+  cDOT metadata, supporting random access via FAI indexes and optional memory-mapped I/O.
+
 ## Running Tests
 
 The tests need an instance of UTA to run.
