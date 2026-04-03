@@ -306,25 +306,23 @@ impl<'a> Normalizer<'a> {
                 .collect::<Vec<_>>();
             let alt_ac = &map_info[0].alt_ac;
 
-            // Obtain tx info.
-            let tx_info = self.provider.as_ref().get_tx_info(
+            let (cds_start, cds_end) = self.provider.as_ref().get_cds_start_end(
                 var.accession(),
                 alt_ac,
                 &self.config.alt_aln_method,
             )?;
-            let cds_start = tx_info.cds_start_i;
-            let cds_end = tx_info.cds_end_i;
 
-            // Obtain exon info.
-            let exon_info = self.provider.as_ref().get_tx_exons(
+            let exon_coords = self.provider.as_ref().get_tx_exon_coords(
                 var.accession(),
                 alt_ac,
                 &self.config.alt_aln_method,
             )?;
-            let mut exon_starts = exon_info.iter().map(|r| r.tx_start_i).collect::<Vec<_>>();
+
+            let mut exon_starts = exon_coords.iter().map(|(s, _)| *s).collect::<Vec<_>>();
             exon_starts.sort();
-            let mut exon_ends = exon_info.iter().map(|r| r.tx_end_i).collect::<Vec<_>>();
+            let mut exon_ends = exon_coords.iter().map(|(_, e)| *e).collect::<Vec<_>>();
             exon_ends.sort();
+
             exon_starts.push(
                 *exon_ends
                     .last()
