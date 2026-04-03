@@ -1,8 +1,7 @@
 //! Variant normalization.
 
-use std::{cmp::Ordering, ops::Range, sync::Arc};
-
 pub use crate::normalizer::error::Error;
+use crate::sequences::{trim_common_prefixes_slice, trim_common_suffixes_slice};
 use crate::{
     data::interface::Provider,
     mapper::variant,
@@ -10,9 +9,11 @@ use crate::{
         GenomeInterval, GenomeLocEdit, HgvsVariant, MtInterval, MtLocEdit, Mu, NaEdit, RnaInterval,
         RnaLocEdit, RnaPos, TxInterval, TxLocEdit, TxPos,
     },
-    sequences::{revcomp, trim_common_prefixes, trim_common_suffixes},
+    sequences::revcomp,
     validator::Validator,
 };
+use std::collections::VecDeque;
+use std::{cmp::Ordering, ops::Range, sync::Arc};
 
 mod error {
     /// Error type for normalization of HGVS expressins.
@@ -970,29 +971,65 @@ fn normalize_alleles_left(
     bound: usize,
     ref_step: usize,
 ) -> Result<(i32, i32, String, String), Error> {
-    // Step 1: Trim common suffix./
-    let (trimmed, reference, alternative) = trim_common_suffixes(&reference, &alternative);
-    let mut stop = stop - trimmed;
+    let (new_start, new_stop, new_ref, new_alt) = normalize_alleles_left_inner(
+        ref_seq.as_bytes(),
+        start,
+        stop,
+        &reference,
+        &alternative,
+        bound,
+        ref_step,
+    )?;
+    Ok((
+        new_start.try_into()?,
+        new_stop.try_into()?,
+        new_ref,
+        new_alt,
+    ))
+}
 
-    // Step 2: Trim common prefix.
-    let (trimmed, mut reference, mut alternative) = trim_common_prefixes(&reference, &alternative);
-    let mut start = start + trimmed;
+fn normalize_alleles_left_inner(
+    ref_seq: &[u8],
+    mut start: usize,
+    mut stop: usize,
+    reference: &str,
+    alternative: &str,
+    bound: usize,
+    ref_step: usize,
+) -> Result<(usize, usize, String, String), Error> {
+    let (trimmed, ref_str, alt_str) = trim_common_suffixes_slice(reference, alternative);
+    stop -= trimmed;
 
-    // Step 3: While a null allele exists, right shuffle by appending alleles with reference
-    //         and trimming common prefixes.
+    let (trimmed, ref_str, alt_str) = trim_common_prefixes_slice(ref_str, alt_str);
+    start += trimmed;
 
-    let shuffle = true;
-    while shuffle && (reference.is_empty() || alternative.is_empty()) && start > bound {
+    let mut r_bytes: VecDeque<u8> = ref_str.bytes().collect();
+    let mut a_bytes: VecDeque<u8> = alt_str.bytes().collect();
+
+    while (r_bytes.is_empty() || a_bytes.is_empty()) && start > bound {
         let step = std::cmp::min(ref_step, start - bound);
 
-        let r = ref_seq[(start - step)..(start - bound)].to_uppercase();
-        let new_reference = format!("{r}{reference}");
-        let new_alternative = format!("{r}{alternative}");
+        let chunk_start = start - step;
+        let chunk_end = start - bound;
+        let chunk = &ref_seq[chunk_start..chunk_end];
 
-        let (trimmed, new_reference, new_alternative) =
-            trim_common_suffixes(&new_reference, &new_alternative);
+        for &b in chunk.iter().rev() {
+            r_bytes.push_front(b.to_ascii_uppercase());
+            a_bytes.push_front(b.to_ascii_uppercase());
+        }
+
+        let mut trimmed = 0;
+        while !r_bytes.is_empty() && !a_bytes.is_empty() && r_bytes.back() == a_bytes.back() {
+            r_bytes.pop_back();
+            a_bytes.pop_back();
+            trimmed += 1;
+        }
 
         if trimmed == 0 {
+            for _ in 0..step {
+                r_bytes.pop_front();
+                a_bytes.pop_front();
+            }
             break;
         }
 
@@ -1000,18 +1037,23 @@ fn normalize_alleles_left(
         stop -= trimmed;
 
         if trimmed == step {
-            reference = new_reference;
-            alternative = new_alternative;
+            continue;
         } else {
             let left = step - trimmed;
-            let r = left..;
-            reference = new_reference[r.clone()].to_string();
-            alternative = new_alternative[r].to_string();
+            for _ in 0..left {
+                r_bytes.pop_front();
+                a_bytes.pop_front();
+            }
             break;
         }
     }
 
-    Ok((start.try_into()?, stop.try_into()?, reference, alternative))
+    Ok((
+        start,
+        stop,
+        String::from_utf8(r_bytes.into()).unwrap(),
+        String::from_utf8(a_bytes.into()).unwrap(),
+    ))
 }
 
 fn normalize_alleles_right(
@@ -1023,29 +1065,65 @@ fn normalize_alleles_right(
     bound: usize,
     ref_step: usize,
 ) -> Result<(i32, i32, String, String), Error> {
-    // Step 1: Trim common prefix.
-    let (trimmed, reference, alternative) = trim_common_prefixes(&reference, &alternative);
-    let mut start = start + trimmed;
+    let (new_start, new_stop, new_ref, new_alt) = normalize_alleles_right_inner(
+        ref_seq.as_bytes(),
+        start,
+        stop,
+        &reference,
+        &alternative,
+        bound,
+        ref_step,
+    )?;
+    Ok((
+        new_start.try_into()?,
+        new_stop.try_into()?,
+        new_ref,
+        new_alt,
+    ))
+}
 
-    // Step 2: Trim common suffix.
-    let (trimmed, mut reference, mut alternative) = trim_common_suffixes(&reference, &alternative);
-    let mut stop = stop - trimmed;
+fn normalize_alleles_right_inner(
+    ref_seq: &[u8],
+    mut start: usize,
+    mut stop: usize,
+    reference: &str,
+    alternative: &str,
+    bound: usize,
+    ref_step: usize,
+) -> Result<(usize, usize, String, String), Error> {
+    let (trimmed, ref_str, alt_str) = trim_common_prefixes_slice(reference, alternative);
+    start += trimmed;
 
-    // Step 3: While a null allele exists, right shuffle by appending alleles with reference
-    //         and trimming common prefixes.
+    let (trimmed, ref_str, alt_str) = trim_common_suffixes_slice(ref_str, alt_str);
+    stop -= trimmed;
 
-    let shuffle = true;
-    while shuffle && (reference.is_empty() || alternative.is_empty()) && stop < bound {
+    let mut r_bytes: VecDeque<u8> = ref_str.bytes().collect();
+    let mut a_bytes: VecDeque<u8> = alt_str.bytes().collect();
+
+    while (r_bytes.is_empty() || a_bytes.is_empty()) && stop < bound {
         let step = std::cmp::min(ref_step, bound - stop);
 
-        let r = ref_seq[stop..(stop + step)].to_uppercase();
-        let new_reference = format!("{reference}{r}");
-        let new_alternative = format!("{alternative}{r}");
+        let chunk_start = stop;
+        let chunk_end = stop + step;
+        let chunk = &ref_seq[chunk_start..chunk_end];
 
-        let (trimmed, new_reference, new_alternative) =
-            trim_common_prefixes(&new_reference, &new_alternative);
+        for &b in chunk.iter() {
+            r_bytes.push_back(b.to_ascii_uppercase());
+            a_bytes.push_back(b.to_ascii_uppercase());
+        }
+
+        let mut trimmed = 0;
+        while !r_bytes.is_empty() && !a_bytes.is_empty() && r_bytes.front() == a_bytes.front() {
+            r_bytes.pop_front();
+            a_bytes.pop_front();
+            trimmed += 1;
+        }
 
         if trimmed == 0 {
+            for _ in 0..step {
+                r_bytes.pop_back();
+                a_bytes.pop_back();
+            }
             break;
         }
 
@@ -1053,19 +1131,23 @@ fn normalize_alleles_right(
         stop += trimmed;
 
         if trimmed == step {
-            reference = new_reference;
-            alternative = new_alternative;
+            continue;
         } else {
             let left = step - trimmed;
-            let r = ..(new_reference.len() - left);
-            reference = new_reference[r].to_string();
-            let r = ..(new_alternative.len() - left);
-            alternative = new_alternative[r].to_string();
+            for _ in 0..left {
+                r_bytes.pop_back();
+                a_bytes.pop_back();
+            }
             break;
         }
     }
 
-    Ok((start.try_into()?, stop.try_into()?, reference, alternative))
+    Ok((
+        start,
+        stop,
+        String::from_utf8(r_bytes.into()).unwrap(),
+        String::from_utf8(a_bytes.into()).unwrap(),
+    ))
 }
 
 #[cfg(test)]

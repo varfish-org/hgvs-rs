@@ -28,52 +28,45 @@ mod error {
 }
 
 pub fn trim_common_prefixes(reference: &str, alternative: &str) -> (usize, String, String) {
-    if reference.is_empty() || alternative.is_empty() {
-        return (0, reference.to_string(), alternative.to_string());
-    }
-
-    let mut trim = 0;
-    while trim < reference.len() && trim < alternative.len() {
-        if reference.chars().nth(trim) != alternative.chars().nth(trim) {
-            break;
-        }
-
-        trim += 1;
-    }
-
-    (
-        trim,
-        reference[trim..].to_string(),
-        alternative[trim..].to_string(),
-    )
+    let (trim, r_slice, a_slice) = trim_common_prefixes_slice(reference, alternative);
+    (trim, r_slice.to_string(), a_slice.to_string())
 }
 
 pub fn trim_common_suffixes(reference: &str, alternative: &str) -> (usize, String, String) {
-    if reference.is_empty() || alternative.is_empty() {
-        return (0, reference.to_string(), alternative.to_string());
-    }
+    let (trim, r_slice, a_slice) = trim_common_suffixes_slice(reference, alternative);
+    (trim, r_slice.to_string(), a_slice.to_string())
+}
 
-    let mut trim = 0;
-    let mut i_r = reference.len();
-    let mut i_a = alternative.len();
-    let mut pad = 0;
-    while trim < reference.len() && trim < alternative.len() {
-        trim += 1;
-        assert!(i_r > 0);
-        assert!(i_a > 0);
-        i_r -= 1;
-        i_a -= 1;
+pub fn trim_common_prefixes_slice<'a>(
+    reference: &'a str,
+    alternative: &'a str,
+) -> (usize, &'a str, &'a str) {
+    let trim = reference
+        .as_bytes()
+        .iter()
+        .zip(alternative.as_bytes().iter())
+        .take_while(|(r, a)| r == a)
+        .count();
 
-        if reference.chars().nth(i_r) != alternative.chars().nth(i_a) {
-            pad = 1;
-            break;
-        }
-    }
+    (trim, &reference[trim..], &alternative[trim..])
+}
+
+pub fn trim_common_suffixes_slice<'a>(
+    reference: &'a str,
+    alternative: &'a str,
+) -> (usize, &'a str, &'a str) {
+    let trim = reference
+        .as_bytes()
+        .iter()
+        .rev()
+        .zip(alternative.as_bytes().iter().rev())
+        .take_while(|(r, a)| r == a)
+        .count();
 
     (
-        trim - pad,
-        reference[..(i_r + pad)].to_string(),
-        alternative[..(i_a + pad)].to_string(),
+        trim,
+        &reference[..reference.len() - trim],
+        &alternative[..alternative.len() - trim],
     )
 }
 
