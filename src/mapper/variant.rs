@@ -1041,15 +1041,14 @@ impl Mapper {
 /// 2. convert the result to an option instead
 /// 3. return a generic error instead
 #[cached(
-    ty = "SizedCache<String, Result<alignment::Mapper, Error>>",
+    ty = "SizedCache<(String, String, bool, String, String, String), Result<alignment::Mapper, Error>>",
     create = "{ SizedCache::with_size(1000) }",
-    convert = r#"{ format!("{}{}{}{}{}{}",
-                       provider.data_version(),
-                       provider.schema_version(),
-                       strict_bounds,
-                       tx_ac,
-                       alt_ac,
-                       alt_aln_method) }"#
+    convert = r#"{ (provider.data_version().to_string(),
+                    provider.schema_version().to_string(),
+                    strict_bounds,
+                    tx_ac.to_string(),
+                    alt_ac.to_string(),
+                    alt_aln_method.to_string()) }"#
 )]
 fn build_alignment_mapper_cached(
     provider: Arc<dyn Provider + Send + Sync>,

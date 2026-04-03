@@ -18,27 +18,28 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct RefTranscriptData {
     /// Transcript nucleotide sequence.
-    pub transcript_sequence: String,
+    pub transcript_sequence: Arc<str>,
     /// Translated amino acid sequence.
-    pub aa_sequence: String,
+    pub aa_sequence: Arc<str>,
     /// 1-based CDS start position on transcript.
     pub cds_start: i32,
     /// 1-based CDS end position on transcript.
     pub cds_stop: i32,
     /// Accession of the protein or `MD5_${md5sum}`.
-    pub protein_accession: String,
+    pub protein_accession: Arc<str>,
     /// The translation table to use.
     pub translation_table: TranslationTable,
 }
 
 #[cached(
-    ty = "SizedCache<String, Result<RefTranscriptData, Error>>",
+    ty = "SizedCache<(String, String, String, Option<String>), Result<RefTranscriptData, Error>>",
     create = "{ SizedCache::with_size(1000) }",
-    convert = r#"{ format!("{}{}{}{:?}",
-                       provider.data_version(),
-                       provider.schema_version(),
-                       tx_ac,
-                       pro_ac) }"#
+    convert = r#"{ (
+        provider.data_version().to_string(),
+        provider.schema_version().to_string(),
+        tx_ac.to_string(),
+        pro_ac.map(|s| s.to_string())
+    ) }"#
 )]
 pub fn ref_transcript_data_cached(
     provider: Arc<dyn Provider + Send + Sync>,
