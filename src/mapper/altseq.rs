@@ -63,7 +63,7 @@ impl RefTranscriptData {
         pro_ac: Option<&str>,
     ) -> Result<Self, Error> {
         let tx_info = provider.as_ref().get_tx_identity_info(tx_ac)?;
-        let transcript_sequence = provider.as_ref().get_seq(tx_ac)?;
+        let transcript_sequence: Arc<str> = provider.as_ref().get_seq(tx_ac)?.into();
 
         // Non-coding transcripts (e.g., NR_*) don't have a CDS defined.
         let (cds_start_i, cds_end_i) = match (tx_info.cds_start_i, tx_info.cds_end_i) {
@@ -85,11 +85,12 @@ impl RefTranscriptData {
             ));
         }
 
-        let aa_sequence = translate_cds(tx_seq_to_translate, true, "*", tx_info.translation_table)?;
-        let protein_accession = if let Some(pro_ac) = pro_ac {
-            pro_ac.to_owned()
+        let aa_sequence: Arc<str> =
+            translate_cds(tx_seq_to_translate, true, "*", tx_info.translation_table)?.into();
+        let protein_accession: Arc<str> = if let Some(pro_ac) = pro_ac {
+            pro_ac.into()
         } else if let Some(pro_ac) = provider.as_ref().get_pro_ac_for_tx_ac(tx_ac)? {
-            pro_ac
+            pro_ac.into()
         } else {
             // get_acs_for_protein_seq() will always return at least the MD5_ accession.
             //
@@ -104,6 +105,7 @@ impl RefTranscriptData {
                 .expect(
                     "get_acs_for_protein_seq() should always return at least the MD5_ accession",
                 )
+                .into()
         };
 
         Ok(Self {
@@ -270,11 +272,11 @@ enum EditType {
 ///
 /// Generates a record corresponding to the modified transcript sequence, along with annotations
 /// for use in conversion to an hgvsp tag.  Used in hgvsc to hgvsp conversion.
-pub struct AltSeqBuilder {
+pub struct AltSeqBuilder<'a> {
     /// HgvsVariant::CdsVariant to build the alternative sequence for.
     pub var_c: HgvsVariant,
     /// Information about the transcript reference.
-    pub reference_data: RefTranscriptData,
+    pub reference_data: &'a RefTranscriptData,
     /// Whether the transcript reference amino acid sequence has multiple stop codons.
     pub ref_has_multiple_stops: bool,
     /// Position of the first stop codon in the reference amino acid.  It is difficult
@@ -283,8 +285,8 @@ pub struct AltSeqBuilder {
     pub first_stop_pos: Option<usize>,
 }
 
-impl AltSeqBuilder {
-    pub fn new(var_c: HgvsVariant, reference_data: RefTranscriptData) -> Self {
+impl<'a> AltSeqBuilder<'a> {
+    pub fn new(var_c: HgvsVariant, reference_data: &'a RefTranscriptData) -> Self {
         if !matches!(&var_c, HgvsVariant::CdsVariant { .. }) {
             panic!("Must initialize with HgvsVariant::CdsVariant");
         }
@@ -431,7 +433,7 @@ impl AltSeqBuilder {
             _ => panic!("invalid variant"),
         }
 
-        let seq = self.reference_data.transcript_sequence.to_owned();
+        let seq = self.reference_data.transcript_sequence.to_string();
         let start = std::cmp::min(start_end[0], seq.len());
         let end = std::cmp::min(start_end[1] + 1, seq.len());
 
@@ -600,7 +602,7 @@ impl AltSeqBuilder {
     /// Create an alt seq that matches the reference (for non-CDS variants).
     fn create_alt_equals_ref_noncds(&self) -> Result<AltTranscriptData, Error> {
         AltTranscriptData::new_owned(
-            self.reference_data.transcript_sequence.clone(),
+            self.reference_data.transcript_sequence.to_string(),
             self.reference_data.cds_start,
             self.reference_data.cds_stop,
             false,
@@ -631,8 +633,8 @@ impl AltSeqBuilder {
 }
 
 /// Build `HgvsVariant::ProtVariant` from information about change to transcript.
-pub struct AltSeqToHgvsp {
-    pub ref_data: RefTranscriptData,
+pub struct AltSeqToHgvsp<'a> {
+    pub ref_data: &'a RefTranscriptData,
     pub alt_data: AltTranscriptData,
 }
 
@@ -655,8 +657,8 @@ impl Default for AdHocRecord {
     }
 }
 
-impl AltSeqToHgvsp {
-    pub fn new(ref_data: RefTranscriptData, alt_data: AltTranscriptData) -> Self {
+impl<'a> AltSeqToHgvsp<'a> {
+    pub fn new(ref_data: &'a RefTranscriptData, alt_data: AltTranscriptData) -> Self {
         Self { ref_data, alt_data }
     }
 
