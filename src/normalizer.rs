@@ -318,56 +318,40 @@ impl<'a> Normalizer<'a> {
                 &self.config.alt_aln_method,
             )?;
 
-            let mut exon_starts = exon_coords.iter().map(|(s, _)| *s).collect::<Vec<_>>();
-            exon_starts.sort();
-            let mut exon_ends = exon_coords.iter().map(|(_, e)| *e).collect::<Vec<_>>();
-            exon_ends.sort();
-
-            exon_starts.push(
-                *exon_ends
-                    .last()
-                    .expect("should not happen; must have at least one exon"),
-            );
-            exon_ends.push(i32::MAX);
-
-            // Find the end pos of the exon where the var locates.
-            let _left = 0;
-            let _right = i32::MAX;
-
-            // NB: the following content is from the original Python code.
-            // TODO: #242: implement methods to find tx regions
             let loc_range = var
                 .loc_range()
                 .expect("location must have a concrete position");
-            let i = exon_starts
-                .iter()
-                .enumerate()
-                .find(|(idx, _x)| {
-                    loc_range.start >= exon_starts[*idx] && loc_range.start < exon_ends[*idx]
-                })
-                .ok_or(Error::ExonNotFoundForStart(format!("{}", &var)))?
-                .0;
-            let j = exon_starts
-                .iter()
-                .enumerate()
-                .find(|(idx, _x)| {
-                    loc_range.end > exon_starts[*idx] && loc_range.end - 1 < exon_ends[*idx]
-                })
-                .ok_or(Error::ExonNotFoundForEnd(format!("{}", &var)))?
-                .0;
 
-            if i != j {
+            let mut exons = exon_coords;
+            exons.sort_unstable_by_key(|&(start, _)| start);
+
+            if let Some(&(_, last_end)) = exons.last() {
+                exons.push((last_end, i32::MAX));
+            }
+
+            let (idx_start, exon_start) = exons
+                .iter()
+                .enumerate()
+                .find(|(_, &(start, end))| loc_range.start >= start && loc_range.start < end)
+                .ok_or_else(|| Error::ExonNotFoundForStart(format!("{}", &var)))?;
+
+            let (idx_end, _) = exons
+                .iter()
+                .enumerate()
+                .find(|(_, &(start, end))| loc_range.end > start && loc_range.end - 1 < end)
+                .ok_or_else(|| Error::ExonNotFoundForEnd(format!("{}", &var)))?;
+
+            if idx_start != idx_end {
                 return Err(Error::ExonIntronBoundary(format!("{}", &var)));
             }
 
-            let mut left = exon_starts[i];
-            let mut right = exon_ends[i];
+            let (mut left, mut right) = *exon_start;
 
             if let Some(cds_start) = cds_start {
                 if loc_range.end - 1 < cds_start {
-                    right = std::cmp::min(right, cds_start);
+                    right = right.min(cds_start);
                 } else if loc_range.start >= cds_start {
-                    left = std::cmp::max(left, cds_start);
+                    left = left.max(cds_start);
                 } else {
                     return Err(Error::UtrExonBoundary(format!("{}", &var)));
                 }
@@ -375,9 +359,9 @@ impl<'a> Normalizer<'a> {
 
             if let Some(cds_end) = cds_end {
                 if loc_range.start >= cds_end {
-                    left = std::cmp::max(left, cds_end);
+                    left = left.max(cds_end);
                 } else if loc_range.end - 1 < cds_end {
-                    right = std::cmp::min(right, cds_end);
+                    right = right.min(cds_end);
                 } else {
                     return Err(Error::UtrExonBoundary(format!("{}", &var)));
                 }
