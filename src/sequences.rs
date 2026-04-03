@@ -72,9 +72,7 @@ pub fn trim_common_suffixes_slice<'a>(
 
 /// Reverse complementing shortcut.
 pub fn revcomp(seq: &str) -> String {
-    std::str::from_utf8(&bio::alphabets::dna::revcomp(seq.as_bytes()))
-        .expect("invalid utf-8 encoding")
-        .to_string()
+    String::from_utf8(bio::alphabets::dna::revcomp(seq.as_bytes())).expect("invalid utf-8 encoding")
 }
 
 /// Allow selection of translation table.
