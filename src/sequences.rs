@@ -3,6 +3,7 @@
 //! Partially ported over from `bioutils.sequences`.
 
 use md5::{Digest, Md5};
+use std::borrow::Cow;
 
 pub use crate::sequences::error::Error;
 
@@ -136,6 +137,16 @@ pub fn aa_to_aa3(seq: &str) -> Result<String, Error> {
     }
 }
 
+/// Internal zero-allocation version of aa_to_aa3.
+/// Returns a borrowed string slice if no translation is needed, avoiding a heap allocation.
+pub(crate) fn aa_to_aa3_cow(seq: &str) -> Result<Cow<'_, str>, Error> {
+    if looks_like_aa3_p(seq) {
+        Ok(Cow::Borrowed(seq))
+    } else {
+        Ok(Cow::Owned(aa1_to_aa3(seq)?))
+    }
+}
+
 /// Converts string of 1-letter amino acids to 3-letter amino acids.
 ///
 /// Fails if the sequence is not of 1-letter amino acids.
@@ -153,16 +164,17 @@ pub fn aa1_to_aa3(seq: &str) -> Result<String, Error> {
         return Ok(String::new());
     }
 
-    let mut result = String::with_capacity(seq.len() * 3);
+    let mut result = Vec::with_capacity(seq.len() * 3);
 
     for (i, aa1) in seq.as_bytes().iter().enumerate() {
         let aa3 = AA1_TO_AA3_STR[*aa1 as usize].ok_or_else(|| {
             Error::InvalidOneLetterAminoAcid(format!("{:?}", aa1), format!("{}", i + 1))
         })?;
-        result.push_str(aa3);
+        result.extend_from_slice(aa3.as_bytes());
     }
 
-    Ok(result)
+    // SAFETY: AA1_TO_AA3_STR only contains valid ASCII/UTF-8 strings.
+    Ok(unsafe { String::from_utf8_unchecked(result) })
 }
 
 /// Converts string of 3-letter amino acids to 1-letter amino acids.
@@ -182,16 +194,19 @@ pub fn aa3_to_aa1(seq: &str) -> Result<String, Error> {
         return Err(Error::InvalidThreeLetterAminoAcidLength(seq.len()));
     }
 
-    let mut result = String::with_capacity(seq.len() / 3);
+    let mut result = Vec::with_capacity(seq.len() / 3);
 
     for (i, aa3) in seq.as_bytes().chunks(3).enumerate() {
         let aa1 = _aa3_to_aa1(aa3).ok_or_else(|| {
-            Error::InvalidThreeLetterAminoAcid(format!("{:?}", aa3), format!("{}", i + 1))
-        })? as char;
-        result.push(aa1);
+            let s = std::str::from_utf8(aa3).unwrap_or("???");
+            Error::InvalidThreeLetterAminoAcid(s.to_string(), format!("{}", i + 1))
+        })?;
+
+        result.push(aa1 as u8);
     }
 
-    Ok(result)
+    // SAFETY: _aa3_to_aa1 only returns valid ASCII/UTF-8 bytes.
+    Ok(unsafe { String::from_utf8_unchecked(result) })
 }
 
 /// Indicates whether a string looks like a 3-letter AA string.
@@ -205,7 +220,12 @@ pub fn aa3_to_aa1(seq: &str) -> Result<String, Error> {
 /// Whether the string is of the format of a 3-letter AA string.
 #[allow(dead_code)]
 fn looks_like_aa3_p(seq: &str) -> bool {
-    seq.len() % 3 == 0 && seq.chars().nth(1).map(|c| c.is_lowercase()).unwrap_or(true)
+    seq.len() % 3 == 0
+        && seq
+            .as_bytes()
+            .get(1)
+            .map(|b| b.is_ascii_lowercase())
+            .unwrap_or(true)
 }
 
 /// Translates a DNA or RNA sequence into a single-letter amino acid sequence.
