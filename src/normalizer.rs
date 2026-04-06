@@ -329,23 +329,29 @@ impl<'a> Normalizer<'a> {
                 exons.push((last_end, i32::MAX));
             }
 
-            let (idx_start, exon_start) = exons
-                .iter()
-                .enumerate()
-                .find(|(_, &(start, end))| loc_range.start >= start && loc_range.start < end)
-                .ok_or_else(|| Error::ExonNotFoundForStart(format!("{}", &var)))?;
+            let mut start_info = None;
+            let mut end_idx = None;
 
-            let (idx_end, _) = exons
-                .iter()
-                .enumerate()
-                .find(|(_, &(start, end))| loc_range.end > start && loc_range.end - 1 < end)
-                .ok_or_else(|| Error::ExonNotFoundForEnd(format!("{}", &var)))?;
+            for (idx, &(start, end)) in exons.iter().enumerate() {
+                if start_info.is_none() && loc_range.start >= start && loc_range.start < end {
+                    start_info = Some((idx, start, end));
+                }
+                if end_idx.is_none() && loc_range.end > start && loc_range.end - 1 < end {
+                    end_idx = Some(idx);
+                }
+
+                if start_info.is_some() && end_idx.is_some() {
+                    break;
+                }
+            }
+
+            let (idx_start, mut left, mut right) =
+                start_info.ok_or_else(|| Error::ExonNotFoundForStart(format!("{}", &var)))?;
+            let idx_end = end_idx.ok_or_else(|| Error::ExonNotFoundForEnd(format!("{}", &var)))?;
 
             if idx_start != idx_end {
                 return Err(Error::ExonIntronBoundary(format!("{}", &var)));
             }
-
-            let (mut left, mut right) = *exon_start;
 
             if let Some(cds_start) = cds_start {
                 if loc_range.end - 1 < cds_start {
