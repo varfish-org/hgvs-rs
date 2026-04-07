@@ -276,6 +276,33 @@ pub trait Provider {
         alt_aln_method: &str,
     ) -> Result<Vec<TxExonsRecord>, Error>;
 
+    /// Fast-path to obtain only transcript exon boundaries (tx_start_i, tx_end_i).
+    /// Defaults to retrieving them via `self.get_tx_exons`.
+    fn get_tx_exon_coords(
+        &self,
+        tx_ac: &str,
+        alt_ac: &str,
+        alt_aln_method: &str,
+    ) -> Result<Vec<(i32, i32)>, Error> {
+        let exons = self.get_tx_exons(tx_ac, alt_ac, alt_aln_method)?;
+        Ok(exons
+            .into_iter()
+            .map(|e| (e.tx_start_i, e.tx_end_i))
+            .collect())
+    }
+
+    /// Fast-path to obtain CDS start and end bounds.
+    /// Defaults to retrieving them via `self.get_tx_info`.
+    fn get_cds_start_end(
+        &self,
+        tx_ac: &str,
+        alt_ac: &str,
+        alt_aln_method: &str,
+    ) -> Result<(Option<i32>, Option<i32>), Error> {
+        let info = self.get_tx_info(tx_ac, alt_ac, alt_aln_method)?;
+        Ok((info.cds_start_i, info.cds_end_i))
+    }
+
     /// Return transcript info records for supplied gene, in order of decreasing length.
     ///
     /// # Arguments

@@ -1,8 +1,7 @@
 //! Variant normalization.
 
-use std::{cmp::Ordering, ops::Range, sync::Arc};
-
 pub use crate::normalizer::error::Error;
+use crate::sequences::{trim_common_prefixes_slice, trim_common_suffixes_slice};
 use crate::{
     data::interface::Provider,
     mapper::variant,
@@ -10,9 +9,11 @@ use crate::{
         GenomeInterval, GenomeLocEdit, HgvsVariant, MtInterval, MtLocEdit, Mu, NaEdit, RnaInterval,
         RnaLocEdit, RnaPos, TxInterval, TxLocEdit, TxPos,
     },
-    sequences::{revcomp, trim_common_prefixes, trim_common_suffixes},
+    sequences::revcomp,
     validator::Validator,
 };
+use std::collections::VecDeque;
+use std::{cmp::Ordering, ops::Range, sync::Arc};
 
 mod error {
     /// Error type for normalization of HGVS expressins.
@@ -305,70 +306,58 @@ impl<'a> Normalizer<'a> {
                 .collect::<Vec<_>>();
             let alt_ac = &map_info[0].alt_ac;
 
-            // Obtain tx info.
-            let tx_info = self.provider.as_ref().get_tx_info(
+            let (cds_start, cds_end) = self.provider.as_ref().get_cds_start_end(
                 var.accession(),
                 alt_ac,
                 &self.config.alt_aln_method,
             )?;
-            let cds_start = tx_info.cds_start_i;
-            let cds_end = tx_info.cds_end_i;
 
-            // Obtain exon info.
-            let exon_info = self.provider.as_ref().get_tx_exons(
+            let exon_coords = self.provider.as_ref().get_tx_exon_coords(
                 var.accession(),
                 alt_ac,
                 &self.config.alt_aln_method,
             )?;
-            let mut exon_starts = exon_info.iter().map(|r| r.tx_start_i).collect::<Vec<_>>();
-            exon_starts.sort();
-            let mut exon_ends = exon_info.iter().map(|r| r.tx_end_i).collect::<Vec<_>>();
-            exon_ends.sort();
-            exon_starts.push(
-                *exon_ends
-                    .last()
-                    .expect("should not happen; must have at least one exon"),
-            );
-            exon_ends.push(i32::MAX);
 
-            // Find the end pos of the exon where the var locates.
-            let _left = 0;
-            let _right = i32::MAX;
-
-            // NB: the following content is from the original Python code.
-            // TODO: #242: implement methods to find tx regions
             let loc_range = var
                 .loc_range()
                 .expect("location must have a concrete position");
-            let i = exon_starts
-                .iter()
-                .enumerate()
-                .find(|(idx, _x)| {
-                    loc_range.start >= exon_starts[*idx] && loc_range.start < exon_ends[*idx]
-                })
-                .ok_or(Error::ExonNotFoundForStart(format!("{}", &var)))?
-                .0;
-            let j = exon_starts
-                .iter()
-                .enumerate()
-                .find(|(idx, _x)| {
-                    loc_range.end > exon_starts[*idx] && loc_range.end - 1 < exon_ends[*idx]
-                })
-                .ok_or(Error::ExonNotFoundForEnd(format!("{}", &var)))?
-                .0;
 
-            if i != j {
+            let mut exons = exon_coords;
+            exons.sort_unstable_by_key(|&(start, _)| start);
+
+            if let Some(&(_, last_end)) = exons.last() {
+                exons.push((last_end, i32::MAX));
+            }
+
+            let mut start_info = None;
+            let mut end_idx = None;
+
+            for (idx, &(start, end)) in exons.iter().enumerate() {
+                if start_info.is_none() && loc_range.start >= start && loc_range.start < end {
+                    start_info = Some((idx, start, end));
+                }
+                if end_idx.is_none() && loc_range.end > start && loc_range.end - 1 < end {
+                    end_idx = Some(idx);
+                }
+
+                if start_info.is_some() && end_idx.is_some() {
+                    break;
+                }
+            }
+
+            let (idx_start, mut left, mut right) =
+                start_info.ok_or_else(|| Error::ExonNotFoundForStart(format!("{}", &var)))?;
+            let idx_end = end_idx.ok_or_else(|| Error::ExonNotFoundForEnd(format!("{}", &var)))?;
+
+            if idx_start != idx_end {
                 return Err(Error::ExonIntronBoundary(format!("{}", &var)));
             }
 
-            let mut left = exon_starts[i];
-            let mut right = exon_ends[i];
-
             if let Some(cds_start) = cds_start {
                 if loc_range.end - 1 < cds_start {
-                    right = std::cmp::min(right, cds_start);
+                    right = right.min(cds_start);
                 } else if loc_range.start >= cds_start {
-                    left = std::cmp::max(left, cds_start);
+                    left = left.max(cds_start);
                 } else {
                     return Err(Error::UtrExonBoundary(format!("{}", &var)));
                 }
@@ -376,9 +365,9 @@ impl<'a> Normalizer<'a> {
 
             if let Some(cds_end) = cds_end {
                 if loc_range.start >= cds_end {
-                    left = std::cmp::max(left, cds_end);
+                    left = left.max(cds_end);
                 } else if loc_range.end - 1 < cds_end {
-                    right = std::cmp::min(right, cds_end);
+                    right = right.min(cds_end);
                 } else {
                     return Err(Error::UtrExonBoundary(format!("{}", &var)));
                 }
@@ -970,29 +959,65 @@ fn normalize_alleles_left(
     bound: usize,
     ref_step: usize,
 ) -> Result<(i32, i32, String, String), Error> {
-    // Step 1: Trim common suffix./
-    let (trimmed, reference, alternative) = trim_common_suffixes(&reference, &alternative);
-    let mut stop = stop - trimmed;
+    let (new_start, new_stop, new_ref, new_alt) = normalize_alleles_left_inner(
+        ref_seq.as_bytes(),
+        start,
+        stop,
+        &reference,
+        &alternative,
+        bound,
+        ref_step,
+    )?;
+    Ok((
+        new_start.try_into()?,
+        new_stop.try_into()?,
+        new_ref,
+        new_alt,
+    ))
+}
 
-    // Step 2: Trim common prefix.
-    let (trimmed, mut reference, mut alternative) = trim_common_prefixes(&reference, &alternative);
-    let mut start = start + trimmed;
+fn normalize_alleles_left_inner(
+    ref_seq: &[u8],
+    mut start: usize,
+    mut stop: usize,
+    reference: &str,
+    alternative: &str,
+    bound: usize,
+    ref_step: usize,
+) -> Result<(usize, usize, String, String), Error> {
+    let (trimmed, ref_str, alt_str) = trim_common_suffixes_slice(reference, alternative);
+    stop -= trimmed;
 
-    // Step 3: While a null allele exists, right shuffle by appending alleles with reference
-    //         and trimming common prefixes.
+    let (trimmed, ref_str, alt_str) = trim_common_prefixes_slice(ref_str, alt_str);
+    start += trimmed;
 
-    let shuffle = true;
-    while shuffle && (reference.is_empty() || alternative.is_empty()) && start > bound {
+    let mut r_bytes: VecDeque<u8> = ref_str.bytes().collect();
+    let mut a_bytes: VecDeque<u8> = alt_str.bytes().collect();
+
+    while (r_bytes.is_empty() || a_bytes.is_empty()) && start > bound {
         let step = std::cmp::min(ref_step, start - bound);
 
-        let r = ref_seq[(start - step)..(start - bound)].to_uppercase();
-        let new_reference = format!("{r}{reference}");
-        let new_alternative = format!("{r}{alternative}");
+        let chunk_start = start - step;
+        let chunk_end = start - bound;
+        let chunk = &ref_seq[chunk_start..chunk_end];
 
-        let (trimmed, new_reference, new_alternative) =
-            trim_common_suffixes(&new_reference, &new_alternative);
+        for &b in chunk.iter().rev() {
+            r_bytes.push_front(b.to_ascii_uppercase());
+            a_bytes.push_front(b.to_ascii_uppercase());
+        }
+
+        let mut trimmed = 0;
+        while !r_bytes.is_empty() && !a_bytes.is_empty() && r_bytes.back() == a_bytes.back() {
+            r_bytes.pop_back();
+            a_bytes.pop_back();
+            trimmed += 1;
+        }
 
         if trimmed == 0 {
+            for _ in 0..step {
+                r_bytes.pop_front();
+                a_bytes.pop_front();
+            }
             break;
         }
 
@@ -1000,18 +1025,23 @@ fn normalize_alleles_left(
         stop -= trimmed;
 
         if trimmed == step {
-            reference = new_reference;
-            alternative = new_alternative;
+            continue;
         } else {
             let left = step - trimmed;
-            let r = left..;
-            reference = new_reference[r.clone()].to_string();
-            alternative = new_alternative[r].to_string();
+            for _ in 0..left {
+                r_bytes.pop_front();
+                a_bytes.pop_front();
+            }
             break;
         }
     }
 
-    Ok((start.try_into()?, stop.try_into()?, reference, alternative))
+    Ok((
+        start,
+        stop,
+        String::from_utf8(r_bytes.into()).unwrap(),
+        String::from_utf8(a_bytes.into()).unwrap(),
+    ))
 }
 
 fn normalize_alleles_right(
@@ -1023,29 +1053,65 @@ fn normalize_alleles_right(
     bound: usize,
     ref_step: usize,
 ) -> Result<(i32, i32, String, String), Error> {
-    // Step 1: Trim common prefix.
-    let (trimmed, reference, alternative) = trim_common_prefixes(&reference, &alternative);
-    let mut start = start + trimmed;
+    let (new_start, new_stop, new_ref, new_alt) = normalize_alleles_right_inner(
+        ref_seq.as_bytes(),
+        start,
+        stop,
+        &reference,
+        &alternative,
+        bound,
+        ref_step,
+    )?;
+    Ok((
+        new_start.try_into()?,
+        new_stop.try_into()?,
+        new_ref,
+        new_alt,
+    ))
+}
 
-    // Step 2: Trim common suffix.
-    let (trimmed, mut reference, mut alternative) = trim_common_suffixes(&reference, &alternative);
-    let mut stop = stop - trimmed;
+fn normalize_alleles_right_inner(
+    ref_seq: &[u8],
+    mut start: usize,
+    mut stop: usize,
+    reference: &str,
+    alternative: &str,
+    bound: usize,
+    ref_step: usize,
+) -> Result<(usize, usize, String, String), Error> {
+    let (trimmed, ref_str, alt_str) = trim_common_prefixes_slice(reference, alternative);
+    start += trimmed;
 
-    // Step 3: While a null allele exists, right shuffle by appending alleles with reference
-    //         and trimming common prefixes.
+    let (trimmed, ref_str, alt_str) = trim_common_suffixes_slice(ref_str, alt_str);
+    stop -= trimmed;
 
-    let shuffle = true;
-    while shuffle && (reference.is_empty() || alternative.is_empty()) && stop < bound {
+    let mut r_bytes: VecDeque<u8> = ref_str.bytes().collect();
+    let mut a_bytes: VecDeque<u8> = alt_str.bytes().collect();
+
+    while (r_bytes.is_empty() || a_bytes.is_empty()) && stop < bound {
         let step = std::cmp::min(ref_step, bound - stop);
 
-        let r = ref_seq[stop..(stop + step)].to_uppercase();
-        let new_reference = format!("{reference}{r}");
-        let new_alternative = format!("{alternative}{r}");
+        let chunk_start = stop;
+        let chunk_end = stop + step;
+        let chunk = &ref_seq[chunk_start..chunk_end];
 
-        let (trimmed, new_reference, new_alternative) =
-            trim_common_prefixes(&new_reference, &new_alternative);
+        for &b in chunk.iter() {
+            r_bytes.push_back(b.to_ascii_uppercase());
+            a_bytes.push_back(b.to_ascii_uppercase());
+        }
+
+        let mut trimmed = 0;
+        while !r_bytes.is_empty() && !a_bytes.is_empty() && r_bytes.front() == a_bytes.front() {
+            r_bytes.pop_front();
+            a_bytes.pop_front();
+            trimmed += 1;
+        }
 
         if trimmed == 0 {
+            for _ in 0..step {
+                r_bytes.pop_back();
+                a_bytes.pop_back();
+            }
             break;
         }
 
@@ -1053,19 +1119,23 @@ fn normalize_alleles_right(
         stop += trimmed;
 
         if trimmed == step {
-            reference = new_reference;
-            alternative = new_alternative;
+            continue;
         } else {
             let left = step - trimmed;
-            let r = ..(new_reference.len() - left);
-            reference = new_reference[r].to_string();
-            let r = ..(new_alternative.len() - left);
-            alternative = new_alternative[r].to_string();
+            for _ in 0..left {
+                r_bytes.pop_back();
+                a_bytes.pop_back();
+            }
             break;
         }
     }
 
-    Ok((start.try_into()?, stop.try_into()?, reference, alternative))
+    Ok((
+        start,
+        stop,
+        String::from_utf8(r_bytes.into()).unwrap(),
+        String::from_utf8(a_bytes.into()).unwrap(),
+    ))
 }
 
 #[cfg(test)]

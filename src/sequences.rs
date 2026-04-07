@@ -3,6 +3,7 @@
 //! Partially ported over from `bioutils.sequences`.
 
 use md5::{Digest, Md5};
+use std::borrow::Cow;
 
 pub use crate::sequences::error::Error;
 
@@ -28,60 +29,83 @@ mod error {
 }
 
 pub fn trim_common_prefixes(reference: &str, alternative: &str) -> (usize, String, String) {
-    if reference.is_empty() || alternative.is_empty() {
-        return (0, reference.to_string(), alternative.to_string());
-    }
-
-    let mut trim = 0;
-    while trim < reference.len() && trim < alternative.len() {
-        if reference.chars().nth(trim) != alternative.chars().nth(trim) {
-            break;
-        }
-
-        trim += 1;
-    }
-
-    (
-        trim,
-        reference[trim..].to_string(),
-        alternative[trim..].to_string(),
-    )
+    let (trim, r_slice, a_slice) = trim_common_prefixes_slice(reference, alternative);
+    (trim, r_slice.to_string(), a_slice.to_string())
 }
 
 pub fn trim_common_suffixes(reference: &str, alternative: &str) -> (usize, String, String) {
-    if reference.is_empty() || alternative.is_empty() {
-        return (0, reference.to_string(), alternative.to_string());
-    }
+    let (trim, r_slice, a_slice) = trim_common_suffixes_slice(reference, alternative);
+    (trim, r_slice.to_string(), a_slice.to_string())
+}
 
-    let mut trim = 0;
-    let mut i_r = reference.len();
-    let mut i_a = alternative.len();
-    let mut pad = 0;
-    while trim < reference.len() && trim < alternative.len() {
-        trim += 1;
-        assert!(i_r > 0);
-        assert!(i_a > 0);
-        i_r -= 1;
-        i_a -= 1;
+/// Returns the common prefix length (in bytes) and the remaining slices after trimming.
+///
+/// # Preconditions
+///
+/// Both `reference` and `alternative` **must be ASCII-only** strings.
+/// The byte-level comparison is intentional to avoid UTF-8 validation overhead.
+/// Passing non-ASCII input is undefined behaviour (may panic or return incorrect results).
+pub fn trim_common_prefixes_slice<'a>(
+    reference: &'a str,
+    alternative: &'a str,
+) -> (usize, &'a str, &'a str) {
+    debug_assert!(
+        reference.is_ascii(),
+        "trim_common_prefixes_slice requires ASCII input"
+    );
+    debug_assert!(
+        alternative.is_ascii(),
+        "trim_common_prefixes_slice requires ASCII input"
+    );
 
-        if reference.chars().nth(i_r) != alternative.chars().nth(i_a) {
-            pad = 1;
-            break;
-        }
-    }
+    let trim = reference
+        .as_bytes()
+        .iter()
+        .zip(alternative.as_bytes().iter())
+        .take_while(|(r, a)| r == a)
+        .count();
+
+    (trim, &reference[trim..], &alternative[trim..])
+}
+
+/// Returns the common suffix length (in bytes) and the remaining slices after trimming.
+///
+/// # Preconditions
+///
+/// Both `reference` and `alternative` **must be ASCII-only** strings.
+/// The byte-level comparison is intentional to avoid UTF-8 validation overhead.
+/// Passing non-ASCII input is undefined behaviour (may panic or return incorrect results).
+pub fn trim_common_suffixes_slice<'a>(
+    reference: &'a str,
+    alternative: &'a str,
+) -> (usize, &'a str, &'a str) {
+    debug_assert!(
+        reference.is_ascii(),
+        "trim_common_suffixes_slice requires ASCII input"
+    );
+    debug_assert!(
+        alternative.is_ascii(),
+        "trim_common_suffixes_slice requires ASCII input"
+    );
+
+    let trim = reference
+        .as_bytes()
+        .iter()
+        .rev()
+        .zip(alternative.as_bytes().iter().rev())
+        .take_while(|(r, a)| r == a)
+        .count();
 
     (
-        trim - pad,
-        reference[..(i_r + pad)].to_string(),
-        alternative[..(i_a + pad)].to_string(),
+        trim,
+        &reference[..reference.len() - trim],
+        &alternative[..alternative.len() - trim],
     )
 }
 
 /// Reverse complementing shortcut.
 pub fn revcomp(seq: &str) -> String {
-    std::str::from_utf8(&bio::alphabets::dna::revcomp(seq.as_bytes()))
-        .expect("invalid utf-8 encoding")
-        .to_string()
+    String::from_utf8(bio::alphabets::dna::revcomp(seq.as_bytes())).expect("invalid utf-8 encoding")
 }
 
 /// Allow selection of translation table.
@@ -145,6 +169,16 @@ pub fn aa_to_aa3(seq: &str) -> Result<String, Error> {
     }
 }
 
+/// Internal zero-allocation version of aa_to_aa3.
+/// Returns a borrowed string slice if no translation is needed, avoiding a heap allocation.
+pub(crate) fn aa_to_aa3_cow(seq: &str) -> Result<Cow<'_, str>, Error> {
+    if looks_like_aa3_p(seq) {
+        Ok(Cow::Borrowed(seq))
+    } else {
+        Ok(Cow::Owned(aa1_to_aa3(seq)?))
+    }
+}
+
 /// Converts string of 1-letter amino acids to 3-letter amino acids.
 ///
 /// Fails if the sequence is not of 1-letter amino acids.
@@ -162,16 +196,17 @@ pub fn aa1_to_aa3(seq: &str) -> Result<String, Error> {
         return Ok(String::new());
     }
 
-    let mut result = String::with_capacity(seq.len() * 3);
+    let mut result = Vec::with_capacity(seq.len() * 3);
 
     for (i, aa1) in seq.as_bytes().iter().enumerate() {
         let aa3 = AA1_TO_AA3_STR[*aa1 as usize].ok_or_else(|| {
             Error::InvalidOneLetterAminoAcid(format!("{:?}", aa1), format!("{}", i + 1))
         })?;
-        result.push_str(aa3);
+        result.extend_from_slice(aa3.as_bytes());
     }
 
-    Ok(result)
+    // SAFETY: AA1_TO_AA3_STR only contains valid ASCII/UTF-8 strings.
+    Ok(unsafe { String::from_utf8_unchecked(result) })
 }
 
 /// Converts string of 3-letter amino acids to 1-letter amino acids.
@@ -191,16 +226,19 @@ pub fn aa3_to_aa1(seq: &str) -> Result<String, Error> {
         return Err(Error::InvalidThreeLetterAminoAcidLength(seq.len()));
     }
 
-    let mut result = String::with_capacity(seq.len() / 3);
+    let mut result = Vec::with_capacity(seq.len() / 3);
 
     for (i, aa3) in seq.as_bytes().chunks(3).enumerate() {
         let aa1 = _aa3_to_aa1(aa3).ok_or_else(|| {
-            Error::InvalidThreeLetterAminoAcid(format!("{:?}", aa3), format!("{}", i + 1))
-        })? as char;
-        result.push(aa1);
+            let s = std::str::from_utf8(aa3).unwrap_or("???");
+            Error::InvalidThreeLetterAminoAcid(s.to_string(), format!("{}", i + 1))
+        })?;
+
+        result.push(aa1 as u8);
     }
 
-    Ok(result)
+    // SAFETY: _aa3_to_aa1 only returns valid ASCII/UTF-8 bytes.
+    Ok(unsafe { String::from_utf8_unchecked(result) })
 }
 
 /// Indicates whether a string looks like a 3-letter AA string.
@@ -214,7 +252,12 @@ pub fn aa3_to_aa1(seq: &str) -> Result<String, Error> {
 /// Whether the string is of the format of a 3-letter AA string.
 #[allow(dead_code)]
 fn looks_like_aa3_p(seq: &str) -> bool {
-    seq.len() % 3 == 0 && seq.chars().nth(1).map(|c| c.is_lowercase()).unwrap_or(true)
+    seq.len() % 3 == 0
+        && seq
+            .as_bytes()
+            .get(1)
+            .map(|b| b.is_ascii_lowercase())
+            .unwrap_or(true)
 }
 
 /// Translates a DNA or RNA sequence into a single-letter amino acid sequence.
