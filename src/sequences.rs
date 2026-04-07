@@ -38,10 +38,26 @@ pub fn trim_common_suffixes(reference: &str, alternative: &str) -> (usize, Strin
     (trim, r_slice.to_string(), a_slice.to_string())
 }
 
+/// Returns the common prefix length (in bytes) and the remaining slices after trimming.
+///
+/// # Preconditions
+///
+/// Both `reference` and `alternative` **must be ASCII-only** strings.
+/// The byte-level comparison is intentional to avoid UTF-8 validation overhead.
+/// Passing non-ASCII input is undefined behaviour (may panic or return incorrect results).
 pub fn trim_common_prefixes_slice<'a>(
     reference: &'a str,
     alternative: &'a str,
 ) -> (usize, &'a str, &'a str) {
+    debug_assert!(
+        reference.is_ascii(),
+        "trim_common_prefixes_slice requires ASCII input"
+    );
+    debug_assert!(
+        alternative.is_ascii(),
+        "trim_common_prefixes_slice requires ASCII input"
+    );
+
     let trim = reference
         .as_bytes()
         .iter()
@@ -52,10 +68,26 @@ pub fn trim_common_prefixes_slice<'a>(
     (trim, &reference[trim..], &alternative[trim..])
 }
 
+/// Returns the common suffix length (in bytes) and the remaining slices after trimming.
+///
+/// # Preconditions
+///
+/// Both `reference` and `alternative` **must be ASCII-only** strings.
+/// The byte-level comparison is intentional to avoid UTF-8 validation overhead.
+/// Passing non-ASCII input is undefined behaviour (may panic or return incorrect results).
 pub fn trim_common_suffixes_slice<'a>(
     reference: &'a str,
     alternative: &'a str,
 ) -> (usize, &'a str, &'a str) {
+    debug_assert!(
+        reference.is_ascii(),
+        "trim_common_suffixes_slice requires ASCII input"
+    );
+    debug_assert!(
+        alternative.is_ascii(),
+        "trim_common_suffixes_slice requires ASCII input"
+    );
+
     let trim = reference
         .as_bytes()
         .iter()
