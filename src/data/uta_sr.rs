@@ -92,9 +92,9 @@ impl interface::Provider for Provider {
 
     fn get_assembly_map(
         &self,
-        assembly: biocommons_bioutils::assemblies::Assembly,
+        assembly: &str,
     ) -> indexmap::IndexMap<String, String> {
-        self.inner.get_assembly_map(assembly)
+        self.inner.get_assembly_map(assembly.into())
     }
 
     fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, Error> {

@@ -30,7 +30,7 @@ serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "2.0"
 indexmap = { version = "2", features = ["serde"] }
-biocommons-bioutils = "0.1.0"
+biocommons-bioutils = { git = "https://github.com/varfish-org/biocommons-bioutils-rs", branch = "feat/from-str-for-assembly" }
 ahash = "0.8.11"
 cached = "0.59.0"
 tracing = "0.1.41"

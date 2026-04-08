@@ -1312,7 +1312,7 @@ mod test {
 
             fn get_assembly_map(
                 &self,
-                _assembly: biocommons_bioutils::assemblies::Assembly,
+                _assembly: &str,
             ) -> indexmap::IndexMap<String, String> {
                 panic!("for test use only");
             }

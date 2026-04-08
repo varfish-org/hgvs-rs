@@ -105,9 +105,9 @@ impl interface::Provider for Provider {
 
     fn get_assembly_map(
         &self,
-        assembly: biocommons_bioutils::assemblies::Assembly,
+        assembly: &str,
     ) -> indexmap::IndexMap<String, String> {
-        self.inner.get_assembly_map(assembly)
+        self.inner.get_assembly_map(assembly.try_into().unwrap())
     }
 
     fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, Error> {
@@ -1140,7 +1140,6 @@ pub mod tests {
     use crate::data::interface::{Provider, TxSimilarityRecord};
     use crate::mapper::assembly::{self, Mapper};
     use crate::parser::HgvsVariant;
-    use biocommons_bioutils::assemblies::Assembly;
 
     #[test]
     fn test_sync() {
@@ -1207,8 +1206,8 @@ pub mod tests {
     #[test]
     fn provider_get_assembly_map() -> Result<(), Error> {
         let provider = build_provider()?;
-        assert_eq!(provider.get_assembly_map(Assembly::Grch37p10).len(), 275);
-        assert_eq!(provider.get_assembly_map(Assembly::Grch38).len(), 455);
+        assert_eq!(provider.get_assembly_map("grch37p10").len(), 275);
+        assert_eq!(provider.get_assembly_map("grch38").len(), 455);
 
         Ok(())
     }
@@ -1333,7 +1332,7 @@ pub mod tests {
     fn build_mapper_37(normalize: bool) -> Result<Mapper, Error> {
         let provider = Arc::new(build_provider()?);
         let config = assembly::Config {
-            assembly: Assembly::Grch37,
+            assembly: "grch37".to_string(),
             normalize,
             renormalize_g: false,
             ..Default::default()
