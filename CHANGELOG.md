@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.21.0](https://github.com/varfish-org/hgvs-rs/compare/v0.20.2...v0.21.0) (2026-04-07)
+
+
+### Features
+
+* derive Serialize/Deserialize for Provider record types ([#266](https://github.com/varfish-org/hgvs-rs/issues/266)) ([3bfe99f](https://github.com/varfish-org/hgvs-rs/commit/3bfe99fb292dee3e2ee80867b4c1138a731e3dc3))
+
+
+### Performance Improvements
+
+* misc improvements ([#275](https://github.com/varfish-org/hgvs-rs/issues/275)) ([6d2cb1d](https://github.com/varfish-org/hgvs-rs/commit/6d2cb1d17d330e1a6ddba07466a47a8b7821d521))
+
 ## [0.20.2](https://github.com/varfish-org/hgvs-rs/compare/v0.20.1...v0.20.2) (2026-04-01)
 
 
