@@ -95,7 +95,7 @@ impl interface::Provider for Provider {
         &self,
         assembly: &str,
     ) -> Result<IndexMap<String, String>, data::error::Error> {
-        self.inner.get_assembly_map(assembly.into())
+        self.inner.get_assembly_map(assembly)
     }
 
     fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, Error> {
