@@ -128,10 +128,9 @@ impl Mapper {
             provider
                 .as_ref()
                 .get_assembly_map(&config.assembly)
-                .expect(&format!(
-                    "assembly map for {} should be available",
-                    &config.assembly
-                ))
+                .unwrap_or_else(|_| {
+                    panic!("assembly map for {} should be available", &config.assembly)
+                })
                 .into_iter()
                 .map(|(key, value)| (key.clone(), value.clone()))
                 .collect()
