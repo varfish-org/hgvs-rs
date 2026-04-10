@@ -90,10 +90,7 @@ impl interface::Provider for Provider {
         self.inner.schema_version()
     }
 
-    fn get_assembly_map(
-        &self,
-        assembly: &str,
-    ) -> indexmap::IndexMap<String, String> {
+    fn get_assembly_map(&self, assembly: &str) -> indexmap::IndexMap<String, String> {
         self.inner.get_assembly_map(assembly.into())
     }
 

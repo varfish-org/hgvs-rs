@@ -1310,10 +1310,7 @@ mod test {
                 &self.schema_version
             }
 
-            fn get_assembly_map(
-                &self,
-                _assembly: &str,
-            ) -> indexmap::IndexMap<String, String> {
+            fn get_assembly_map(&self, _assembly: &str) -> indexmap::IndexMap<String, String> {
                 panic!("for test use only");
             }
 
