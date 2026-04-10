@@ -30,4 +30,6 @@ pub enum Error {
     NoAlignmentFound(String, String),
     #[error("found no sequence record for accession {0}")]
     NoSequenceRecord(String),
+    #[error("unknown assembly: {0}")]
+    UnknownAssembly(String),
 }

@@ -128,6 +128,10 @@ impl Mapper {
             provider
                 .as_ref()
                 .get_assembly_map(&config.assembly)
+                .expect(&format!(
+                    "assembly map for {} should be available",
+                    &config.assembly
+                ))
                 .into_iter()
                 .map(|(key, value)| (key.clone(), value.clone()))
                 .collect()
@@ -451,10 +455,22 @@ impl Mapper {
                 ));
             }
 
-            let alt_acs = alt_acs
-                .into_iter()
-                .filter(|ac| ac == self.config.in_par_assume.chrom_name())
-                .collect::<Vec<_>>();
+            let alt_acs: Vec<String> = if self.config.in_par_assume == InParAssume::None {
+                alt_acs.into_iter().collect()
+            } else {
+                alt_acs
+                    .into_iter()
+                    .filter(|ac| {
+                        // Resolve the raw accession (e.g., "NC_000023.11") to its chromosome name (e.g., "X")
+                        if let Some(chrom_name) = self.asm_map.get(ac) {
+                            chrom_name == self.config.in_par_assume.chrom_name()
+                        } else {
+                            // Consistently filter out accessions that are missing from the asm_map
+                            false
+                        }
+                    })
+                    .collect()
+            };
             if alt_acs.len() != 1 {
                 Err(Error::MultipleChromAlignsInParAssume(
                     tx_ac.to_string(),

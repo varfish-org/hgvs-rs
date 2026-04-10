@@ -1260,10 +1260,13 @@ mod test {
 
         use crate::data::interface;
         use crate::{
+            data,
             data::interface::TxIdentityInfo,
             mapper::variant::{Config, Mapper},
         };
+        use indexmap::IndexMap;
         use std::sync::atomic::AtomicUsize;
+
         static PROVIDER_COUNT: AtomicUsize = AtomicUsize::new(0);
 
         #[derive(Debug, serde::Deserialize)]
@@ -1310,7 +1313,10 @@ mod test {
                 &self.schema_version
             }
 
-            fn get_assembly_map(&self, _assembly: &str) -> indexmap::IndexMap<String, String> {
+            fn get_assembly_map(
+                &self,
+                _assembly: &str,
+            ) -> Result<IndexMap<String, String>, data::error::Error> {
                 panic!("for test use only");
             }
 

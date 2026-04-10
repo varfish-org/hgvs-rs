@@ -5,6 +5,7 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Instant};
 
 use crate::{
+    data,
     data::error::Error,
     data::interface::{
         self, GeneInfoRecord, TxExonsRecord, TxForRegionRecord, TxIdentityInfo, TxInfoRecord,
@@ -103,8 +104,14 @@ impl interface::Provider for Provider {
         self.inner.schema_version()
     }
 
-    fn get_assembly_map(&self, assembly: &str) -> indexmap::IndexMap<String, String> {
-        self.inner.get_assembly_map(assembly.try_into().unwrap())
+    fn get_assembly_map(
+        &self,
+        assembly: &str,
+    ) -> Result<IndexMap<String, String>, data::error::Error> {
+        assembly
+            .try_into()
+            .map(|a| self.inner.get_assembly_map(a))
+            .map_err(Error::UnknownAssembly)
     }
 
     fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, Error> {
@@ -1203,8 +1210,8 @@ pub mod tests {
     #[test]
     fn provider_get_assembly_map() -> Result<(), Error> {
         let provider = build_provider()?;
-        assert_eq!(provider.get_assembly_map("grch37p10").len(), 275);
-        assert_eq!(provider.get_assembly_map("grch38").len(), 455);
+        assert_eq!(provider.get_assembly_map("grch37p10")?.len(), 275);
+        assert_eq!(provider.get_assembly_map("grch38")?.len(), 455);
 
         Ok(())
     }
