@@ -5,7 +5,6 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{data::error::Error, sequences::TranslationTable};
-use biocommons_bioutils::assemblies::Assembly;
 
 /// Information about a gene.
 ///
@@ -207,7 +206,7 @@ pub trait Provider {
     /// # Arguments
     ///
     /// * `assembly` - The assembly to build the map for.
-    fn get_assembly_map(&self, assembly: Assembly) -> IndexMap<String, String>;
+    fn get_assembly_map(&self, assembly: &str) -> Result<IndexMap<String, String>, Error>;
 
     /// Returns the basic information about the gene.
     ///

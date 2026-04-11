@@ -10,7 +10,6 @@ use crate::mapper::variant;
 use crate::normalizer::Direction;
 use crate::parser::HgvsVariant;
 use crate::{data::interface::Provider, validator::ValidationLevel};
-use biocommons_bioutils::assemblies::Assembly;
 
 #[derive(Debug, PartialEq, Eq, Default, Clone, Copy)]
 pub enum InParAssume {
@@ -33,7 +32,11 @@ impl InParAssume {
 /// Configuration for `Assemblymapper`.
 #[derive(Debug)]
 pub struct Config {
-    pub assembly: Assembly,
+    /// Assembly name, e.g., "GRCh38".
+    pub assembly: String,
+    /// Optional custom assembly map from accession to chromosome name.
+    /// If provided, this bypasses the provider's `get_assembly_map` method.
+    pub asm_map: Option<HashMap<String, String>>,
     pub alt_aln_method: String,
     pub normalize: bool,
     pub in_par_assume: InParAssume,
@@ -55,7 +58,8 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            assembly: Assembly::Grch38,
+            assembly: "GRCh38".to_string(),
+            asm_map: None,
             alt_aln_method: "splign".to_string(),
             normalize: true,
             in_par_assume: InParAssume::X,
@@ -120,20 +124,20 @@ impl Mapper {
             window_size: config.window_size,
         };
         let inner = variant::Mapper::new(&inner_config, provider.clone());
-        let asm_accessions = provider
-            .as_ref()
-            .get_assembly_map(config.assembly)
-            .keys()
-            .clone()
-            .map(|s| s.to_string())
-            .collect::<HashSet<_>>();
-        let asm_map = HashMap::from_iter(
+        let asm_map = config.asm_map.clone().unwrap_or_else(|| {
             provider
                 .as_ref()
-                .get_assembly_map(config.assembly)
-                .iter()
-                .map(|(key, value)| (key.clone(), value.clone())),
-        );
+                .get_assembly_map(&config.assembly)
+                .unwrap_or_else(|_| {
+                    panic!("assembly map for {} should be available", &config.assembly)
+                })
+                .into_iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect()
+        });
+
+        let asm_accessions = asm_map.keys().cloned().collect::<HashSet<_>>();
+
         Self {
             config,
             provider,
@@ -412,7 +416,7 @@ impl Mapper {
         if alt_acs.is_empty() {
             return Err(Error::NoAlignments(
                 tx_ac.to_string(),
-                format!("{:?}", self.config.assembly),
+                self.config.assembly.clone(),
                 self.config.alt_aln_method.clone(),
             ));
         }
@@ -435,7 +439,7 @@ impl Mapper {
             if alts.join("") != "XY" {
                 return Err(Error::MultipleChromAlignsNonPar(
                     tx_ac.to_string(),
-                    format!("{:?}", self.config.assembly),
+                    self.config.assembly.clone(),
                     self.config.alt_aln_method.to_string(),
                     format!("{:?}", &alts),
                 ));
@@ -445,19 +449,31 @@ impl Mapper {
             if self.config.in_par_assume == InParAssume::None {
                 return Err(Error::MultipleChromAlignsLikelyPar(
                     tx_ac.to_string(),
-                    format!("{:?}", self.config.assembly),
+                    self.config.assembly.clone(),
                     self.config.alt_aln_method.to_string(),
                 ));
             }
 
-            let alt_acs = alt_acs
-                .into_iter()
-                .filter(|ac| ac == self.config.in_par_assume.chrom_name())
-                .collect::<Vec<_>>();
+            let alt_acs: Vec<String> = if self.config.in_par_assume == InParAssume::None {
+                alt_acs.into_iter().collect()
+            } else {
+                alt_acs
+                    .into_iter()
+                    .filter(|ac| {
+                        // Resolve the raw accession (e.g., "NC_000023.11") to its chromosome name (e.g., "X")
+                        if let Some(chrom_name) = self.asm_map.get(ac) {
+                            chrom_name == self.config.in_par_assume.chrom_name()
+                        } else {
+                            // Consistently filter out accessions that are missing from the asm_map
+                            false
+                        }
+                    })
+                    .collect()
+            };
             if alt_acs.len() != 1 {
                 Err(Error::MultipleChromAlignsInParAssume(
                     tx_ac.to_string(),
-                    format!("{:?}", self.config.assembly),
+                    self.config.assembly.clone(),
                     self.config.alt_aln_method.to_string(),
                     format!("{:?}", self.config.in_par_assume),
                     alt_acs.len(),
@@ -480,7 +496,6 @@ impl Mapper {
 mod test {
     use crate::data::uta_sr::test_helpers::build_provider;
     use anyhow::Error;
-    use biocommons_bioutils::assemblies::Assembly;
 
     use super::{Config, Mapper};
 
@@ -493,7 +508,7 @@ mod test {
     fn build_mapper_38(normalize: bool) -> Result<Mapper, Error> {
         let provider = build_provider()?;
         let config = Config {
-            assembly: Assembly::Grch38,
+            assembly: "GRCh38".to_string(),
             normalize,
             renormalize_g: false,
             ..Config::default()
@@ -504,7 +519,7 @@ mod test {
     fn build_mapper_37(normalize: bool) -> Result<Mapper, Error> {
         let provider = build_provider()?;
         let config = Config {
-            assembly: Assembly::Grch37,
+            assembly: "GRCh37".to_string(),
             normalize,
             renormalize_g: false,
             ..Config::default()

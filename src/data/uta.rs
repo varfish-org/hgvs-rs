@@ -8,14 +8,14 @@ use quick_cache::sync::Cache;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 
-use crate::sequences::{seq_md5, TranslationTable};
-use biocommons_bioutils::assemblies::{Assembly, ASSEMBLY_INFOS};
-
+use crate::data;
 use crate::data::{
     error::Error, interface, interface::GeneInfoRecord, interface::TxExonsRecord,
     interface::TxForRegionRecord, interface::TxIdentityInfo, interface::TxInfoRecord,
     interface::TxMappingOptionsRecord, interface::TxSimilarityRecord,
 };
+use crate::sequences::{seq_md5, TranslationTable};
+use biocommons_bioutils::assemblies::ASSEMBLY_INFOS;
 
 /// Configuration for the `data::uta::Provider`.
 #[derive(Debug, PartialEq, Clone)]
@@ -260,13 +260,21 @@ impl interface::Provider for Provider {
         &self.schema_version
     }
 
-    fn get_assembly_map(&self, assembly: Assembly) -> IndexMap<String, String> {
-        IndexMap::from_iter(
-            ASSEMBLY_INFOS[assembly]
-                .sequences
-                .iter()
-                .map(|record| (record.refseq_ac.clone(), record.name.clone())),
-        )
+    fn get_assembly_map(
+        &self,
+        assembly: &str,
+    ) -> Result<IndexMap<String, String>, data::error::Error> {
+        assembly
+            .try_into()
+            .map(|a| {
+                IndexMap::from_iter(
+                    ASSEMBLY_INFOS[a]
+                        .sequences
+                        .iter()
+                        .map(|record| (record.refseq_ac.clone(), record.name.clone())),
+                )
+            })
+            .map_err(Error::UnknownAssembly)
     }
 
     fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, Error> {
@@ -637,7 +645,6 @@ impl interface::Provider for Provider {
 mod test {
     use crate::data::interface::Provider as InterfaceProvider;
     use anyhow::Error;
-    use biocommons_bioutils::assemblies::Assembly;
 
     use super::{Config, Provider};
 
@@ -671,11 +678,11 @@ mod test {
     fn get_assembly_map() -> Result<(), Error> {
         let provider = Provider::with_config(&get_config())?;
 
-        let am37 = provider.get_assembly_map(Assembly::Grch37);
+        let am37 = provider.get_assembly_map("grch37")?;
         assert_eq!(am37.len(), 92);
         assert_eq!(am37.get("NC_000001.10"), Some(&"1".to_string()));
 
-        let am38 = provider.get_assembly_map(Assembly::Grch38);
+        let am38 = provider.get_assembly_map("grch38")?;
         assert_eq!(am38.len(), 455);
         assert_eq!(am38.get("NC_000001.11"), Some(&"1".to_string()));
 
