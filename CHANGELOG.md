@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/varfish-org/hgvs-rs/compare/v0.21.0...v1.0.0) (2026-04-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* allow arbitrary assemblies ([#276](https://github.com/varfish-org/hgvs-rs/issues/276))
+
+### Features
+
+* allow arbitrary assemblies ([#276](https://github.com/varfish-org/hgvs-rs/issues/276)) ([eec574a](https://github.com/varfish-org/hgvs-rs/commit/eec574a04fb5072e78089d2f9385c6a683e353b7))
+
 ## [0.21.0](https://github.com/varfish-org/hgvs-rs/compare/v0.20.2...v0.21.0) (2026-04-07)
 
 
