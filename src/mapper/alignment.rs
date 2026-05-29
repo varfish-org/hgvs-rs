@@ -256,12 +256,18 @@ impl Mapper {
             // Compute start/end on forward strand with respect to the genome.
             //
             // frs, fre = (f)orward (r)na (s)tart & (e)nd
-            let frs = self
-                .cigar_mapper
-                .map_ref_to_tgt(grs, "start", self.config.strict_bounds)?;
-            let fre = self
-                .cigar_mapper
-                .map_ref_to_tgt(gre, "end", self.config.strict_bounds)?;
+            let frs = self.cigar_mapper.map_ref_to_tgt(
+                grs,
+                "start",
+                self.config.strict_bounds,
+                self.strand,
+            )?;
+            let fre = self.cigar_mapper.map_ref_to_tgt(
+                gre,
+                "end",
+                self.config.strict_bounds,
+                self.strand,
+            )?;
 
             // Project to reverse strand if necessary.
             let (frs, fre) = if self.strand == -1 {
@@ -329,12 +335,15 @@ impl Mapper {
         };
 
         // Obtain the genomic range start (grs) and end (gre).
-        let grs = self
-            .cigar_mapper
-            .map_tgt_to_ref(frs, "start", self.config.strict_bounds)?;
-        let gre = self
-            .cigar_mapper
-            .map_tgt_to_ref(fre, "end", self.config.strict_bounds)?;
+        let grs = self.cigar_mapper.map_tgt_to_ref(
+            frs,
+            "start",
+            self.config.strict_bounds,
+            self.strand,
+        )?;
+        let gre =
+            self.cigar_mapper
+                .map_tgt_to_ref(fre, "end", self.config.strict_bounds, self.strand)?;
         let (grs_pos, gre_pos) = (grs.pos + self.gc_offset + 1, gre.pos + self.gc_offset + 1);
         let (gs, ge) = (grs_pos + start_offset, gre_pos + end_offset);
 
