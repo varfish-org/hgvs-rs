@@ -262,7 +262,8 @@ pub mod models {
         #[serde(default)]
         pub transl_except: Option<IndexMap<String, Vec<u32>>>,
         /// NCBI genetic code of the CDS, e.g., `2` for vertebrate mitochondria.  Since cdot data
-        /// schema 0.2.35, and only if the source names one.
+        /// schema 0.2.35, and only if the source names one.  The cdot provider supports the codes
+        /// `1` and `2` and fails for any other code.
         #[serde(skip_serializing_if = "Option::is_none")]
         #[serde(default)]
         pub transl_table: Option<u32>,
@@ -1052,6 +1053,18 @@ impl TxProvider {
             .expect("cannot happen; transcripts without gene_name not imported")
             .clone();
 
+        let translation_table = match tx.transl_table {
+            // With selenocysteine positions, UGA reads as selenocysteine only at them.
+            Some(1) | None if is_selenoprotein && selenocysteine_positions(tx).is_empty() => {
+                TranslationTable::Selenocysteine
+            }
+            Some(1) | None => TranslationTable::Standard,
+            Some(2) => TranslationTable::VertebrateMitochondrial,
+            Some(code) => {
+                return Err(Error::UnsupportedTranslationTable(tx_ac.to_string(), code));
+            }
+        };
+
         let mut tmp = tx
             .genome_builds
             .values()
@@ -1075,12 +1088,7 @@ impl TxProvider {
             cds_end_i: tx.stop_codon,
             lengths,
             hgnc,
-            // With selenocysteine positions, UGA reads as selenocysteine only at them.
-            translation_table: if is_selenoprotein && selenocysteine_positions(tx).is_empty() {
-                TranslationTable::Selenocysteine
-            } else {
-                TranslationTable::Standard
-            },
+            translation_table,
         })
     }
 
@@ -1331,6 +1339,48 @@ pub mod tests {
                 .translation_table,
             TranslationTable::Selenocysteine
         );
+
+        // Code 1 is the standard code, so the note still picks the selenocysteine table.
+        let mut selenom = provider.transcripts["NM_080430.4"].clone();
+        selenom.transl_table = Some(1);
+        let provider = super::TxProvider {
+            transcripts: [(selenom.id.clone(), selenom)].into(),
+            ..provider
+        };
+        assert_eq!(
+            provider
+                .get_tx_identity_info("NM_080430.4")?
+                .translation_table,
+            TranslationTable::Selenocysteine
+        );
+
+        Ok(())
+    }
+
+    /// `transl_table` picks the translation table.  A code without a table is an error.
+    #[test]
+    fn provider_translation_table() -> Result<(), Error> {
+        let provider = super::TxProvider::with_config(&[
+            "tests/data/data/cdot/cdot-0.2.35.refseq.grch38.selenom_nd1.json",
+        ])?;
+        assert_eq!(
+            provider
+                .get_tx_identity_info("fake-rna-ND1")?
+                .translation_table,
+            TranslationTable::VertebrateMitochondrial
+        );
+
+        let mut nd1 = provider.transcripts["fake-rna-ND1"].clone();
+        nd1.transl_table = Some(5);
+        let provider = super::TxProvider {
+            transcripts: [(nd1.id.clone(), nd1)].into(),
+            ..provider
+        };
+        assert!(matches!(
+            provider.get_tx_identity_info("fake-rna-ND1"),
+            Err(crate::data::error::Error::UnsupportedTranslationTable(tx_ac, 5))
+                if tx_ac == "fake-rna-ND1"
+        ));
 
         Ok(())
     }
