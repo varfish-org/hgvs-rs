@@ -32,4 +32,6 @@ pub enum Error {
     NoSequenceRecord(String),
     #[error("unknown assembly: {0}")]
     UnknownAssembly(String),
+    #[error("unsupported translation exception (cdot transl_except) {1} for {0}")]
+    UnsupportedTranslationException(String, String),
 }

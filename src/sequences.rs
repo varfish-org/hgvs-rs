@@ -324,6 +324,47 @@ pub fn translate_cds(
     Ok(unsafe { String::from_utf8_unchecked(result) })
 }
 
+/// Translates a DNA sequence like [`translate_cds`], but sets the given amino acids at the
+/// given codons.
+///
+/// The annotation of a transcript can assign an amino acid to a codon that the translation
+/// table translates differently.  In a selenoprotein, for example, UGA codes for selenocysteine
+/// at some codons and is a stop codon at all others.  A translation table cannot express this,
+/// as it maps each codon to one amino acid.
+///
+/// # Args
+///
+/// * `seq`, `full_codons`, `ter_symbol`, `translation_table` -- As for [`translate_cds`].
+/// * `exceptions` -- Pairs of a 0-based codon index and the one-letter amino acid at this
+///   codon, e.g., `(0, 'M')`.  The amino acid must be ASCII.  Indices past the last full
+///   codon are ignored.
+///
+/// # Returns
+///
+/// The corresponding single letter amino acid sequence.
+pub fn translate_cds_with_exceptions(
+    seq: &str,
+    full_codons: bool,
+    ter_symbol: &str,
+    translation_table: TranslationTable,
+    exceptions: &[(usize, char)],
+) -> Result<String, Error> {
+    let mut result = translate_cds(seq, full_codons, ter_symbol, translation_table)?;
+    for &(codon, amino_acid) in exceptions {
+        // Each full codon is one byte of `result`, so the amino acid must be one byte, too.
+        if !amino_acid.is_ascii() {
+            return Err(Error::InvalidOneLetterAminoAcid(
+                format!("{amino_acid:?}"),
+                format!("0-based codon {codon}"),
+            ));
+        }
+        if codon < seq.len() / 3 {
+            result.replace_range(codon..=codon, amino_acid.encode_utf8(&mut [0; 4]));
+        }
+    }
+    Ok(result)
+}
+
 /// Converts sequence to normalized representation for hashing.
 ///
 /// Essentially, removes whitespace and asterisks, and uppercases the string.
@@ -477,6 +518,47 @@ mod test {
             aa3_to_aa1("CysAlaThrSerAlaArgGluLeuAlaMetGlu")?,
             "CATSARELAME"
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn translate_cds_with_exceptions_examples() -> Result<(), Error> {
+        let table = TranslationTable::Standard;
+        // The given amino acid applies at the given codon, whatever the codon is.
+        assert_eq!(
+            translate_cds_with_exceptions("ACGTGATGGTAG", true, "*", table, &[(0, 'M'), (1, 'U')])?,
+            "MUW*"
+        );
+        assert_eq!(
+            translate_cds_with_exceptions("augugaugguag", true, "*", table, &[(3, 'X')])?,
+            "M*WX"
+        );
+        assert_eq!(
+            translate_cds_with_exceptions("ATGTGATGGTAG", true, "*", table, &[(2, '*')])?,
+            "M***"
+        );
+        // Without exceptions, the table decides.
+        assert_eq!(
+            translate_cds_with_exceptions("ATGTGATGGTAG", true, "*", table, &[])?,
+            "M*W*"
+        );
+        assert_eq!(
+            translate_cds_with_exceptions(
+                "ATGTGATGGTAG",
+                true,
+                "*",
+                TranslationTable::Selenocysteine,
+                &[]
+            )?,
+            "MUW*"
+        );
+        // Codons past the end, including an incomplete last codon, are ignored.
+        assert_eq!(
+            translate_cds_with_exceptions("ATGTGATG", false, "X", table, &[(2, 'U'), (9, 'U')])?,
+            "M*X"
+        );
+        assert!(translate_cds_with_exceptions("ATGTGA", true, "*", table, &[(1, 'ü')]).is_err());
 
         Ok(())
     }

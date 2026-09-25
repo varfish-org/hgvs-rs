@@ -8,10 +8,10 @@ use crate::{
     data,
     data::error::Error,
     data::interface::{
-        self, GeneInfoRecord, TxExonsRecord, TxForRegionRecord, TxIdentityInfo, TxInfoRecord,
-        TxMappingOptionsRecord, TxSimilarityRecord,
+        self, GeneInfoRecord, TranslationException, TxExonsRecord, TxForRegionRecord,
+        TxIdentityInfo, TxInfoRecord, TxMappingOptionsRecord, TxSimilarityRecord,
     },
-    sequences::TranslationTable,
+    sequences::{aa3_to_aa1, TranslationTable},
 };
 use biocommons_bioutils::assemblies::{Assembly, ASSEMBLY_INFOS};
 
@@ -174,6 +174,13 @@ impl interface::Provider for Provider {
 
     fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, Error> {
         self.inner.get_tx_identity_info(tx_ac)
+    }
+
+    fn get_tx_translation_exceptions(
+        &self,
+        tx_ac: &str,
+    ) -> Result<Vec<TranslationException>, Error> {
+        self.inner.get_tx_translation_exceptions(tx_ac)
     }
 
     fn get_tx_info(
@@ -578,6 +585,26 @@ pub mod models {
         let buf = Option::<String>::deserialize(deserializer)?;
 
         Ok(buf.map(|s| s.split(", ").map(|s| s.to_string()).collect()))
+    }
+}
+
+/// The 1-based positions of the selenocysteine codons in the protein of `tx`.
+fn selenocysteine_positions(tx: &models::Transcript) -> &[u32] {
+    tx.transl_except
+        .as_ref()
+        .and_then(|transl_except| transl_except.get("Sec"))
+        .map_or(&[], Vec::as_slice)
+}
+
+/// The one-letter amino acid of a `transl_except` key, e.g., `U` for `"Sec"`.
+///
+/// `"Other"` is an unspecified amino acid (`X`), and `"TERM"` is a stop codon (`*`).
+fn transl_except_amino_acid(key: &str) -> Option<char> {
+    match key {
+        "Other" => Some('X'),
+        "TERM" => Some('*'),
+        _ if key.len() == 3 => aa3_to_aa1(key).ok()?.chars().next(),
+        _ => None,
     }
 }
 
@@ -1048,12 +1075,34 @@ impl TxProvider {
             cds_end_i: tx.stop_codon,
             lengths,
             hgnc,
-            translation_table: if is_selenoprotein {
+            // With selenocysteine positions, UGA reads as selenocysteine only at them.
+            translation_table: if is_selenoprotein && selenocysteine_positions(tx).is_empty() {
                 TranslationTable::Selenocysteine
             } else {
                 TranslationTable::Standard
             },
         })
+    }
+
+    fn get_tx_translation_exceptions(
+        &self,
+        tx_ac: &str,
+    ) -> Result<Vec<TranslationException>, Error> {
+        let tx = self
+            .transcripts
+            .get(tx_ac)
+            .ok_or(Error::NoTranscriptFound(tx_ac.to_string()))?;
+        let mut exceptions = Vec::new();
+        for (key, positions) in tx.transl_except.iter().flatten() {
+            let amino_acid = transl_except_amino_acid(key).ok_or_else(|| {
+                Error::UnsupportedTranslationException(tx_ac.to_string(), key.clone())
+            })?;
+            exceptions.extend(positions.iter().map(|&position| TranslationException {
+                position,
+                amino_acid,
+            }));
+        }
+        Ok(exceptions)
     }
 
     fn get_tx_info(
@@ -1154,9 +1203,10 @@ pub mod tests {
 
     use super::models::{gap_to_cigar, Container};
     use super::test_helpers::build_provider;
-    use crate::data::interface::{Provider, TxSimilarityRecord};
+    use crate::data::interface::{Provider, TranslationException, TxSimilarityRecord};
     use crate::mapper::assembly::{self, Mapper};
     use crate::parser::HgvsVariant;
+    use crate::sequences::TranslationTable;
 
     #[test]
     fn test_sync() {
@@ -1208,6 +1258,79 @@ pub mod tests {
             .transcripts
             .values()
             .all(|tx| tx.transl_except.is_none() && tx.transl_table.is_none()));
+
+        Ok(())
+    }
+
+    /// `transl_except` gives the translation exceptions.  An unknown amino acid is an error.
+    #[test]
+    fn provider_translation_exceptions() -> Result<(), Error> {
+        let provider = super::TxProvider::with_config(&[
+            "tests/data/data/cdot/cdot-0.2.35.refseq.grch38.selenom_nd1.json",
+            "tests/data/data/cdot/cdot-0.2.35.refseq.grch38.prps1l1_mdh1.json",
+        ])?;
+        for (tx_ac, position, amino_acid) in [
+            // Selenocysteine in SELENOM.
+            ("NM_080430.4", 48, 'U'),
+            // The stop codon of ND1, completed by the poly(A) tail.
+            ("fake-rna-ND1", 319, '*'),
+            // Methionine at the ACG start codon of PRPS1L1.
+            ("NM_175886.3", 1, 'M'),
+            // Readthrough of the stop codon of MDH1 in isoform MDH1x.
+            ("NM_001316374.2", 335, 'X'),
+        ] {
+            assert_eq!(
+                provider.get_tx_translation_exceptions(tx_ac)?,
+                vec![TranslationException {
+                    position,
+                    amino_acid
+                }],
+                "{tx_ac}"
+            );
+        }
+
+        let mut prps1l1 = provider.transcripts["NM_175886.3"].clone();
+        prps1l1.transl_except = Some([("Pyl".to_string(), vec![1])].into());
+        let provider = super::TxProvider {
+            transcripts: [(prps1l1.id.clone(), prps1l1)].into(),
+            ..provider
+        };
+        assert!(matches!(
+            provider.get_tx_translation_exceptions("NM_175886.3"),
+            Err(crate::data::error::Error::UnsupportedTranslationException(tx_ac, key))
+                if tx_ac == "NM_175886.3" && key == "Pyl"
+        ));
+
+        Ok(())
+    }
+
+    /// With selenocysteine positions, UGA reads as selenocysteine only at them.  Without, a
+    /// selenoprotein reads every UGA as selenocysteine.
+    #[test]
+    fn provider_selenocysteine_table() -> Result<(), Error> {
+        let provider = super::TxProvider::with_config(&[
+            "tests/data/data/cdot/cdot-0.2.35.refseq.grch38.selenom_nd1.json",
+        ])?;
+        // The RefSeq note marks SELENOM as a selenoprotein.
+        assert_eq!(
+            provider
+                .get_tx_identity_info("NM_080430.4")?
+                .translation_table,
+            TranslationTable::Standard
+        );
+
+        let mut selenom = provider.transcripts["NM_080430.4"].clone();
+        selenom.transl_except = None;
+        let provider = super::TxProvider {
+            transcripts: [(selenom.id.clone(), selenom)].into(),
+            ..provider
+        };
+        assert_eq!(
+            provider
+                .get_tx_identity_info("NM_080430.4")?
+                .translation_table,
+            TranslationTable::Selenocysteine
+        );
 
         Ok(())
     }

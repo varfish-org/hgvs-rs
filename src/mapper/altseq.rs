@@ -6,13 +6,13 @@ use cached::proc_macro::cached;
 use cached::SizedCache;
 
 use crate::{
-    data::interface::Provider,
+    data::interface::{Provider, TranslationException},
     mapper::error::Error,
     parser::{
         Accession, CdsFrom, HgvsVariant, Mu, NaEdit, ProtInterval, ProtLocEdit, ProtPos,
         ProteinEdit, UncertainLengthChange,
     },
-    sequences::{revcomp, translate_cds, TranslationTable},
+    sequences::{revcomp, translate_cds_with_exceptions, TranslationTable},
 };
 
 #[derive(Debug, Clone)]
@@ -29,6 +29,20 @@ pub struct RefTranscriptData {
     pub protein_accession: Arc<str>,
     /// The translation table to use.
     pub translation_table: TranslationTable,
+    /// Amino acids that the annotation assigns to single codons, whatever `translation_table`
+    /// says.
+    pub translation_exceptions: Vec<TranslationException>,
+}
+
+/// The 0-based codon indices and the amino acids of the translation `exceptions`.
+fn codon_exceptions(exceptions: &[TranslationException]) -> Vec<(usize, char)> {
+    exceptions
+        .iter()
+        .filter_map(|exception| {
+            let codon = usize::try_from(exception.position).ok()?.checked_sub(1)?;
+            Some((codon, exception.amino_acid))
+        })
+        .collect()
 }
 
 #[cached(
@@ -85,8 +99,15 @@ impl RefTranscriptData {
             ));
         }
 
-        let aa_sequence: Arc<str> =
-            translate_cds(tx_seq_to_translate, true, "*", tx_info.translation_table)?.into();
+        let translation_exceptions = provider.as_ref().get_tx_translation_exceptions(tx_ac)?;
+        let aa_sequence: Arc<str> = translate_cds_with_exceptions(
+            tx_seq_to_translate,
+            true,
+            "*",
+            tx_info.translation_table,
+            &codon_exceptions(&translation_exceptions),
+        )?
+        .into();
         let protein_accession: Arc<str> = if let Some(pro_ac) = pro_ac {
             pro_ac.into()
         } else if let Some(pro_ac) = provider.as_ref().get_pro_ac_for_tx_ac(tx_ac)? {
@@ -115,6 +136,7 @@ impl RefTranscriptData {
             cds_stop,
             protein_accession,
             translation_table: tx_info.translation_table,
+            translation_exceptions,
         })
     }
 }
@@ -174,9 +196,12 @@ impl AltTranscriptData {
             is_substitution,
             is_ambiguous,
             translation_table,
+            &[],
         )
     }
 
+    /// Like `new`, but takes ownership of `seq`, and sets the amino acids of
+    /// `translation_exceptions` at their 0-based codons of the CDS.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_owned(
         seq: String,
@@ -189,6 +214,7 @@ impl AltTranscriptData {
         is_substitution: bool,
         is_ambiguous: bool,
         translation_table: TranslationTable,
+        translation_exceptions: &[(usize, char)],
     ) -> Result<Self, Error> {
         let transcript_sequence = seq;
         let aa_sequence = if !transcript_sequence.is_empty() {
@@ -206,7 +232,13 @@ impl AltTranscriptData {
             };
 
             let seq_aa = if variant_start_aa.is_some() {
-                translate_cds(seq_cds, false, "X", translation_table)?
+                translate_cds_with_exceptions(
+                    seq_cds,
+                    false,
+                    "X",
+                    translation_table,
+                    translation_exceptions,
+                )?
             } else {
                 ref_aa_sequence.to_owned()
             };
@@ -446,6 +478,53 @@ impl<'a> AltSeqBuilder<'a> {
         )
     }
 
+    /// The translation exceptions of the reference whose codons `alt_seq` keeps, as pairs of a
+    /// 0-based codon of the CDS of `alt_seq` and the amino acid.
+    ///
+    /// The bases before the first and after the last difference to the reference are
+    /// unchanged.  A codon of a translation exception in them keeps its amino acid if it is
+    /// still in frame.
+    fn alt_translation_exceptions(&self, alt_seq: &str) -> Vec<(usize, char)> {
+        let exceptions = &self.reference_data.translation_exceptions;
+        if exceptions.is_empty() {
+            return Vec::new();
+        }
+        let Ok(cds_start) = usize::try_from(self.reference_data.cds_start - 1) else {
+            return Vec::new();
+        };
+        let ref_seq = self.reference_data.transcript_sequence.as_bytes();
+        let alt_seq = alt_seq.as_bytes();
+        let prefix = ref_seq
+            .iter()
+            .zip(alt_seq)
+            .take_while(|(r, a)| r == a)
+            .count();
+        let suffix = ref_seq
+            .iter()
+            .rev()
+            .zip(alt_seq.iter().rev())
+            .take(ref_seq.len().min(alt_seq.len()) - prefix)
+            .take_while(|(r, a)| r == a)
+            .count();
+
+        codon_exceptions(exceptions)
+            .into_iter()
+            .filter_map(|(codon, amino_acid)| {
+                let start = cds_start.checked_add(codon.checked_mul(3)?)?;
+                let alt_start = if start.checked_add(3)? <= prefix {
+                    start
+                } else if start >= ref_seq.len() - suffix {
+                    // `start + alt_seq.len() >= ref_seq.len()`, as `suffix <= alt_seq.len()`.
+                    start + alt_seq.len() - ref_seq.len()
+                } else {
+                    return None;
+                };
+                let offset = alt_start.checked_sub(cds_start)?;
+                (offset % 3 == 0).then_some((offset / 3, amino_acid))
+            })
+            .collect()
+    }
+
     /// Get starting position (AA ref index) of the last frameshift which affects the rest of
     /// the sequence, i.e. not offset by subsequent frameshifts.
     fn get_frameshift_start(&self, variant_data: AltTranscriptData) -> AltTranscriptData {
@@ -519,6 +598,7 @@ impl<'a> AltSeqBuilder<'a> {
 
         // Use max. of mod 3 value and 1 (in the event that the indel starts in the 5' UTR range).
         let variant_start_aa = std::cmp::max((loc_range_start as f64 / 3.0).ceil() as i32, 1);
+        let translation_exceptions = self.alt_translation_exceptions(&seq);
 
         AltTranscriptData::new_owned(
             seq,
@@ -531,6 +611,7 @@ impl<'a> AltSeqBuilder<'a> {
             is_substitution,
             self.ref_has_multiple_stops && self.first_stop_pos.map(|p| p <= start).unwrap_or(false),
             self.reference_data.translation_table,
+            &translation_exceptions,
         )
     }
 
@@ -552,6 +633,7 @@ impl<'a> AltSeqBuilder<'a> {
             _ => panic!("can only work on CDS variants"),
         };
         let variant_start_aa = ((loc_end + 1) as f64 / 3.0).ceil() as i32;
+        let translation_exceptions = self.alt_translation_exceptions(&seq);
 
         AltTranscriptData::new_owned(
             seq,
@@ -564,6 +646,7 @@ impl<'a> AltSeqBuilder<'a> {
             false,
             self.ref_has_multiple_stops && self.first_stop_pos.map(|p| p <= start).unwrap_or(false),
             self.reference_data.translation_table,
+            &translation_exceptions,
         )
     }
 
@@ -584,6 +667,7 @@ impl<'a> AltSeqBuilder<'a> {
         };
 
         let variant_start_aa = std::cmp::max(((loc_start as f64) / 3.0).ceil() as i32, 1);
+        let translation_exceptions = self.alt_translation_exceptions(&seq);
 
         AltTranscriptData::new_owned(
             seq,
@@ -596,6 +680,7 @@ impl<'a> AltSeqBuilder<'a> {
             false,
             self.ref_has_multiple_stops && self.first_stop_pos.map(|p| p <= start).unwrap_or(false),
             self.reference_data.translation_table,
+            &translation_exceptions,
         )
     }
 
@@ -612,6 +697,7 @@ impl<'a> AltSeqBuilder<'a> {
             false,
             true,
             self.reference_data.translation_table,
+            &[],
         )
     }
 
@@ -628,6 +714,7 @@ impl<'a> AltSeqBuilder<'a> {
             false,
             false,
             self.reference_data.translation_table,
+            &[],
         )
     }
 }

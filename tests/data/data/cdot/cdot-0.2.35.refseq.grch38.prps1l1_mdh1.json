@@ -1,0 +1,185 @@
+{
+  "cdot_version": "0.2.35",
+  "genes": {
+    "221823": {
+      "biotype": [
+        "mRNA",
+        "protein_coding"
+      ],
+      "description": "phosphoribosyl pyrophosphate synthetase 1 like 1",
+      "gene_symbol": "PRPS1L1",
+      "hgnc": "9463",
+      "map_location": "7p21.1",
+      "source": [
+        "BestRefSeq"
+      ],
+      "url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9606/GCF_000001405.40-RS_2025_08/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
+    },
+    "4190": {
+      "biotype": [
+        "mRNA",
+        "protein_coding"
+      ],
+      "description": "malate dehydrogenase 1",
+      "gene_symbol": "MDH1",
+      "hgnc": "6970",
+      "map_location": "2p15",
+      "source": [
+        "BestRefSeq"
+      ],
+      "url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9606/GCF_000001405.40-RS_2025_08/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
+    }
+  },
+  "genome_builds": [
+    "GRCh38"
+  ],
+  "transcripts": {
+    "NM_001316374.2": {
+      "biotype": [
+        "mRNA"
+      ],
+      "gene_name": "MDH1",
+      "gene_version": "4190",
+      "genome_builds": {
+        "GRCh38": {
+          "ccds": "CCDS92766.1",
+          "cds_end": 63607044,
+          "cds_start": 63589043,
+          "contig": "NC_000002.12",
+          "exons": [
+            [
+              63588962,
+              63589046,
+              0,
+              1,
+              84,
+              null
+            ],
+            [
+              63594487,
+              63594586,
+              1,
+              85,
+              183,
+              null
+            ],
+            [
+              63595422,
+              63595519,
+              2,
+              184,
+              280,
+              null
+            ],
+            [
+              63597398,
+              63597574,
+              3,
+              281,
+              456,
+              null
+            ],
+            [
+              63599169,
+              63599292,
+              4,
+              457,
+              579,
+              null
+            ],
+            [
+              63604695,
+              63604872,
+              5,
+              580,
+              756,
+              null
+            ],
+            [
+              63605279,
+              63605393,
+              6,
+              757,
+              870,
+              null
+            ],
+            [
+              63605938,
+              63606028,
+              7,
+              871,
+              960,
+              null
+            ],
+            [
+              63606861,
+              63607197,
+              8,
+              961,
+              1296,
+              null
+            ]
+          ],
+          "note": "isoform MDH1x is encoded by transcript variant 1",
+          "source": [
+            "BestRefSeq"
+          ],
+          "strand": "+",
+          "url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9606/GCF_000001405.40-RS_2025_08/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
+        }
+      },
+      "hgnc": "6970",
+      "id": "NM_001316374.2",
+      "protein": "NP_001303303.1",
+      "start_codon": 81,
+      "stop_codon": 1143,
+      "transl_except": {
+        "Other": [
+          335
+        ]
+      }
+    },
+    "NM_175886.3": {
+      "biotype": [
+        "mRNA"
+      ],
+      "gene_name": "PRPS1L1",
+      "gene_version": "221823",
+      "genome_builds": {
+        "GRCh38": {
+          "ccds": "CCDS47552.1",
+          "cds_end": 18027782,
+          "cds_start": 18026825,
+          "contig": "NC_000007.14",
+          "exons": [
+            [
+              18026769,
+              18027846,
+              0,
+              1,
+              1077,
+              null
+            ]
+          ],
+          "note": "non-AUG (ACG) translation initiation codon",
+          "source": [
+            "BestRefSeq"
+          ],
+          "strand": "-",
+          "tag": "MANE Select",
+          "url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9606/GCF_000001405.40-RS_2025_08/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
+        }
+      },
+      "hgnc": "9463",
+      "id": "NM_175886.3",
+      "protein": "NP_787082.1",
+      "start_codon": 64,
+      "stop_codon": 1021,
+      "transl_except": {
+        "Met": [
+          1
+        ]
+      }
+    }
+  }
+}
