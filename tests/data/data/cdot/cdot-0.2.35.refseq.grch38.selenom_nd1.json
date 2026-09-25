@@ -1,0 +1,153 @@
+{
+  "cdot_version": "0.2.35",
+  "genes": {
+    "140606": {
+      "biotype": [
+        "mRNA",
+        "protein_coding"
+      ],
+      "description": "selenoprotein M",
+      "gene_symbol": "SELENOM",
+      "hgnc": "30397",
+      "map_location": "22q12.2",
+      "source": [
+        "BestRefSeq"
+      ],
+      "url": "https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/annotation_releases/110/GCF_000001405.40_GRCh38.p14/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
+    },
+    "4535": {
+      "biotype": [
+        "mRNA",
+        "protein_coding"
+      ],
+      "description": null,
+      "gene_symbol": "ND1",
+      "hgnc": "7455",
+      "map_location": "MT",
+      "source": [
+        "RefSeq"
+      ],
+      "url": "https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/annotation_releases/110/GCF_000001405.40_GRCh38.p14/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
+    }
+  },
+  "genome_builds": [
+    "GRCh38"
+  ],
+  "transcripts": {
+    "NM_080430.4": {
+      "biotype": [
+        "mRNA"
+      ],
+      "gene_name": "SELENOM",
+      "gene_version": "140606",
+      "genome_builds": {
+        "GRCh38": {
+          "ccds": "CCDS43003.1",
+          "cds_end": 31107505,
+          "cds_start": 31104969,
+          "contig": "NC_000022.11",
+          "exons": [
+            [
+              31104776,
+              31105128,
+              4,
+              343,
+              694,
+              null
+            ],
+            [
+              31105207,
+              31105286,
+              3,
+              264,
+              342,
+              null
+            ],
+            [
+              31105657,
+              31105692,
+              2,
+              229,
+              263,
+              null
+            ],
+            [
+              31105929,
+              31105965,
+              1,
+              193,
+              228,
+              null
+            ],
+            [
+              31107376,
+              31107568,
+              0,
+              1,
+              192,
+              null
+            ]
+          ],
+          "note": "UGA stop codon recoded as selenocysteine",
+          "source": [
+            "BestRefSeq"
+          ],
+          "strand": "-",
+          "tag": "MANE Select",
+          "url": "https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/annotation_releases/110/GCF_000001405.40_GRCh38.p14/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
+        }
+      },
+      "hgnc": "30397",
+      "id": "NM_080430.4",
+      "protein": "NP_536355.1",
+      "start_codon": 63,
+      "stop_codon": 501,
+      "transl_except": {
+        "Sec": [
+          48
+        ]
+      }
+    },
+    "fake-rna-ND1": {
+      "biotype": [
+        "mRNA"
+      ],
+      "gene_name": "ND1",
+      "gene_version": "4535",
+      "genome_builds": {
+        "GRCh38": {
+          "cds_end": 4262,
+          "cds_start": 3306,
+          "contig": "NC_012920.1",
+          "exons": [
+            [
+              3306,
+              4262,
+              0,
+              1,
+              956,
+              null
+            ]
+          ],
+          "note": "TAA stop codon is completed by the addition of 3' A residues to the mRNA",
+          "source": [
+            "RefSeq"
+          ],
+          "strand": "+",
+          "url": "https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/annotation_releases/110/GCF_000001405.40_GRCh38.p14/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
+        }
+      },
+      "hgnc": "7455",
+      "id": "fake-rna-ND1",
+      "protein": "YP_003024026.1",
+      "start_codon": 0,
+      "stop_codon": 956,
+      "transl_except": {
+        "TERM": [
+          319
+        ]
+      },
+      "transl_table": 2
+    }
+  }
+}

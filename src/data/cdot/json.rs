@@ -247,6 +247,18 @@ pub mod models {
         /// End position of stop codon of transcript, e.g., `5824` for `"NM_007294.3"` of BRCA1.
         #[serde(default)]
         pub stop_codon: Option<i32>,
+        /// Codons that code for another amino acid than the genetic code says, e.g.,
+        /// `{"Sec": [48]}` for the selenocysteine codon of `"NM_080430.4"` of SELENOM.  Maps the
+        /// amino acid (e.g., `"Sec"`, or `"TERM"` for a stop codon) to the 1-based codon numbers
+        /// in the CDS, i.e., the positions in the protein.  Since cdot data schema 0.2.35.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(default)]
+        pub transl_except: Option<IndexMap<String, Vec<u32>>>,
+        /// NCBI genetic code of the CDS, e.g., `2` for vertebrate mitochondria.  Since cdot data
+        /// schema 0.2.35, and only if the source names one.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(default)]
+        pub transl_table: Option<u32>,
     }
 
     /// Representation of the strand.
@@ -1136,6 +1148,7 @@ pub mod tests {
     use std::str::FromStr;
     use std::sync::Arc;
 
+    use indexmap::IndexMap;
     use pretty_assertions::assert_eq;
     use test_log::test;
 
@@ -1161,6 +1174,40 @@ pub mod tests {
         assert_eq!(c.cdot_version, "0.2.21");
 
         insta::assert_debug_snapshot!(&c);
+
+        Ok(())
+    }
+
+    /// The optional keys `transl_except` and `transl_table` of cdot data schema 0.2.35.
+    #[test]
+    fn deserialize_translation_keys() -> Result<(), Error> {
+        let json = std::fs::read_to_string(
+            "tests/data/data/cdot/cdot-0.2.35.refseq.grch38.selenom_nd1.json",
+        )?;
+        let c: Container = serde_json::from_str(&json)?;
+
+        let selenom = &c.transcripts["NM_080430.4"];
+        assert_eq!(
+            selenom.transl_except,
+            Some(IndexMap::from([("Sec".to_string(), vec![48])]))
+        );
+        assert_eq!(selenom.transl_table, None);
+        let nd1 = &c.transcripts["fake-rna-ND1"];
+        assert_eq!(
+            nd1.transl_except,
+            Some(IndexMap::from([("TERM".to_string(), vec![319])]))
+        );
+        assert_eq!(nd1.transl_table, Some(2));
+
+        // Older files have neither key.
+        let json = std::fs::read_to_string(
+            "tests/data/data/cdot/cdot-0.2.21.refseq.grch37_grch38.brca1.json",
+        )?;
+        let c: Container = serde_json::from_str(&json)?;
+        assert!(c
+            .transcripts
+            .values()
+            .all(|tx| tx.transl_except.is_none() && tx.transl_table.is_none()));
 
         Ok(())
     }
