@@ -2,6 +2,7 @@
   "cdot_version": "0.2.35",
   "genes": {
     "140606": {
+      "aliases": "SELM, SEPM",
       "biotype": [
         "mRNA",
         "protein_coding"
@@ -13,21 +14,24 @@
       "source": [
         "BestRefSeq"
       ],
-      "url": "https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/annotation_releases/110/GCF_000001405.40_GRCh38.p14/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
+      "summary": "The protein encoded by this gene belongs to the selenoprotein M/SEP15 family. The exact function of this protein is not known. It is localized in the perinuclear region, is highly expressed in the brain, and may be involved in neurodegenerative disorders. Transgenic mice with targeted deletion of this gene exhibit increased weight gain, suggesting a role for this gene in the regulation of body weight and energy metabolism. This protein is a selenoprotein, containing the rare amino acid selenocysteine (Sec). Sec is encoded by the UGA codon, which normally signals translation termination. The 3' UTRs of selenoprotein mRNAs contain a conserved stem-loop structure, designated the Sec insertion sequence (SECIS) element, that is necessary for the recognition of UGA as a Sec codon, rather than as a stop signal. [provided by RefSeq, Dec 2016]",
+      "url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9606/GCF_000001405.40-RS_2025_08/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
     },
     "4535": {
+      "aliases": "MTND1",
       "biotype": [
         "mRNA",
         "protein_coding"
       ],
-      "description": null,
+      "description": "mitochondrially encoded NADH dehydrogenase 1",
       "gene_symbol": "ND1",
       "hgnc": "7455",
       "map_location": "MT",
       "source": [
         "RefSeq"
       ],
-      "url": "https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/annotation_releases/110/GCF_000001405.40_GRCh38.p14/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
+      "summary": "Enables NADH dehydrogenase (ubiquinone) activity. Involved in mitochondrial electron transport, NADH to ubiquinone and mitochondrial respiratory chain complex I assembly. Located in mitochondrial inner membrane. Part of respiratory chain complex I. Implicated in several diseases, including MELAS syndrome; neurodegenerative disease (multiple); optic nerve disease (multiple); toxic shock syndrome; and type 2 diabetes mellitus. Biomarker of Alzheimer's disease; Parkinson's disease; and multiple sclerosis. [provided by Alliance of Genome Resources, Jul 2025]",
+      "url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9606/GCF_000001405.40-RS_2025_08/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
     }
   },
   "genome_builds": [
@@ -94,7 +98,7 @@
           ],
           "strand": "-",
           "tag": "MANE Select",
-          "url": "https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/annotation_releases/110/GCF_000001405.40_GRCh38.p14/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
+          "url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9606/GCF_000001405.40-RS_2025_08/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
         }
       },
       "hgnc": "30397",
@@ -102,10 +106,12 @@
       "protein": "NP_536355.1",
       "start_codon": 63,
       "stop_codon": 501,
-      "transl_except": {
-        "Sec": [
-          48
-        ]
+      "translation": {
+        "transl_except": {
+          "Sec": [
+            48
+          ]
+        }
       }
     },
     "fake-rna-ND1": {
@@ -134,7 +140,7 @@
             "RefSeq"
           ],
           "strand": "+",
-          "url": "https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/annotation_releases/110/GCF_000001405.40_GRCh38.p14/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
+          "url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9606/GCF_000001405.40-RS_2025_08/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
         }
       },
       "hgnc": "7455",
@@ -142,12 +148,14 @@
       "protein": "YP_003024026.1",
       "start_codon": 0,
       "stop_codon": 956,
-      "transl_except": {
-        "TERM": [
-          319
-        ]
-      },
-      "transl_table": 2
+      "translation": {
+        "transl_except": {
+          "TERM": [
+            319
+          ]
+        },
+        "transl_table": 2
+      }
     }
   }
 }

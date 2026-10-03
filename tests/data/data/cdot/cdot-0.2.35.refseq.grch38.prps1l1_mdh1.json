@@ -2,6 +2,7 @@
   "cdot_version": "0.2.35",
   "genes": {
     "221823": {
+      "aliases": "PRPS3, PRPSL, PRS-III",
       "biotype": [
         "mRNA",
         "protein_coding"
@@ -13,9 +14,11 @@
       "source": [
         "BestRefSeq"
       ],
+      "summary": "This intronless gene is specifically expressed in the testis, and encodes a protein that is highly homologous to the two subunits of phosphoribosylpyrophosphate synthetase encoded by human X-linked genes, PRPS1 and PRPS2. These enzymes convert pyrimidine, purine or pyridine bases to the corresponding ribonucleoside monophosphates. In vitro transcription/translation and site-directed mutagenesis studies indicate that translation of this mRNA initiates exclusively at a non-AUG (ACG) codon. [provided by RefSeq, Jul 2008]",
       "url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9606/GCF_000001405.40-RS_2025_08/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
     },
     "4190": {
+      "aliases": "DEE88, EIEE88, HEL-S-32, KAR, MDH-s, MDHA, MGC:1375, MOR2",
       "biotype": [
         "mRNA",
         "protein_coding"
@@ -27,6 +30,7 @@
       "source": [
         "BestRefSeq"
       ],
+      "summary": "This gene encodes an enzyme that catalyzes the NAD/NADH-dependent, reversible oxidation of malate to oxaloacetate in many metabolic pathways, including the citric acid cycle. Two main isozymes are known to exist in eukaryotic cells: one is found in the mitochondrial matrix and the other in the cytoplasm. This gene encodes the cytosolic isozyme, which plays a key role in the malate-aspartate shuttle that allows malate to pass through the mitochondrial membrane to be transformed into oxaloacetate for further cellular processes. Alternatively spliced transcript variants have been found for this gene. A recent study showed that a C-terminally extended isoform is produced by use of an alternative in-frame translation termination codon via a stop codon readthrough mechanism, and that this isoform is localized in the peroxisomes. Pseudogenes have been identified on chromosomes X and 6. [provided by RefSeq, Feb 2016]",
       "url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9606/GCF_000001405.40-RS_2025_08/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
     }
   },
@@ -133,10 +137,12 @@
       "protein": "NP_001303303.1",
       "start_codon": 81,
       "stop_codon": 1143,
-      "transl_except": {
-        "Other": [
-          335
-        ]
+      "translation": {
+        "transl_except": {
+          "Other": [
+            335
+          ]
+        }
       }
     },
     "NM_175886.3": {
@@ -175,10 +181,15 @@
       "protein": "NP_787082.1",
       "start_codon": 64,
       "stop_codon": 1021,
-      "transl_except": {
-        "Met": [
-          1
-        ]
+      "translation": {
+        "exceptions": [
+          "alternative start codon"
+        ],
+        "transl_except": {
+          "Met": [
+            1
+          ]
+        }
       }
     }
   }
