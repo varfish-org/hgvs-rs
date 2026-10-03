@@ -273,8 +273,8 @@ pub mod models {
         #[serde(default)]
         pub transl_except: Option<IndexMap<String, Vec<u32>>>,
         /// NCBI genetic code of the CDS, e.g., `2` for vertebrate mitochondria.  A missing code
-        /// means code `1`.  The cdot provider supports the codes `1` and `2` and fails for any
-        /// other code.
+        /// means code `1`.  The cdot provider supports the codes `1`, `2` and `11` and fails for
+        /// any other code.
         #[serde(skip_serializing_if = "Option::is_none")]
         #[serde(default)]
         pub transl_table: Option<u32>,
@@ -1069,12 +1069,13 @@ impl TxProvider {
             .translation
             .as_ref()
             .and_then(|translation| translation.transl_table);
+        // Code 11 only adds start codons to code 1; cdot puts non-AUG starts in transl_except.
         let translation_table = match transl_table {
             // With selenocysteine positions, UGA reads as selenocysteine only at them.
-            Some(1) | None if is_selenoprotein && selenocysteine_positions(tx).is_empty() => {
+            Some(1 | 11) | None if is_selenoprotein && selenocysteine_positions(tx).is_empty() => {
                 TranslationTable::Selenocysteine
             }
-            Some(1) | None => TranslationTable::Standard,
+            Some(1 | 11) | None => TranslationTable::Standard,
             Some(2) => TranslationTable::VertebrateMitochondrial,
             Some(code) => {
                 return Err(Error::UnsupportedTranslationTable(tx_ac.to_string(), code));
@@ -1394,6 +1395,13 @@ pub mod tests {
                 .get_tx_identity_info("fake-rna-ND1")?
                 .translation_table,
             TranslationTable::VertebrateMitochondrial
+        );
+        // Code 11 assigns the same amino acids as code 1.
+        assert_eq!(
+            provider
+                .get_tx_identity_info("NM_005957.1")?
+                .translation_table,
+            TranslationTable::Standard
         );
 
         let mut nd1 = provider.transcripts["fake-rna-ND1"].clone();
