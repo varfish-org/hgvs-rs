@@ -155,6 +155,19 @@ impl TxIdentityInfo {
     }
 }
 
+/// An amino acid that the annotation of a transcript assigns to one codon, whatever the
+/// translation table says.
+///
+/// Examples are selenocysteine at a UGA codon and methionine at a non-AUG start codon.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+pub struct TranslationException {
+    /// 1-based position of the codon in the protein.
+    pub position: u32,
+    /// The amino acid as one-letter code, e.g., `U` for selenocysteine, `X` for an unspecified
+    /// amino acid, or `*` for a stop codon.
+    pub amino_acid: char,
+}
+
 /// ```text
 /// hgnc           | ATM
 /// cds_start_i    | 385
@@ -331,6 +344,21 @@ pub trait Provider {
     ///
     /// * `tx_ac` -- transcript accession with version (e.g., 'NM_199425.2')
     fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, Error>;
+
+    /// Return the translation exceptions of a transcript.
+    ///
+    /// At these codons, the given amino acid applies.  Elsewhere, the `translation_table` of
+    /// `get_tx_identity_info()` applies.  The default implementation returns no exceptions.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx_ac` -- transcript accession with version (e.g., 'NM_080430.4')
+    fn get_tx_translation_exceptions(
+        &self,
+        _tx_ac: &str,
+    ) -> Result<Vec<TranslationException>, Error> {
+        Ok(Vec::new())
+    }
 
     /// Return a single transcript info for supplied accession (tx_ac, alt_ac, alt_aln_method), or None if not found.
     ///

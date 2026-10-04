@@ -1270,11 +1270,13 @@ mod test {
         static PROVIDER_COUNT: AtomicUsize = AtomicUsize::new(0);
 
         #[derive(Debug, serde::Deserialize)]
-        struct ProviderRecord {
+        pub struct ProviderRecord {
             pub accession: String,
             pub transcript_sequence: String,
             pub cds_start_i: i32,
             pub cds_end_i: i32,
+            #[serde(skip)]
+            pub translation_exceptions: Vec<interface::TranslationException>,
         }
 
         pub struct Provider {
@@ -1294,13 +1296,17 @@ mod test {
                 for record in rdr.deserialize() {
                     records.push(record?);
                 }
+                Ok(Self::with_records(records))
+            }
+
+            pub fn with_records(records: Vec<ProviderRecord>) -> Self {
                 let number = PROVIDER_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 let dummy_version = format!("provider_{number}");
-                Ok(Self {
+                Self {
                     records,
                     data_version: dummy_version.clone(),
                     schema_version: dummy_version,
-                })
+                }
             }
         }
 
@@ -1424,6 +1430,18 @@ mod test {
                 ))
             }
 
+            fn get_tx_translation_exceptions(
+                &self,
+                tx_ac: &str,
+            ) -> Result<Vec<interface::TranslationException>, crate::data::error::Error>
+            {
+                self.records
+                    .iter()
+                    .find(|record| record.accession == tx_ac)
+                    .map(|record| record.translation_exceptions.clone())
+                    .ok_or_else(|| crate::data::error::Error::NoSequenceRecord(tx_ac.to_string()))
+            }
+
             fn get_tx_info(
                 &self,
                 _tx_ac: &str,
@@ -1455,6 +1473,101 @@ mod test {
             };
             Ok(Mapper::new(&config, provider))
         }
+    }
+
+    /// Transcripts whose proteins need translation exceptions:
+    ///
+    /// * `NM_999990.1`: `MAKLWEPURV*`, with selenocysteine at the UGA codon 8.
+    /// * `NM_999991.1`: `MAKLWEPRV*`, with methionine at the ACG start codon.
+    /// * `NM_999992.1`: `MAKXLWERV*`, with an unspecified amino acid at the UAG codon 4, i.e.,
+    ///   a readthrough of this stop codon.
+    fn translation_exceptions_provider() -> std::sync::Arc<sanity_mock::Provider> {
+        use crate::data::interface::TranslationException;
+
+        std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+            sanity_mock::ProviderRecord {
+                accession: "NM_999990.1".to_string(),
+                transcript_sequence: "AAAATCAAAATGGCGAAACTGTGGGAACCGTGACGCGTGTAAGGGG".to_string(),
+                cds_start_i: 9,
+                cds_end_i: 42,
+                translation_exceptions: vec![TranslationException {
+                    position: 8,
+                    amino_acid: 'U',
+                }],
+            },
+            sanity_mock::ProviderRecord {
+                accession: "NM_999991.1".to_string(),
+                transcript_sequence: "AAAATCAAAACGGCGAAACTGTGGGAACCGCGCGTGTAAGGGG".to_string(),
+                cds_start_i: 9,
+                cds_end_i: 39,
+                translation_exceptions: vec![TranslationException {
+                    position: 1,
+                    amino_acid: 'M',
+                }],
+            },
+            sanity_mock::ProviderRecord {
+                accession: "NM_999992.1".to_string(),
+                transcript_sequence: "AAAATCAAAATGGCGAAATAGCTGTGGGAACGCGTGTAAGGGG".to_string(),
+                cds_start_i: 9,
+                cds_end_i: 39,
+                translation_exceptions: vec![TranslationException {
+                    position: 4,
+                    amino_acid: 'X',
+                }],
+            },
+        ]))
+    }
+
+    #[test]
+    fn translation_exceptions_in_reference_protein() -> Result<(), Error> {
+        for (tx_ac, aa_sequence) in [
+            ("NM_999990.1", "MAKLWEPURV*"),
+            ("NM_999991.1", "MAKLWEPRV*"),
+            ("NM_999992.1", "MAKXLWERV*"),
+        ] {
+            let ref_data = crate::mapper::altseq::RefTranscriptData::new(
+                translation_exceptions_provider(),
+                tx_ac,
+                Some("MOCK"),
+            )?;
+            assert_eq!(ref_data.aa_sequence.as_ref(), aa_sequence, "{tx_ac}");
+        }
+
+        Ok(())
+    }
+
+    /// A translation exception applies only at the codons of the reference that the variant
+    /// leaves unchanged and in frame.
+    #[test]
+    fn hgvs_c_to_p_translation_exceptions() -> Result<(), Error> {
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(&config, translation_exceptions_provider());
+
+        for (hgvsc, hgvsp_expected) in [
+            // A new UGA is a stop codon.
+            ("NM_999990.1:c.15G>A", "MOCK:p.Trp5Ter"),
+            // The selenocysteine codon changes.
+            ("NM_999990.1:c.24A>G", "MOCK:p.Sec8Trp"),
+            // The selenocysteine codon stays before a variant ...
+            ("NM_999990.1:c.26G>A", "MOCK:p.Arg9His"),
+            // ... and after an in-frame deletion.
+            ("NM_999990.1:c.16_18del", "MOCK:p.Glu6del"),
+            // The ACG start codon stays methionine.
+            ("NM_999991.1:c.16_18del", "MOCK:p.Glu6del"),
+            // The readthrough stop codon does not end the protein, before a variant ...
+            ("NM_999992.1:c.23G>A", "MOCK:p.Arg8His"),
+            // ... and after an in-frame deletion.
+            ("NM_999992.1:c.4_6del", "MOCK:p.Ala2del"),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
+        }
+
+        Ok(())
     }
 
     fn test_hgvs_c_to_p_conversion(hgvsc: &str, hgvsp_expected: &str) -> Result<(), Error> {
