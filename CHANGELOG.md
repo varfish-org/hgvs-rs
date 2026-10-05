@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/varfish-org/hgvs-rs/compare/v0.22.0...v1.0.0) (2026-10-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* RefTranscriptData has the new public field translation_exceptions. Code that builds the struct literally must set it, for example to an empty Vec. data::error::Error has the new variant UnsupportedTranslationException.
+
+### Features
+
+* apply translation exceptions such as selenocysteine per codon ([#292](https://github.com/varfish-org/hgvs-rs/issues/292)) ([#293](https://github.com/varfish-org/hgvs-rs/issues/293)) ([c239487](https://github.com/varfish-org/hgvs-rs/commit/c2394878d02c3b63a51dfafcf6afde9baf38b500))
+
 ## [0.22.0](https://github.com/varfish-org/hgvs-rs/compare/v0.21.0...v0.22.0) (2026-04-11)
 
 
