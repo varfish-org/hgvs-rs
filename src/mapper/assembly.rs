@@ -53,6 +53,8 @@ pub struct Config {
     pub genome_seq_available: bool,
     pub shuffle_direction: Direction,
     pub window_size: usize,
+    /// See `variant::Config::ins_at_boundary_is_intronic`.
+    pub ins_at_boundary_is_intronic: bool,
 }
 
 impl Default for Config {
@@ -72,6 +74,7 @@ impl Default for Config {
             genome_seq_available: true,
             shuffle_direction: Default::default(),
             window_size: 20,
+            ins_at_boundary_is_intronic: true,
         }
     }
 }
@@ -122,6 +125,7 @@ impl Mapper {
             genome_seq_available: config.genome_seq_available,
             shuffle_direction: config.shuffle_direction,
             window_size: config.window_size,
+            ins_at_boundary_is_intronic: config.ins_at_boundary_is_intronic,
         };
         let inner = variant::Mapper::new(&inner_config, provider.clone());
         let asm_map = config.asm_map.clone().unwrap_or_else(|| {

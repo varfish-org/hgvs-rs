@@ -79,6 +79,8 @@ pub enum Error {
     DeletionSequenceEmpty,
     #[error("insertion sequence should not be empty")]
     InsertionSequenceEmpty,
+    #[error("duplication is missing its reference sequence: {0}")]
+    DuplicationReferenceMissing(String),
     #[error("cannot build CIGAR string from empty exons")]
     EmptyExons,
     #[error("found no exons for tx_ac={0}, alt_ac={1}, alt_aln_method={2}")]

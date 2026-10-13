@@ -32,6 +32,11 @@ pub struct RefTranscriptData {
     /// Amino acids that the annotation assigns to single codons, whatever `translation_table`
     /// says.
     pub translation_exceptions: Vec<TranslationException>,
+    /// c. base of the first base of each exon.  As in biocommons/hgvs, this is exact within
+    /// the CDS only: it skips c.0 for the first exon only and ignores the `*` of the 3' UTR.
+    pub exon_start_positions: Vec<i32>,
+    /// c. base of the last base of each exon, see `exon_start_positions`.
+    pub exon_end_positions: Vec<i32>,
 }
 
 /// The 0-based codon indices and the amino acids of the translation `exceptions`.
@@ -129,6 +134,17 @@ impl RefTranscriptData {
                 .into()
         };
 
+        let mut exon_start_positions = Vec::with_capacity(tx_info.lengths.len());
+        let mut exon_end_positions: Vec<i32> = Vec::with_capacity(tx_info.lengths.len());
+        for length in &tx_info.lengths {
+            let (start, end) = match exon_end_positions.last() {
+                Some(last_end) => (last_end + 1, last_end + length),
+                None => (-cds_start_i, -cds_start_i + length),
+            };
+            exon_start_positions.push(start);
+            exon_end_positions.push(end);
+        }
+
         Ok(Self {
             transcript_sequence,
             aa_sequence,
@@ -137,6 +153,8 @@ impl RefTranscriptData {
             protein_accession,
             translation_table: tx_info.translation_table,
             translation_exceptions,
+            exon_start_positions,
+            exon_end_positions,
         })
     }
 }
@@ -315,6 +333,8 @@ pub struct AltSeqBuilder<'a> {
     /// to handle transcripts with multiple stop codons, but we can make a reasonable
     /// prediction up to the first stop codon.  This rescues changes to the `p.Met1`.
     pub first_stop_pos: Option<usize>,
+    /// See `variant::Config::ins_at_boundary_is_intronic`; `true` by default.
+    pub ins_at_boundary_is_intronic: bool,
 }
 
 impl<'a> AltSeqBuilder<'a> {
@@ -330,6 +350,7 @@ impl<'a> AltSeqBuilder<'a> {
             reference_data,
             ref_has_multiple_stops,
             first_stop_pos,
+            ins_at_boundary_is_intronic: true,
         }
     }
 
@@ -402,6 +423,11 @@ impl<'a> AltSeqBuilder<'a> {
             HgvsVariant::CdsVariant { loc_edit, .. } => {
                 let loc = loc_edit.loc.inner();
                 let edit = loc_edit.edit.inner();
+                let start_offset = loc.start.offset.unwrap_or(0);
+                let end_offset = loc.end.offset.unwrap_or(0);
+                let ref_data = self.reference_data;
+                let at_exon_edge = ref_data.exon_start_positions.contains(&loc.start.base)
+                    || ref_data.exon_end_positions.contains(&loc.end.base);
                 #[allow(clippy::nonminimal_bool)]
                 if loc.start.cds_from == CdsFrom::End && loc.end.cds_from == CdsFrom::End
                     || ((edit.is_ins() || edit.is_dup()) && loc.end.cds_from == CdsFrom::End)
@@ -413,6 +439,15 @@ impl<'a> AltSeqBuilder<'a> {
                     VariantLocation::FivePrimeUtr
                 } else if loc.start.base < 0 && loc.end.cds_from == CdsFrom::End {
                     VariantLocation::WholeGene
+                } else if self.ins_at_boundary_is_intronic && edit.is_dup() && at_exon_edge {
+                    // The copy may sit at the exon boundary, like an insertion there.
+                    VariantLocation::Intron
+                } else if !self.ins_at_boundary_is_intronic
+                    && ((edit.is_ins() && matches!((start_offset, end_offset), (-1, 0) | (0, 1)))
+                        || (edit.is_dup() && (end_offset == -1 || start_offset == 1)))
+                {
+                    // The splice site stays intact, so the inserted bases extend the exon.
+                    VariantLocation::Exon
                 } else if loc.start.offset.is_some() || loc.end.offset.is_some() {
                     // Leave out anything intronic for now.
                     VariantLocation::Intron
@@ -442,14 +477,16 @@ impl<'a> AltSeqBuilder<'a> {
                             if pos.base < 0 {
                                 // 5' UTR
                                 start_end.push(self.reference_data.cds_start as usize - 1);
-                            } else if pos.offset.unwrap_or(0) <= 0 {
+                            } else if pos.offset.unwrap_or(0) < 0 {
+                                // Intron before `pos.base`: the exon base before it.
                                 start_end.push(
                                     self.reference_data.cds_start as usize - 1 + pos.base as usize
-                                        - 1,
+                                        - 2,
                                 );
                             } else {
                                 start_end.push(
-                                    self.reference_data.cds_start as usize - 1 + pos.base as usize,
+                                    self.reference_data.cds_start as usize - 1 + pos.base as usize
+                                        - 1,
                                 );
                             }
                         }
@@ -618,15 +655,18 @@ impl<'a> AltSeqBuilder<'a> {
     fn incorporate_dup(&self) -> Result<AltTranscriptData, Error> {
         let (seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
 
-        let seq = format!(
-            "{}{}{}{}",
-            &seq[..start],
-            &seq[start..end],
-            &seq[start..end],
-            &seq[end..]
-        );
+        // Intron bases are not in the transcript sequence, so take them from the variant.
+        let dup_seq = if self.var_c.spans_intron() {
+            match self.var_c.na_edit() {
+                Some(NaEdit::Dup { reference }) if !reference.is_empty() => reference.as_str(),
+                _ => return Err(Error::DuplicationReferenceMissing(self.var_c.to_string())),
+            }
+        } else {
+            &seq[start..end]
+        };
+        let seq = format!("{}{}{}", &seq[..end], dup_seq, &seq[end..]);
 
-        let is_frameshift = (end - start) % 3 != 0;
+        let is_frameshift = dup_seq.len() % 3 != 0;
 
         let loc_end = match &self.var_c {
             HgvsVariant::CdsVariant { loc_edit, .. } => loc_edit.loc.inner().end.base,
