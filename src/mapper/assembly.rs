@@ -53,6 +53,8 @@ pub struct Config {
     pub genome_seq_available: bool,
     pub shuffle_direction: Direction,
     pub window_size: usize,
+    /// See `variant::Config::ins_at_boundary_is_intronic`.
+    pub ins_at_boundary_is_intronic: bool,
 }
 
 impl Default for Config {
@@ -72,6 +74,7 @@ impl Default for Config {
             genome_seq_available: true,
             shuffle_direction: Default::default(),
             window_size: 20,
+            ins_at_boundary_is_intronic: true,
         }
     }
 }
@@ -122,6 +125,7 @@ impl Mapper {
             genome_seq_available: config.genome_seq_available,
             shuffle_direction: config.shuffle_direction,
             window_size: config.window_size,
+            ins_at_boundary_is_intronic: config.ins_at_boundary_is_intronic,
         };
         let inner = variant::Mapper::new(&inner_config, provider.clone());
         let asm_map = config.asm_map.clone().unwrap_or_else(|| {
@@ -259,7 +263,16 @@ impl Mapper {
     ///
     /// * `var_c` -- `HgvsVariant::TxVariant` to project
     pub fn c_to_p(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, Error> {
-        let var = self.inner.c_to_p(var_c, None)?;
+        // Only the genome has the reference of intron bases, e.g., of a dup next to an exon.
+        let alt_ac = if self.config.genome_seq_available && var_c.spans_intron() {
+            Some(self.alt_ac_for_tx_ac(var_c.accession())?)
+        } else {
+            None
+        };
+        let alt = alt_ac
+            .as_deref()
+            .map(|alt_ac| (alt_ac, self.config.alt_aln_method.as_str()));
+        let var = self.inner.c_to_p_with_alt(var_c, None, alt)?;
         self.maybe_normalize(&var)
     }
 
@@ -531,6 +544,50 @@ mod test {
     fn smoke() -> Result<(), Error> {
         build_mapper_38(true)?;
         Ok(())
+    }
+
+    /// Corresponds to `tests/issues/test_655.py` of biocommons/hgvs.
+    mod issue_655 {
+        use anyhow::Error;
+        use std::str::FromStr;
+
+        use crate::data::uta_sr::test_helpers::build_provider;
+        use crate::parser::HgvsVariant;
+
+        use super::{Config, Mapper};
+
+        fn build_mapper(ins_at_boundary_is_intronic: bool) -> Result<Mapper, Error> {
+            let config = Config {
+                assembly: "GRCh37".to_string(),
+                renormalize_g: false,
+                ins_at_boundary_is_intronic,
+                ..Config::default()
+            };
+            Ok(Mapper::new(config, build_provider()?))
+        }
+
+        /// DNAH11, plus strand, exon 21 ends at c.4110.  The dup copies the genome base G at
+        /// c.4110+1; the transcript base T at c.4110 would give `p.Glu1371Ter`.
+        #[test]
+        fn c_to_p_dup_of_intron_base() -> Result<(), Error> {
+            let var_c = HgvsVariant::from_str("NM_003777.3:c.4110+1dup")?;
+
+            let exonic = build_mapper(false)?;
+            assert_eq!(
+                format!("{}", exonic.c_to_p(&var_c)?),
+                "NP_003768.2:p.Glu1371GlyfsTer23"
+            );
+            // Without the genome, the variant mapper lacks the reference of the dup.
+            assert!(matches!(
+                exonic.variant_mapper().c_to_p(&var_c, None),
+                Err(crate::mapper::Error::DuplicationReferenceMissing(_))
+            ));
+
+            let intronic = build_mapper(true)?;
+            assert_eq!(format!("{}", intronic.c_to_p(&var_c)?), "NP_003768.2:p.?");
+
+            Ok(())
+        }
     }
 
     /// The following is a port of `Test_variant::Mapper` in

@@ -37,6 +37,9 @@ pub struct Config {
     pub genome_seq_available: bool,
     pub shuffle_direction: Direction,
     pub window_size: usize,
+    /// Treat insertions and duplications that touch an exon boundary as intronic in `c_to_p`,
+    /// giving `p.?`.  With `false`, e.g., `c.26_26+1insC` and `c.26+1dup` change the protein.
+    pub ins_at_boundary_is_intronic: bool,
 }
 
 impl Default for Config {
@@ -51,6 +54,7 @@ impl Default for Config {
             genome_seq_available: true,
             shuffle_direction: Default::default(),
             window_size: 20,
+            ins_at_boundary_is_intronic: true,
         }
     }
 }
@@ -731,6 +735,17 @@ impl Mapper {
     /// * `var_c` -- `HgvsVariant::TxVariant` to project
     /// * `pro_ac` -- Protein accession
     pub fn c_to_p(&self, var_c: &HgvsVariant, prot_ac: Option<&str>) -> Result<HgvsVariant, Error> {
+        self.c_to_p_with_alt(var_c, prot_ac, None)
+    }
+
+    /// Like `c_to_p()`, but takes the reference of intron bases from the genome alignment
+    /// `alt`, given as `(alt_ac, alt_aln_method)`.
+    pub(crate) fn c_to_p_with_alt(
+        &self,
+        var_c: &HgvsVariant,
+        prot_ac: Option<&str>,
+        alt: Option<(&str, &str)>,
+    ) -> Result<HgvsVariant, Error> {
         use super::altseq::*;
 
         if let HgvsVariant::CdsVariant {
@@ -742,7 +757,7 @@ impl Mapper {
             self.validator.validate(var_c)?;
 
             let var_c = if self.config.replace_reference {
-                self.replace_reference(var_c.clone())?
+                self.replace_reference_with_alt(var_c.clone(), alt)?
             } else {
                 var_c.clone()
             };
@@ -752,7 +767,10 @@ impl Mapper {
                 accession.deref(),
                 prot_ac.map(|s| s.to_string()).as_deref(),
             )?;
-            let builder = AltSeqBuilder::new(var_c, &reference_data);
+            let builder = AltSeqBuilder {
+                ins_at_boundary_is_intronic: self.config.ins_at_boundary_is_intronic,
+                ..AltSeqBuilder::new(var_c, &reference_data)
+            };
 
             // NB: the following comment is from the original code.
             // TODO: handle case where you get 2+ alt sequences back;  currently get list of 1 element
@@ -927,6 +945,16 @@ impl Mapper {
 
     /// Fetch reference sequence for variant and return updated `HgvsVariant` if necessary.
     pub fn replace_reference(&self, var: HgvsVariant) -> Result<HgvsVariant, Error> {
+        self.replace_reference_with_alt(var, None)
+    }
+
+    /// Like `replace_reference()`, but takes the reference of an intronic c. variant from the
+    /// genome alignment `alt`, given as `(alt_ac, alt_aln_method)`.
+    fn replace_reference_with_alt(
+        &self,
+        var: HgvsVariant,
+        alt: Option<(&str, &str)>,
+    ) -> Result<HgvsVariant, Error> {
         match &var {
             HgvsVariant::ProtVariant { .. } => Err(Error::CannotUpdateReference),
             _ => Ok(()),
@@ -937,7 +965,8 @@ impl Mapper {
             return Ok(var);
         }
 
-        if var.spans_intron() {
+        let alt = alt.filter(|_| matches!(var, HgvsVariant::CdsVariant { .. }));
+        if var.spans_intron() && alt.is_none() {
             debug!(
                 "Can't update reference sequence for intronic variant {}",
                 var
@@ -946,15 +975,24 @@ impl Mapper {
         }
 
         // For c. variants, we need coordinates on underlying sequence.
-        let (r, ac): (Range<_>, _) = match &var {
+        let mut strand = 1;
+        let (r, ac): (Range<_>, &str) = match &var {
             HgvsVariant::CdsVariant {
                 accession,
                 loc_edit,
                 ..
-            } => {
-                let mapper = self.build_alignment_mapper(accession, accession, "transcript")?;
-                (mapper.c_to_n(loc_edit.loc.inner())?.into(), accession)
-            }
+            } => match alt {
+                Some((alt_ac, alt_aln_method)) if var.spans_intron() => {
+                    let mapper = self.build_alignment_mapper(accession, alt_ac, alt_aln_method)?;
+                    strand = mapper.strand;
+                    let pos_g = mapper.c_to_g(loc_edit.loc.inner())?;
+                    (pos_g.inner().clone().try_into()?, alt_ac)
+                }
+                _ => {
+                    let mapper = self.build_alignment_mapper(accession, accession, "transcript")?;
+                    (mapper.c_to_n(loc_edit.loc.inner())?.into(), accession)
+                }
+            },
             HgvsVariant::GenomeVariant {
                 accession,
                 loc_edit,
@@ -995,6 +1033,7 @@ impl Mapper {
             tracing::debug!("Bailing out on out-of-bounds variant: {}", &var);
             return Ok(var);
         }
+        let seq = if strand == -1 { revcomp(&seq) } else { seq };
 
         let na_edit = var
             .na_edit()
@@ -1277,6 +1316,8 @@ mod test {
             pub cds_end_i: i32,
             #[serde(skip)]
             pub translation_exceptions: Vec<interface::TranslationException>,
+            #[serde(skip)]
+            pub lengths: Vec<i32>,
         }
 
         pub struct Provider {
@@ -1419,7 +1460,7 @@ mod test {
                             alt_aln_method: "splign".to_string(),
                             cds_start_i: Some(record.cds_start_i),
                             cds_end_i: Some(record.cds_end_i),
-                            lengths: Vec::new(),
+                            lengths: record.lengths.clone(),
                             hgnc: "MOCK".to_string(),
                             ..Default::default()
                         });
@@ -1494,6 +1535,7 @@ mod test {
                     position: 8,
                     amino_acid: 'U',
                 }],
+                lengths: Vec::new(),
             },
             sanity_mock::ProviderRecord {
                 accession: "NM_999991.1".to_string(),
@@ -1504,6 +1546,7 @@ mod test {
                     position: 1,
                     amino_acid: 'M',
                 }],
+                lengths: Vec::new(),
             },
             sanity_mock::ProviderRecord {
                 accession: "NM_999992.1".to_string(),
@@ -1514,6 +1557,7 @@ mod test {
                     position: 4,
                     amino_acid: 'X',
                 }],
+                lengths: Vec::new(),
             },
         ]))
     }
@@ -1986,6 +2030,105 @@ mod test {
         let var_g = HgvsVariant::from_str("NC_000007.13:g.106545832_106545833insAG")?;
         let var_c = mapper.g_to_c(&var_g, "NM_002649.2", "splign")?;
         assert_eq!(var_c.to_string(), "NM_002649.2:c.3309_*1insAG");
+        Ok(())
+    }
+
+    // The following tests correspond to `tests/issues/test_655.py` of biocommons/hgvs.
+
+    /// Check `c_to_p()` of `hgvs_c`, where `None` expects a dup without reference.
+    fn check_c_to_p(
+        mapper: &Mapper,
+        hgvs_c: &str,
+        prot_ac: Option<&str>,
+        expected: Option<&str>,
+    ) -> Result<(), Error> {
+        let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvs_c)?, prot_ac);
+        match expected {
+            Some(expected) => assert_eq!(format!("{}", &var_p?), expected, "{hgvs_c}"),
+            None => assert!(
+                matches!(
+                    var_p,
+                    Err(crate::mapper::Error::DuplicationReferenceMissing(_))
+                ),
+                "{hgvs_c} gave {var_p:?}"
+            ),
+        }
+        Ok(())
+    }
+
+    /// `NM_999999.1` of `sanity_cp.tsv` with exons of 10, 25, and 30 bases, so exon 2 spans
+    /// c.2 to c.26.
+    fn build_mapper_655_sanity(ins_at_boundary_is_intronic: bool) -> Mapper {
+        let provider = std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+            sanity_mock::ProviderRecord {
+                accession: "NM_999999.1".to_string(),
+                transcript_sequence: "AAAATCAAAATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGG".to_string(),
+                cds_start_i: 9,
+                cds_end_i: 39,
+                translation_exceptions: Vec::new(),
+                lengths: vec![10, 25, 30],
+            },
+        ]));
+        let config = Config {
+            prevalidation_level: crate::validator::ValidationLevel::Intrinsic,
+            strict_bounds: false,
+            renormalize_g: false,
+            ins_at_boundary_is_intronic,
+            ..Default::default()
+        };
+        Mapper::new(&config, provider)
+    }
+
+    /// With `false`, the dups of intron bases fail: there is no genome to take their reference
+    /// from.
+    #[test]
+    fn issue_655_sanity_c_to_p() -> Result<(), Error> {
+        let exonic = build_mapper_655_sanity(false);
+        let intronic = build_mapper_655_sanity(true);
+        for (hgvs_c, expected_exonic) in [
+            ("NM_999999.1:c.2-1_2insG", Some("MOCK:p.Met1?")),
+            ("NM_999999.1:c.26_26+1insC", Some("MOCK:p.Lys9AsnfsTer?")),
+            ("NM_999999.1:c.2dup", Some("MOCK:p.Met1?")),
+            ("NM_999999.1:c.2-1dup", None),
+            ("NM_999999.1:c.26dup", Some("MOCK:p.Ter10IleextTer?")),
+            ("NM_999999.1:c.26+1dup", None),
+        ] {
+            check_c_to_p(&exonic, hgvs_c, Some("MOCK"), expected_exonic)?;
+            check_c_to_p(&intronic, hgvs_c, Some("MOCK"), Some("MOCK:p.?"))?;
+        }
+        Ok(())
+    }
+
+    /// KRAS, minus strand, exon 2 ends at c.111.  Without `replace_reference`, as the
+    /// seqrepo cache lacks the transcript parts.
+    #[test]
+    fn issue_655_real_c_to_p() -> Result<(), Error> {
+        let build = |ins_at_boundary_is_intronic| -> Result<Mapper, Error> {
+            let config = Config {
+                replace_reference: false,
+                renormalize_g: false,
+                ins_at_boundary_is_intronic,
+                ..Default::default()
+            };
+            Ok(Mapper::new(&config, build_provider()?))
+        };
+        let exonic = build(false)?;
+        let intronic = build(true)?;
+        for (hgvs_c, expected_exonic) in [
+            (
+                "NM_004985.4:c.111dup",
+                Some("NP_004976.2:p.Asp38GlyfsTer10"),
+            ),
+            (
+                "NM_004985.4:c.110_111dup",
+                Some("NP_004976.2:p.Asp38ArgfsTer8"),
+            ),
+            ("NM_004985.4:c.111+1dup", None),
+            ("NM_004985.4:c.111+1_111+4dup", None),
+        ] {
+            check_c_to_p(&exonic, hgvs_c, None, expected_exonic)?;
+            check_c_to_p(&intronic, hgvs_c, None, Some("NP_004976.2:p.?"))?;
+        }
         Ok(())
     }
 
