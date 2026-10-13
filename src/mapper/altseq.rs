@@ -319,9 +319,6 @@ pub struct AltSeqBuilder<'a> {
 
 impl<'a> AltSeqBuilder<'a> {
     pub fn new(var_c: HgvsVariant, reference_data: &'a RefTranscriptData) -> Self {
-        if !matches!(&var_c, HgvsVariant::CdsVariant { .. }) {
-            panic!("Must initialize with HgvsVariant::CdsVariant");
-        }
         let ref_has_multiple_stops = reference_data.aa_sequence.matches('*').count() > 1;
         let first_stop_pos = reference_data.aa_sequence.find('*');
 
@@ -341,12 +338,16 @@ impl<'a> AltSeqBuilder<'a> {
     ///
     /// # Returns
     ///
-    /// Variant sequence data.
+    /// Variant sequence data, or `Error::ExpectedCdsVariant` if `var_c` is not a
+    /// `HgvsVariant::CdsVariant`.
     pub fn build_altseq(&self) -> Result<Vec<AltTranscriptData>, Error> {
         // NB: the following comment is from the original Python code.
         // Should loop over each allele rather than assume only 1 variant; return a list for now.
 
-        let na_edit = self.var_c.na_edit().expect("Invalid CdsVariant");
+        let HgvsVariant::CdsVariant { loc_edit, .. } = &self.var_c else {
+            return Err(Error::ExpectedCdsVariant(self.var_c.to_string()));
+        };
+        let na_edit = loc_edit.edit.inner();
         let edit_type = match self.get_variant_region() {
             VariantLocation::Exon => match na_edit {
                 NaEdit::RefAlt { .. }
@@ -1332,6 +1333,42 @@ impl<'a> AltSeqToHgvsp<'a> {
         } else {
             (false, -1)
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+
+    use crate::{mapper::Error, parser::HgvsVariant, sequences::TranslationTable};
+
+    use super::{AltSeqBuilder, RefTranscriptData};
+
+    #[test]
+    fn build_altseq_fails_for_non_cds_variant() -> Result<(), anyhow::Error> {
+        let reference_data = RefTranscriptData {
+            transcript_sequence: "AAAATCAAAATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGG".into(),
+            aa_sequence: "MKAKAFRAK*".into(),
+            cds_start: 10,
+            cds_stop: 39,
+            protein_accession: "MOCK".into(),
+            translation_table: TranslationTable::Standard,
+            translation_exceptions: Vec::new(),
+        };
+
+        for hgvs in [
+            "NM_999999.1:n.15A>G",
+            "NC_000001.11:g.15A>G",
+            "MOCK:p.Lys2Arg",
+        ] {
+            let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
+            assert!(
+                matches!(builder.build_altseq(), Err(Error::ExpectedCdsVariant(_))),
+                "{hgvs}"
+            );
+        }
+
+        Ok(())
     }
 }
 
