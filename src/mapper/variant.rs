@@ -735,6 +735,17 @@ impl Mapper {
     /// * `var_c` -- `HgvsVariant::TxVariant` to project
     /// * `pro_ac` -- Protein accession
     pub fn c_to_p(&self, var_c: &HgvsVariant, prot_ac: Option<&str>) -> Result<HgvsVariant, Error> {
+        self.c_to_p_with_alt(var_c, prot_ac, None)
+    }
+
+    /// Like `c_to_p()`, but takes the reference of intron bases from the genome alignment
+    /// `alt`, given as `(alt_ac, alt_aln_method)`.
+    pub(crate) fn c_to_p_with_alt(
+        &self,
+        var_c: &HgvsVariant,
+        prot_ac: Option<&str>,
+        alt: Option<(&str, &str)>,
+    ) -> Result<HgvsVariant, Error> {
         use super::altseq::*;
 
         if let HgvsVariant::CdsVariant {
@@ -746,7 +757,7 @@ impl Mapper {
             self.validator.validate(var_c)?;
 
             let var_c = if self.config.replace_reference {
-                self.replace_reference(var_c.clone())?
+                self.replace_reference_with_alt(var_c.clone(), alt)?
             } else {
                 var_c.clone()
             };
@@ -934,6 +945,16 @@ impl Mapper {
 
     /// Fetch reference sequence for variant and return updated `HgvsVariant` if necessary.
     pub fn replace_reference(&self, var: HgvsVariant) -> Result<HgvsVariant, Error> {
+        self.replace_reference_with_alt(var, None)
+    }
+
+    /// Like `replace_reference()`, but takes the reference of an intronic c. variant from the
+    /// genome alignment `alt`, given as `(alt_ac, alt_aln_method)`.
+    fn replace_reference_with_alt(
+        &self,
+        var: HgvsVariant,
+        alt: Option<(&str, &str)>,
+    ) -> Result<HgvsVariant, Error> {
         match &var {
             HgvsVariant::ProtVariant { .. } => Err(Error::CannotUpdateReference),
             _ => Ok(()),
@@ -944,7 +965,8 @@ impl Mapper {
             return Ok(var);
         }
 
-        if var.spans_intron() {
+        let alt = alt.filter(|_| matches!(var, HgvsVariant::CdsVariant { .. }));
+        if var.spans_intron() && alt.is_none() {
             debug!(
                 "Can't update reference sequence for intronic variant {}",
                 var
@@ -953,15 +975,24 @@ impl Mapper {
         }
 
         // For c. variants, we need coordinates on underlying sequence.
-        let (r, ac): (Range<_>, _) = match &var {
+        let mut strand = 1;
+        let (r, ac): (Range<_>, &str) = match &var {
             HgvsVariant::CdsVariant {
                 accession,
                 loc_edit,
                 ..
-            } => {
-                let mapper = self.build_alignment_mapper(accession, accession, "transcript")?;
-                (mapper.c_to_n(loc_edit.loc.inner())?.into(), accession)
-            }
+            } => match alt {
+                Some((alt_ac, alt_aln_method)) if var.spans_intron() => {
+                    let mapper = self.build_alignment_mapper(accession, alt_ac, alt_aln_method)?;
+                    strand = mapper.strand;
+                    let pos_g = mapper.c_to_g(loc_edit.loc.inner())?;
+                    (pos_g.inner().clone().try_into()?, alt_ac)
+                }
+                _ => {
+                    let mapper = self.build_alignment_mapper(accession, accession, "transcript")?;
+                    (mapper.c_to_n(loc_edit.loc.inner())?.into(), accession)
+                }
+            },
             HgvsVariant::GenomeVariant {
                 accession,
                 loc_edit,
@@ -1002,6 +1033,7 @@ impl Mapper {
             tracing::debug!("Bailing out on out-of-bounds variant: {}", &var);
             return Ok(var);
         }
+        let seq = if strand == -1 { revcomp(&seq) } else { seq };
 
         let na_edit = var
             .na_edit()
