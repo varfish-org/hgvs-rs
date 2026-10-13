@@ -1278,7 +1278,7 @@ impl<'a> AltSeqToHgvsp<'a> {
                 alternative.clone_from(insertion);
             }
         } else {
-            panic!("Unexpected variant: {:?}", &record);
+            panic!("Unexpected variant: {:?}", record);
         }
 
         self.create_variant(

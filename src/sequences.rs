@@ -234,7 +234,7 @@ pub fn aa3_to_aa1(seq: &str) -> Result<String, Error> {
             Error::InvalidThreeLetterAminoAcid(s.to_string(), format!("{}", i + 1))
         })?;
 
-        result.push(aa1 as u8);
+        result.push(aa1);
     }
 
     // SAFETY: _aa3_to_aa1 only returns valid ASCII/UTF-8 bytes.

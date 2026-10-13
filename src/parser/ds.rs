@@ -615,7 +615,7 @@ impl TryFrom<CdsInterval> for Range<i32> {
     /// `[start, end]` to 0-based, half-open Rust range `[start - 1, end)`.
     fn try_from(value: CdsInterval) -> Result<Self, Self::Error> {
         if value.start.offset.is_some() || value.end.offset.is_some() {
-            warn!("Converting interval {:?} with offset to range!", &value);
+            warn!("Converting interval {:?} with offset to range!", value);
         }
         if value.start.cds_from != value.end.cds_from {
             Err(Error::IllDefinedConversion(format!("{:?}", value)))
@@ -817,7 +817,7 @@ impl From<TxInterval> for Range<i32> {
     /// `[start, end]` to 0-based, half-open Rust range `[start - 1, end)`.
     fn from(val: TxInterval) -> Self {
         if val.start.offset.is_some() || val.end.offset.is_some() {
-            warn!("Converting interval {:?} with offset to range!", &val);
+            warn!("Converting interval {:?} with offset to range!", val);
         }
         if val.start.base > 0 {
             (val.start.base - 1)..val.end.base
@@ -882,7 +882,7 @@ impl From<RnaInterval> for Range<i32> {
     /// `[start, end]` to 0-based, half-open Rust range `[start - 1, end)`.
     fn from(val: RnaInterval) -> Self {
         if val.start.offset.is_some() || val.end.offset.is_some() {
-            warn!("Converting interval {:?} with offset to range!", &val);
+            warn!("Converting interval {:?} with offset to range!", val);
         }
         if val.start.base > 0 {
             (val.start.base - 1)..val.end.base

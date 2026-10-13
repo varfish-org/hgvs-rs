@@ -2111,7 +2111,7 @@ mod test {
             let line = line.trim();
             if !line.starts_with('#') && !line.is_empty() {
                 let hgvs_variant = HgvsVariant::from_str(line)?;
-                let hgvs_str = format!("{}", &hgvs_variant);
+                let hgvs_str = format!("{}", hgvs_variant);
                 assert_eq!(
                     hgvs_str, line,
                     "round-trip failed for variant {:?}; line= {}",

@@ -968,7 +968,7 @@ impl TxProvider {
             }
 
             // Sorted by length in descending order.
-            tmp.sort_by(|a, b| b.0.cmp(&a.0));
+            tmp.sort_by_key(|b| std::cmp::Reverse(b.0));
 
             Ok(tmp.into_iter().map(|x| x.1).collect())
         } else {
@@ -1204,7 +1204,7 @@ pub mod test_helpers {
             tracing::debug!("writing provider...");
             build_writing_sr(sr_cache_path)?.0
         } else {
-            panic!("Invalid cache mode {}", &sr_cache_mode);
+            panic!("Invalid cache mode {}", sr_cache_mode);
         };
         tracing::debug!("now returning provider...");
 

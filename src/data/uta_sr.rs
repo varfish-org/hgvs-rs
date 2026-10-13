@@ -212,7 +212,7 @@ pub mod test_helpers {
             tracing::debug!("writing provider...");
             build_writing_sr(sr_cache_path)?
         } else {
-            panic!("Invalid cache mode {}", &sr_cache_mode);
+            panic!("Invalid cache mode {}", sr_cache_mode);
         };
         tracing::debug!("now returning provider...");
 
@@ -237,7 +237,7 @@ pub mod test_helpers {
             .parent()
             .ok_or(anyhow::anyhow!(
                 "Could not get parent from {}",
-                &seqrepo_path
+                seqrepo_path
             ))?
             .to_str()
             .expect("problem with path to string conversion")
@@ -246,7 +246,7 @@ pub mod test_helpers {
             .file_name()
             .ok_or(anyhow::anyhow!(
                 "Could not get basename from {}",
-                &seqrepo_path
+                seqrepo_path
             ))?
             .to_str()
             .expect("problem with path to string conversion")
