@@ -1614,6 +1614,101 @@ mod test {
         Ok(())
     }
 
+    /// Transcripts whose CDS has no stop codon, e.g., GENCODE `cds_end_NF`:
+    ///
+    /// * `NM_999993.1`: `ATG GCC AAG CTG TGG GAA` (`MAKLWE`).
+    /// * `NM_999994.1`: `ATG GCC AAG CTG TGG GAA GC` (`MAKLWE` and a partial codon).
+    ///
+    /// The CDS of `NM_999995.1` has a stop codon, but its length is not a multiple of 3, as a
+    /// +1 ribosomal frameshift skips the `T` after `TCC`: `ATG GCC TCC T GAT GGC TAA`
+    /// (`MASDG*`).
+    fn no_stop_codon_provider() -> std::sync::Arc<sanity_mock::Provider> {
+        let record =
+            |accession: &str, transcript_sequence: &str, cds_end_i| sanity_mock::ProviderRecord {
+                accession: accession.to_string(),
+                transcript_sequence: transcript_sequence.to_string(),
+                cds_start_i: 9,
+                cds_end_i,
+                translation_exceptions: Vec::new(),
+            };
+        std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+            record("NM_999993.1", "AAAATCAAAATGGCCAAGCTGTGGGAA", 27),
+            record("NM_999994.1", "AAAATCAAAATGGCCAAGCTGTGGGAAGC", 29),
+            record("NM_999995.1", "AAAATCAAAATGGCCTCCTGATGGCTAAGGGG", 28),
+        ]))
+    }
+
+    /// A CDS with a partial last codon translates up to its last complete codon, unless a
+    /// stop codon in frame shows that the CDS changes the frame.
+    #[test]
+    fn reference_protein_of_partial_last_codon() -> Result<(), Error> {
+        let ref_data = crate::mapper::altseq::RefTranscriptData::new(
+            no_stop_codon_provider(),
+            "NM_999994.1",
+            Some("MOCK"),
+        )?;
+        assert_eq!(ref_data.aa_sequence.as_ref(), "MAKLWE");
+        assert_eq!((ref_data.cds_start, ref_data.cds_stop), (10, 29));
+
+        assert!(matches!(
+            crate::mapper::altseq::RefTranscriptData::new(
+                no_stop_codon_provider(),
+                "NM_999995.1",
+                Some("MOCK"),
+            ),
+            Err(crate::mapper::error::Error::TranscriptLengthInvalid(tx_ac, 19))
+                if tx_ac == "NM_999995.1"
+        ));
+
+        Ok(())
+    }
+
+    /// Without a stop codon, the last amino acid is an ordinary one, and the amino acids after
+    /// it are unknown.
+    #[test]
+    fn hgvs_c_to_p_no_stop_codon() -> Result<(), Error> {
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(&config, no_stop_codon_provider());
+
+        for (hgvsc, hgvsp_expected) in [
+            ("NM_999993.1:c.18A>G", "MOCK:p.Glu6="),
+            ("NM_999993.1:c.18A>C", "MOCK:p.Glu6Asp"),
+            ("NM_999993.1:c.16_18del", "MOCK:p.Glu6del"),
+            ("NM_999993.1:c.13_15del", "MOCK:p.Trp5del"),
+            ("NM_999993.1:c.15_16insGGG", "MOCK:p.Trp5_Glu6insGly"),
+            ("NM_999993.1:c.15G>A", "MOCK:p.Trp5Ter"),
+            ("NM_999993.1:c.13_14insCCTA", "MOCK:p.Trp5SerfsTer2"),
+            ("NM_999993.1:c.17_18insC", "MOCK:p.Glu6AspfsTer?"),
+            // The CDS ends before the new frame changes a complete codon.
+            ("NM_999993.1:c.18del", "MOCK:p.?"),
+            ("NM_999993.1:c.16del", "MOCK:p.?"),
+            // The copy follows the last amino acid.
+            ("NM_999993.1:c.16_18dup", "MOCK:p.?"),
+            ("NM_999994.1:c.18A>G", "MOCK:p.Glu6="),
+            ("NM_999994.1:c.18A>C", "MOCK:p.Glu6Asp"),
+            ("NM_999994.1:c.16_18del", "MOCK:p.Glu6del"),
+            ("NM_999994.1:c.15G>A", "MOCK:p.Trp5Ter"),
+            ("NM_999994.1:c.13_14insCCTA", "MOCK:p.Trp5SerfsTer2"),
+            // The new frame completes the partial codon ...
+            ("NM_999994.1:c.16del", "MOCK:p.Glu6LysfsTer?"),
+            // ... but can keep the last amino acid.
+            ("NM_999994.1:c.18del", "MOCK:p.?"),
+            // Changes after the last complete codon.
+            ("NM_999994.1:c.19G>A", "MOCK:p.?"),
+            ("NM_999994.1:c.19_20insGTGGGAAC", "MOCK:p.?"),
+            ("NM_999994.1:c.18_19insTAA", "MOCK:p.?"),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
+        }
+
+        Ok(())
+    }
+
     fn test_hgvs_c_to_p_conversion(hgvsc: &str, hgvsp_expected: &str) -> Result<(), Error> {
         let mapper = sanity_mock::build_mapper(false)?;
 

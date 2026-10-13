@@ -71,6 +71,10 @@ pub fn ref_transcript_data_cached(
 impl RefTranscriptData {
     /// Construct new instance fetching data from the provider..
     ///
+    /// If the length of the CDS is not a multiple of 3, the protein ends with the last
+    /// complete codon and has no stop codon.  Unlike biocommons/hgvs, which rejects such a
+    /// CDS, this returns an error only if a stop codon is in frame.
+    ///
     /// # Args
     ///
     /// * `provider` -- Data provider to query.
@@ -94,25 +98,29 @@ impl RefTranscriptData {
         let cds_start = cds_start_i + 1;
         let cds_stop = cds_end_i;
 
-        // Coding sequences that are not divisable by 3 are not yet supported.
+        // Translate up to the last complete codon.  A CDS with an incomplete 3' end, e.g.,
+        // GENCODE `cds_end_NF`, can end with a partial codon.
         let tx_seq_to_translate =
             &transcript_sequence[((cds_start - 1) as usize)..(cds_stop as usize)];
-        if tx_seq_to_translate.len() % 3 != 0 {
-            return Err(Error::TranscriptLengthInvalid(
-                tx_ac.to_string(),
-                tx_seq_to_translate.len(),
-            ));
-        }
+        let full_codons_len = tx_seq_to_translate.len() - tx_seq_to_translate.len() % 3;
 
         let translation_exceptions = provider.as_ref().get_tx_translation_exceptions(tx_ac)?;
         let aa_sequence: Arc<str> = translate_cds_with_exceptions(
-            tx_seq_to_translate,
+            &tx_seq_to_translate[..full_codons_len],
             true,
             "*",
             tx_info.translation_table,
             &codon_exceptions(&translation_exceptions),
         )?
         .into();
+        // A stop codon in frame means that the CDS changes the frame instead, e.g., by
+        // ribosomal slippage as in OAZ1.  A translation in one frame would be wrong.
+        if full_codons_len != tx_seq_to_translate.len() && aa_sequence.contains('*') {
+            return Err(Error::TranscriptLengthInvalid(
+                tx_ac.to_string(),
+                tx_seq_to_translate.len(),
+            ));
+        }
         let protein_accession: Arc<str> = if let Some(pro_ac) = pro_ac {
             pro_ac.into()
         } else if let Some(pro_ac) = provider.as_ref().get_pro_ac_for_tx_ac(tx_ac)? {
@@ -1028,14 +1036,23 @@ impl<'a> AltSeqToHgvsp<'a> {
             is_frameshift,
         } = &record;
 
+        // The reference protein lacks the stop codon if its CDS has an incomplete 3' end.  Then
+        // its last amino acid is an ordinary one, and the amino acids after it are unknown.
+        let has_stop_codon = self.ref_seq().ends_with('*');
+
         // Handle the case of the variant being after the end of the protein sequence.  This can
         // happen when the variant is 5'-to-3' shifted beyond the stop codon.  In this case, we
-        // can simply return `ProtLocEdit::NoChange` which will display as `p.=`.
+        // can simply return `ProtLocEdit::NoChange` which will display as `p.=`.  Without a
+        // stop codon, the effect is unknown, i.e., `p.?`.
         if *start as usize > self.ref_seq().len() {
             return Ok(HgvsVariant::ProtVariant {
                 accession: Accession::new(protein_accession),
                 gene_symbol: None,
-                loc_edit: ProtLocEdit::NoChange,
+                loc_edit: if has_stop_codon {
+                    ProtLocEdit::NoChange
+                } else {
+                    ProtLocEdit::Unknown
+                },
             });
         }
 
@@ -1077,7 +1094,7 @@ impl<'a> AltSeqToHgvsp<'a> {
             reference = "".to_string();
             alternative = "*".to_string();
             is_sub = true;
-        } else if *start as usize == self.ref_seq().len() {
+        } else if has_stop_codon && *start as usize == self.ref_seq().len() {
             // extension
             fsext_len = if self.alt_seq().ends_with('*') {
                 UncertainLengthChange::Known(insertion.len() as i32 - deletion.len() as i32)
@@ -1099,7 +1116,9 @@ impl<'a> AltSeqToHgvsp<'a> {
                 .unwrap_or_default();
             is_ext = true;
         } else if *is_frameshift {
-            // frameshift
+            // frameshift; without a stop codon, the CDS can end before the new frame changes
+            // a complete codon, and then the effect is unknown
+            is_ambiguous |= !has_stop_codon && (insertion.is_empty() || insertion == deletion);
             aa_start = Some(ProtPos {
                 aa: deletion
                     .chars()
@@ -1174,7 +1193,7 @@ impl<'a> AltSeqToHgvsp<'a> {
                 alternative.clone_from(insertion);
             } else {
                 // deletion OR stop codon at variant position
-                if deletion.len() as i32 + start == self.ref_seq().len() as i32 {
+                if has_stop_codon && deletion.len() as i32 + start == self.ref_seq().len() as i32 {
                     // stop codon at variant position
                     aa_end = aa_start.clone();
                     reference = "".to_string();
