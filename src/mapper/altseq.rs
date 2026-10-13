@@ -15,6 +15,17 @@ use crate::{
     sequences::{revcomp, translate_cds_with_exceptions, TranslationTable},
 };
 
+/// How the CDS of a transcript ends.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CdsEnd {
+    /// Ends with a stop codon.
+    StopCodon,
+    /// Complete codons, no stop codon.
+    NoStopCodon,
+    /// Trailing bases of an incomplete codon.
+    IncompleteCodon(String),
+}
+
 #[derive(Debug, Clone)]
 pub struct RefTranscriptData {
     /// Transcript nucleotide sequence.
@@ -37,6 +48,8 @@ pub struct RefTranscriptData {
     pub exon_start_positions: Vec<i32>,
     /// c. base of the last base of each exon, see `exon_start_positions`.
     pub exon_end_positions: Vec<i32>,
+    /// How the CDS ends.  `aa_sequence` holds its complete codons only.
+    pub cds_end: CdsEnd,
 }
 
 /// The 0-based codon indices and the amino acids of the translation `exceptions`.
@@ -72,8 +85,8 @@ impl RefTranscriptData {
     /// Construct new instance fetching data from the provider..
     ///
     /// If the length of the CDS is not a multiple of 3, the protein ends with the last
-    /// complete codon and has no stop codon.  Unlike biocommons/hgvs, which rejects such a
-    /// CDS, this returns an error only if a stop codon is in frame.
+    /// complete codon, and `cds_end` holds the bases after it.  Unlike biocommons/hgvs, which
+    /// rejects such a CDS, this returns an error only if a stop codon is in frame.
     ///
     /// # Args
     ///
@@ -99,7 +112,7 @@ impl RefTranscriptData {
         let cds_stop = cds_end_i;
 
         // Translate up to the last complete codon.  A CDS with an incomplete 3' end, e.g.,
-        // GENCODE `cds_end_NF`, can end with a partial codon.
+        // GENCODE `cds_end_NF`, can end with an incomplete codon.
         let tx_seq_to_translate =
             &transcript_sequence[((cds_start - 1) as usize)..(cds_stop as usize)];
         let full_codons_len = tx_seq_to_translate.len() - tx_seq_to_translate.len() % 3;
@@ -113,14 +126,19 @@ impl RefTranscriptData {
             &codon_exceptions(&translation_exceptions),
         )?
         .into();
-        // A stop codon in frame means that the CDS changes the frame instead, e.g., by
-        // ribosomal slippage as in OAZ1.  A translation in one frame would be wrong.
-        if full_codons_len != tx_seq_to_translate.len() && aa_sequence.contains('*') {
-            return Err(Error::TranscriptLengthInvalid(
-                tx_ac.to_string(),
-                tx_seq_to_translate.len(),
-            ));
-        }
+        let cds_end = match &tx_seq_to_translate[full_codons_len..] {
+            "" if aa_sequence.ends_with('*') => CdsEnd::StopCodon,
+            "" => CdsEnd::NoStopCodon,
+            // A stop codon in frame means that the CDS changes the frame instead, e.g., by
+            // ribosomal slippage as in OAZ1.  A translation in one frame would be wrong.
+            _ if aa_sequence.contains('*') => {
+                return Err(Error::TranscriptLengthInvalid(
+                    tx_ac.to_string(),
+                    tx_seq_to_translate.len(),
+                ))
+            }
+            bases => CdsEnd::IncompleteCodon(bases.to_string()),
+        };
         let protein_accession: Arc<str> = if let Some(pro_ac) = pro_ac {
             pro_ac.into()
         } else if let Some(pro_ac) = provider.as_ref().get_pro_ac_for_tx_ac(tx_ac)? {
@@ -163,6 +181,7 @@ impl RefTranscriptData {
             translation_exceptions,
             exon_start_positions,
             exon_end_positions,
+            cds_end,
         })
     }
 }
@@ -1036,9 +1055,9 @@ impl<'a> AltSeqToHgvsp<'a> {
             is_frameshift,
         } = &record;
 
-        // The reference protein lacks the stop codon if its CDS has an incomplete 3' end.  Then
-        // its last amino acid is an ordinary one, and the amino acids after it are unknown.
-        let has_stop_codon = self.ref_seq().ends_with('*');
+        // Without a stop codon, the last amino acid of the reference protein is an ordinary
+        // one, and the amino acids after it are unknown.
+        let has_stop_codon = self.ref_data.cds_end == CdsEnd::StopCodon;
 
         // Handle the case of the variant being after the end of the protein sequence.  This can
         // happen when the variant is 5'-to-3' shifted beyond the stop codon.  In this case, we
@@ -1401,7 +1420,7 @@ mod test {
 
     use crate::{mapper::Error, parser::HgvsVariant, sequences::TranslationTable};
 
-    use super::{AltSeqBuilder, RefTranscriptData};
+    use super::{AltSeqBuilder, CdsEnd, RefTranscriptData};
 
     #[test]
     fn build_altseq_fails_for_non_cds_variant() -> Result<(), anyhow::Error> {
@@ -1413,6 +1432,7 @@ mod test {
             protein_accession: "MOCK".into(),
             translation_table: TranslationTable::Standard,
             translation_exceptions: Vec::new(),
+            cds_end: CdsEnd::StopCodon,
         };
 
         for hgvs in [

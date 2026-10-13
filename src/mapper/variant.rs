@@ -1617,7 +1617,7 @@ mod test {
     /// Transcripts whose CDS has no stop codon, e.g., GENCODE `cds_end_NF`:
     ///
     /// * `NM_999993.1`: `ATG GCC AAG CTG TGG GAA` (`MAKLWE`).
-    /// * `NM_999994.1`: `ATG GCC AAG CTG TGG GAA GC` (`MAKLWE` and a partial codon).
+    /// * `NM_999994.1`: `ATG GCC AAG CTG TGG GAA GC` (`MAKLWE` and an incomplete codon).
     ///
     /// The CDS of `NM_999995.1` has a stop codon, but its length is not a multiple of 3, as a
     /// +1 ribosomal frameshift skips the `T` after `TCC`: `ATG GCC TCC T GAT GGC TAA`
@@ -1638,17 +1638,47 @@ mod test {
         ]))
     }
 
-    /// A CDS with a partial last codon translates up to its last complete codon, unless a
-    /// stop codon in frame shows that the CDS changes the frame.
+    /// The reference protein holds the complete codons of the CDS, and `cds_end` tells how the
+    /// CDS ends.  A CDS with an incomplete codon is rejected if a stop codon in frame shows
+    /// that the CDS changes the frame.
     #[test]
-    fn reference_protein_of_partial_last_codon() -> Result<(), Error> {
-        let ref_data = crate::mapper::altseq::RefTranscriptData::new(
-            no_stop_codon_provider(),
-            "NM_999994.1",
-            Some("MOCK"),
-        )?;
-        assert_eq!(ref_data.aa_sequence.as_ref(), "MAKLWE");
-        assert_eq!((ref_data.cds_start, ref_data.cds_stop), (10, 29));
+    fn reference_protein_and_cds_end() -> Result<(), Error> {
+        use crate::mapper::altseq::{CdsEnd, RefTranscriptData};
+
+        for (provider, tx_ac, aa_sequence, cds_stop, cds_end) in [
+            (
+                translation_exceptions_provider(),
+                "NM_999991.1",
+                "MAKLWEPRV*",
+                39,
+                CdsEnd::StopCodon,
+            ),
+            (
+                no_stop_codon_provider(),
+                "NM_999993.1",
+                "MAKLWE",
+                27,
+                CdsEnd::NoStopCodon,
+            ),
+            (
+                no_stop_codon_provider(),
+                "NM_999994.1",
+                "MAKLWE",
+                29,
+                CdsEnd::IncompleteCodon("GC".to_string()),
+            ),
+        ] {
+            let ref_data = RefTranscriptData::new(provider, tx_ac, Some("MOCK"))?;
+            assert_eq!(
+                (
+                    ref_data.aa_sequence.as_ref(),
+                    ref_data.cds_stop,
+                    ref_data.cds_end
+                ),
+                (aa_sequence, cds_stop, cds_end),
+                "{tx_ac}"
+            );
+        }
 
         assert!(matches!(
             crate::mapper::altseq::RefTranscriptData::new(
@@ -1693,7 +1723,7 @@ mod test {
             ("NM_999994.1:c.16_18del", "MOCK:p.Glu6del"),
             ("NM_999994.1:c.15G>A", "MOCK:p.Trp5Ter"),
             ("NM_999994.1:c.13_14insCCTA", "MOCK:p.Trp5SerfsTer2"),
-            // The new frame completes the partial codon ...
+            // The new frame completes the incomplete codon ...
             ("NM_999994.1:c.16del", "MOCK:p.Glu6LysfsTer?"),
             // ... but can keep the last amino acid.
             ("NM_999994.1:c.18del", "MOCK:p.?"),
