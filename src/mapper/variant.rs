@@ -1630,6 +1630,7 @@ mod test {
                 cds_start_i: 9,
                 cds_end_i,
                 translation_exceptions: Vec::new(),
+                lengths: Vec::new(),
             };
         std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
             record("NM_999993.1", "AAAATCAAAATGGCCAAGCTGTGGGAA", 27),

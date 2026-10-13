@@ -1432,6 +1432,8 @@ mod test {
             protein_accession: "MOCK".into(),
             translation_table: TranslationTable::Standard,
             translation_exceptions: Vec::new(),
+            exon_start_positions: Vec::new(),
+            exon_end_positions: Vec::new(),
             cds_end: CdsEnd::StopCodon,
         };
 
