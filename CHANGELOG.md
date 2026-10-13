@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.0.0](https://github.com/varfish-org/hgvs-rs/compare/v1.0.0...v2.0.0) (2026-10-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* RefTranscriptData has the new public field cds_end of the new type CdsEnd. Code that builds the struct literally must set it.
+* variant::Config, assembly::Config, AltSeqBuilder and RefTranscriptData have new public fields. mapper::Error has the new variant DuplicationReferenceMissing. By default, c_to_p gives p.? for a dup of the first or last bases of an exon.
+
+### Features
+
+* port ins_at_boundary_is_intronic from biocommons/hgvs ([#301](https://github.com/varfish-org/hgvs-rs/issues/301)) ([69ec384](https://github.com/varfish-org/hgvs-rs/commit/69ec3845595bb30d3561c67e154b88797978bbaa))
+* support c_to_p for a CDS with an incomplete 3' end ([#299](https://github.com/varfish-org/hgvs-rs/issues/299)) ([8d7a3bc](https://github.com/varfish-org/hgvs-rs/commit/8d7a3bc65af2cac2b8c698eeb910f4a0604139cf))
+
+
+### Bug Fixes
+
+* return error for non-c. variants in AltSeqBuilder ([#300](https://github.com/varfish-org/hgvs-rs/issues/300)) ([3f3465a](https://github.com/varfish-org/hgvs-rs/commit/3f3465a5a02103fa4aa6cca2f54e5b8dcdead28e))
+
 ## [1.0.0](https://github.com/varfish-org/hgvs-rs/compare/v0.22.0...v1.0.0) (2026-10-04)
 
 
