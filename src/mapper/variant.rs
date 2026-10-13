@@ -1,7 +1,7 @@
 //! Code for mapping variants between sequences.
 
 use cached::proc_macro::cached;
-use cached::SizedCache;
+use cached::LruCache;
 use log::{debug, info};
 use std::ops::Deref;
 use std::{ops::Range, sync::Arc};
@@ -1080,8 +1080,9 @@ impl Mapper {
 /// 2. convert the result to an option instead
 /// 3. return a generic error instead
 #[cached(
-    ty = "SizedCache<(String, String, bool, String, String, String), Result<alignment::Mapper, Error>>",
-    create = "{ SizedCache::with_size(1000) }",
+    ty = "LruCache<(String, String, bool, String, String, String), Result<alignment::Mapper, Error>>",
+    create = "{ LruCache::builder().max_size(1000).build().expect(\"valid cache size\") }",
+    cache_err = true,
     convert = r#"{ (provider.data_version().to_string(),
                     provider.schema_version().to_string(),
                     strict_bounds,
