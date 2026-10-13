@@ -222,7 +222,7 @@ pub fn aa1_to_aa3(seq: &str) -> Result<String, Error> {
 /// The sequence as 1-letter amino acids.
 #[allow(dead_code)]
 pub fn aa3_to_aa1(seq: &str) -> Result<String, Error> {
-    if seq.len() % 3 != 0 {
+    if !seq.len().is_multiple_of(3) {
         return Err(Error::InvalidThreeLetterAminoAcidLength(seq.len()));
     }
 
@@ -234,7 +234,7 @@ pub fn aa3_to_aa1(seq: &str) -> Result<String, Error> {
             Error::InvalidThreeLetterAminoAcid(s.to_string(), format!("{}", i + 1))
         })?;
 
-        result.push(aa1 as u8);
+        result.push(aa1);
     }
 
     // SAFETY: _aa3_to_aa1 only returns valid ASCII/UTF-8 bytes.
@@ -252,7 +252,7 @@ pub fn aa3_to_aa1(seq: &str) -> Result<String, Error> {
 /// Whether the string is of the format of a 3-letter AA string.
 #[allow(dead_code)]
 fn looks_like_aa3_p(seq: &str) -> bool {
-    seq.len() % 3 == 0
+    seq.len().is_multiple_of(3)
         && seq
             .as_bytes()
             .get(1)
@@ -286,7 +286,7 @@ pub fn translate_cds(
         return Ok(String::new());
     }
 
-    if full_codons && seq.len() % 3 != 0 {
+    if full_codons && !seq.len().is_multiple_of(3) {
         return Err(Error::UntranslatableDnaLenth(seq.len()));
     }
 
@@ -316,7 +316,7 @@ pub fn translate_cds(
         }
     }
 
-    if !full_codons && seq.len() % 3 != 0 {
+    if !full_codons && !seq.len().is_multiple_of(3) {
         result.extend_from_slice(ter_symbol.as_bytes());
     }
 

@@ -133,7 +133,7 @@ impl std::ops::DerefMut for CigarString {
 impl Display for CigarString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for item in &self.elems {
-            write!(f, "{}", &item)?
+            write!(f, "{}", item)?
         }
         Ok(())
     }

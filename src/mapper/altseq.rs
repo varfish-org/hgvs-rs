@@ -3,7 +3,7 @@
 use std::{cmp::Ordering, sync::Arc};
 
 use cached::proc_macro::cached;
-use cached::SizedCache;
+use cached::LruCache;
 
 use crate::{
     data::interface::{Provider, TranslationException},
@@ -64,8 +64,9 @@ fn codon_exceptions(exceptions: &[TranslationException]) -> Vec<(usize, char)> {
 }
 
 #[cached(
-    ty = "SizedCache<(String, String, String, Option<String>), Result<RefTranscriptData, Error>>",
-    create = "{ SizedCache::with_size(1000) }",
+    ty = "LruCache<(String, String, String, Option<String>), Result<RefTranscriptData, Error>>",
+    create = "{ LruCache::builder().max_size(1000).build().expect(\"valid cache size\") }",
+    cache_err = true,
     convert = r#"{ (
         provider.data_version().to_string(),
         provider.schema_version().to_string(),
@@ -1278,7 +1279,7 @@ impl<'a> AltSeqToHgvsp<'a> {
                 alternative.clone_from(insertion);
             }
         } else {
-            panic!("Unexpected variant: {:?}", &record);
+            panic!("Unexpected variant: {:?}", record);
         }
 
         self.create_variant(

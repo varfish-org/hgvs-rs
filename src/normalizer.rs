@@ -239,7 +239,7 @@ impl<'a> Normalizer<'a> {
         match &var {
             HgvsVariant::TxVariant { .. } | HgvsVariant::RnaVariant { .. } => {
                 if var.spans_intron() {
-                    Err(Error::IntronicVariant(format!("{}", &var)))
+                    Err(Error::IntronicVariant(format!("{}", var)))
                 } else {
                     Ok(())
                 }
@@ -262,7 +262,7 @@ impl<'a> Normalizer<'a> {
                         var_loc_range.end as usize,
                     )?
             {
-                return Err(Error::CoordinatesOutOfBounds(format!("{}", &var)));
+                return Err(Error::CoordinatesOutOfBounds(format!("{}", var)));
             }
         } else {
             panic!("Cannot happen; guarded against above")
@@ -346,11 +346,11 @@ impl<'a> Normalizer<'a> {
             }
 
             let (idx_start, mut left, mut right) =
-                start_info.ok_or_else(|| Error::ExonNotFoundForStart(format!("{}", &var)))?;
-            let idx_end = end_idx.ok_or_else(|| Error::ExonNotFoundForEnd(format!("{}", &var)))?;
+                start_info.ok_or_else(|| Error::ExonNotFoundForStart(format!("{}", var)))?;
+            let idx_end = end_idx.ok_or_else(|| Error::ExonNotFoundForEnd(format!("{}", var)))?;
 
             if idx_start != idx_end {
-                return Err(Error::ExonIntronBoundary(format!("{}", &var)));
+                return Err(Error::ExonIntronBoundary(format!("{}", var)));
             }
 
             if let Some(cds_start) = cds_start {
@@ -359,7 +359,7 @@ impl<'a> Normalizer<'a> {
                 } else if loc_range.start >= cds_start {
                     left = left.max(cds_start);
                 } else {
-                    return Err(Error::UtrExonBoundary(format!("{}", &var)));
+                    return Err(Error::UtrExonBoundary(format!("{}", var)));
                 }
             }
 
@@ -369,7 +369,7 @@ impl<'a> Normalizer<'a> {
                 } else if loc_range.end - 1 < cds_end {
                     right = right.min(cds_end);
                 } else {
-                    return Err(Error::UtrExonBoundary(format!("{}", &var)));
+                    return Err(Error::UtrExonBoundary(format!("{}", var)));
                 }
             }
 
@@ -557,7 +557,7 @@ impl<'a> Normalizer<'a> {
         // Ensure the start is not 0.
         let (ref_start, ref_end, edit, _reference, alternative) = if ref_start == 0 {
             let reference = self.fetch_bounded_seq(&var, 0, 1, 0, &boundary)?;
-            let alternative = format!("{}{}", alternative, &reference);
+            let alternative = format!("{}{}", alternative, reference);
 
             (
                 1,
@@ -577,7 +577,7 @@ impl<'a> Normalizer<'a> {
         let tgt_len = self.get_tgt_len(&var)?;
         let (ref_start, ref_end, edit) = if ref_end == tgt_len.saturating_add(1) {
             let reference = self.fetch_bounded_seq(&var, tgt_len - 1, tgt_len, 0, &boundary)?;
-            let alternative = format!("{}{}", &reference, alternative);
+            let alternative = format!("{}{}", reference, alternative);
             (
                 tgt_len,
                 tgt_len,
@@ -853,7 +853,7 @@ impl<'a> Normalizer<'a> {
         let seq_len: i32 = seq.len().try_into()?;
 
         if seq_len < end - start && seq_len < var_len {
-            Err(Error::VariantSpanOutsideSequenceBounds(format!("{}", &var)))
+            Err(Error::VariantSpanOutsideSequenceBounds(format!("{}", var)))
         } else {
             Ok(seq)
         }

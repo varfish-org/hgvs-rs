@@ -887,7 +887,7 @@ mod test {
     /// - one: input is a single value
     /// - string: input is a string; test each character in the string separately
     /// - list: input is a list delimited by a pipe character ("|")
-    /// Expected: expected result (if stringifying input does not return the same answer, e,g. "+1" -> "1")
+    ///   Expected: expected result (if stringifying input does not return the same answer, e,g. "+1" -> "1")
     /// - if expected is left blank, then it is assumed that stringifying the parsed input returns the same answer.
     mod grammar_full {
         use anyhow::Error;
@@ -931,7 +931,7 @@ mod test {
                     .to_lowercase()
                     == "true";
 
-                for (input, expected) in inputs.into_iter().zip(expected_results.into_iter()) {
+                for (input, expected) in inputs.into_iter().zip(expected_results) {
                     let func = row.get(0).expect("problem with test input file");
                     match func {
                         "accn" => {
@@ -964,7 +964,7 @@ mod test {
             } else if in_type == "one" {
                 vec![in_string.to_string()]
             } else {
-                panic!("should never reach here (in_type={:?})", &in_type)
+                panic!("should never reach here (in_type={:?})", in_type)
             };
 
             Ok(inputs

@@ -1,7 +1,7 @@
 //! Code for mapping variants between sequences.
 
 use cached::proc_macro::cached;
-use cached::SizedCache;
+use cached::LruCache;
 use log::{debug, info};
 use std::ops::Deref;
 use std::{ops::Range, sync::Arc};
@@ -328,7 +328,7 @@ impl Mapper {
 
             Ok(var_n)
         } else {
-            Err(Error::ExpectedGenomeVariant(format!("{}", &var_g)))
+            Err(Error::ExpectedGenomeVariant(format!("{}", var_g)))
         }
     }
 
@@ -417,7 +417,7 @@ impl Mapper {
 
             Ok(var_g)
         } else {
-            Err(Error::ExpectedTxVariant(format!("{}", &var_n)))
+            Err(Error::ExpectedTxVariant(format!("{}", var_n)))
         }
     }
 
@@ -509,7 +509,7 @@ impl Mapper {
 
             Ok(var_c)
         } else {
-            Err(Error::ExpectedGenomeVariant(format!("{}", &var_g)))
+            Err(Error::ExpectedGenomeVariant(format!("{}", var_g)))
         }
     }
 
@@ -577,7 +577,7 @@ impl Mapper {
                         edit: Mu::Certain(
                             var_c
                                 .na_edit()
-                                .ok_or(Error::NoNAEditInHgvsC(format!("{}", &var_c)))?
+                                .ok_or(Error::NoNAEditInHgvsC(format!("{}", var_c)))?
                                 .clone(),
                         ),
                     },
@@ -610,7 +610,7 @@ impl Mapper {
 
             Ok(var_g)
         } else {
-            Err(Error::ExpectedCdsVariant(format!("{}", &var_c)))
+            Err(Error::ExpectedCdsVariant(format!("{}", var_c)))
         }
     }
 
@@ -636,7 +636,7 @@ impl Mapper {
         match var_t {
             HgvsVariant::TxVariant { .. } => self.n_to_g(&var_t, alt_ac, alt_aln_method),
             HgvsVariant::CdsVariant { .. } => self.c_to_g(&var_t, alt_ac, alt_aln_method),
-            _ => Err(Error::ExpectedCdsVariant(format!("{}", &var_t))),
+            _ => Err(Error::ExpectedCdsVariant(format!("{}", var_t))),
         }
     }
 
@@ -681,7 +681,7 @@ impl Mapper {
             tracing::debug!("c_to_n({}) = {}", var_c, &var_n);
             Ok(var_n)
         } else {
-            Err(Error::ExpectedCdsVariant(format!("{}", &var_c)))
+            Err(Error::ExpectedCdsVariant(format!("{}", var_c)))
         }
     }
 
@@ -724,7 +724,7 @@ impl Mapper {
 
             Ok(var_c)
         } else {
-            Err(Error::ExpectedTxVariant(format!("{}", &var_n)))
+            Err(Error::ExpectedTxVariant(format!("{}", var_n)))
         }
     }
 
@@ -807,7 +807,7 @@ impl Mapper {
 
             Ok(var_p)
         } else {
-            Err(Error::ExpectedCdsVariant(format!("{}", &var_c)))
+            Err(Error::ExpectedCdsVariant(format!("{}", var_c)))
         }
     }
 
@@ -1080,8 +1080,9 @@ impl Mapper {
 /// 2. convert the result to an option instead
 /// 3. return a generic error instead
 #[cached(
-    ty = "SizedCache<(String, String, bool, String, String, String), Result<alignment::Mapper, Error>>",
-    create = "{ SizedCache::with_size(1000) }",
+    ty = "LruCache<(String, String, bool, String, String, String), Result<alignment::Mapper, Error>>",
+    create = "{ LruCache::builder().max_size(1000).build().expect(\"valid cache size\") }",
+    cache_err = true,
     convert = r#"{ (provider.data_version().to_string(),
                     provider.schema_version().to_string(),
                     strict_bounds,
@@ -1288,7 +1289,6 @@ mod test {
     /// The following tests corresponds to the `test_hgvs_variantmapper_cp_sanity.py`
     /// test suite of the Python package.  It uses a mock data provider, defined
     /// in the `sanity_mock` module.
-
     mod sanity_mock {
         use std::{
             path::{Path, PathBuf},
@@ -1747,7 +1747,7 @@ mod test {
         let ac_p = "MOCK";
 
         let var_p = mapper.c_to_p(&var_c, Some(ac_p))?;
-        let hgvsp_actual = format!("{}", &var_p);
+        let hgvsp_actual = format!("{}", var_p);
 
         assert_eq!(hgvsp_actual, hgvsp_expected);
 
@@ -2314,7 +2314,7 @@ mod test {
                 .next()
                 .map(|s| s.to_string());
             let var_p = mapper.c_to_p(&var_c, prot_ac.as_deref())?;
-            let result = format!("{}", &var_p);
+            let result = format!("{}", var_p);
             let expected = &record.hgvs_p.expect("problem with result in test");
 
             let expected = if &result != expected {
@@ -2333,7 +2333,7 @@ mod test {
     fn run_gxp_test(path: &str, noref: bool) -> Result<(), Error> {
         fn rm_del_seq(var: &HgvsVariant, noref: bool) -> String {
             let tmp = if noref {
-                format!("{}", &NoRef(var))
+                format!("{}", NoRef(var))
             } else {
                 format!("{var}")
             };
@@ -2343,6 +2343,7 @@ mod test {
 
         let mapper = build_mapper()?;
         let records = gcp_tests::load_records(Path::new(path))?;
+        let re = Regex::new(r"Ter\d+$").expect("problem with regex in test");
 
         for record in &records {
             let var_g = HgvsVariant::from_str(&record.hgvs_g)?;
@@ -2423,10 +2424,9 @@ mod test {
                 //     # if expected value isn't uncertain, strip uncertain from test
                 //     var_p_test.posedit.uncertain = False
 
-                let mut hgvs_p_test = format!("{}", &var_p_test);
+                let mut hgvs_p_test = format!("{}", var_p_test);
 
                 if hgvs_p_exp.ends_with("Ter") {
-                    let re = Regex::new(r"Ter\d+$").expect("problem with regex in test");
                     hgvs_p_test = re.replace(&hgvs_p_test, "Ter").to_string();
                 }
 

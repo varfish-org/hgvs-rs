@@ -133,7 +133,7 @@ impl Mapper {
                 .as_ref()
                 .get_assembly_map(&config.assembly)
                 .unwrap_or_else(|_| {
-                    panic!("assembly map for {} should be available", &config.assembly)
+                    panic!("assembly map for {} should be available", config.assembly)
                 })
                 .into_iter()
                 .map(|(key, value)| (key.clone(), value.clone()))
@@ -454,7 +454,7 @@ impl Mapper {
                     tx_ac.to_string(),
                     self.config.assembly.clone(),
                     self.config.alt_aln_method.to_string(),
-                    format!("{:?}", &alts),
+                    format!("{:?}", alts),
                 ));
             }
 
@@ -680,7 +680,7 @@ mod test {
                 _ => panic!("not implemented"),
             };
 
-            assert_eq!(format!("{}", &NoRef(&actual)), hgvs_x, "gene={gene}");
+            assert_eq!(format!("{}", NoRef(&actual)), hgvs_x, "gene={gene}");
 
             Ok(())
         }
@@ -745,7 +745,7 @@ mod test {
             };
 
             assert_eq!(
-                format!("{}", &crate::parser::NoRef(&actual)),
+                format!("{}", crate::parser::NoRef(&actual)),
                 hgvs_rhs,
                 "gene={gene}"
             );
@@ -782,7 +782,7 @@ mod test {
             let actual = mapper.c_to_p(&var_c)?;
 
             assert_eq!(
-                format!("{}", &crate::parser::NoRef(&actual)),
+                format!("{}", crate::parser::NoRef(&actual)),
                 hgvs_p,
                 "gene={gene}, hgvs_c={hgvs_c}, hgvs_p={hgvs_p}"
             );
@@ -1036,15 +1036,15 @@ mod test {
 
             let var_c = var_c.with_reference("NNNNNN".to_string());
             let fixed_c = mapper.replace_reference(var_c)?;
-            assert_eq!(format!("{}", &fixed_c), hgvs_c, "gene={gene}");
+            assert_eq!(format!("{}", fixed_c), hgvs_c, "gene={gene}");
 
             let var_g = var_g.with_reference("NNNNNN".to_string());
             let fixed_g = mapper.replace_reference(var_g)?;
-            assert_eq!(format!("{}", &fixed_g), hgvs_g, "gene={gene}");
+            assert_eq!(format!("{}", fixed_g), hgvs_g, "gene={gene}");
 
             let var_n = var_n.with_reference("NNNNNN".to_string());
             let fixed_n = mapper.replace_reference(var_n)?;
-            assert_eq!(format!("{}", &fixed_n), hgvs_n, "gene={gene}");
+            assert_eq!(format!("{}", fixed_n), hgvs_n, "gene={gene}");
 
             Ok(())
         }
@@ -1145,7 +1145,7 @@ mod test {
                 let var_n = HgvsVariant::from_str(variant)?;
                 let var_g = mapper.n_to_g(&var_n)?;
 
-                let actual = format!("{}", &NoRef(&var_g)).replace(['(', ')'], "");
+                let actual = format!("{}", NoRef(&var_g)).replace(['(', ')'], "");
 
                 assert_eq!(
                     actual, expected,
