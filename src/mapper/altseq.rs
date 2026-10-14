@@ -9,7 +9,7 @@ use crate::{
     data::interface::{Provider, TranslationException},
     mapper::error::Error,
     parser::{
-        Accession, CdsFrom, HgvsVariant, Mu, NaEdit, ProtInterval, ProtLocEdit, ProtPos,
+        Accession, CdsFrom, CdsPos, HgvsVariant, Mu, NaEdit, ProtInterval, ProtLocEdit, ProtPos,
         ProteinEdit, UncertainLengthChange,
     },
     sequences::{revcomp, translate_cds_with_exceptions, TranslationTable},
@@ -485,6 +485,30 @@ impl<'a> AltSeqBuilder<'a> {
                 let ref_data = self.reference_data;
                 let at_exon_edge = ref_data.exon_start_positions.contains(&loc.start.base)
                     || ref_data.exon_end_positions.contains(&loc.end.base);
+                // Whether `pos` is c.`base` with the intron offset `offset`.
+                let is_at = |pos: &CdsPos, base: i32, offset: i32| {
+                    pos.cds_from == CdsFrom::Start
+                        && pos.base == base
+                        && pos.offset.unwrap_or(0) == offset
+                };
+                // An insertion right before c.1 or right after c.N, the last base of the CDS,
+                // changes no base of the CDS.  With `ins_at_boundary_is_intronic` set to
+                // `false`, this includes the insertions and dups at the exon boundary before
+                // c.1 or after c.N, see below.  `c.N_*1ins` is 3' UTR already.
+                let exonic = !self.ins_at_boundary_is_intronic;
+                let cds_len = ref_data.cds_stop - ref_data.cds_start + 1;
+                let (ins_before_cds, ins_after_cds) = match edit {
+                    NaEdit::Ins { .. } => (
+                        is_at(&loc.end, 1, 0)
+                            && (is_at(&loc.start, -1, 0) || (exonic && is_at(&loc.start, 1, -1))),
+                        exonic && is_at(&loc.start, cds_len, 0) && is_at(&loc.end, cds_len, 1),
+                    ),
+                    NaEdit::Dup { .. } => (
+                        exonic && is_at(&loc.end, 1, -1),
+                        exonic && is_at(&loc.start, cds_len, 1),
+                    ),
+                    _ => (false, false),
+                };
                 #[allow(clippy::nonminimal_bool)]
                 if loc.start.cds_from == CdsFrom::End && loc.end.cds_from == CdsFrom::End
                     || ((edit.is_ins() || edit.is_dup()) && loc.end.cds_from == CdsFrom::End)
@@ -496,6 +520,10 @@ impl<'a> AltSeqBuilder<'a> {
                     VariantLocation::FivePrimeUtr
                 } else if loc.start.base < 0 && loc.end.cds_from == CdsFrom::End {
                     VariantLocation::WholeGene
+                } else if ins_before_cds {
+                    VariantLocation::FivePrimeUtr
+                } else if ins_after_cds {
+                    VariantLocation::ThreePrimeUtr
                 } else if self.ins_at_boundary_is_intronic && edit.is_dup() && at_exon_edge {
                     // The copy may sit at the exon boundary, like an insertion there.
                     VariantLocation::Intron

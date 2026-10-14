@@ -39,6 +39,8 @@ pub struct Config {
     pub window_size: usize,
     /// Treat insertions and duplications that touch an exon boundary as intronic in `c_to_p`,
     /// giving `p.?`.  With `false`, e.g., `c.26_26+1insC` and `c.26+1dup` change the protein.
+    /// Before c.1 and after the last base of the CDS, they change no base of the CDS and give
+    /// `p.?` like a variant in the UTR.
     pub ins_at_boundary_is_intronic: bool,
 }
 
@@ -2290,6 +2292,66 @@ mod test {
         ] {
             check_c_to_p(&exonic, hgvs_c, None, expected_exonic)?;
             check_c_to_p(&intronic, hgvs_c, None, Some("NP_004976.2:p.?"))?;
+        }
+        Ok(())
+    }
+
+    /// `NM_999989.1` with exons of 10, 30, and 10 bases: exon 1 is the 5' UTR, exon 2 the CDS
+    /// `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`), and exon 3 the 3' UTR.
+    fn build_mapper_cds_boundary(ins_at_boundary_is_intronic: bool) -> Mapper {
+        let provider = std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+            sanity_mock::ProviderRecord {
+                accession: "NM_999989.1".to_string(),
+                transcript_sequence: "AAAATCAAACATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGGGGCCCCC"
+                    .to_string(),
+                cds_start_i: 10,
+                cds_end_i: 40,
+                translation_exceptions: Vec::new(),
+                lengths: vec![10, 30, 10],
+            },
+        ]));
+        let config = Config {
+            prevalidation_level: crate::validator::ValidationLevel::Intrinsic,
+            strict_bounds: false,
+            renormalize_g: false,
+            ins_at_boundary_is_intronic,
+            ..Default::default()
+        };
+        Mapper::new(&config, provider)
+    }
+
+    /// An insertion right before c.1 or right after the stop codon changes no base of the CDS,
+    /// so it gives `p.?` like a variant in the UTR.  With `ins_at_boundary_is_intronic` set to
+    /// `false`, this includes the insertions and dups at the exon boundaries next to c.1 and
+    /// the stop codon.
+    #[test]
+    fn cds_boundary_ins_c_to_p() -> Result<(), Error> {
+        let exonic = build_mapper_cds_boundary(false);
+        let intronic = build_mapper_cds_boundary(true);
+        for (hgvs_c, expected) in [
+            // In the UTRs.
+            ("NM_999989.1:c.-3_-2insA", "MOCK:p.?"),
+            ("NM_999989.1:c.-1dup", "MOCK:p.?"),
+            ("NM_999989.1:c.*1_*2insA", "MOCK:p.?"),
+            ("NM_999989.1:c.*1dup", "MOCK:p.?"),
+            // At the start of the CDS.
+            ("NM_999989.1:c.-1_1insGCC", "MOCK:p.?"),
+            ("NM_999989.1:c.1-1_1insGCC", "MOCK:p.?"),
+            ("NM_999989.1:c.1-1dupG", "MOCK:p.?"),
+            ("NM_999989.1:c.1-1dup", "MOCK:p.?"),
+            ("NM_999989.1:c.1-2_1-1dupAG", "MOCK:p.?"),
+            // At the end of the CDS.
+            ("NM_999989.1:c.30_*1insA", "MOCK:p.?"),
+            ("NM_999989.1:c.30_30+1insA", "MOCK:p.?"),
+            ("NM_999989.1:c.30+1dupG", "MOCK:p.?"),
+            ("NM_999989.1:c.30+1dup", "MOCK:p.?"),
+            ("NM_999989.1:c.30+1_30+2dupGT", "MOCK:p.?"),
+            // One base further into the CDS.
+            ("NM_999989.1:c.1_2insGCC", "MOCK:p.Met1?"),
+            ("NM_999989.1:c.29_30insC", "MOCK:p.Ter10TyrextTer?"),
+        ] {
+            check_c_to_p(&exonic, hgvs_c, Some("MOCK"), Some(expected))?;
+            check_c_to_p(&intronic, hgvs_c, Some("MOCK"), Some(expected))?;
         }
         Ok(())
     }
