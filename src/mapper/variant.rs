@@ -2495,6 +2495,61 @@ mod test {
         Ok(())
     }
 
+    /// `AltSeqBuilder::variant_location()` gives the region that `c_to_p` uses: `p.?` for a UTR
+    /// or an intron, and a protein change for the CDS.
+    #[test]
+    fn variant_location_agrees_with_c_to_p() -> Result<(), Error> {
+        use crate::mapper::altseq::{ref_transcript_data_cached, AltSeqBuilder, VariantLocation};
+
+        for ins_at_boundary_is_intronic in [false, true] {
+            let boundary = build_mapper_cds_boundary(ins_at_boundary_is_intronic);
+            let sanity = build_mapper_655_sanity(ins_at_boundary_is_intronic);
+            for (mapper, hgvs_c) in [
+                (&boundary, "NM_999989.1:c.4A>G"),
+                (&boundary, "NM_999989.1:c.-5C>G"),
+                (&boundary, "NM_999989.1:c.-1_1insGCC"),
+                (&boundary, "NM_999989.1:c.1-1_1insGCC"),
+                (&boundary, "NM_999989.1:c.1dup"),
+                (&boundary, "NM_999989.1:c.2dup"),
+                (&boundary, "NM_999989.1:c.29dup"),
+                (&boundary, "NM_999989.1:c.30dup"),
+                (&boundary, "NM_999989.1:c.30_*1insA"),
+                (&boundary, "NM_999989.1:c.30+1dup"),
+                (&boundary, "NM_999989.1:c.*3G>T"),
+                (&sanity, "NM_999999.1:c.2-1_2insG"),
+                (&sanity, "NM_999999.1:c.2dup"),
+                (&sanity, "NM_999999.1:c.26_26+1insC"),
+                (&sanity, "NM_999999.1:c.26+5G>A"),
+            ] {
+                // `c_to_p` fills in the reference first.
+                let var_c = mapper.replace_reference(HgvsVariant::from_str(hgvs_c)?)?;
+                let reference_data = ref_transcript_data_cached(
+                    mapper.provider.clone(),
+                    &var_c.accession().value,
+                    Some("MOCK"),
+                )?;
+                let location = AltSeqBuilder {
+                    ins_at_boundary_is_intronic,
+                    ..AltSeqBuilder::new(var_c.clone(), &reference_data)
+                }
+                .variant_location()?;
+                let var_p = mapper.c_to_p(&var_c, Some("MOCK"))?;
+                assert_eq!(
+                    matches!(
+                        location,
+                        VariantLocation::FivePrimeUtr
+                            | VariantLocation::ThreePrimeUtr
+                            | VariantLocation::Intron
+                    ),
+                    var_p.to_string() == "MOCK:p.?",
+                    "{hgvs_c} is {location:?} but gives {var_p}, with \
+                     ins_at_boundary_is_intronic = {ins_at_boundary_is_intronic}"
+                );
+            }
+        }
+        Ok(())
+    }
+
     mod gcp_tests {
         use std::path::Path;
 

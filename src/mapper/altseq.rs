@@ -356,13 +356,44 @@ impl AltTranscriptData {
     }
 }
 
-/// Utility enum for locating variant in a transcript.
-#[derive(Debug, PartialEq)]
-enum VariantLocation {
-    Exon,
+/// The region of a transcript that a c. variant changes, see
+/// `AltSeqBuilder::variant_location()`.
+///
+/// `c_to_p` builds the altered protein only for `Cds`.  It gives `p.?` for a UTR or an intron,
+/// and `p.0?` for the deletion of the whole gene.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum VariantLocation {
+    /// The variant changes bases of the CDS and has no intron position, e.g., `c.4A>G`.  It may
+    /// also change bases of a UTR, e.g., `c.-2_2del`.
+    ///
+    /// Without `ins_at_boundary_is_intronic`, this also includes the insertions and
+    /// duplications next to an exon boundary within the CDS, e.g., `c.16-1_16insT` if c.16
+    /// starts an exon.  The splice site stays intact, so the inserted bases extend the exon.
+    Cds,
+    /// The variant has an intron position, e.g., `c.15+5del`, and lies neither in a UTR nor
+    /// across the whole CDS.  This includes variants that also change bases of the CDS, e.g.,
+    /// `c.15_15+3del`.
+    ///
+    /// With `ins_at_boundary_is_intronic`, this includes the insertions and duplications at an
+    /// exon boundary within the CDS, e.g., `c.16-1_16insT` and `c.16dup` if c.16 starts an
+    /// exon.  The inserted bases may go into the intron.
     Intron,
+    /// The variant lies before c.1 and leaves the CDS intact, e.g., `c.-5C>G` or `c.-1+5del`.
+    ///
+    /// This includes the insertions and duplications that can go before c.1, e.g.,
+    /// `c.-1_1insGCC`, `c.1dup`, and `c.1_3dup`.  The sequence decides this, not the
+    /// description: `c.1_2insA` can go before c.1 if c.1 is an A.  The inserted bases can still
+    /// form an upstream ATG, so the effect on the protein is unknown.
     FivePrimeUtr,
+    /// The variant lies after the last base `c.N` of the CDS and leaves the CDS intact, e.g.,
+    /// `c.*3G>T`.
+    ///
+    /// This includes every insertion or duplication that ends after `c.N`, e.g., `c.N_*1insA`
+    /// or `c.-5_*2dup`.  It also includes the ones that can go after `c.N`, e.g., `c.Ndup`.
     ThreePrimeUtr,
+    /// The variant spans the CDS from the 5' UTR to the 3' UTR, e.g., `c.-10_*10del`.  A
+    /// duplication is `ThreePrimeUtr` instead, see there.
     WholeGene,
 }
 
@@ -426,10 +457,10 @@ impl<'a> AltSeqBuilder<'a> {
             return Err(Error::ExpectedCdsVariant(self.var_c.to_string()));
         };
         let na_edit = loc_edit.edit.inner();
-        let edit_type = match self.get_variant_region() {
+        let edit_type = match self.variant_location()? {
             // Without a stop codon, the amino acids after the CDS are unknown.
-            VariantLocation::Exon if self.after_cds_without_stop() => EditType::NotCds,
-            VariantLocation::Exon => match na_edit {
+            VariantLocation::Cds if self.after_cds_without_stop() => EditType::NotCds,
+            VariantLocation::Cds => match na_edit {
                 NaEdit::RefAlt { .. }
                 | NaEdit::NumAlt { .. }
                 | NaEdit::DelRef { .. }
@@ -477,9 +508,19 @@ impl<'a> AltSeqBuilder<'a> {
         Ok(vec![alt_data])
     }
 
-    /// Categorize variant by location in transcript.
-    fn get_variant_region(&self) -> VariantLocation {
-        match &self.var_c {
+    /// The region of the transcript that `var_c` changes.
+    ///
+    /// `build_altseq()` and thus `c_to_p` use this region.  It depends on
+    /// `ins_at_boundary_is_intronic`, so set it as in the `variant::Config` of the mapper whose
+    /// `c_to_p` it should match.  Without `ins_at_boundary_is_intronic`, the region of a
+    /// duplication of intron bases can also depend on these bases, which `c_to_p` may fill in
+    /// first.
+    ///
+    /// # Errors
+    ///
+    /// `Error::ExpectedCdsVariant` if `var_c` is not a `HgvsVariant::CdsVariant`.
+    pub fn variant_location(&self) -> Result<VariantLocation, Error> {
+        let location = match &self.var_c {
             HgvsVariant::CdsVariant { loc_edit, .. } => {
                 let loc = loc_edit.loc.inner();
                 let edit = loc_edit.edit.inner();
@@ -514,17 +555,18 @@ impl<'a> AltSeqBuilder<'a> {
                         || (edit.is_dup() && (end_offset == -1 || start_offset == 1)))
                 {
                     // The splice site stays intact, so the inserted bases extend the exon.
-                    VariantLocation::Exon
+                    VariantLocation::Cds
                 } else if loc.start.offset.is_some() || loc.end.offset.is_some() {
                     // Leave out anything intronic for now.
                     VariantLocation::Intron
                 } else {
                     // Anything else that contains an exon.
-                    VariantLocation::Exon
+                    VariantLocation::Cds
                 }
             }
-            _ => panic!("Must be CDS variant"),
-        }
+            _ => return Err(Error::ExpectedCdsVariant(self.var_c.to_string())),
+        };
+        Ok(location)
     }
 
     /// The UTR of a variant that leaves the CDS intact, or `None`.
@@ -601,7 +643,7 @@ impl<'a> AltSeqBuilder<'a> {
                 (gap, gap, alternative.as_str())
             }
             // At an exon boundary, the inserted bases go into the exon, as in
-            // `get_variant_region()`.
+            // `variant_location()`.
             (NaEdit::Ins { alternative }, (-1, 0)) if at_boundary_is_exonic => {
                 let gap = index(&loc.end)?;
                 (gap, gap, alternative.as_str())
@@ -1674,10 +1716,141 @@ mod test {
 
     use crate::{mapper::Error, parser::HgvsVariant, sequences::TranslationTable};
 
-    use super::{AltSeqBuilder, CdsEnd, RefTranscriptData};
+    use super::{AltSeqBuilder, CdsEnd, RefTranscriptData, VariantLocation};
+
+    /// The sequence of `NM_999989.1` in the `c_to_p` tests of `variant.rs`, with exons of 10,
+    /// 15, and 25 bases: exon 1 is the 5' UTR, exon 2 spans c.1 to c.15, and exon 3 spans c.16
+    /// to c.*10.  The CDS is `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`).
+    fn two_exon_cds() -> RefTranscriptData {
+        RefTranscriptData {
+            transcript_sequence: "AAAATCAAACATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGGGGCCCCC".into(),
+            aa_sequence: "MKAKAFRAK*".into(),
+            cds_start: 11,
+            cds_stop: 40,
+            protein_accession: "MOCK".into(),
+            translation_table: TranslationTable::Standard,
+            translation_exceptions: Vec::new(),
+            exon_start_positions: vec![-10, 1, 16],
+            exon_end_positions: vec![0, 15, 40],
+            cds_end: CdsEnd::StopCodon,
+        }
+    }
+
+    /// Check the `VariantLocation` of each `(hgvs_c, ins_at_boundary_is_intronic, expected)`.
+    fn check_variant_location(
+        cases: &[(&str, bool, VariantLocation)],
+    ) -> Result<(), anyhow::Error> {
+        let reference_data = two_exon_cds();
+        for &(hgvs_c, ins_at_boundary_is_intronic, expected) in cases {
+            let builder = AltSeqBuilder {
+                ins_at_boundary_is_intronic,
+                ..AltSeqBuilder::new(
+                    HgvsVariant::from_str(&format!("NM_999989.1:{hgvs_c}"))?,
+                    &reference_data,
+                )
+            };
+            assert_eq!(
+                builder.variant_location()?,
+                expected,
+                "{hgvs_c} with ins_at_boundary_is_intronic = {ins_at_boundary_is_intronic}"
+            );
+        }
+        Ok(())
+    }
 
     #[test]
-    fn build_altseq_fails_for_non_cds_variant() -> Result<(), anyhow::Error> {
+    fn variant_location_cds() -> Result<(), anyhow::Error> {
+        let mut cases = Vec::new();
+        for intronic in [false, true] {
+            cases.extend([
+                ("c.4A>G", intronic, VariantLocation::Cds),
+                // Overlaps the 5' UTR and the CDS.
+                ("c.-2_2del", intronic, VariantLocation::Cds),
+                // The copy cannot go before c.1 or after the stop codon.
+                ("c.2dup", intronic, VariantLocation::Cds),
+                ("c.1_2insG", intronic, VariantLocation::Cds),
+                ("c.29_30insC", intronic, VariantLocation::Cds),
+            ]);
+        }
+        check_variant_location(&cases)
+    }
+
+    #[test]
+    fn variant_location_five_prime_utr() -> Result<(), anyhow::Error> {
+        let mut cases = Vec::new();
+        for intronic in [false, true] {
+            cases.extend([
+                ("c.-5C>G", intronic, VariantLocation::FivePrimeUtr),
+                // In the intron after exon 1.
+                ("c.-1+5del", intronic, VariantLocation::FivePrimeUtr),
+                // Leave the start codon intact.
+                ("c.-1_1insGCC", intronic, VariantLocation::FivePrimeUtr),
+                // c.-1 is a C and c.1 is an A, so the copy of c.1 can go before it: `CAATG`.
+                ("c.1dup", intronic, VariantLocation::FivePrimeUtr),
+                ("c.1_3dup", intronic, VariantLocation::FivePrimeUtr),
+                // The copy of a dup from before c.1 can go before c.1, too.  This holds even if
+                // the dup starts before the transcript, which starts with c.-10.
+                ("c.-2_2dup", intronic, VariantLocation::FivePrimeUtr),
+                ("c.-12_2dup", intronic, VariantLocation::FivePrimeUtr),
+                // c.1 is an A, so the inserted A can go before it.
+                ("c.1_2insA", intronic, VariantLocation::FivePrimeUtr),
+            ]);
+        }
+        check_variant_location(&cases)
+    }
+
+    #[test]
+    fn variant_location_three_prime_utr() -> Result<(), anyhow::Error> {
+        let mut cases = Vec::new();
+        for intronic in [false, true] {
+            cases.extend([
+                ("c.*3G>T", intronic, VariantLocation::ThreePrimeUtr),
+                // Leave the stop codon intact.
+                ("c.30_*1insA", intronic, VariantLocation::ThreePrimeUtr),
+                // The copy can go after c.30, the last base of the CDS.
+                ("c.30dup", intronic, VariantLocation::ThreePrimeUtr),
+                ("c.28_30dup", intronic, VariantLocation::ThreePrimeUtr),
+                // The copy goes after c.*2.
+                ("c.-5_*2dup", intronic, VariantLocation::ThreePrimeUtr),
+            ]);
+        }
+        check_variant_location(&cases)
+    }
+
+    #[test]
+    fn variant_location_intron() -> Result<(), anyhow::Error> {
+        let mut cases = Vec::new();
+        for intronic in [false, true] {
+            cases.extend([
+                ("c.15+5del", intronic, VariantLocation::Intron),
+                ("c.15_15+3del", intronic, VariantLocation::Intron),
+            ]);
+        }
+        cases.extend([
+            // At the boundary of exon 3, the inserted bases may go into the intron.
+            ("c.16-1_16insT", true, VariantLocation::Intron),
+            ("c.16dup", true, VariantLocation::Intron),
+            // Without `ins_at_boundary_is_intronic`, the inserted bases extend the exon.
+            ("c.16-1_16insT", false, VariantLocation::Cds),
+            ("c.16dup", false, VariantLocation::Cds),
+        ]);
+        check_variant_location(&cases)
+    }
+
+    #[test]
+    fn variant_location_whole_gene() -> Result<(), anyhow::Error> {
+        let mut cases = Vec::new();
+        for intronic in [false, true] {
+            cases.extend([
+                ("c.-10_*10del", intronic, VariantLocation::WholeGene),
+                ("c.-5_*5inv", intronic, VariantLocation::WholeGene),
+            ]);
+        }
+        check_variant_location(&cases)
+    }
+
+    #[test]
+    fn non_cds_variant_fails() -> Result<(), anyhow::Error> {
         let reference_data = RefTranscriptData {
             transcript_sequence: "AAAATCAAAATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGG".into(),
             aa_sequence: "MKAKAFRAK*".into(),
@@ -1699,6 +1872,13 @@ mod test {
             let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
             assert!(
                 matches!(builder.build_altseq(), Err(Error::ExpectedCdsVariant(_))),
+                "{hgvs}"
+            );
+            assert!(
+                matches!(
+                    builder.variant_location(),
+                    Err(Error::ExpectedCdsVariant(_))
+                ),
                 "{hgvs}"
             );
         }
@@ -1729,15 +1909,15 @@ mod test {
         for ins_at_boundary_is_intronic in [false, true] {
             for (hgvs_c, expected) in [
                 // The same insertion of an A after c.27.
-                ("c.27_*1insA", VariantLocation::Exon),
-                ("c.27dup", VariantLocation::Exon),
+                ("c.27_*1insA", VariantLocation::Cds),
+                ("c.27dup", VariantLocation::Cds),
                 // The same insertion of a G into the run of five Gs after c.27.
-                ("c.27_*1insG", VariantLocation::Exon),
-                ("c.*1dup", VariantLocation::Exon),
-                ("c.*4_*5insG", VariantLocation::Exon),
-                ("c.*1G>A", VariantLocation::Exon),
-                ("c.*1_*3del", VariantLocation::Exon),
-                ("c.*1_*3inv", VariantLocation::Exon),
+                ("c.27_*1insG", VariantLocation::Cds),
+                ("c.*1dup", VariantLocation::Cds),
+                ("c.*4_*5insG", VariantLocation::Cds),
+                ("c.*1G>A", VariantLocation::Cds),
+                ("c.*1_*3del", VariantLocation::Cds),
+                ("c.*1_*3inv", VariantLocation::Cds),
                 // The copy can go before c.-5, which leaves the CDS intact.
                 ("c.-5_*2dup", VariantLocation::FivePrimeUtr),
                 ("c.-5_*2del", VariantLocation::WholeGene),
@@ -1750,7 +1930,7 @@ mod test {
                     )
                 };
                 assert_eq!(
-                    builder.get_variant_region(),
+                    builder.variant_location()?,
                     expected,
                     "{hgvs_c} with ins_at_boundary_is_intronic = {ins_at_boundary_is_intronic}"
                 );
