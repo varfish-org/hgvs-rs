@@ -873,16 +873,13 @@ impl Mapper {
             alt.ok_or_else(|| Error::ShiftOverBoundaryNeedsAlignment(builder.var_c.to_string()))?;
 
         let tx_ac = builder.var_c.accession().to_string();
-        let strand = self
-            .build_alignment_mapper(&tx_ac, alt_ac, alt_aln_method)?
-            .strand;
         let var_g = self.c_to_g(&builder.var_c, alt_ac, alt_aln_method)?;
         let mut seen = vec![var_g.to_string()];
         for direction in [Direction::FiveToThree, Direction::ThreeToFive] {
             // biocommons/hgvs skips a shift that fails as an invalid variant or interval or as
             // an unsupported operation.  The errors of hgvs-rs do not map one to one, so this
             // skips any error except missing data.
-            let shifted_var_g = match self.shift_var_g(&var_g, direction, strand, alt_aln_method) {
+            let shifted_var_g = match self.shift_var_g(&var_g, direction, alt_aln_method) {
                 Ok(shifted_var_g) => shifted_var_g,
                 Err(e) if is_data_error(&e) => return Err(e),
                 Err(e) => {
@@ -927,15 +924,21 @@ impl Mapper {
     /// Shift `var_g` fully in `direction` and rewrite a duplication as an insertion, as
     /// `_var_g_shift_with_rewrite` of biocommons/hgvs does.
     ///
-    /// `strand` is the strand of the transcript.  The insertion goes before the duplicated
-    /// bases for a 3' shift on the plus strand and for a 5' shift on the minus strand, else
-    /// after them.  On the minus strand, the insertion thus sits at the end of the duplicated
-    /// bases in the direction of the shift.  On the plus strand, it sits at the opposite end.
+    /// The insertion goes to the end of the duplicated bases that the shift reached: after
+    /// them for a 3' shift and before them for a 5' shift on the genome.  The dup is fully
+    /// shifted, so the insertion cannot move further in `direction` either.
+    ///
+    /// This deviates from biocommons/hgvs, which also uses the strand of the transcript.  It
+    /// inserts before the duplicated bases for a 3' shift on the plus strand and for a 5'
+    /// shift on the minus strand, else after them.  On the plus strand, its insertion thus
+    /// sits at the near end of the shift and can miss the other side of an exon boundary.
+    /// For example, biocommons/hgvs shifts PTEN `c.209+1_209+2dup` to `c.209_209+1dup` and
+    /// rewrites it as `c.209+1_209+2insTG` in the intron.  Here, it becomes `c.208_209insTG`
+    /// in the exon.  On the minus strand, both give the same insertion.
     fn shift_var_g(
         &self,
         var_g: &HgvsVariant,
         direction: Direction,
-        strand: i16,
         alt_aln_method: &str,
     ) -> Result<HgvsVariant, Error> {
         // As in biocommons/hgvs, the normalizer does not validate.
@@ -971,14 +974,9 @@ impl Mapper {
         ) else {
             return Err(Error::MissingGenomeIntervalPosition(var_g.to_string()));
         };
-        let before = matches!(
-            (strand, direction),
-            (1, Direction::FiveToThree) | (-1, Direction::ThreeToFive)
-        );
-        let (start, end) = if before {
-            (start - 1, start)
-        } else {
-            (end, end + 1)
+        let (start, end) = match direction {
+            Direction::FiveToThree => (end, end + 1),
+            Direction::ThreeToFive => (start - 1, start),
         };
         Ok(HgvsVariant::GenomeVariant {
             accession: accession.clone(),
