@@ -272,10 +272,13 @@ impl Mapper {
     /// * `var_c` -- `HgvsVariant::TxVariant` to project
     pub fn c_to_p(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, Error> {
         // Only the genome has the reference of intron bases, e.g., of a dup next to an exon.
-        // Shifting over an exon boundary needs the genome, too.
-        let alt_ac = if self.config.genome_seq_available
-            && (var_c.spans_intron() || self.config.shift_over_boundary)
-        {
+        // Shifting an insertion or duplication over an exon boundary needs the genome, too.
+        let shifts = self.config.shift_over_boundary
+            && self.config.shift_over_boundary_preference != ShiftOverBoundaryPreference::Default
+            && var_c
+                .na_edit()
+                .is_some_and(|edit| edit.is_ins() || edit.is_dup());
+        let alt_ac = if self.config.genome_seq_available && (var_c.spans_intron() || shifts) {
             Some(self.alt_ac_for_tx_ac(var_c.accession())?)
         } else {
             None
@@ -605,6 +608,7 @@ mod test {
     /// in the test data, so these cases use KRAS and PTEN instead.
     mod issue_714 {
         use anyhow::Error;
+        use std::collections::HashMap;
         use std::str::FromStr;
 
         use crate::data::uta_sr::test_helpers::build_provider;
@@ -613,18 +617,27 @@ mod test {
 
         use super::{Config, Mapper};
 
-        fn build_mapper(
+        fn config(
             shift_over_boundary: bool,
             shift_over_boundary_preference: ShiftOverBoundaryPreference,
-        ) -> Result<Mapper, Error> {
-            let config = Config {
+        ) -> Config {
+            Config {
                 assembly: "GRCh37".to_string(),
                 renormalize_g: false,
                 shift_over_boundary,
                 shift_over_boundary_preference,
                 ..Config::default()
-            };
-            Ok(Mapper::new(config, build_provider()?))
+            }
+        }
+
+        fn build_mapper(
+            shift_over_boundary: bool,
+            shift_over_boundary_preference: ShiftOverBoundaryPreference,
+        ) -> Result<Mapper, Error> {
+            Ok(Mapper::new(
+                config(shift_over_boundary, shift_over_boundary_preference),
+                build_provider()?,
+            ))
         }
 
         /// `(var_c, var_p without shifts or with DEFAULT, var_p with EXON, var_p with INTRON)`
@@ -711,13 +724,54 @@ mod test {
             ),
         ];
 
+        /// As `CASES`, with `ins_at_boundary_is_intronic` set to `false`, so that an insertion
+        /// at an exon edge counts as exonic.
+        const CASES_INS_AT_BOUNDARY_IS_EXONIC: &[(&str, &str, &str, &str)] = &[
+            // A dup of the first intron base, which counts as exonic.  It fits into the intron as
+            // `c.111+1_111+2insG`.
+            (
+                "NM_004985.4:c.111+1dup",
+                "NP_004976.2:p.Asp38GlyfsTer10",
+                "NP_004976.2:p.Asp38GlyfsTer10",
+                "NP_004976.2:p.?",
+            ),
+            // A dup of the last exon base.  Both of its rewrites, `c.208_209insT` and
+            // `c.209_209+1insT`, count as exonic.
+            (
+                "NM_000314.4:c.209dup",
+                "NP_000305.3:p.Cys71LeufsTer3",
+                "NP_000305.3:p.Cys71LeufsTer3",
+                "NP_000305.3:p.Cys71LeufsTer3",
+            ),
+        ];
+
         #[test]
         fn c_to_p() -> Result<(), Error> {
-            let disabled = build_mapper(false, ShiftOverBoundaryPreference::Exon)?;
-            let default = build_mapper(true, ShiftOverBoundaryPreference::Default)?;
-            let exon = build_mapper(true, ShiftOverBoundaryPreference::Exon)?;
-            let intron = build_mapper(true, ShiftOverBoundaryPreference::Intron)?;
-            for (hgvs_c, expected_default, expected_exon, expected_intron) in CASES {
+            check_c_to_p(CASES, true)
+        }
+
+        #[test]
+        fn c_to_p_ins_at_boundary_is_exonic() -> Result<(), Error> {
+            check_c_to_p(CASES_INS_AT_BOUNDARY_IS_EXONIC, false)
+        }
+
+        /// Check `cases` with the option off and with each preference.
+        fn check_c_to_p(
+            cases: &[(&str, &str, &str, &str)],
+            ins_at_boundary_is_intronic: bool,
+        ) -> Result<(), Error> {
+            let build = |shift_over_boundary, shift_over_boundary_preference| {
+                let config = Config {
+                    ins_at_boundary_is_intronic,
+                    ..config(shift_over_boundary, shift_over_boundary_preference)
+                };
+                Ok::<_, Error>(Mapper::new(config, build_provider()?))
+            };
+            let disabled = build(false, ShiftOverBoundaryPreference::Exon)?;
+            let default = build(true, ShiftOverBoundaryPreference::Default)?;
+            let exon = build(true, ShiftOverBoundaryPreference::Exon)?;
+            let intron = build(true, ShiftOverBoundaryPreference::Intron)?;
+            for (hgvs_c, expected_default, expected_exon, expected_intron) in cases {
                 let var_c = HgvsVariant::from_str(hgvs_c)?;
                 for (label, mapper, expected) in [
                     ("disabled", &disabled, expected_default),
@@ -732,6 +786,33 @@ mod test {
                     );
                 }
             }
+            Ok(())
+        }
+
+        /// Only the shifts look up the genome alignment.  Without it, `Default` still works.
+        #[test]
+        fn c_to_p_without_alignment() -> Result<(), Error> {
+            // An assembly without chromosome 12, so KRAS has no alignment.
+            let asm_map = HashMap::from([("NC_000010.10".to_string(), "10".to_string())]);
+            let build = |shift_over_boundary_preference| {
+                let config = Config {
+                    asm_map: Some(asm_map.clone()),
+                    ..config(true, shift_over_boundary_preference)
+                };
+                Ok::<_, Error>(Mapper::new(config, build_provider()?))
+            };
+            let var_c = HgvsVariant::from_str("NM_004985.4:c.110_111insGGC")?;
+            assert_eq!(
+                format!(
+                    "{}",
+                    build(ShiftOverBoundaryPreference::Default)?.c_to_p(&var_c)?
+                ),
+                "NP_004976.2:p.Glu37_Asp38insAla"
+            );
+            assert!(matches!(
+                build(ShiftOverBoundaryPreference::Exon)?.c_to_p(&var_c),
+                Err(crate::mapper::Error::NoAlignments(..))
+            ));
             Ok(())
         }
 
