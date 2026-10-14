@@ -45,8 +45,8 @@ pub struct Config {
     pub ins_at_boundary_is_intronic: bool,
     /// Let `c_to_p` move an insertion or duplication in an exon or intron to the other side
     /// of an exon boundary, as preferred by `shift_over_boundary_preference`.  The shifts need
-    /// the genome alignment.  `assembly::Mapper::c_to_p()` provides it; `c_to_p()` of this
-    /// mapper fails for such variants.
+    /// the genome alignment.  `assembly::Mapper::c_to_p()` provides it.  `c_to_p()` of this
+    /// mapper fails for such variants, unless the preference is `Default`.
     pub shift_over_boundary: bool,
     /// See `shift_over_boundary`.
     pub shift_over_boundary_preference: ShiftOverBoundaryPreference,
@@ -881,7 +881,9 @@ impl Mapper {
         let var_g = self.c_to_g(&builder.var_c, alt_ac, alt_aln_method)?;
         let mut seen = vec![var_g.to_string()];
         for direction in [Direction::FiveToThree, Direction::ThreeToFive] {
-            // As in biocommons/hgvs, skip a shift that fails, unless data is missing.
+            // biocommons/hgvs skips a shift that fails as an invalid variant or interval or as
+            // an unsupported operation.  The errors of hgvs-rs do not map one to one, so this
+            // skips any error except missing data.
             let shifted_var_g = match self.shift_var_g(&var_g, direction, strand, alt_aln_method) {
                 Ok(shifted_var_g) => shifted_var_g,
                 Err(e) if is_data_error(&e) => return Err(e),
@@ -1249,11 +1251,15 @@ impl Mapper {
     }
 }
 
-/// Whether `e` reports missing data rather than a problem with the variant.
+/// Whether `e` reports missing data rather than a problem with the variant.  The normalizer
+/// reports a failed lookup of the reference as `ReplaceReferenceFailed`.
 fn is_data_error(e: &Error) -> bool {
     matches!(
         e,
-        Error::DataError(_) | Error::NormalizationFailed(normalizer::Error::DataError(_))
+        Error::DataError(_)
+            | Error::NormalizationFailed(
+                normalizer::Error::DataError(_) | normalizer::Error::ReplaceReferenceFailed(_)
+            )
     )
 }
 
