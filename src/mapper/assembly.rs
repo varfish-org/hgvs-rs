@@ -630,9 +630,10 @@ mod test {
         /// `(var_c, var_p without shifts or with DEFAULT, var_p with EXON, var_p with INTRON)`
         ///
         /// KRAS is on the minus strand.  Exon 2 ends with `c.106_111` `ATAGAG` (Ile36, Glu37)
-        /// and intron 2 starts with `c.111+1_111+3` `GTA`.  PTEN is on the plus strand.  Exon 3
-        /// ends with `c.207_209` `TCT` and intron 3 starts with `c.209+1_209+2` `GT`.  Exon 8
-        /// starts at `c.802` after `c.802-17_802-1` `TTTTTTTTTTTTTTTAG`.
+        /// and intron 2 starts with `c.111+1_111+3` `GTA`.  Exon 3 starts with `c.112_114`
+        /// `GAT` (Asp38) after `c.112-2_112-1` `AG`.  PTEN is on the plus strand.  Exon 3 ends
+        /// with `c.207_209` `TCT` and intron 3 starts with `c.209+1_209+2` `GT`.  Exon 8 starts
+        /// with `c.802_804` `GAC` (Asp268) after `c.802-17_802-1` `TTTTTTTTTTTTTTTAG`.
         const CASES: &[(&str, &str, &str, &str)] = &[
             // An intron insertion, which fits into the exon as `c.110_111insGGC`.
             (
@@ -662,11 +663,25 @@ mod test {
                 "NP_004976.2:p.Asp38GlyfsTer10",
                 "NP_004976.2:p.?",
             ),
+            // A dup over the acceptor site, which fits into the exon as `c.112_113insGG`.
+            (
+                "NM_004985.4:c.112-1_112dup",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.Asp38GlyfsTer8",
+                "NP_004976.2:p.?",
+            ),
             // A dup of the last exon base, which fits into the exon as `c.208_209insT`.
             (
                 "NM_000314.4:c.209dup",
                 "NP_000305.3:p.?",
                 "NP_000305.3:p.Cys71LeufsTer3",
+                "NP_000305.3:p.?",
+            ),
+            // A dup over the acceptor site, which fits into the exon as `c.802_803insGG`.
+            (
+                "NM_000314.4:c.802-1_802dup",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.Asp268GlyfsTer9",
                 "NP_000305.3:p.?",
             ),
             // A dup in the poly-T before the acceptor, which cannot reach the exon.
