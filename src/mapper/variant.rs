@@ -7,6 +7,7 @@ use std::ops::Deref;
 use std::{ops::Range, sync::Arc};
 
 use crate::mapper::alignment;
+use crate::mapper::altseq::{AltSeqBuilder, VariantLocation};
 use crate::{
     data::interface::Provider,
     mapper::Error,
@@ -40,6 +41,13 @@ pub struct Config {
     /// Treat insertions and duplications that touch an exon boundary as intronic in `c_to_p`,
     /// giving `p.?`.  With `false`, e.g., `c.26_26+1insC` and `c.26+1dup` change the protein.
     pub ins_at_boundary_is_intronic: bool,
+    /// Let `c_to_p` move an insertion or duplication in an exon or intron to the other side
+    /// of an exon boundary, as preferred by `shift_over_boundary_preference`.  The shifts need
+    /// the genome alignment.  `assembly::Mapper::c_to_p()` provides it; `c_to_p()` of this
+    /// mapper fails for such variants.
+    pub shift_over_boundary: bool,
+    /// See `shift_over_boundary`.
+    pub shift_over_boundary_preference: ShiftOverBoundaryPreference,
 }
 
 impl Default for Config {
@@ -55,8 +63,27 @@ impl Default for Config {
             shuffle_direction: Default::default(),
             window_size: 20,
             ins_at_boundary_is_intronic: true,
+            shift_over_boundary: false,
+            shift_over_boundary_preference: Default::default(),
         }
     }
+}
+
+/// Where `c_to_p` with `Config::shift_over_boundary` puts an insertion or duplication that fits
+/// on both sides of an exon boundary.
+///
+/// `c_to_p` shifts the variant fully 3' and fully 5' on the genome.  If one of these shifts
+/// lies on the other side of an exon boundary, `c_to_p` uses it for the protein if it is in
+/// the preferred region.  The c. variant itself does not change.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
+pub enum ShiftOverBoundaryPreference {
+    /// Keep the variant where the HGVS rules put it.
+    #[default]
+    Default,
+    /// Prefer the intron, which gives `p.?`.
+    Intron,
+    /// Prefer the exon, which gives a protein change.
+    Exon,
 }
 
 /// Projects variants between sequences using `alignment::Mapper`.
@@ -771,6 +798,7 @@ impl Mapper {
                 ins_at_boundary_is_intronic: self.config.ins_at_boundary_is_intronic,
                 ..AltSeqBuilder::new(var_c, &reference_data)
             };
+            let builder = self.shift_over_boundary(builder, alt)?;
 
             // NB: the following comment is from the original code.
             // TODO: handle case where you get 2+ alt sequences back;  currently get list of 1 element
@@ -809,6 +837,160 @@ impl Mapper {
         } else {
             Err(Error::ExpectedCdsVariant(format!("{}", var_c)))
         }
+    }
+
+    /// Apply `Config::shift_over_boundary` to the variant of `builder`, as `c_to_p` of
+    /// biocommons/hgvs does.
+    ///
+    /// For an insertion or duplication in an exon or intron, take the first shift, 3' then
+    /// 5', that lies on the other side of an exon boundary.  Return its builder if that side
+    /// is the preferred one, else `builder`.  `alt` is the genome alignment as
+    /// `(alt_ac, alt_aln_method)`.
+    fn shift_over_boundary<'a>(
+        &self,
+        builder: AltSeqBuilder<'a>,
+        alt: Option<(&str, &str)>,
+    ) -> Result<AltSeqBuilder<'a>, Error> {
+        if !self.config.shift_over_boundary {
+            return Ok(builder);
+        }
+        // biocommons/hgvs also computes the shifts for DEFAULT, but never keeps one.  Skipping
+        // them gives the same protein without the genome.
+        let preferred = match self.config.shift_over_boundary_preference {
+            ShiftOverBoundaryPreference::Default => return Ok(builder),
+            ShiftOverBoundaryPreference::Intron => VariantLocation::Intron,
+            ShiftOverBoundaryPreference::Exon => VariantLocation::Cds,
+        };
+        let region = builder.variant_location()?;
+        let is_ins_or_dup = builder
+            .var_c
+            .na_edit()
+            .is_some_and(|edit| edit.is_ins() || edit.is_dup());
+        if !is_ins_or_dup || !matches!(region, VariantLocation::Intron | VariantLocation::Cds) {
+            return Ok(builder);
+        }
+        let (alt_ac, alt_aln_method) =
+            alt.ok_or_else(|| Error::ShiftOverBoundaryNeedsAlignment(builder.var_c.to_string()))?;
+
+        let tx_ac = builder.var_c.accession().to_string();
+        let strand = self
+            .build_alignment_mapper(&tx_ac, alt_ac, alt_aln_method)?
+            .strand;
+        let var_g = self.c_to_g(&builder.var_c, alt_ac, alt_aln_method)?;
+        let mut seen = vec![var_g.to_string()];
+        for direction in [Direction::FiveToThree, Direction::ThreeToFive] {
+            // As in biocommons/hgvs, skip a shift that fails, unless data is missing.
+            let shifted_var_g = match self.shift_var_g(&var_g, direction, strand, alt_aln_method) {
+                Ok(shifted_var_g) => shifted_var_g,
+                Err(e) if is_data_error(&e) => return Err(e),
+                Err(e) => {
+                    debug!("Cannot shift {} over the boundary: {}", var_g, e);
+                    continue;
+                }
+            };
+            let key = shifted_var_g.to_string();
+            if seen.contains(&key) {
+                continue;
+            }
+            seen.push(key);
+            let shifted_var_c = match self.g_to_c(&shifted_var_g, &tx_ac, alt_aln_method) {
+                Ok(shifted_var_c) => shifted_var_c,
+                Err(e) if is_data_error(&e) => return Err(e),
+                Err(e) => {
+                    debug!("Cannot map {} to {}: {}", shifted_var_g, tx_ac, e);
+                    continue;
+                }
+            };
+
+            let shifted = AltSeqBuilder {
+                ins_at_boundary_is_intronic: self.config.ins_at_boundary_is_intronic,
+                ..AltSeqBuilder::new(shifted_var_c, builder.reference_data)
+            };
+            let shifted_region = shifted.variant_location()?;
+            if matches!(
+                shifted_region,
+                VariantLocation::Intron | VariantLocation::Cds
+            ) && shifted_region != region
+            {
+                return Ok(if shifted_region == preferred {
+                    shifted
+                } else {
+                    builder
+                });
+            }
+        }
+        Ok(builder)
+    }
+
+    /// Shift `var_g` fully in `direction` and rewrite a duplication as an insertion, as
+    /// `_var_g_shift_with_rewrite` of biocommons/hgvs does.
+    ///
+    /// `strand` is the strand of the transcript.  The insertion goes before the duplicated
+    /// bases for a 3' shift on the plus strand and for a 5' shift on the minus strand, else
+    /// after them.  On the minus strand, the insertion thus sits at the end of the duplicated
+    /// bases in the direction of the shift.  On the plus strand, it sits at the opposite end.
+    fn shift_var_g(
+        &self,
+        var_g: &HgvsVariant,
+        direction: Direction,
+        strand: i16,
+        alt_aln_method: &str,
+    ) -> Result<HgvsVariant, Error> {
+        // As in biocommons/hgvs, the normalizer does not validate.
+        let normalizer = Normalizer::new(
+            self,
+            self.provider.clone(),
+            ValidationLevel::Null.validator(false, self.provider.clone()),
+            normalizer::Config {
+                alt_aln_method: alt_aln_method.to_string(),
+                shuffle_direction: direction,
+                window_size: self.config.window_size,
+                ..Default::default()
+            },
+        );
+        let var_g = normalizer.normalize(var_g)?;
+        if !var_g.na_edit().is_some_and(NaEdit::is_dup) {
+            return Ok(var_g);
+        }
+
+        let var_g = self.replace_reference(var_g)?;
+        let HgvsVariant::GenomeVariant {
+            accession,
+            gene_symbol,
+            loc_edit,
+        } = &var_g
+        else {
+            return Err(Error::ExpectedGenomeVariant(var_g.to_string()));
+        };
+        let (Some(start), Some(end), NaEdit::Dup { reference }) = (
+            loc_edit.loc.inner().start,
+            loc_edit.loc.inner().end,
+            loc_edit.edit.inner(),
+        ) else {
+            return Err(Error::MissingGenomeIntervalPosition(var_g.to_string()));
+        };
+        let before = matches!(
+            (strand, direction),
+            (1, Direction::FiveToThree) | (-1, Direction::ThreeToFive)
+        );
+        let (start, end) = if before {
+            (start - 1, start)
+        } else {
+            (end, end + 1)
+        };
+        Ok(HgvsVariant::GenomeVariant {
+            accession: accession.clone(),
+            gene_symbol: gene_symbol.clone(),
+            loc_edit: GenomeLocEdit {
+                loc: Mu::Certain(GenomeInterval {
+                    start: Some(start),
+                    end: Some(end),
+                }),
+                edit: Mu::Certain(NaEdit::Ins {
+                    alternative: reference.clone(),
+                }),
+            },
+        })
     }
 
     fn get_altered_sequence(
@@ -1063,6 +1245,14 @@ impl Mapper {
             }
         }
     }
+}
+
+/// Whether `e` reports missing data rather than a problem with the variant.
+fn is_data_error(e: &Error) -> bool {
+    matches!(
+        e,
+        Error::DataError(_) | Error::NormalizationFailed(normalizer::Error::DataError(_))
+    )
 }
 
 /// Cache key of `build_alignment_mapper_cached`.
