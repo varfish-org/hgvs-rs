@@ -6,7 +6,7 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use crate::mapper::error::Error;
-use crate::mapper::variant;
+use crate::mapper::variant::{self, ShiftOverBoundaryPreference};
 use crate::normalizer::Direction;
 use crate::parser::HgvsVariant;
 use crate::{data::interface::Provider, validator::ValidationLevel};
@@ -55,6 +55,10 @@ pub struct Config {
     pub window_size: usize,
     /// See `variant::Config::ins_at_boundary_is_intronic`.
     pub ins_at_boundary_is_intronic: bool,
+    /// See `variant::Config::shift_over_boundary`.  This needs `genome_seq_available`.
+    pub shift_over_boundary: bool,
+    /// See `variant::Config::shift_over_boundary_preference`.
+    pub shift_over_boundary_preference: ShiftOverBoundaryPreference,
 }
 
 impl Default for Config {
@@ -75,6 +79,8 @@ impl Default for Config {
             shuffle_direction: Default::default(),
             window_size: 20,
             ins_at_boundary_is_intronic: true,
+            shift_over_boundary: false,
+            shift_over_boundary_preference: Default::default(),
         }
     }
 }
@@ -126,6 +132,8 @@ impl Mapper {
             shuffle_direction: config.shuffle_direction,
             window_size: config.window_size,
             ins_at_boundary_is_intronic: config.ins_at_boundary_is_intronic,
+            shift_over_boundary: config.shift_over_boundary,
+            shift_over_boundary_preference: config.shift_over_boundary_preference,
         };
         let inner = variant::Mapper::new(&inner_config, provider.clone());
         let asm_map = config.asm_map.clone().unwrap_or_else(|| {
@@ -264,7 +272,10 @@ impl Mapper {
     /// * `var_c` -- `HgvsVariant::TxVariant` to project
     pub fn c_to_p(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, Error> {
         // Only the genome has the reference of intron bases, e.g., of a dup next to an exon.
-        let alt_ac = if self.config.genome_seq_available && var_c.spans_intron() {
+        // Shifting over an exon boundary needs the genome, too.
+        let alt_ac = if self.config.genome_seq_available
+            && (var_c.spans_intron() || self.config.shift_over_boundary)
+        {
             Some(self.alt_ac_for_tx_ac(var_c.accession())?)
         } else {
             None
@@ -586,6 +597,130 @@ mod test {
             let intronic = build_mapper(true)?;
             assert_eq!(format!("{}", intronic.c_to_p(&var_c)?), "NP_003768.2:p.?");
 
+            Ok(())
+        }
+    }
+
+    /// Corresponds to `tests/issues/test_714.py` of biocommons/hgvs.  Its transcripts are not
+    /// in the test data, so these cases use KRAS and PTEN instead.
+    mod issue_714 {
+        use anyhow::Error;
+        use std::str::FromStr;
+
+        use crate::data::uta_sr::test_helpers::build_provider;
+        use crate::mapper::variant::ShiftOverBoundaryPreference;
+        use crate::parser::HgvsVariant;
+
+        use super::{Config, Mapper};
+
+        fn build_mapper(
+            shift_over_boundary: bool,
+            shift_over_boundary_preference: ShiftOverBoundaryPreference,
+        ) -> Result<Mapper, Error> {
+            let config = Config {
+                assembly: "GRCh37".to_string(),
+                renormalize_g: false,
+                shift_over_boundary,
+                shift_over_boundary_preference,
+                ..Config::default()
+            };
+            Ok(Mapper::new(config, build_provider()?))
+        }
+
+        /// `(var_c, var_p without shifts or with DEFAULT, var_p with EXON, var_p with INTRON)`
+        ///
+        /// KRAS is on the minus strand.  Exon 2 ends with `c.106_111` `ATAGAG` (Ile36, Glu37)
+        /// and intron 2 starts with `c.111+1_111+3` `GTA`.  PTEN is on the plus strand.  Exon 3
+        /// ends with `c.207_209` `TCT` and intron 3 starts with `c.209+1_209+2` `GT`.  Exon 8
+        /// starts at `c.802` after `c.802-17_802-1` `TTTTTTTTTTTTTTTAG`.
+        const CASES: &[(&str, &str, &str, &str)] = &[
+            // An intron insertion, which fits into the exon as `c.110_111insGGC`.
+            (
+                "NM_004985.4:c.111+1_111+2insCGG",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.Glu37_Asp38insAla",
+                "NP_004976.2:p.?",
+            ),
+            // The same insertion, given in the exon.
+            (
+                "NM_004985.4:c.110_111insGGC",
+                "NP_004976.2:p.Glu37_Asp38insAla",
+                "NP_004976.2:p.Glu37_Asp38insAla",
+                "NP_004976.2:p.?",
+            ),
+            // A dup over the exon end, which fits into the exon as `c.108_109insGAG`.
+            (
+                "NM_004985.4:c.110_111+1dup",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.Glu37dup",
+                "NP_004976.2:p.?",
+            ),
+            // A dup of the first intron base, which fits into the exon as `c.110_111insG`.
+            (
+                "NM_004985.4:c.111+1dup",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.Asp38GlyfsTer10",
+                "NP_004976.2:p.?",
+            ),
+            // A dup of the last exon base, which fits into the exon as `c.208_209insT`.
+            (
+                "NM_000314.4:c.209dup",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.Cys71LeufsTer3",
+                "NP_000305.3:p.?",
+            ),
+            // A dup in the poly-T before the acceptor, which cannot reach the exon.
+            (
+                "NM_000314.4:c.802-3dup",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+            ),
+            // A dup of the first two intron bases.  It shifts by one base to `c.209_209+1dup`.
+            // As in biocommons/hgvs, the plus strand rewrites this as `c.209+1_209+2insTG`,
+            // which is in the intron.  The minus strand would give `c.208_209insTG` in the
+            // exon, as for KRAS `c.111+1dup` above.
+            (
+                "NM_000314.4:c.209+1_209+2dup",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+            ),
+        ];
+
+        #[test]
+        fn c_to_p() -> Result<(), Error> {
+            let disabled = build_mapper(false, ShiftOverBoundaryPreference::Exon)?;
+            let default = build_mapper(true, ShiftOverBoundaryPreference::Default)?;
+            let exon = build_mapper(true, ShiftOverBoundaryPreference::Exon)?;
+            let intron = build_mapper(true, ShiftOverBoundaryPreference::Intron)?;
+            for (hgvs_c, expected_default, expected_exon, expected_intron) in CASES {
+                let var_c = HgvsVariant::from_str(hgvs_c)?;
+                for (label, mapper, expected) in [
+                    ("disabled", &disabled, expected_default),
+                    ("DEFAULT", &default, expected_default),
+                    ("EXON", &exon, expected_exon),
+                    ("INTRON", &intron, expected_intron),
+                ] {
+                    assert_eq!(
+                        format!("{}", mapper.c_to_p(&var_c)?),
+                        *expected,
+                        "{hgvs_c} with {label}"
+                    );
+                }
+            }
+            Ok(())
+        }
+
+        /// The variant mapper lacks the genome alignment for the shifts.
+        #[test]
+        fn variant_mapper_c_to_p_needs_alignment() -> Result<(), Error> {
+            let mapper = build_mapper(true, ShiftOverBoundaryPreference::Exon)?;
+            let var_c = HgvsVariant::from_str("NM_004985.4:c.110_111insGGC")?;
+            assert!(matches!(
+                mapper.variant_mapper().c_to_p(&var_c, None),
+                Err(crate::mapper::Error::ShiftOverBoundaryNeedsAlignment(_))
+            ));
             Ok(())
         }
     }
