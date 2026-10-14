@@ -485,30 +485,6 @@ impl<'a> AltSeqBuilder<'a> {
                 let ref_data = self.reference_data;
                 let at_exon_edge = ref_data.exon_start_positions.contains(&loc.start.base)
                     || ref_data.exon_end_positions.contains(&loc.end.base);
-                // Whether `pos` is c.`base` with the intron offset `offset`.
-                let is_at = |pos: &CdsPos, base: i32, offset: i32| {
-                    pos.cds_from == CdsFrom::Start
-                        && pos.base == base
-                        && pos.offset.unwrap_or(0) == offset
-                };
-                // An insertion right before c.1 or right after c.N, the last base of the CDS,
-                // changes no base of the CDS.  With `ins_at_boundary_is_intronic` set to
-                // `false`, this includes the insertions and dups at the exon boundary before
-                // c.1 or after c.N, see below.  `c.N_*1ins` is 3' UTR already.
-                let exonic = !self.ins_at_boundary_is_intronic;
-                let cds_len = ref_data.cds_stop - ref_data.cds_start + 1;
-                let (ins_before_cds, ins_after_cds) = match edit {
-                    NaEdit::Ins { .. } => (
-                        is_at(&loc.end, 1, 0)
-                            && (is_at(&loc.start, -1, 0) || (exonic && is_at(&loc.start, 1, -1))),
-                        exonic && is_at(&loc.start, cds_len, 0) && is_at(&loc.end, cds_len, 1),
-                    ),
-                    NaEdit::Dup { .. } => (
-                        exonic && is_at(&loc.end, 1, -1),
-                        exonic && is_at(&loc.start, cds_len, 1),
-                    ),
-                    _ => (false, false),
-                };
                 #[allow(clippy::nonminimal_bool)]
                 if loc.start.cds_from == CdsFrom::End && loc.end.cds_from == CdsFrom::End
                     || ((edit.is_ins() || edit.is_dup()) && loc.end.cds_from == CdsFrom::End)
@@ -520,10 +496,8 @@ impl<'a> AltSeqBuilder<'a> {
                     VariantLocation::FivePrimeUtr
                 } else if loc.start.base < 0 && loc.end.cds_from == CdsFrom::End {
                     VariantLocation::WholeGene
-                } else if ins_before_cds {
-                    VariantLocation::FivePrimeUtr
-                } else if ins_after_cds {
-                    VariantLocation::ThreePrimeUtr
+                } else if let Some(utr) = self.ins_outside_cds() {
+                    utr
                 } else if self.ins_at_boundary_is_intronic && edit.is_dup() && at_exon_edge {
                     // The copy may sit at the exon boundary, like an insertion there.
                     VariantLocation::Intron
@@ -542,6 +516,93 @@ impl<'a> AltSeqBuilder<'a> {
                 }
             }
             _ => panic!("Must be CDS variant"),
+        }
+    }
+
+    /// The UTR of an insertion that leaves the CDS intact, or `None`.
+    ///
+    /// An ins or dup leaves the CDS intact if one of its equivalent placements lies before c.1
+    /// or after the last base of the CDS.  This depends on the sequence, not on the
+    /// description.  For example, `c.1dup` is `c.-1_1insA` if c.-1 is not an A, and
+    /// `c.(N-2)_Ndup` puts its copy after c.N, the last base of the CDS.  The inserted bases can
+    /// still form an upstream ATG, so the effect on the protein is unknown, not none.
+    ///
+    /// With `ins_at_boundary_is_intronic`, an ins or dup with an intron position stays
+    /// intronic.
+    fn ins_outside_cds(&self) -> Option<VariantLocation> {
+        let HgvsVariant::CdsVariant { loc_edit, .. } = &self.var_c else {
+            return None;
+        };
+        let loc = loc_edit.loc.inner();
+        let ref_data = self.reference_data;
+        let seq = ref_data.transcript_sequence.as_bytes();
+        let cds_start = usize::try_from(ref_data.cds_start - 1).ok()?;
+        let cds_end = usize::try_from(ref_data.cds_stop).ok()?;
+        // The 0-based index in `seq` of the base c.`pos.base`, ignoring the intron offset.
+        let index = |pos: &CdsPos| {
+            let base = i64::from(pos.base);
+            let one_based = match pos.cds_from {
+                // There is no c.0, c.-1 is the base before c.1.
+                CdsFrom::Start if base < 0 => i64::from(ref_data.cds_start) + base,
+                CdsFrom::Start => i64::from(ref_data.cds_start) + base - 1,
+                CdsFrom::End => i64::from(ref_data.cds_stop) + base,
+            };
+            usize::try_from(one_based - 1)
+                .ok()
+                .filter(|&index| index < seq.len())
+        };
+        let offsets = (loc.start.offset.unwrap_or(0), loc.end.offset.unwrap_or(0));
+        let at_boundary_is_exonic = !self.ins_at_boundary_is_intronic;
+        // `inserted` goes before the base at index `gap` of `seq`.
+        let (gap, inserted) = match (loc_edit.edit.inner(), offsets) {
+            (NaEdit::Ins { alternative }, (0, 0)) => (index(&loc.start)? + 1, alternative.as_str()),
+            // At an exon boundary, the inserted bases go into the exon, as in
+            // `get_variant_region()`.
+            (NaEdit::Ins { alternative }, (-1, 0)) if at_boundary_is_exonic => {
+                (index(&loc.end)?, alternative.as_str())
+            }
+            (NaEdit::Ins { alternative }, (0, 1)) if at_boundary_is_exonic => {
+                (index(&loc.start)? + 1, alternative.as_str())
+            }
+            // The copy can go before the duplicated bases.  If these start before c.1, the copy
+            // leaves the CDS intact, even if they start before the transcript.
+            (NaEdit::Dup { .. }, (0, 0)) if loc.start.base < 0 => {
+                return Some(VariantLocation::FivePrimeUtr);
+            }
+            (NaEdit::Dup { .. }, (0, 0)) => {
+                let start = index(&loc.start)?;
+                let end = index(&loc.end)?;
+                (start, ref_data.transcript_sequence.get(start..=end)?)
+            }
+            // The copy of intron bases can go to the exon boundary.  Only the variant can tell
+            // these bases.
+            (NaEdit::Dup { reference }, (_, -1)) if at_boundary_is_exonic => {
+                (index(&loc.end)?, reference.as_str())
+            }
+            (NaEdit::Dup { reference }, (1, _)) if at_boundary_is_exonic => {
+                (index(&loc.start)? + 1, reference.as_str())
+            }
+            _ => return None,
+        };
+        let (before_cds, after_cds) = if inserted.is_empty() {
+            // Without the bases, only this placement is known.
+            (gap <= cds_start, gap >= cds_end)
+        } else {
+            // `alt` ends with the reference from c.1 on if and only if a placement at or
+            // before c.1 gives `alt`.  Likewise, `alt` starts with the reference up to the
+            // last base of the CDS if and only if a placement after that base gives `alt`.
+            let alt = [seq.get(..gap)?, inserted.as_bytes(), seq.get(gap..)?].concat();
+            (
+                alt.ends_with(seq.get(cds_start..)?),
+                alt.starts_with(seq.get(..cds_end)?),
+            )
+        };
+        if before_cds {
+            Some(VariantLocation::FivePrimeUtr)
+        } else if after_cds {
+            Some(VariantLocation::ThreePrimeUtr)
+        } else {
+            None
         }
     }
 
