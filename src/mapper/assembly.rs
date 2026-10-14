@@ -691,6 +691,14 @@ mod test {
                 "NP_000305.3:p.?",
                 "NP_000305.3:p.?",
             ),
+            // A dup of FOLR3 exon 3, whose alignment has a gap (`150=2D37=`), and of the 20 intron
+            // bases before it.
+            (
+                "NM_000804.2:c.169-20_357dup",
+                "NP_000795.2:p.?",
+                "NP_000795.2:p.?",
+                "NP_000795.2:p.?",
+            ),
             // A dup of the first two intron bases.  It shifts by one base to `c.209_209+1dup`.
             // As in biocommons/hgvs, the plus strand rewrites this as `c.209+1_209+2insTG`,
             // which is in the intron.  The minus strand would give `c.208_209insTG` in the
