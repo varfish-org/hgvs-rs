@@ -46,9 +46,10 @@ pub struct Config {
     pub ins_at_boundary_is_intronic: bool,
     /// Let `c_to_p` move an insertion or duplication in an exon or intron to the other side
     /// of an exon boundary, as preferred by `shift_over_boundary_preference`.  With
-    /// `ShiftOverBoundaryPreference::KeepSpliceSite`, this includes deletions.  The shifts need
-    /// the genome alignment.  `assembly::Mapper::c_to_p()` provides it.  `c_to_p()` of this
-    /// mapper fails for such variants, unless the preference is `Default`.
+    /// `ShiftOverBoundaryPreference::KeepSpliceSite`, this includes deletions and the exons and
+    /// introns of the UTRs.  The shifts need the genome alignment.
+    /// `assembly::Mapper::c_to_p()` provides it.  `c_to_p()` of this mapper fails for such
+    /// variants, unless the preference is `Default`.
     pub shift_over_boundary: bool,
     /// See `shift_over_boundary`.
     pub shift_over_boundary_preference: ShiftOverBoundaryPreference,
@@ -94,10 +95,10 @@ pub enum ShiftOverBoundaryPreference {
     /// Decide by sequence whether the variant keeps the splice site.  biocommons/hgvs does not
     /// have this value.
     ///
-    /// It applies to insertions, duplications and deletions in an exon or intron, unlike
-    /// `Intron` and `Exon`, which do not shift deletions.  The variant fits at
-    /// several equivalent places on the genome, its placements.  `c_to_p` checks them in this
-    /// order:
+    /// It applies to insertions, duplications and deletions in an exon or intron, also in the
+    /// UTRs.  `Intron` and `Exon` do not shift deletions, and they leave a variant in a UTR as it
+    /// is.  The variant fits at several equivalent places on the genome, its placements.
+    /// `c_to_p` checks them in this order:
     ///
     /// 1. If a placement lies in an intron and keeps its essential splice-site bases, the
     ///    variant is intronic and gives `p.?`.
@@ -1013,8 +1014,8 @@ impl Mapper {
 
     /// Apply `ShiftOverBoundaryPreference::KeepSpliceSite` to the variant of `builder`.
     ///
-    /// For an insertion, duplication or deletion in an exon or intron, shift the variant fully
-    /// 3' and fully 5' on the genome.  All placements between the two shifts are equivalent.
+    /// For an insertion, duplication or deletion in the transcript, shift the variant fully 3'
+    /// and fully 5' on the genome.  All placements between the two shifts are equivalent.
     /// Return the builder of the placement that `Exons::choose()` picks.  `alt` is the genome
     /// alignment as `(alt_ac, alt_aln_method)`.
     fn keep_splice_site<'a>(
@@ -1026,12 +1027,7 @@ impl Mapper {
             return Ok(builder);
         };
         let is_deletion = matches!(edit, NaEdit::DelRef { .. } | NaEdit::DelNum { .. });
-        if !ShiftOverBoundaryPreference::KeepSpliceSite.shifts(edit)
-            || !matches!(
-                builder.variant_location()?,
-                VariantLocation::Intron | VariantLocation::Cds
-            )
-        {
+        if !ShiftOverBoundaryPreference::KeepSpliceSite.shifts(edit) {
             return Ok(builder);
         }
         let (alt_ac, alt_aln_method) =
@@ -1054,8 +1050,9 @@ impl Mapper {
         let Some((given, given_seq)) = genome_placement(&var_g) else {
             return Ok(builder);
         };
-        // An intronic variant that keeps the splice site stays intronic, wherever it shifts.
-        if exons.region_of(given) == Some(Region::Intron) {
+        // A variant outside the transcript is at no exon boundary.  An intronic variant that
+        // keeps the splice site stays intronic, wherever it shifts.
+        if !exons.contains(given) || exons.region_of(given) == Some(Region::Intron) {
             return Ok(builder);
         }
         let mut found = vec![(given, given_seq)];
@@ -3152,28 +3149,20 @@ mod test {
     /// `KeepSpliceSite` counts an insertion at the edge of an exon as exonic.  If that exon
     /// starts with c.1 or ends with the stop codon, the insertion leaves the CDS intact.  So
     /// can a deletion at the edge.  The projection then gives `p.?` and a UTR, with both values
-    /// of `ins_at_boundary_is_intronic`.
+    /// of `ins_at_boundary_is_intronic`.  `KeepSpliceSite` also moves a variant that already is
+    /// a UTR variant, e.g., in an intron of the 3' UTR.
     #[test]
     fn c_to_p_projection_keep_splice_site_at_cds_boundary() -> Result<(), Error> {
         use crate::mapper::altseq::VariantLocation;
 
         for ins_at_boundary_is_intronic in [true, false] {
             let mapper = build_mapper_cds_boundary_genome(ins_at_boundary_is_intronic);
-            // Without `ins_at_boundary_is_intronic`, a dup at the exon edge already is a UTR
-            // variant, so `KeepSpliceSite` does not move it.
-            let moved_or = |moved, given| {
-                if ins_at_boundary_is_intronic {
-                    moved
-                } else {
-                    given
-                }
-            };
             for (hgvs_c, expected_c, expected_region) in [
                 // c.1-1 is the `G` of the acceptor `AG`, and c.1 is the `A` of the ATG.  The
                 // copy of the `G` keeps the splice site only at the exon edge, before c.1.
                 (
                     "NM_999989.1:c.1-1dup",
-                    moved_or("NM_999989.1:c.1-1_1insG", "NM_999989.1:c.1-1dupG"),
+                    "NM_999989.1:c.1-1_1insG",
                     VariantLocation::FivePrimeUtr,
                 ),
                 (
@@ -3185,7 +3174,7 @@ mod test {
                 // copy of the `G` fits between c.29 and c.30, after the TAG.
                 (
                     "NM_999989.1:c.30+1dup",
-                    moved_or("NM_999989.1:c.29_30insG", "NM_999989.1:c.30+1dupG"),
+                    "NM_999989.1:c.29_30insG",
                     VariantLocation::ThreePrimeUtr,
                 ),
                 (
@@ -3200,6 +3189,13 @@ mod test {
                     "NM_999989.1:c.30delG",
                     VariantLocation::ThreePrimeUtr,
                 ),
+                // c.*1-1 is the `G` of the acceptor `AG`, and exon 3 starts with c.*1_*5
+                // `GGGGG`.  The most 3' deletion of a `G` in the exon keeps the splice site.
+                (
+                    "NM_999989.1:c.*1-1del",
+                    "NM_999989.1:c.*5delG",
+                    VariantLocation::ThreePrimeUtr,
+                ),
             ] {
                 let message = format!("{hgvs_c} {ins_at_boundary_is_intronic}");
                 let projection = mapper.c_to_p_projection(
@@ -3210,6 +3206,93 @@ mod test {
                 assert_eq!(format!("{}", projection.var_c), expected_c, "{message}");
                 assert_eq!(format!("{}", projection.var_p), "MOCK:p.?", "{message}");
                 assert_eq!(projection.region, expected_region, "{message}");
+            }
+        }
+        Ok(())
+    }
+
+    /// `NM_999986.1` without UTRs: exons of 15 bases with the CDS
+    /// `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`), aligned to the genome sequence
+    /// `NC_999986.1`.  The intron is as in `build_mapper_cds_boundary_genome()`.  On the genome,
+    /// c.-3_-1 and c.*1_*3 are `CCC`.
+    fn build_mapper_no_utr_genome(config: Config) -> Mapper {
+        let exons = ["ATGAAAGCGAAAGCG", "TTTCGCGCGAAATAG"];
+        let intron = format!("GTAAGT{}CAG", "T".repeat(21));
+        let alt_sequence = [
+            &format!("{}CCC", "A".repeat(27)),
+            exons[0],
+            &intron,
+            exons[1],
+            &format!("CCC{}", "T".repeat(27)),
+        ]
+        .concat();
+        let provider = sanity_mock::Provider::with_records(vec![sanity_mock::ProviderRecord {
+            accession: "NM_999986.1".to_string(),
+            transcript_sequence: exons.concat(),
+            cds_start_i: 0,
+            cds_end_i: 30,
+            translation_exceptions: Vec::new(),
+            lengths: vec![15, 15],
+        }])
+        .with_alignments(vec![sanity_mock::GenomeAlignment {
+            tx_ac: "NM_999986.1".to_string(),
+            alt_ac: "NC_999986.1".to_string(),
+            alt_sequence,
+            exon_starts: vec![30, 75],
+        }]);
+        Mapper::new(&config, std::sync::Arc::new(provider))
+    }
+
+    /// A dup can put its copy before its first base.  If the dup starts before c.1, this
+    /// placement leaves the CDS intact, even if the dup starts before the transcript.  Likewise,
+    /// the copy of a dup that ends after the stop codon can go after its last base.  So the dup
+    /// and the insertion of its copy give the same UTR and `p.?`.  This holds with each
+    /// `shift_over_boundary_preference` and without `shift_over_boundary`.
+    #[test]
+    fn c_to_p_projection_dup_beyond_transcript() -> Result<(), Error> {
+        use super::ShiftOverBoundaryPreference;
+        use crate::mapper::altseq::VariantLocation;
+
+        for (shift_over_boundary, shift_over_boundary_preference) in [
+            (false, ShiftOverBoundaryPreference::Default),
+            (true, ShiftOverBoundaryPreference::Default),
+            (true, ShiftOverBoundaryPreference::Intron),
+            (true, ShiftOverBoundaryPreference::Exon),
+            (true, ShiftOverBoundaryPreference::KeepSpliceSite),
+        ] {
+            for ins_at_boundary_is_intronic in [false, true] {
+                let mapper = build_mapper_no_utr_genome(Config {
+                    prevalidation_level: crate::validator::ValidationLevel::Intrinsic,
+                    strict_bounds: false,
+                    renormalize_g: false,
+                    ins_at_boundary_is_intronic,
+                    shift_over_boundary,
+                    shift_over_boundary_preference,
+                    ..Default::default()
+                });
+                for (hgvs_c, expected_region) in [
+                    // c.-3_-1 is `CCC`, so the copy of c.-3_2 `CCCAT` can go after c.2.
+                    ("NM_999986.1:c.-3_2dup", VariantLocation::FivePrimeUtr),
+                    ("NM_999986.1:c.2_3insCCCAT", VariantLocation::FivePrimeUtr),
+                    // c.*1_*3 is `CCC`, so the copy of c.29_*3 `AGCCC` can go before c.29.
+                    ("NM_999986.1:c.29_*3dup", VariantLocation::ThreePrimeUtr),
+                    (
+                        "NM_999986.1:c.28_29insAGCCC",
+                        VariantLocation::ThreePrimeUtr,
+                    ),
+                ] {
+                    let message = format!(
+                        "{hgvs_c} {shift_over_boundary} {shift_over_boundary_preference:?} \
+                         {ins_at_boundary_is_intronic}"
+                    );
+                    let projection = mapper.c_to_p_projection(
+                        &HgvsVariant::from_str(hgvs_c)?,
+                        Some("MOCK"),
+                        Some(("NC_999986.1", "splign")),
+                    )?;
+                    assert_eq!(format!("{}", projection.var_p), "MOCK:p.?", "{message}");
+                    assert_eq!(projection.region, expected_region, "{message}");
+                }
             }
         }
         Ok(())

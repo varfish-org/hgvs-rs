@@ -129,6 +129,17 @@ impl Exons {
         }
     }
 
+    /// Whether `placement` lies within the transcript, from its first to its last base.
+    pub(crate) fn contains(&self, placement: Placement) -> bool {
+        let (Some((first, _)), Some((_, last))) = (self.spans.first(), self.spans.last()) else {
+            return false;
+        };
+        match placement {
+            Placement::Insertion(x) => *first <= x && x < *last,
+            Placement::Bases(start, end) => *first <= start && end <= *last,
+        }
+    }
+
     /// Whether `g.start` to `g.end` contain a whole intron.
     pub(crate) fn contains_intron(&self, start: i32, end: i32) -> bool {
         self.introns()
@@ -378,6 +389,23 @@ mod test {
             plus.choose(Placement::Bases(299, 299), all),
             Some((Region::Intron, Placement::Bases(298, 298)))
         );
+    }
+
+    #[test]
+    fn contains() {
+        let exons = exons(true);
+        for (placement, expected) in [
+            (Placement::Insertion(100), true),
+            (Placement::Insertion(399), true),
+            // Before the first base and after the last base of the transcript.
+            (Placement::Insertion(99), false),
+            (Placement::Insertion(400), false),
+            (Placement::Bases(100, 400), true),
+            (Placement::Bases(99, 100), false),
+            (Placement::Bases(400, 401), false),
+        ] {
+            assert_eq!(exons.contains(placement), expected, "{placement:?}");
+        }
     }
 
     #[test]

@@ -1320,6 +1320,102 @@ mod test {
             Ok(())
         }
 
+        /// `KeepSpliceSite` also applies to the exons and introns of the UTRs.  `c_to_p` gives
+        /// `p.?` there, but the projection shows the placement that keeps the splice site.
+        ///
+        /// Intron 1 of KRAS `NM_004985.4` (minus strand) lies in the 5' UTR.  Exon 1 ends with
+        /// `c.-13_-12` `AG`, and intron 1 starts with `c.-12+1_-12+3` `GTA`.  Intron 1 ends with
+        /// `c.-11-2_-11-1` `AG`, and exon 2 starts with `c.-11_-10` `GC`.  Intron 3 of MED21
+        /// `NM_001271811.2` (plus strand) lies in the 3' UTR.  Exon 3 ends with `c.*48_*49`
+        /// `AG`, and intron 3 starts with `c.*49+1_*49+2` `GT`.  Intron 3 ends with
+        /// `c.*50-2_*50-1` `AG`, and exon 4 starts with `c.*50_*51` `GC`.
+        #[test]
+        fn c_to_p_projection_utr() -> Result<(), Error> {
+            let build = |shift_over_boundary_preference| {
+                let config = Config {
+                    assembly: "GRCh37".to_string(),
+                    renormalize_g: false,
+                    shift_over_boundary: true,
+                    shift_over_boundary_preference,
+                    ..Config::default()
+                };
+                Ok::<_, Error>(Mapper::new(config, build_provider()?))
+            };
+            let keep_splice_site = build(ShiftOverBoundaryPreference::KeepSpliceSite)?;
+            let exon = build(ShiftOverBoundaryPreference::Exon)?;
+            for (mapper, hgvs_c, expected_c, expected_region) in [
+                // Deletions of `+1` or `-1` that equal the deletion of an exon base.
+                (
+                    &keep_splice_site,
+                    "NM_004985.4:c.-12+1del",
+                    "NM_004985.4:c.-12delG",
+                    VariantLocation::FivePrimeUtr,
+                ),
+                (
+                    &keep_splice_site,
+                    "NM_004985.4:c.-11-1del",
+                    "NM_004985.4:c.-11delG",
+                    VariantLocation::FivePrimeUtr,
+                ),
+                (
+                    &keep_splice_site,
+                    "NM_001271811.2:c.*49+1del",
+                    "NM_001271811.2:c.*49delG",
+                    VariantLocation::ThreePrimeUtr,
+                ),
+                (
+                    &keep_splice_site,
+                    "NM_001271811.2:c.*50-1del",
+                    "NM_001271811.2:c.*50delG",
+                    VariantLocation::ThreePrimeUtr,
+                ),
+                // Dups of `+1` or `-1` that fit between two exon bases.
+                (
+                    &keep_splice_site,
+                    "NM_004985.4:c.-12+1dup",
+                    "NM_004985.4:c.-13_-12insG",
+                    VariantLocation::FivePrimeUtr,
+                ),
+                (
+                    &keep_splice_site,
+                    "NM_004985.4:c.-11-1dup",
+                    "NM_004985.4:c.-11_-10insG",
+                    VariantLocation::FivePrimeUtr,
+                ),
+                // A dup of `GT` that fits into the intron after the essential splice-site bases.
+                (
+                    &keep_splice_site,
+                    "NM_004985.4:c.-12+1_-12+2dup",
+                    "NM_004985.4:c.-12+2_-12+3insGT",
+                    VariantLocation::FivePrimeUtr,
+                ),
+                // An insertion between `+1` and `+2` cannot move.
+                (
+                    &keep_splice_site,
+                    "NM_004985.4:c.-12+1_-12+2insC",
+                    "NM_004985.4:c.-12+1_-12+2insC",
+                    VariantLocation::FivePrimeUtr,
+                ),
+                // As in biocommons/hgvs, `Exon` does not move a variant in a UTR.
+                (
+                    &exon,
+                    "NM_004985.4:c.-12+1dup",
+                    "NM_004985.4:c.-12+1dupG",
+                    VariantLocation::FivePrimeUtr,
+                ),
+            ] {
+                let var_c = HgvsVariant::from_str(hgvs_c)?;
+                let projection = mapper.c_to_p_projection(&var_c)?;
+                assert_eq!(format!("{}", projection.var_c), expected_c, "{hgvs_c}");
+                assert!(
+                    format!("{}", projection.var_p).ends_with(":p.?"),
+                    "{hgvs_c}"
+                );
+                assert_eq!(projection.region, expected_region, "{hgvs_c}");
+            }
+            Ok(())
+        }
+
         /// `KeepSpliceSite` counts an insertion at the edge of an exon as exonic with both values
         /// of `ins_at_boundary_is_intronic`, and so does the region of its projection.  The
         /// default preference follows the setting.  The region agrees with `var_p` in each case.
