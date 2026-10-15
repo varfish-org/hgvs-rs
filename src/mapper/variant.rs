@@ -108,9 +108,10 @@ pub enum ShiftOverBoundaryPreference {
     /// `+2` at the donor, `-2` and `-1` at the acceptor.  An insertion between them changes
     /// them, e.g. `c.111+1_111+2insC`.  An insertion at the edge of an exon keeps them, i.e.
     /// between the last exon base and `+1` or between `-1` and the first exon base.  Its
-    /// bases extend the exon, whatever `Config::ins_at_boundary_is_intronic` says.  A
-    /// duplication counts as an insertion of its bases next to them.  A deletion changes the
-    /// essential bases if it removes one of them.
+    /// bases extend the exon, whatever `Config::ins_at_boundary_is_intronic` says.  If the exon
+    /// starts with c.1 or ends with the last base of the CDS, they extend a UTR, which gives
+    /// `p.?`.  A duplication counts as an insertion of its bases next to them.  A deletion
+    /// changes the essential bases if it removes one of them.
     ///
     /// If the variant itself lies in the region of step 1 or 2, `c_to_p` uses it.  Otherwise
     /// it uses the most 3' placement in that region on the transcript.  In an exon, a placement
@@ -135,11 +136,11 @@ impl ShiftOverBoundaryPreference {
     }
 }
 
-/// The protein variant of `c_to_p` and the c. variant that it is built from.
+/// The protein variant of `c_to_p`, the c. variant that it is built from, and its region.
 ///
 /// `assembly::Mapper::c_to_p_projection()` returns it.  A caller can derive further
-/// consequences, e.g. a frameshift or a change of a splice site, from `var_c`, so that they
-/// agree with `var_p`.
+/// consequences, e.g. a frameshift or a change of a splice site, from `var_c` and `region`, so
+/// that they agree with `var_p`.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct ProteinProjection {
@@ -151,6 +152,17 @@ pub struct ProteinProjection {
     pub var_c: HgvsVariant,
     /// The protein variant, as `c_to_p` returns it.
     pub var_p: HgvsVariant,
+    /// The region of the transcript that `var_c` changes.  `c_to_p` built `var_p` for this
+    /// region, e.g. `p.?` for an intron or a UTR, see `VariantLocation`.
+    ///
+    /// The region is what `AltSeqBuilder::variant_location()` returns for `var_c` with the
+    /// `ins_at_boundary_is_intronic` that `c_to_p` used.  This is
+    /// `Config::ins_at_boundary_is_intronic`, except for the variants that `KeepSpliceSite`
+    /// shifts.  For them, an insertion at the edge of an exon counts as exonic.  E.g., with
+    /// `KeepSpliceSite`, `NM_004985.4:c.112dupG` at the start of an exon is `Cds`.  With the
+    /// default preference and setting, it is `Intron`.  Next to c.1 or the last base of the
+    /// CDS, such an insertion leaves the CDS intact, so it is `FivePrimeUtr` or `ThreePrimeUtr`.
+    pub region: VariantLocation,
 }
 
 /// Projects variants between sequences using `alignment::Mapper`.
@@ -867,6 +879,8 @@ impl Mapper {
                 ..AltSeqBuilder::new(var_c, &reference_data)
             };
             let builder = self.shift_over_boundary(builder, alt)?;
+            // `build_altseq()` decides by the same call on the same builder.
+            let region = builder.variant_location()?;
 
             // NB: the following comment is from the original code.
             // TODO: handle case where you get 2+ alt sequences back;  currently get list of 1 element
@@ -904,6 +918,7 @@ impl Mapper {
             Ok(ProteinProjection {
                 var_c: builder.var_c,
                 var_p,
+                region,
             })
         } else {
             Err(Error::ExpectedCdsVariant(format!("{}", var_c)))
@@ -1783,10 +1798,21 @@ mod test {
             pub lengths: Vec<i32>,
         }
 
+        /// The alignment of the transcript `tx_ac` to the genome sequence `alt_sequence` on the
+        /// plus strand, without gaps.  The exons have the `lengths` of the transcript and start
+        /// at the 0-based `exon_starts` on the genome.
+        pub struct GenomeAlignment {
+            pub tx_ac: String,
+            pub alt_ac: String,
+            pub alt_sequence: String,
+            pub exon_starts: Vec<i32>,
+        }
+
         pub struct Provider {
             data_version: String,
             schema_version: String,
             records: Vec<ProviderRecord>,
+            alignments: Vec<GenomeAlignment>,
         }
 
         impl Provider {
@@ -1810,7 +1836,28 @@ mod test {
                     records,
                     data_version: dummy_version.clone(),
                     schema_version: dummy_version,
+                    alignments: Vec::new(),
                 }
+            }
+
+            pub fn with_alignments(self, alignments: Vec<GenomeAlignment>) -> Self {
+                Self { alignments, ..self }
+            }
+
+            fn alignment(
+                &self,
+                tx_ac: &str,
+                alt_ac: &str,
+            ) -> Option<(&ProviderRecord, &GenomeAlignment)> {
+                let record = self
+                    .records
+                    .iter()
+                    .find(|record| record.accession == tx_ac)?;
+                let alignment = self
+                    .alignments
+                    .iter()
+                    .find(|alignment| alignment.tx_ac == tx_ac && alignment.alt_ac == alt_ac)?;
+                Some((record, alignment))
             }
         }
 
@@ -1860,6 +1907,13 @@ mod test {
                         return Ok(seq[begin..end].to_string());
                     }
                 }
+                // As seqrepo, return the part of a genome sequence within its bounds.
+                if let Some(alignment) = self.alignments.iter().find(|a| a.alt_ac == tx_ac) {
+                    let seq = &alignment.alt_sequence;
+                    let end = end.unwrap_or(seq.len()).min(seq.len());
+                    let begin = begin.unwrap_or(0).min(end);
+                    return Ok(seq[begin..end].to_string());
+                }
                 Err(crate::data::error::Error::NoSequenceRecord(
                     tx_ac.to_string(),
                 ))
@@ -1882,12 +1936,38 @@ mod test {
 
             fn get_tx_exons(
                 &self,
-                _tx_ac: &str,
-                _alt_ac: &str,
-                _alt_aln_method: &str,
+                tx_ac: &str,
+                alt_ac: &str,
+                alt_aln_method: &str,
             ) -> Result<Vec<crate::data::interface::TxExonsRecord>, crate::data::error::Error>
             {
-                todo!()
+                let Some((record, alignment)) = self.alignment(tx_ac, alt_ac) else {
+                    todo!()
+                };
+                let mut tx_start_i = 0;
+                let mut exons = Vec::new();
+                for (ord, (length, alt_start_i)) in record
+                    .lengths
+                    .iter()
+                    .zip(&alignment.exon_starts)
+                    .enumerate()
+                {
+                    exons.push(crate::data::interface::TxExonsRecord {
+                        tx_ac: tx_ac.to_string(),
+                        alt_ac: alt_ac.to_string(),
+                        alt_aln_method: alt_aln_method.to_string(),
+                        alt_strand: 1,
+                        ord: ord as i32,
+                        tx_start_i,
+                        tx_end_i: tx_start_i + length,
+                        alt_start_i: *alt_start_i,
+                        alt_end_i: alt_start_i + length,
+                        cigar: format!("{length}="),
+                        ..Default::default()
+                    });
+                    tx_start_i += length;
+                }
+                Ok(exons)
             }
 
             fn get_tx_for_gene(
@@ -1946,12 +2026,22 @@ mod test {
 
             fn get_tx_info(
                 &self,
-                _tx_ac: &str,
-                _alt_ac: &str,
-                _alt_aln_method: &str,
+                tx_ac: &str,
+                alt_ac: &str,
+                alt_aln_method: &str,
             ) -> Result<crate::data::interface::TxInfoRecord, crate::data::error::Error>
             {
-                panic!("for test use only");
+                let Some((record, _)) = self.alignment(tx_ac, alt_ac) else {
+                    panic!("for test use only");
+                };
+                Ok(crate::data::interface::TxInfoRecord {
+                    hgnc: "MOCK".to_string(),
+                    cds_start_i: Some(record.cds_start_i),
+                    cds_end_i: Some(record.cds_end_i),
+                    tx_ac: tx_ac.to_string(),
+                    alt_ac: alt_ac.to_string(),
+                    alt_aln_method: alt_aln_method.to_string(),
+                })
             }
 
             fn get_tx_mapping_options(
@@ -3010,6 +3100,108 @@ mod test {
                     "{hgvs_c} is {location:?} but gives {var_p}, with \
                      ins_at_boundary_is_intronic = {ins_at_boundary_is_intronic}"
                 );
+            }
+        }
+        Ok(())
+    }
+
+    /// `NM_999989.1` of `build_mapper_cds_boundary()`, aligned to the genome sequence
+    /// `NC_999989.1` with introns of 30 bases.  Each intron starts with `GTAAGT` and ends with
+    /// `CAG`.  `c_to_p` uses `KeepSpliceSite`.
+    fn build_mapper_cds_boundary_genome(ins_at_boundary_is_intronic: bool) -> Mapper {
+        let exons = ["AAAATCAAAC", "ATGAAAGCGAAAGCGTTTCGCGCGAAATAG", "GGGGGCCCCC"];
+        let intron = format!("GTAAGT{}CAG", "T".repeat(21));
+        let flank = "T".repeat(30);
+        let alt_sequence = [
+            flank.as_str(),
+            exons[0],
+            &intron,
+            exons[1],
+            &intron,
+            exons[2],
+            &flank,
+        ]
+        .concat();
+        let provider = sanity_mock::Provider::with_records(vec![sanity_mock::ProviderRecord {
+            accession: "NM_999989.1".to_string(),
+            transcript_sequence: exons.concat(),
+            cds_start_i: 10,
+            cds_end_i: 40,
+            translation_exceptions: Vec::new(),
+            lengths: vec![10, 30, 10],
+        }])
+        .with_alignments(vec![sanity_mock::GenomeAlignment {
+            tx_ac: "NM_999989.1".to_string(),
+            alt_ac: "NC_999989.1".to_string(),
+            alt_sequence,
+            exon_starts: vec![30, 70, 130],
+        }]);
+        let config = Config {
+            prevalidation_level: crate::validator::ValidationLevel::Intrinsic,
+            strict_bounds: false,
+            renormalize_g: false,
+            ins_at_boundary_is_intronic,
+            shift_over_boundary: true,
+            shift_over_boundary_preference: super::ShiftOverBoundaryPreference::KeepSpliceSite,
+            ..Default::default()
+        };
+        Mapper::new(&config, std::sync::Arc::new(provider))
+    }
+
+    /// `KeepSpliceSite` counts an insertion at the edge of an exon as exonic.  If that exon
+    /// starts with c.1 or ends with the last base of the CDS, the insertion leaves the CDS
+    /// intact.  The projection then gives `p.?` and a UTR, with both values of
+    /// `ins_at_boundary_is_intronic`.
+    #[test]
+    fn c_to_p_projection_keep_splice_site_at_cds_boundary() -> Result<(), Error> {
+        use crate::mapper::altseq::VariantLocation;
+
+        for ins_at_boundary_is_intronic in [true, false] {
+            let mapper = build_mapper_cds_boundary_genome(ins_at_boundary_is_intronic);
+            // Without `ins_at_boundary_is_intronic`, a dup at the exon edge already is a UTR
+            // variant, so `KeepSpliceSite` does not move it.
+            let moved_or = |moved, given| {
+                if ins_at_boundary_is_intronic {
+                    moved
+                } else {
+                    given
+                }
+            };
+            for (hgvs_c, expected_c, expected_region) in [
+                // c.1-1 is the `G` of the acceptor `AG`, and c.1 is the `A` of the ATG.  The
+                // copy of the `G` keeps the splice site only at the exon edge, before c.1.
+                (
+                    "NM_999989.1:c.1-1dup",
+                    moved_or("NM_999989.1:c.1-1_1insG", "NM_999989.1:c.1-1dupG"),
+                    VariantLocation::FivePrimeUtr,
+                ),
+                (
+                    "NM_999989.1:c.1-1_1insC",
+                    "NM_999989.1:c.1-1_1insC",
+                    VariantLocation::FivePrimeUtr,
+                ),
+                // c.30 is the last `G` of the TAG, and c.30+1 is the `G` of the donor `GT`.  The
+                // copy of the `G` fits between c.29 and c.30, after the TAG.
+                (
+                    "NM_999989.1:c.30+1dup",
+                    moved_or("NM_999989.1:c.29_30insG", "NM_999989.1:c.30+1dupG"),
+                    VariantLocation::ThreePrimeUtr,
+                ),
+                (
+                    "NM_999989.1:c.30_30+1insC",
+                    "NM_999989.1:c.30_30+1insC",
+                    VariantLocation::ThreePrimeUtr,
+                ),
+            ] {
+                let message = format!("{hgvs_c} {ins_at_boundary_is_intronic}");
+                let projection = mapper.c_to_p_projection(
+                    &HgvsVariant::from_str(hgvs_c)?,
+                    Some("MOCK"),
+                    Some(("NC_999989.1", "splign")),
+                )?;
+                assert_eq!(format!("{}", projection.var_c), expected_c, "{message}");
+                assert_eq!(format!("{}", projection.var_p), "MOCK:p.?", "{message}");
+                assert_eq!(projection.region, expected_region, "{message}");
             }
         }
         Ok(())

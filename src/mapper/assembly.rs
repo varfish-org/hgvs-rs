@@ -275,12 +275,13 @@ impl Mapper {
     }
 
     /// Convert from CDS variant (c.) to protein variant (p.) as `c_to_p()` does, and also
-    /// return the c. variant that the protein is built from.
+    /// return the c. variant that the protein is built from and its region.
     ///
     /// With `Config::shift_over_boundary`, that c. variant can be an equivalent placement of
     /// `var_c`, e.g. on the other side of an exon boundary.  For example, with
     /// `ShiftOverBoundaryPreference::KeepSpliceSite`, `NM_004985.4:c.111+1dup` gives
-    /// `NP_004976.2:p.Asp38GlyfsTer10`, built from `NM_004985.4:c.110_111insG`.
+    /// `NP_004976.2:p.Asp38GlyfsTer10`, built from `NM_004985.4:c.110_111insG` in the region
+    /// `VariantLocation::Cds`.
     ///
     /// # Args
     ///
@@ -943,6 +944,7 @@ mod test {
         use std::str::FromStr;
 
         use crate::data::uta_sr::test_helpers::build_provider;
+        use crate::mapper::altseq::VariantLocation;
         use crate::mapper::variant::ShiftOverBoundaryPreference;
         use crate::parser::HgvsVariant;
 
@@ -1134,7 +1136,9 @@ mod test {
             check_c_to_p(CASES_KEEP_INS_AT_BOUNDARY_IS_EXONIC, false)
         }
 
-        /// `c_to_p_projection()` returns the placement that the protein is built from.
+        /// `c_to_p_projection()` returns the placement that the protein is built from, and its
+        /// region as `c_to_p` decided it.  `KeepSpliceSite` counts an insertion at the edge of an
+        /// exon as exonic, e.g. `NM_000314.4:c.209_209+1insG` and `NM_004985.4:c.112dupG`.
         #[test]
         fn c_to_p_projection() -> Result<(), Error> {
             let build = |shift_over_boundary_preference| {
@@ -1150,43 +1154,49 @@ mod test {
             let keep_splice_site = build(ShiftOverBoundaryPreference::KeepSpliceSite)?;
             let exon = build(ShiftOverBoundaryPreference::Exon)?;
             let default = build(ShiftOverBoundaryPreference::Default)?;
-            for (mapper, hgvs_c, expected_c, expected_p) in [
+            for (mapper, hgvs_c, expected_c, expected_p, expected_region) in [
                 // Into the exon, between two exon bases or at the edge.
                 (
                     &keep_splice_site,
                     "NM_004985.4:c.111+1_111+2insCGG",
                     "NM_004985.4:c.110_111insGGC",
                     "NP_004976.2:p.Glu37_Asp38insAla",
+                    VariantLocation::Cds,
                 ),
                 (
                     &keep_splice_site,
                     "NM_004985.4:c.111+1dup",
                     "NM_004985.4:c.110_111insG",
                     "NP_004976.2:p.Asp38GlyfsTer10",
+                    VariantLocation::Cds,
                 ),
                 (
                     &keep_splice_site,
                     "NM_000314.4:c.209+1dup",
                     "NM_000314.4:c.209_209+1insG",
                     "NP_000305.3:p.Cys71LeufsTer3",
+                    VariantLocation::Cds,
                 ),
                 (
                     &keep_splice_site,
                     "NM_004985.4:c.111+1del",
                     "NM_004985.4:c.111delG",
                     "NP_004976.2:p.Asp38IlefsTer7",
+                    VariantLocation::Cds,
                 ),
                 (
                     &keep_splice_site,
                     "NM_000314.4:c.164+1_164+5del",
                     "NM_000314.4:c.160_164delGTAAG",
                     "NP_000305.3:p.Arg55PhefsTer6",
+                    VariantLocation::Cds,
                 ),
                 (
                     &keep_splice_site,
                     "NM_000314.4:c.802-1del",
                     "NM_000314.4:c.802delG",
                     "NP_000305.3:p.Asp268ThrfsTer8",
+                    VariantLocation::Cds,
                 ),
                 // Into the intron after the essential splice-site bases.
                 (
@@ -1194,30 +1204,35 @@ mod test {
                     "NM_004985.4:c.111+1_111+2dup",
                     "NM_004985.4:c.111+2_111+3insGT",
                     "NP_004976.2:p.?",
+                    VariantLocation::Intron,
                 ),
                 (
                     &keep_splice_site,
                     "NM_000314.4:c.209+1_209+2dup",
                     "NM_000314.4:c.209+2_209+3insGT",
                     "NP_000305.3:p.?",
+                    VariantLocation::Intron,
                 ),
                 (
                     &keep_splice_site,
                     "NM_000314.4:c.164+1_164+5dup",
                     "NM_000314.4:c.164+5_164+6insGTAAG",
                     "NP_000305.3:p.?",
+                    VariantLocation::Intron,
                 ),
                 (
                     &keep_splice_site,
                     "NM_000314.4:c.209+1_209+4del",
                     "NM_000314.4:c.209+4_209+7delAGTA",
                     "NP_000305.3:p.?",
+                    VariantLocation::Intron,
                 ),
                 (
                     &keep_splice_site,
                     "NM_004985.4:c.111+2_111+5del",
                     "NM_004985.4:c.111+3_111+6delAAAT",
                     "NP_004976.2:p.?",
+                    VariantLocation::Intron,
                 ),
                 // Variants that stay: in the exon, and between `+1` and `+2`.
                 (
@@ -1225,18 +1240,21 @@ mod test {
                     "NM_004985.4:c.112dup",
                     "NM_004985.4:c.112dupG",
                     "NP_004976.2:p.Asp38GlyfsTer10",
+                    VariantLocation::Cds,
                 ),
                 (
                     &keep_splice_site,
                     "NM_004985.4:c.110_111insGGC",
                     "NM_004985.4:c.110_111insGGC",
                     "NP_004976.2:p.Glu37_Asp38insAla",
+                    VariantLocation::Cds,
                 ),
                 (
                     &keep_splice_site,
                     "NM_004985.4:c.111+1_111+2insC",
                     "NM_004985.4:c.111+1_111+2insC",
                     "NP_004976.2:p.?",
+                    VariantLocation::Intron,
                 ),
                 // The other preferences.
                 (
@@ -1244,18 +1262,88 @@ mod test {
                     "NM_004985.4:c.111+1_111+2insCGG",
                     "NM_004985.4:c.110_111insGGC",
                     "NP_004976.2:p.Glu37_Asp38insAla",
+                    VariantLocation::Cds,
                 ),
                 (
                     &default,
                     "NM_004985.4:c.111+1_111+2insCGG",
                     "NM_004985.4:c.111+1_111+2insCGG",
                     "NP_004976.2:p.?",
+                    VariantLocation::Intron,
                 ),
             ] {
                 let var_c = HgvsVariant::from_str(hgvs_c)?;
                 let projection = mapper.c_to_p_projection(&var_c)?;
                 assert_eq!(format!("{}", projection.var_c), expected_c, "{hgvs_c}");
                 assert_eq!(format!("{}", projection.var_p), expected_p, "{hgvs_c}");
+                assert_eq!(projection.region, expected_region, "{hgvs_c}");
+            }
+            Ok(())
+        }
+
+        /// `KeepSpliceSite` counts an insertion at the edge of an exon as exonic with both values
+        /// of `ins_at_boundary_is_intronic`, and so does the region of its projection.  The
+        /// default preference follows the setting.  The region agrees with `var_p` in each case.
+        #[test]
+        fn c_to_p_projection_region_ins_at_boundary() -> Result<(), Error> {
+            let build = |shift_over_boundary_preference, ins_at_boundary_is_intronic| {
+                let config = Config {
+                    assembly: "GRCh37".to_string(),
+                    renormalize_g: false,
+                    ins_at_boundary_is_intronic,
+                    shift_over_boundary: true,
+                    shift_over_boundary_preference,
+                    ..Config::default()
+                };
+                Ok::<_, Error>(Mapper::new(config, build_provider()?))
+            };
+            for ins_at_boundary_is_intronic in [true, false] {
+                let keep_splice_site = build(
+                    ShiftOverBoundaryPreference::KeepSpliceSite,
+                    ins_at_boundary_is_intronic,
+                )?;
+                let default = build(
+                    ShiftOverBoundaryPreference::Default,
+                    ins_at_boundary_is_intronic,
+                )?;
+                // PTEN `c.209_209+1insG` at the end of exon 3, and KRAS `c.112dupG` at the
+                // start of exon 3, which equals `c.112-1_112insG`.
+                for (hgvs_c, expected_c, expected_p) in [
+                    (
+                        "NM_000314.4:c.209_209+1insG",
+                        "NM_000314.4:c.209_209+1insG",
+                        "NP_000305.3:p.Cys71LeufsTer3",
+                    ),
+                    (
+                        "NM_000314.4:c.209+1dup",
+                        "NM_000314.4:c.209_209+1insG",
+                        "NP_000305.3:p.Cys71LeufsTer3",
+                    ),
+                    (
+                        "NM_004985.4:c.112dup",
+                        "NM_004985.4:c.112dupG",
+                        "NP_004976.2:p.Asp38GlyfsTer10",
+                    ),
+                ] {
+                    let var_c = HgvsVariant::from_str(hgvs_c)?;
+                    let message = format!("{hgvs_c} {ins_at_boundary_is_intronic}");
+                    let projection = keep_splice_site.c_to_p_projection(&var_c)?;
+                    assert_eq!(format!("{}", projection.var_c), expected_c, "{message}");
+                    assert_eq!(format!("{}", projection.var_p), expected_p, "{message}");
+                    assert_eq!(projection.region, VariantLocation::Cds, "{message}");
+
+                    let projection = default.c_to_p_projection(&var_c)?;
+                    if ins_at_boundary_is_intronic {
+                        assert!(
+                            format!("{}", projection.var_p).ends_with(":p.?"),
+                            "{message}"
+                        );
+                        assert_eq!(projection.region, VariantLocation::Intron, "{message}");
+                    } else {
+                        assert_eq!(format!("{}", projection.var_p), expected_p, "{message}");
+                        assert_eq!(projection.region, VariantLocation::Cds, "{message}");
+                    }
+                }
             }
             Ok(())
         }
