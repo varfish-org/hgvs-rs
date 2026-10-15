@@ -640,7 +640,8 @@ mod test {
             ))
         }
 
-        /// `(var_c, var_p without shifts or with DEFAULT, var_p with EXON, var_p with INTRON)`
+        /// `(var_c, var_p without shifts or with DEFAULT, var_p with EXON, var_p with INTRON,
+        /// var_p with KEEP_SPLICE_SITE)`
         ///
         /// KRAS is on the minus strand.  Exon 2 ends with `c.106_111` `ATAGAG` (Ile36, Glu37)
         /// and intron 2 starts with `c.111+1_111+3` `GTA`.  Exon 3 starts with `c.112_123`
@@ -648,13 +649,17 @@ mod test {
         /// strand.  Exon 3 ends with `c.207_209` `TCT` and intron 3 starts with `c.209+1_209+2`
         /// `GT`.  Exon 8 starts with `c.802_810` `GACAAAATG` (Asp268 to Met270) after
         /// `c.802-17_802-1` `TTTTTTTTTTTTTTTAG`.
-        const CASES: &[(&str, &str, &str, &str)] = &[
+        ///
+        /// KEEP_SPLICE_SITE gives the result of EXON unless a placement in the intron keeps the
+        /// splice site.
+        pub(super) const CASES: &[(&str, &str, &str, &str, &str)] = &[
             // An intron insertion, which fits into the exon as `c.110_111insGGC`.
             (
                 "NM_004985.4:c.111+1_111+2insCGG",
                 "NP_004976.2:p.?",
                 "NP_004976.2:p.Glu37_Asp38insAla",
                 "NP_004976.2:p.?",
+                "NP_004976.2:p.Glu37_Asp38insAla",
             ),
             // The same insertion, given in the exon.
             (
@@ -662,6 +667,7 @@ mod test {
                 "NP_004976.2:p.Glu37_Asp38insAla",
                 "NP_004976.2:p.Glu37_Asp38insAla",
                 "NP_004976.2:p.?",
+                "NP_004976.2:p.Glu37_Asp38insAla",
             ),
             // A dup over the exon end, which fits into the exon as `c.108_109insGAG`.
             (
@@ -669,6 +675,7 @@ mod test {
                 "NP_004976.2:p.?",
                 "NP_004976.2:p.Glu37dup",
                 "NP_004976.2:p.?",
+                "NP_004976.2:p.Glu37dup",
             ),
             // A dup over the acceptor site, which fits into the exon as `c.112_113insGG`.
             (
@@ -676,6 +683,7 @@ mod test {
                 "NP_004976.2:p.?",
                 "NP_004976.2:p.Asp38GlyfsTer8",
                 "NP_004976.2:p.?",
+                "NP_004976.2:p.Asp38GlyfsTer8",
             ),
             // A dup of the last exon base, which fits into the exon as `c.208_209insT`.
             (
@@ -683,6 +691,7 @@ mod test {
                 "NP_000305.3:p.?",
                 "NP_000305.3:p.Cys71LeufsTer3",
                 "NP_000305.3:p.?",
+                "NP_000305.3:p.Cys71LeufsTer3",
             ),
             // A dup over the acceptor site, which fits into the exon as `c.802_803insGG`.
             (
@@ -690,10 +699,12 @@ mod test {
                 "NP_000305.3:p.?",
                 "NP_000305.3:p.Asp268GlyfsTer9",
                 "NP_000305.3:p.?",
+                "NP_000305.3:p.Asp268GlyfsTer9",
             ),
             // A dup in the poly-T before the acceptor, which cannot reach the exon.
             (
                 "NM_000314.4:c.802-3dup",
+                "NP_000305.3:p.?",
                 "NP_000305.3:p.?",
                 "NP_000305.3:p.?",
                 "NP_000305.3:p.?",
@@ -705,6 +716,7 @@ mod test {
                 "NP_000795.2:p.?",
                 "NP_000795.2:p.?",
                 "NP_000795.2:p.?",
+                "NP_000795.2:p.?",
             ),
             // Pairs of the same situation on the minus strand (KRAS) and on the plus strand
             // (PTEN).  A shift rewrites a dup as an insertion at the end of the dup that the
@@ -712,17 +724,21 @@ mod test {
             // KRAS variant first.
             //
             // An intron dup at the donor site.  It shifts to `c.111dup` and `c.209_209+1dup`,
-            // and fits into the exon as `c.110_111insG` and `c.208_209insTG`.
+            // and fits into the exon as `c.110_111insG` and `c.208_209insTG`.  The PTEN dup also
+            // fits into the intron after the splice site as `c.209+2_209+3insGT`, so
+            // KEEP_SPLICE_SITE gives `p.?`.
             (
                 "NM_004985.4:c.111+1dup",
                 "NP_004976.2:p.?",
                 "NP_004976.2:p.Asp38GlyfsTer10",
                 "NP_004976.2:p.?",
+                "NP_004976.2:p.Asp38GlyfsTer10",
             ),
             (
                 "NM_000314.4:c.209+1_209+2dup",
                 "NP_000305.3:p.?",
                 "NP_000305.3:p.Cys71PhefsTer29",
+                "NP_000305.3:p.?",
                 "NP_000305.3:p.?",
             ),
             // An intron dup at the acceptor site.  It shifts to `c.112dup` and `c.802dup`, and
@@ -732,12 +748,14 @@ mod test {
                 "NP_004976.2:p.?",
                 "NP_004976.2:p.Asp38GlyfsTer10",
                 "NP_004976.2:p.?",
+                "NP_004976.2:p.Asp38GlyfsTer10",
             ),
             (
                 "NM_000314.4:c.802-1dup",
                 "NP_000305.3:p.?",
                 "NP_000305.3:p.Asp268GlyfsTer30",
                 "NP_000305.3:p.?",
+                "NP_000305.3:p.Asp268GlyfsTer30",
             ),
             // An exon dup before the donor site.  It shifts to `c.110_111dup` and
             // `c.208_209dup`, and fits into the intron as `c.111_111+1insAG` and
@@ -747,12 +765,14 @@ mod test {
                 "NP_004976.2:p.Asp38ArgfsTer8",
                 "NP_004976.2:p.Asp38ArgfsTer8",
                 "NP_004976.2:p.?",
+                "NP_004976.2:p.Asp38ArgfsTer8",
             ),
             (
                 "NM_000314.4:c.207_208dup",
                 "NP_000305.3:p.Cys71PhefsTer29",
                 "NP_000305.3:p.Cys71PhefsTer29",
                 "NP_000305.3:p.?",
+                "NP_000305.3:p.Cys71PhefsTer29",
             ),
             // An exon dup after the acceptor site.  It shifts to `c.112_121dup` and
             // `c.802_809dup`, and fits into the intron as `c.112-1_112insGATTCCTACA` and
@@ -762,18 +782,20 @@ mod test {
                 "NP_004976.2:p.Lys42PhefsTer9",
                 "NP_004976.2:p.Lys42PhefsTer9",
                 "NP_004976.2:p.?",
+                "NP_004976.2:p.Lys42PhefsTer9",
             ),
             (
                 "NM_000314.4:c.803_810dup",
                 "NP_000305.3:p.Phe271ThrfsTer8",
                 "NP_000305.3:p.Phe271ThrfsTer8",
                 "NP_000305.3:p.?",
+                "NP_000305.3:p.Phe271ThrfsTer8",
             ),
         ];
 
         /// As `CASES`, with `ins_at_boundary_is_intronic` set to `false`, so that an insertion
         /// at an exon edge counts as exonic.
-        const CASES_INS_AT_BOUNDARY_IS_EXONIC: &[(&str, &str, &str, &str)] = &[
+        pub(super) const CASES_INS_AT_BOUNDARY_IS_EXONIC: &[(&str, &str, &str, &str, &str)] = &[
             // A dup of the first intron base, which counts as exonic.  It fits into the intron as
             // `c.111+1_111+2insG`.
             (
@@ -781,11 +803,13 @@ mod test {
                 "NP_004976.2:p.Asp38GlyfsTer10",
                 "NP_004976.2:p.Asp38GlyfsTer10",
                 "NP_004976.2:p.?",
+                "NP_004976.2:p.Asp38GlyfsTer10",
             ),
             // A dup of the last exon base.  Both of its rewrites, `c.208_209insT` and
             // `c.209_209+1insT`, count as exonic.
             (
                 "NM_000314.4:c.209dup",
+                "NP_000305.3:p.Cys71LeufsTer3",
                 "NP_000305.3:p.Cys71LeufsTer3",
                 "NP_000305.3:p.Cys71LeufsTer3",
                 "NP_000305.3:p.Cys71LeufsTer3",
@@ -798,12 +822,14 @@ mod test {
                 "NP_004976.2:p.Asp38GlyfsTer10",
                 "NP_004976.2:p.Asp38GlyfsTer10",
                 "NP_004976.2:p.?",
+                "NP_004976.2:p.Asp38GlyfsTer10",
             ),
             (
                 "NM_000314.4:c.802dup",
                 "NP_000305.3:p.Asp268GlyfsTer30",
                 "NP_000305.3:p.Asp268GlyfsTer30",
                 "NP_000305.3:p.?",
+                "NP_000305.3:p.Asp268GlyfsTer30",
             ),
         ];
 
@@ -818,8 +844,8 @@ mod test {
         }
 
         /// Check `cases` with the option off and with each preference.
-        fn check_c_to_p(
-            cases: &[(&str, &str, &str, &str)],
+        pub(super) fn check_c_to_p(
+            cases: &[(&str, &str, &str, &str, &str)],
             ins_at_boundary_is_intronic: bool,
         ) -> Result<(), Error> {
             let build = |shift_over_boundary, shift_over_boundary_preference| {
@@ -833,13 +859,15 @@ mod test {
             let default = build(true, ShiftOverBoundaryPreference::Default)?;
             let exon = build(true, ShiftOverBoundaryPreference::Exon)?;
             let intron = build(true, ShiftOverBoundaryPreference::Intron)?;
-            for (hgvs_c, expected_default, expected_exon, expected_intron) in cases {
+            let keep_splice_site = build(true, ShiftOverBoundaryPreference::KeepSpliceSite)?;
+            for (hgvs_c, expected_default, expected_exon, expected_intron, expected_keep) in cases {
                 let var_c = HgvsVariant::from_str(hgvs_c)?;
                 for (label, mapper, expected) in [
                     ("disabled", &disabled, expected_default),
                     ("DEFAULT", &default, expected_default),
                     ("EXON", &exon, expected_exon),
                     ("INTRON", &intron, expected_intron),
+                    ("KEEP_SPLICE_SITE", &keep_splice_site, expected_keep),
                 ] {
                     assert_eq!(
                         format!("{}", mapper.c_to_p(&var_c)?),
@@ -887,6 +915,138 @@ mod test {
                 mapper.variant_mapper().c_to_p(&var_c, None),
                 Err(crate::mapper::Error::ShiftOverBoundaryNeedsAlignment(_))
             ));
+            Ok(())
+        }
+    }
+
+    /// `ShiftOverBoundaryPreference::KeepSpliceSite`, which biocommons/hgvs does not have.
+    mod keep_splice_site {
+        use anyhow::Error;
+        use std::str::FromStr;
+
+        use crate::data::uta_sr::test_helpers::build_provider;
+        use crate::mapper::variant::ShiftOverBoundaryPreference;
+        use crate::parser::HgvsVariant;
+
+        use super::issue_714::{check_c_to_p, CASES, CASES_INS_AT_BOUNDARY_IS_EXONIC};
+        use super::{Config, Mapper};
+
+        /// As `issue_714::CASES`, on the same transcripts.  PTEN intron 3 starts with
+        /// `c.209+1_209+9` `GTAAGTATG`.  PTEN exon 2 ends with `c.160_164` `GTAAG` and intron 2
+        /// starts with `c.164+1_164+5` `GTAAG`.
+        const CASES_KEEP: &[(&str, &str, &str, &str, &str)] = &[
+            // A dup of the first intron base.  It fits into the exon only at its edge, as
+            // `c.209_209+1insG`.  This insertion keeps the splice site.
+            (
+                "NM_000314.4:c.209+1dup",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.Cys71LeufsTer3",
+            ),
+            // Insertions between `+1` and `+2`.  They cannot move, so they change the splice
+            // site.
+            (
+                "NM_004985.4:c.111+1_111+2insC",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.?",
+            ),
+            (
+                "NM_000314.4:c.209+1_209+2insA",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+            ),
+            // A dup of the intron start `GTAAG`, which repeats the exon end.  It fits into the
+            // exon as a dup of `c.160_164`, and into the intron after the splice site as
+            // `c.164+5_164+6insGTAAG`.
+            (
+                "NM_000314.4:c.164+1_164+5dup",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.Phe56Ter",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+            ),
+        ];
+
+        /// As `CASES_KEEP`, with `ins_at_boundary_is_intronic` set to `false`.
+        const CASES_KEEP_INS_AT_BOUNDARY_IS_EXONIC: &[(&str, &str, &str, &str, &str)] = &[
+            // Dups of the essential splice-site bases.  They fit at the exon edge, which counts
+            // as exonic here, and into the intron next to the essential bases.
+            (
+                "NM_004985.4:c.111+1_111+2dup",
+                "NP_004976.2:p.Asp38ValfsTer8",
+                "NP_004976.2:p.Asp38ValfsTer8",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.?",
+            ),
+            (
+                "NM_004985.4:c.112-2_112-1dup",
+                "NP_004976.2:p.Asp38ArgfsTer8",
+                "NP_004976.2:p.Asp38ArgfsTer8",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.?",
+            ),
+            (
+                "NM_000314.4:c.802-2_802-1dup",
+                "NP_000305.3:p.Asp268ArgfsTer9",
+                "NP_000305.3:p.Asp268ArgfsTer9",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+            ),
+            // As in `CASES_KEEP`.  The other preferences now count the dup as exonic.
+            (
+                "NM_000314.4:c.209+1dup",
+                "NP_000305.3:p.Cys71LeufsTer3",
+                "NP_000305.3:p.Cys71LeufsTer3",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.Cys71LeufsTer3",
+            ),
+        ];
+
+        #[test]
+        fn c_to_p() -> Result<(), Error> {
+            check_c_to_p(CASES_KEEP, true)
+        }
+
+        #[test]
+        fn c_to_p_ins_at_boundary_is_exonic() -> Result<(), Error> {
+            check_c_to_p(CASES_KEEP_INS_AT_BOUNDARY_IS_EXONIC, false)
+        }
+
+        /// `KeepSpliceSite` decides by sequence, so `ins_at_boundary_is_intronic` does not
+        /// change its result.
+        #[test]
+        fn c_to_p_ignores_ins_at_boundary_is_intronic() -> Result<(), Error> {
+            let build = |ins_at_boundary_is_intronic| {
+                let config = Config {
+                    assembly: "GRCh37".to_string(),
+                    renormalize_g: false,
+                    ins_at_boundary_is_intronic,
+                    shift_over_boundary: true,
+                    shift_over_boundary_preference: ShiftOverBoundaryPreference::KeepSpliceSite,
+                    ..Config::default()
+                };
+                Ok::<_, Error>(Mapper::new(config, build_provider()?))
+            };
+            let intronic = build(true)?;
+            let exonic = build(false)?;
+            for cases in [
+                CASES,
+                CASES_INS_AT_BOUNDARY_IS_EXONIC,
+                CASES_KEEP,
+                CASES_KEEP_INS_AT_BOUNDARY_IS_EXONIC,
+            ] {
+                for (hgvs_c, _, _, _, expected) in cases {
+                    let var_c = HgvsVariant::from_str(hgvs_c)?;
+                    for mapper in [&intronic, &exonic] {
+                        assert_eq!(format!("{}", mapper.c_to_p(&var_c)?), *expected, "{hgvs_c}");
+                    }
+                }
+            }
             Ok(())
         }
     }

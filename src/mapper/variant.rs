@@ -8,6 +8,7 @@ use std::{ops::Range, sync::Arc};
 
 use crate::mapper::alignment;
 use crate::mapper::altseq::{AltSeqBuilder, VariantLocation};
+use crate::mapper::splice_site::{rotated, Exons, Placement, Placements, Region};
 use crate::{
     data::interface::Provider,
     mapper::Error,
@@ -71,13 +72,15 @@ impl Default for Config {
     }
 }
 
-/// Where `c_to_p` with `Config::shift_over_boundary` puts an insertion or duplication that fits
-/// on both sides of an exon boundary.
+/// Where `c_to_p` with `Config::shift_over_boundary` puts a variant that fits on both sides of
+/// an exon boundary.
 ///
-/// `c_to_p` shifts the variant fully 3' and fully 5' on the genome.  If one of these shifts
-/// lies on the other side of an exon boundary, `c_to_p` uses it for the protein if it is in
-/// the preferred region.  The c. variant itself does not change.
+/// For `Intron` and `Exon`, as in biocommons/hgvs, `c_to_p` shifts an insertion or duplication
+/// fully 3' and fully 5' on the genome.  If one of these shifts lies on the other side of an
+/// exon boundary, `c_to_p` uses it for the protein if it is in the preferred region.
+/// `KeepSpliceSite` decides by the splice site instead.  The c. variant itself does not change.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
+#[non_exhaustive]
 pub enum ShiftOverBoundaryPreference {
     /// Keep the variant where the HGVS rules put it.
     #[default]
@@ -86,6 +89,29 @@ pub enum ShiftOverBoundaryPreference {
     Intron,
     /// Prefer the exon, which gives a protein change.
     Exon,
+    /// Decide by sequence whether the variant keeps the splice site.  biocommons/hgvs does not
+    /// have this value.
+    ///
+    /// It applies to insertions and duplications in an exon or intron.  The variant fits at
+    /// several equivalent places on the genome, its placements.  `c_to_p` checks them in this
+    /// order:
+    ///
+    /// 1. If a placement lies in an intron and keeps its essential splice-site bases, the
+    ///    variant is intronic and gives `p.?`.
+    /// 2. Else, if a placement lies in an exon, `c_to_p` builds the protein from it.
+    /// 3. Else every placement changes an essential splice-site base, which gives `p.?`.
+    ///
+    /// The essential splice-site bases are the two bases at each end of an intron: `+1` and
+    /// `+2` at the donor, `-2` and `-1` at the acceptor.  An insertion between them changes
+    /// them, e.g. `c.111+1_111+2insC`.  An insertion at the edge of an exon keeps them, i.e.
+    /// between the last exon base and `+1` or between `-1` and the first exon base.  Its
+    /// bases extend the exon, whatever `Config::ins_at_boundary_is_intronic` says.  A
+    /// duplication counts as an insertion of its bases next to them.
+    ///
+    /// If the variant itself lies in the region of step 1 or 2, `c_to_p` uses it.  Otherwise
+    /// it uses the most 3' placement in that region on the transcript.  In an exon, a placement
+    /// between two exon bases goes before one at the edge.
+    KeepSpliceSite,
 }
 
 /// Projects variants between sequences using `alignment::Mapper`.
@@ -862,6 +888,9 @@ impl Mapper {
             ShiftOverBoundaryPreference::Default => return Ok(builder),
             ShiftOverBoundaryPreference::Intron => VariantLocation::Intron,
             ShiftOverBoundaryPreference::Exon => VariantLocation::Cds,
+            ShiftOverBoundaryPreference::KeepSpliceSite => {
+                return self.keep_splice_site(builder, alt);
+            }
         };
         let region = builder.variant_location()?;
         let is_ins_or_dup = builder
@@ -921,6 +950,93 @@ impl Mapper {
             }
         }
         Ok(builder)
+    }
+
+    /// Apply `ShiftOverBoundaryPreference::KeepSpliceSite` to the variant of `builder`.
+    ///
+    /// For an insertion or duplication in an exon or intron, shift the variant fully 3' and
+    /// fully 5' on the genome.  All placements between the two shifts are equivalent.  Return
+    /// the builder of the placement that `Exons::choose()` picks.  `alt` is the genome alignment
+    /// as `(alt_ac, alt_aln_method)`.
+    fn keep_splice_site<'a>(
+        &self,
+        builder: AltSeqBuilder<'a>,
+        alt: Option<(&str, &str)>,
+    ) -> Result<AltSeqBuilder<'a>, Error> {
+        let is_ins_or_dup = builder
+            .var_c
+            .na_edit()
+            .is_some_and(|edit| edit.is_ins() || edit.is_dup());
+        if !is_ins_or_dup
+            || !matches!(
+                builder.variant_location()?,
+                VariantLocation::Intron | VariantLocation::Cds
+            )
+        {
+            return Ok(builder);
+        }
+        let (alt_ac, alt_aln_method) =
+            alt.ok_or_else(|| Error::ShiftOverBoundaryNeedsAlignment(builder.var_c.to_string()))?;
+        let tx_ac = builder.var_c.accession().to_string();
+        let exons =
+            Exons::from_alignment(&self.build_alignment_mapper(&tx_ac, alt_ac, alt_aln_method)?);
+
+        let var_g = self.c_to_g(&builder.var_c, alt_ac, alt_aln_method)?;
+        let Some((given, given_seq)) = genome_placement(&var_g) else {
+            return Ok(builder);
+        };
+        // An intronic variant that keeps the splice site stays intronic, wherever it shifts.
+        if exons.region_of(given) == Some(Region::Intron) {
+            return Ok(builder);
+        }
+        let mut found = vec![(given, given_seq)];
+        for direction in [Direction::FiveToThree, Direction::ThreeToFive] {
+            // As in `shift_over_boundary()`, skip a shift that fails, except for missing data.
+            match self.shift_var_g(&var_g, direction, alt_aln_method) {
+                Ok(shifted_var_g) => found.extend(genome_placement(&shifted_var_g)),
+                Err(e) if is_data_error(&e) => return Err(e),
+                Err(e) => debug!("Cannot shift {} over the boundary: {}", var_g, e),
+            }
+        }
+        let Some((placements, (x_seq, seq))) = insertion_placements(&found) else {
+            return Ok(builder);
+        };
+
+        let Some((region, chosen)) = exons.choose(given, placements) else {
+            // Every placement changes the splice site, also an insertion at the exon edge.
+            return Ok(AltSeqBuilder {
+                ins_at_boundary_is_intronic: true,
+                ..builder
+            });
+        };
+        let var_c = match chosen {
+            _ if chosen == given => builder.var_c,
+            Placement::Insertion(x) => {
+                let chosen_var_g = genome_variant(
+                    &var_g,
+                    x,
+                    x + 1,
+                    NaEdit::Ins {
+                        alternative: rotated(&seq, x_seq - x),
+                    },
+                )?;
+                match self.g_to_c(&chosen_var_g, &tx_ac, alt_aln_method) {
+                    Ok(var_c) => var_c,
+                    Err(e) if is_data_error(&e) => return Err(e),
+                    Err(e) => {
+                        debug!("Cannot map {} to {}: {}", chosen_var_g, tx_ac, e);
+                        return Ok(builder);
+                    }
+                }
+            }
+            // An insertion or duplication moves as an insertion.
+            Placement::Bases(..) => return Ok(builder),
+        };
+        Ok(AltSeqBuilder {
+            // In an exon, an insertion at its edge extends the exon.
+            ins_at_boundary_is_intronic: region == Region::Intron,
+            ..AltSeqBuilder::new(var_c, builder.reference_data)
+        })
     }
 
     /// Shift `var_g` fully in `direction` and rewrite a duplication as an insertion, as
@@ -1259,6 +1375,70 @@ fn is_data_error(e: &Error) -> bool {
                 normalizer::Error::DataError(_) | normalizer::Error::ReplaceReferenceFailed(_)
             )
     )
+}
+
+/// The placement of the insertion or duplication `var_g` and its inserted or duplicated bases.
+fn genome_placement(var_g: &HgvsVariant) -> Option<(Placement, String)> {
+    let HgvsVariant::GenomeVariant { loc_edit, .. } = var_g else {
+        return None;
+    };
+    let loc = loc_edit.loc.inner();
+    let (start, end) = (loc.start?, loc.end?);
+    match loc_edit.edit.inner() {
+        NaEdit::Ins { alternative } if end == start + 1 => {
+            Some((Placement::Insertion(start), alternative.clone()))
+        }
+        NaEdit::Dup { reference } => Some((Placement::Bases(start, end), reference.clone())),
+        _ => None,
+    }
+}
+
+/// The range of the equivalent placements `found` of an insertion or duplication, and one of
+/// them as the insertion of `seq` between `g.x` and `g.x+1`, as `(x, seq)`.
+fn insertion_placements(found: &[(Placement, String)]) -> Option<(Placements, (i32, String))> {
+    let mut range: Option<(i32, i32)> = None;
+    let mut insertion = None;
+    for (placement, seq) in found {
+        // A duplication equals the insertion of its bases before or after them.
+        let (lo, hi) = match placement {
+            Placement::Insertion(x) => (*x, *x),
+            Placement::Bases(start, end) => (start - 1, *end),
+        };
+        range = Some(range.map_or((lo, hi), |(min, max)| (min.min(lo), max.max(hi))));
+        if insertion.is_none() && !seq.is_empty() {
+            insertion = Some((hi, seq.clone()));
+        }
+    }
+    let (lo, hi) = range?;
+    Some((Placements::Insertions { lo, hi }, insertion?))
+}
+
+/// A genome variant on the sequence of `var_g` with the location `start..=end` and `edit`.
+fn genome_variant(
+    var_g: &HgvsVariant,
+    start: i32,
+    end: i32,
+    edit: NaEdit,
+) -> Result<HgvsVariant, Error> {
+    let HgvsVariant::GenomeVariant {
+        accession,
+        gene_symbol,
+        ..
+    } = var_g
+    else {
+        return Err(Error::ExpectedGenomeVariant(var_g.to_string()));
+    };
+    Ok(HgvsVariant::GenomeVariant {
+        accession: accession.clone(),
+        gene_symbol: gene_symbol.clone(),
+        loc_edit: GenomeLocEdit {
+            loc: Mu::Certain(GenomeInterval {
+                start: Some(start),
+                end: Some(end),
+            }),
+            edit: Mu::Certain(edit),
+        },
+    })
 }
 
 /// A LRU cached version of `alignment::Mapper::new`.
