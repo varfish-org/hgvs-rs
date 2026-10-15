@@ -988,6 +988,22 @@ mod test {
                 "NP_000305.3:p.?",
                 "NP_000305.3:p.?",
             ),
+            // A dup of the first exon base `G` after the intron end `AG`.  It fits into the exon
+            // after that base, or between `-2` and `-1`, which INTRON takes as intronic.
+            (
+                "NM_004985.4:c.112dup",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.Asp38GlyfsTer10",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.Asp38GlyfsTer10",
+            ),
+            (
+                "NM_000314.4:c.802dup",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.Asp268GlyfsTer30",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.Asp268GlyfsTer30",
+            ),
             // Deletions.  Only KEEP_SPLICE_SITE shifts them.
             //
             // A deletion of the first intron base `G`, which repeats the last exon base.  It
