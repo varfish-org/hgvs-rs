@@ -2496,7 +2496,8 @@ mod test {
     }
 
     /// `AltSeqBuilder::variant_location()` gives the region that `c_to_p` uses: `p.?` for a UTR
-    /// or an intron, and a protein change for the CDS.
+    /// or an intron, and a protein change for the CDS.  After a CDS without a stop codon, the
+    /// CDS gives `p.?`, too, see `variant_region_without_stop_codon()` in `altseq.rs`.
     #[test]
     fn variant_location_agrees_with_c_to_p() -> Result<(), Error> {
         use crate::mapper::altseq::{ref_transcript_data_cached, AltSeqBuilder, VariantLocation};
@@ -2516,6 +2517,12 @@ mod test {
                 (&boundary, "NM_999989.1:c.30_*1insA"),
                 (&boundary, "NM_999989.1:c.30+1dup"),
                 (&boundary, "NM_999989.1:c.*3G>T"),
+                (&boundary, "NM_999989.1:c.-1_1del"),
+                (&boundary, "NM_999989.1:c.1del"),
+                (&boundary, "NM_999989.1:c.30del"),
+                (&boundary, "NM_999989.1:c.-6_1inv"),
+                (&boundary, "NM_999989.1:c.-5_1inv"),
+                (&boundary, "NM_999989.1:c.30_*6inv"),
                 (&sanity, "NM_999999.1:c.2-1_2insG"),
                 (&sanity, "NM_999999.1:c.2dup"),
                 (&sanity, "NM_999999.1:c.26_26+1insC"),

@@ -360,7 +360,8 @@ impl AltTranscriptData {
 /// `AltSeqBuilder::variant_location()`.
 ///
 /// `c_to_p` builds the altered protein only for `Cds`.  It gives `p.?` for a UTR or an intron,
-/// and `p.0?` for the deletion of the whole gene.
+/// and `p.0?` for the deletion of the whole gene.  It also gives `p.?` for a `Cds` variant
+/// after a CDS without a stop codon, see there.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum VariantLocation {
@@ -370,6 +371,10 @@ pub enum VariantLocation {
     /// Without `ins_at_boundary_is_intronic`, this also includes the insertions and
     /// duplications next to an exon boundary within the CDS, e.g., `c.16-1_16insT` if c.16
     /// starts an exon.  The splice site stays intact, so the inserted bases extend the exon.
+    ///
+    /// Without a stop codon, the CDS goes on after its last base `c.N`, so there is no 3' UTR.
+    /// This then includes the variants after `c.N`, e.g., `c.*1G>A` or `c.Ndup`.  Their amino
+    /// acids are unknown, so `c_to_p` gives `p.?`.
     Cds,
     /// The variant has an intron position, e.g., `c.15+5del`, and lies neither in a UTR nor
     /// across the whole CDS.  This includes variants that also change bases of the CDS, e.g.,
@@ -381,19 +386,25 @@ pub enum VariantLocation {
     Intron,
     /// The variant lies before c.1 and leaves the CDS intact, e.g., `c.-5C>G` or `c.-1+5del`.
     ///
-    /// This includes the insertions and duplications that can go before c.1, e.g.,
-    /// `c.-1_1insGCC`, `c.1dup`, and `c.1_3dup`.  The sequence decides this, not the
-    /// description: `c.1_2insA` can go before c.1 if c.1 is an A.  The inserted bases can still
-    /// form an upstream ATG, so the effect on the protein is unknown.
+    /// This includes every duplication from before c.1 into the CDS that has no intron
+    /// position, e.g., `c.-2_2dup`, because its copy can go before its first base.  This also
+    /// includes the insertions, duplications, deletions, delins, and inversions that can go
+    /// before c.1, e.g., `c.-1_1insGCC`, `c.1dup`, and `c.1_3dup`.  The sequence decides this, not the
+    /// description: `c.1_2insA` can go before c.1 if c.1 is an A, and `c.1del` if c.-1 is an
+    /// A.  The inserted bases can still form an upstream ATG, so the effect on the protein is
+    /// unknown.
     FivePrimeUtr,
     /// The variant lies after the last base `c.N` of the CDS and leaves the CDS intact, e.g.,
-    /// `c.*3G>T`.
+    /// `c.*3G>T`.  Only a CDS with a stop codon has a 3' UTR, see `Cds`.
     ///
     /// This includes every insertion or duplication that ends after `c.N`, e.g., `c.N_*1insA`
-    /// or `c.-5_*2dup`.  It also includes the ones that can go after `c.N`, e.g., `c.Ndup`.
+    /// or `c.-5_*2dup`.  It also includes the insertions, duplications, deletions, delins, and
+    /// inversions that can go after `c.N`, e.g., `c.Ndup`, or `c.Ndel` if c.*1 is the same
+    /// base.
     ThreePrimeUtr,
     /// The variant spans the CDS from the 5' UTR to the 3' UTR, e.g., `c.-10_*10del`.  A
-    /// duplication is `ThreePrimeUtr` instead, see there.
+    /// duplication is `ThreePrimeUtr` instead, as its copy can go after its last base.  Without
+    /// a stop codon, it is `FivePrimeUtr`, as its copy can also go before its first base.
     WholeGene,
 }
 
@@ -1770,6 +1781,11 @@ mod test {
                 ("c.2dup", intronic, VariantLocation::Cds),
                 ("c.1_2insG", intronic, VariantLocation::Cds),
                 ("c.29_30insC", intronic, VariantLocation::Cds),
+                // c.-1 is a C and c.*1 a G, so these deletions cannot go outside the CDS.
+                ("c.1del", intronic, VariantLocation::Cds),
+                ("c.29del", intronic, VariantLocation::Cds),
+                // c.-5 is a C, so the inversion changes the A at c.1.
+                ("c.-5_1inv", intronic, VariantLocation::Cds),
             ]);
         }
         check_variant_location(&cases)
@@ -1794,6 +1810,11 @@ mod test {
                 ("c.-12_2dup", intronic, VariantLocation::FivePrimeUtr),
                 // c.1 is an A, so the inserted A can go before it.
                 ("c.1_2insA", intronic, VariantLocation::FivePrimeUtr),
+                // Deleting `CA` gives the same sequence as deleting `AC` at c.-2_-1.
+                ("c.-1_1del", intronic, VariantLocation::FivePrimeUtr),
+                ("c.-1_1delinsGA", intronic, VariantLocation::FivePrimeUtr),
+                // c.-6 is a T, so the inversion keeps the A at c.1, like `c.-5_-1inv`.
+                ("c.-6_1inv", intronic, VariantLocation::FivePrimeUtr),
             ]);
         }
         check_variant_location(&cases)
@@ -1812,6 +1833,11 @@ mod test {
                 ("c.28_30dup", intronic, VariantLocation::ThreePrimeUtr),
                 // The copy goes after c.*2.
                 ("c.-5_*2dup", intronic, VariantLocation::ThreePrimeUtr),
+                // c.*1 is a G, like c.30.
+                ("c.30del", intronic, VariantLocation::ThreePrimeUtr),
+                ("c.30_*1delinsGC", intronic, VariantLocation::ThreePrimeUtr),
+                // c.*6 is a C, so the inversion keeps the G at c.30, like `c.*1_*5inv`.
+                ("c.30_*6inv", intronic, VariantLocation::ThreePrimeUtr),
             ]);
         }
         check_variant_location(&cases)
@@ -1921,6 +1947,9 @@ mod test {
                 // The copy can go before c.-5, which leaves the CDS intact.
                 ("c.-5_*2dup", VariantLocation::FivePrimeUtr),
                 ("c.-5_*2del", VariantLocation::WholeGene),
+                // The 5' UTR does not depend on the stop codon.  Deleting `CA` gives the same
+                // sequence as deleting `AC` at c.-2_-1.
+                ("c.-1_1del", VariantLocation::FivePrimeUtr),
             ] {
                 let builder = AltSeqBuilder {
                     ins_at_boundary_is_intronic,
