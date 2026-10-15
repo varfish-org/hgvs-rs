@@ -1130,10 +1130,11 @@ mod test {
     fn issue_131() -> Result<(), Error> {
         let mapper = build_mapper()?;
 
+        // The insertion changes the stop codon `TAA` to `TAG`, like `c.417A>G`.
         let var_c = HgvsVariant::from_str("NM_001253909.2:c.416_417insGTG")?;
         let var_p_test = mapper.c_to_p(&var_c, None)?;
 
-        assert_eq!(format!("{}", &var_p_test), "NP_001240838.1:p.=");
+        assert_eq!(format!("{}", &var_p_test), "NP_001240838.1:p.Ter139=");
         insta::assert_yaml_snapshot!(&var_p_test);
 
         Ok(())
@@ -1736,9 +1737,13 @@ mod test {
             ("NM_999993.1:c.16del", "MOCK:p.?"),
             // The copy follows the last amino acid.
             ("NM_999993.1:c.16_18dup", "MOCK:p.?"),
+            // The alt protein keeps the last amino acid after an in-frame dup.
+            ("NM_999993.1:c.4_6dup", "MOCK:p.Ala2dup"),
+            ("NM_999993.1:c.6_7insGCC", "MOCK:p.Ala2dup"),
             ("NM_999994.1:c.18A>G", "MOCK:p.Glu6="),
             ("NM_999994.1:c.18A>C", "MOCK:p.Glu6Asp"),
             ("NM_999994.1:c.16_18del", "MOCK:p.Glu6del"),
+            ("NM_999994.1:c.4_6dup", "MOCK:p.Ala2dup"),
             ("NM_999994.1:c.15G>A", "MOCK:p.Trp5Ter"),
             ("NM_999994.1:c.13_14insCCTA", "MOCK:p.Trp5SerfsTer2"),
             // The new frame completes the incomplete codon ...
@@ -2152,7 +2157,7 @@ mod test {
             ("NM_999992.1:c.6del", "MOCK:p.Ter3ArgextTer?"),
             ("NM_999992.1:c.6_7insAAATGAC", "MOCK:p.Ter3LysextTer1"),
             // Before the first stop codon, with the same protein up to it.
-            ("NM_999992.1:c.5_6insATAAGG", "MOCK:p.="),
+            ("NM_999992.1:c.5_6insATAAGG", "MOCK:p.Gly2="),
             // At the first stop codon.
             ("NM_999992.1:c.7T>C", "MOCK:p.?"),
             ("NM_999992.1:c.7_9dup", "MOCK:p.?"),
@@ -2419,6 +2424,16 @@ mod test {
             ("NM_999988.1:c.2dup", "MOCK:p.Met1?"),
             ("NM_999988.1:c.29_30insC", "MOCK:p.Ter10TyrextTer?"),
             ("NM_999988.1:c.29dup", "MOCK:p.Ter10="),
+            // The copy forms the stop codon TAA in front of TAG.  Each placement changes the
+            // stop codon and keeps the protein, like `c.30G>A`.
+            ("NM_999989.1:c.26_28dup", "MOCK:p.Ter10="),
+            ("NM_999989.1:c.27_29dup", "MOCK:p.Ter10="),
+            ("NM_999989.1:c.25_26insAAT", "MOCK:p.Ter10="),
+            ("NM_999989.1:c.28_29insAAT", "MOCK:p.Ter10="),
+            ("NM_999989.1:c.29_30insATA", "MOCK:p.Ter10="),
+            ("NM_999989.1:c.29_30insATAG", "MOCK:p.Ter10="),
+            ("NM_999988.1:c.26_28dup", "MOCK:p.Ter10="),
+            ("NM_999988.1:c.28_29insAAT", "MOCK:p.Ter10="),
         ] {
             check_c_to_p(&exonic, hgvs_c, Some("MOCK"), Some(expected))?;
             check_c_to_p(&intronic, hgvs_c, Some("MOCK"), Some(expected))?;

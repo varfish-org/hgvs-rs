@@ -883,16 +883,11 @@ impl<'a> AltSeqBuilder<'a> {
             &seq[start..end]
         };
         let seq = format!("{}{}{}", &seq[..end], dup_seq, &seq[end..]);
-        // Part of the handling of more than one stop codon (#96), for which biocommons/hgvs
-        // gives `p.?`.  The alt protein must keep the stop codons after the copy, so
-        // `cds_stop` moves with the copy, as in `incorporate_delins()`.  With one stop codon,
-        // `cds_stop` stays for now.  A follow-up change moves it for every dup, as
-        // biocommons/hgvs#896 does.
-        let cds_stop = if self.ref_has_multiple_stops {
-            cds_stop + dup_seq.len() as i32
-        } else {
-            cds_stop
-        };
+        // `cds_stop` moves with the copy, as in `incorporate_delins()`, so that a dup gives the
+        // same alt protein as the insertion of its copy.  The alt protein then keeps all of the
+        // CDS: the stop codons after the copy (#96) and, without a stop codon, its last codons.
+        // biocommons/hgvs keeps `cds_stop`, and biocommons/hgvs#896 proposes the same move.
+        let cds_stop = cds_stop + dup_seq.len() as i32;
 
         let is_frameshift = dup_seq.len() % 3 != 0;
 
@@ -1046,9 +1041,14 @@ impl<'a> AltSeqToHgvsp<'a> {
                 clamped
             };
 
-            if ref_seq == alt_seq {
+            // Translation ends at the stop codon, so the protein is the same if `alt_seq` only
+            // adds amino acids after the stop codon at the end of `ref_protein()`.  E.g., the
+            // copy of `c.(N-4)_(N-2)dup` can form a new stop codon in front of the old one.
+            let ref_protein = self.ref_protein();
+            if ref_seq == alt_seq || ref_protein.ends_with('*') && alt_seq.starts_with(ref_protein)
+            {
                 // Silent p. variant.
-                if let Some(start) = self.alt_data.variant_start_aa {
+                if let Some(start) = self.silent_start() {
                     let start_idx = start.checked_sub(1).and_then(|v| usize::try_from(v).ok());
                     let del = start_idx
                         .and_then(|i| ref_seq.as_bytes().get(i))
@@ -1226,6 +1226,27 @@ impl<'a> AltSeqToHgvsp<'a> {
             Ok(self.convert_to_hgvs_variant(var, self.protein_accession())?)
         } else {
             Err(Error::MultipleAAVariants)
+        }
+    }
+
+    /// The 1-based position of the amino acid of a silent change.  This is the codon of the
+    /// first base that differs between the reference and the alt transcript.  By the 3' rule,
+    /// the variant changes this base, whatever its description.  E.g., if the CDS ends with
+    /// `AAA TAG`, `c.25_26insAAT` and `c.27_29dup` both change the stop codon to `TAA`.  If the
+    /// transcripts are the same in the CDS, e.g., for `c.30=`, this is `variant_start_aa`.
+    fn silent_start(&self) -> Option<i32> {
+        let ref_seq = self.ref_data.transcript_sequence.as_bytes();
+        let alt_seq = self.alt_data.transcript_sequence.as_bytes();
+        let cds_start = usize::try_from(self.ref_data.cds_start - 1).ok()?;
+        let first_diff = ref_seq
+            .iter()
+            .zip(alt_seq)
+            .take_while(|(r, a)| r == a)
+            .count();
+        if ref_seq != alt_seq && first_diff >= cds_start {
+            i32::try_from((first_diff - cds_start) / 3 + 1).ok()
+        } else {
+            self.alt_data.variant_start_aa
         }
     }
 
