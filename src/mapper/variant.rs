@@ -2441,8 +2441,8 @@ mod test {
         Ok(())
     }
 
-    /// Like an insertion, a deletion or delins that can go before c.1 or after the stop codon
-    /// changes no base of the CDS, so it gives `p.?`.
+    /// Like an insertion, a deletion, delins, or inversion that can go before c.1 or after the
+    /// stop codon changes no base of the CDS, so it gives `p.?`.
     #[test]
     fn cds_boundary_del_c_to_p() -> Result<(), Error> {
         let exonic = build_mapper_cds_boundary(false);
@@ -2458,13 +2458,21 @@ mod test {
                 ("c.30_*1del", "MOCK:p.?"),
                 // Changes the G at c.*1 to a C and keeps the G at c.30.
                 ("c.30_*1delinsGC", "MOCK:p.?"),
+                // c.-6 is a T, so the inversion keeps the A at c.1, like `c.-5_-1inv`.
+                ("c.-6_1inv", "MOCK:p.?"),
+                ("c.-5_-1inv", "MOCK:p.?"),
+                // c.*6 is a C, so the inversion keeps the G at c.30, like `c.*1_*5inv`.
+                ("c.30_*6inv", "MOCK:p.?"),
+                ("c.*1_*5inv", "MOCK:p.?"),
                 // These cannot go outside the CDS.
                 ("c.1del", "MOCK:p.Met1?"),
                 ("c.-1_1delinsGG", "MOCK:p.Met1?"),
+                ("c.-5_1inv", "MOCK:p.Met1?"),
                 ("c.29del", "MOCK:p.Ter10TrpextTer?"),
                 ("c.28_30del", "MOCK:p.Ter10GlyextTer?"),
-                // An identity changes no base.
+                // An identity changes no base.  c.7_8 is `GC`, so its inversion is one, too.
                 ("c.30=", "MOCK:p.Ter10="),
+                ("c.7_8inv", "MOCK:p.Ala3="),
             ] {
                 let hgvs_c = format!("{tx_ac}:{edit}");
                 check_c_to_p(&exonic, &hgvs_c, Some("MOCK"), Some(expected))?;

@@ -529,12 +529,12 @@ impl<'a> AltSeqBuilder<'a> {
 
     /// The UTR of a variant that leaves the CDS intact, or `None`.
     ///
-    /// An ins, dup, del, or delins leaves the CDS intact if one of its equivalent placements
-    /// lies before c.1 or after the last base of the CDS.  This depends on the sequence, not on
-    /// the description.  For example, `c.1dup` is `c.-1_1insA` if c.-1 is not an A, `c.1del` is
-    /// `c.-1del` if c.-1 is an A, and `c.(N-2)_Ndup` puts its copy after c.N, the last base of
-    /// the CDS.  The inserted bases can still form an upstream ATG, so the effect on the protein
-    /// is unknown, not none.
+    /// An ins, dup, del, delins, or inv leaves the CDS intact if one of its equivalent
+    /// placements lies before c.1 or after the last base of the CDS.  This depends on the
+    /// sequence, not on the description.  For example, `c.1dup` is `c.-1_1insA` if c.-1 is not
+    /// an A, `c.1del` is `c.-1del` if c.-1 is an A, and `c.(N-2)_Ndup` puts its copy after c.N,
+    /// the last base of the CDS.  The inserted bases can still form an upstream ATG, so the
+    /// effect on the protein is unknown, not none.
     ///
     /// Without a stop codon, the CDS goes on after its last base, so there is no 3' UTR, see
     /// `after_cds_without_stop()`.
@@ -565,7 +565,7 @@ impl<'a> AltSeqBuilder<'a> {
 
     /// Whether an equivalent placement of the variant lies before c.1, and whether one lies
     /// after the last base of the CDS, see `outside_cds()`.  `None` for the edits and positions
-    /// that it does not check, e.g., an inversion.
+    /// that it does not check, e.g., a delins with an intron position.
     ///
     /// With `ins_at_boundary_is_intronic`, an ins or dup with an intron position stays
     /// intronic.  The other variants count only with exon positions.
@@ -594,6 +594,7 @@ impl<'a> AltSeqBuilder<'a> {
         let offsets = (loc.start.offset.unwrap_or(0), loc.end.offset.unwrap_or(0));
         let at_boundary_is_exonic = !self.ins_at_boundary_is_intronic;
         // The variant replaces the bases `start..end` of `seq` with `alt_bases`.
+        let inverted: String;
         let (start, end, alt_bases) = match (loc_edit.edit.inner(), offsets) {
             (NaEdit::Ins { alternative }, (0, 0)) => {
                 let gap = index(&loc.start)? + 1;
@@ -630,6 +631,13 @@ impl<'a> AltSeqBuilder<'a> {
             (NaEdit::DelRef { .. } | NaEdit::DelNum { .. }, (0, 0)) => {
                 (index(&loc.start)?, index(&loc.end)? + 1, "")
             }
+            // An inversion is a delins of the reverse complement.
+            (NaEdit::InvRef { .. } | NaEdit::InvNum { .. }, (0, 0)) => {
+                let start = index(&loc.start)?;
+                let end = index(&loc.end)? + 1;
+                inverted = revcomp(ref_data.transcript_sequence.get(start..end)?);
+                (start, end, inverted.as_str())
+            }
             // An identity, e.g., `c.1A=`, changes no base.
             (
                 NaEdit::RefAlt {
@@ -653,6 +661,10 @@ impl<'a> AltSeqBuilder<'a> {
             // c.1 gives `alt`.  Likewise, `alt` starts with the reference up to the last base
             // of the CDS if and only if a placement after that base gives `alt`.
             let alt = [seq.get(..start)?, alt_bases.as_bytes(), seq.get(end..)?].concat();
+            if alt == seq {
+                // Changes no base, e.g., the inversion of `GC`.
+                return None;
+            }
             Some((
                 alt.ends_with(seq.get(cds_start..)?),
                 alt.starts_with(seq.get(..cds_end)?),
