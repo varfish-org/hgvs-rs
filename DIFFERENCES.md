@@ -138,6 +138,12 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 - **biocommons/hgvs:** It counts the variant as exonic or intronic by its description and shifts it ([`get_variant_region()`][bc-region]).
 - **hgvs-rs:** The variant is a 5' or 3' UTR variant, which lies neither in an exon nor in an intron. `Intron` and `Exon` keep it, which gives `p.?`. They also skip a shift that ends in such a placement.
 
+### `KeepSpliceSite`
+
+- **Situation:** an insertion, dup or deletion at an exon boundary, e.g. `NM_004985.4:c.111+1del` (KRAS). It equals `c.111delG`, and the intron still starts with `GT`.
+- **biocommons/hgvs:** It has no such preference. It shifts only insertions and dups, and it takes the first shift that lies on the other side of an exon boundary ([variantmapper.py][bc-shift-loop]). For the example, every preference gives `p.?`.
+- **hgvs-rs:** The preference `KeepSpliceSite` decides by sequence whether the essential splice-site bases stay intact. It also shifts deletions, ignores `ins_at_boundary_is_intronic` for the variants that it shifts, and ranks all placements between the two shifts. For the example, it gives `p.Asp38IlefsTer7` from `c.111delG`. `c_to_p_projection()` and `shift_over_boundary()` return the chosen placement, also of n. variants, which biocommons/hgvs never places.
+
 [bc]: https://github.com/biocommons/hgvs
 [bc-commit]: https://github.com/biocommons/hgvs/tree/13289ab3b9db3c751918906c543991c74917ff61
 [bc-norm-intron]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/normalizer.py#L99-L101
