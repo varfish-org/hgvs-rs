@@ -272,12 +272,11 @@ impl Mapper {
     /// * `var_c` -- `HgvsVariant::TxVariant` to project
     pub fn c_to_p(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, Error> {
         // Only the genome has the reference of intron bases, e.g., of a dup next to an exon.
-        // Shifting an insertion or duplication over an exon boundary needs the genome, too.
+        // Shifting a variant over an exon boundary needs the genome, too.
         let shifts = self.config.shift_over_boundary
-            && self.config.shift_over_boundary_preference != ShiftOverBoundaryPreference::Default
             && var_c
                 .na_edit()
-                .is_some_and(|edit| edit.is_ins() || edit.is_dup());
+                .is_some_and(|edit| self.config.shift_over_boundary_preference.shifts(edit));
         let alt_ac = if self.config.genome_seq_available && (var_c.spans_intron() || shifts) {
             Some(self.alt_ac_for_tx_ac(var_c.accession())?)
         } else {
@@ -922,6 +921,7 @@ mod test {
     /// `ShiftOverBoundaryPreference::KeepSpliceSite`, which biocommons/hgvs does not have.
     mod keep_splice_site {
         use anyhow::Error;
+        use std::collections::HashMap;
         use std::str::FromStr;
 
         use crate::data::uta_sr::test_helpers::build_provider;
@@ -970,6 +970,89 @@ mod test {
                 "NP_000305.3:p.?",
                 "NP_000305.3:p.?",
             ),
+            // Deletions.  Only KEEP_SPLICE_SITE shifts them.
+            //
+            // A deletion of the first intron base `G`, which repeats the last exon base.  It
+            // equals `c.111del` and `c.164del`, and the intron still starts with `GT`.
+            (
+                "NM_004985.4:c.111+1del",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.Asp38IlefsTer7",
+            ),
+            (
+                "NM_000314.4:c.164+1del",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.Arg55SerfsTer44",
+            ),
+            // A deletion of the last intron base `G`, which repeats the first exon base.  It
+            // equals `c.112del` and `c.802del`, and the intron still ends with `AG`.
+            (
+                "NM_004985.4:c.112-1del",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.Asp38IlefsTer7",
+            ),
+            (
+                "NM_000314.4:c.802-1del",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.Asp268ThrfsTer8",
+            ),
+            // A deletion of the intron start `GTAAG`, which repeats the exon end.  It equals
+            // `c.160_164del`.
+            (
+                "NM_000314.4:c.164+1_164+5del",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.Arg55PhefsTer6",
+            ),
+            // A deletion of the first intron base `G` after the exon end `T`.  It cannot move,
+            // so it changes the splice site.
+            (
+                "NM_000314.4:c.209+1del",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+            ),
+            // Deletions that seem to remove `+2`.  They equal `c.209+4_209+7del` and
+            // `c.111+3_111+6del` in the intron, which keep the splice site.
+            (
+                "NM_000314.4:c.209+1_209+4del",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+                "NP_000305.3:p.?",
+            ),
+            (
+                "NM_004985.4:c.111+2_111+5del",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.?",
+                "NP_004976.2:p.?",
+            ),
+            // Exon deletions next to the boundary keep their protein.
+            (
+                "NM_004985.4:c.111del",
+                "NP_004976.2:p.Asp38IlefsTer7",
+                "NP_004976.2:p.Asp38IlefsTer7",
+                "NP_004976.2:p.Asp38IlefsTer7",
+                "NP_004976.2:p.Asp38IlefsTer7",
+            ),
+            (
+                "NM_000314.4:c.802del",
+                "NP_000305.3:p.Asp268ThrfsTer8",
+                "NP_000305.3:p.Asp268ThrfsTer8",
+                "NP_000305.3:p.Asp268ThrfsTer8",
+                "NP_000305.3:p.Asp268ThrfsTer8",
+            ),
         ];
 
         /// As `CASES_KEEP`, with `ins_at_boundary_is_intronic` set to `false`.
@@ -1015,6 +1098,40 @@ mod test {
         #[test]
         fn c_to_p_ins_at_boundary_is_exonic() -> Result<(), Error> {
             check_c_to_p(CASES_KEEP_INS_AT_BOUNDARY_IS_EXONIC, false)
+        }
+
+        /// `KeepSpliceSite` also shifts deletions, so they need the genome alignment, too.
+        /// Other variants do not.
+        #[test]
+        fn c_to_p_without_alignment() -> Result<(), Error> {
+            // An assembly without chromosome 12, so KRAS has no alignment.
+            let config = Config {
+                assembly: "GRCh37".to_string(),
+                asm_map: Some(HashMap::from([(
+                    "NC_000010.10".to_string(),
+                    "10".to_string(),
+                )])),
+                renormalize_g: false,
+                shift_over_boundary: true,
+                shift_over_boundary_preference: ShiftOverBoundaryPreference::KeepSpliceSite,
+                ..Config::default()
+            };
+            let mapper = Mapper::new(config, build_provider()?);
+            let deletion = HgvsVariant::from_str("NM_004985.4:c.111del")?;
+            assert!(matches!(
+                mapper.c_to_p(&deletion),
+                Err(crate::mapper::Error::NoAlignments(..))
+            ));
+            assert!(matches!(
+                mapper.variant_mapper().c_to_p(&deletion, None),
+                Err(crate::mapper::Error::ShiftOverBoundaryNeedsAlignment(_))
+            ));
+            let substitution = HgvsVariant::from_str("NM_004985.4:c.35G>A")?;
+            assert_eq!(
+                format!("{}", mapper.c_to_p(&substitution)?),
+                "NP_004976.2:p.Gly12Asp"
+            );
+            Ok(())
         }
 
         /// `KeepSpliceSite` decides by sequence, so `ins_at_boundary_is_intronic` does not

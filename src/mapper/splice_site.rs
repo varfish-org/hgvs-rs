@@ -1,8 +1,8 @@
 //! Placements of a variant at an exon boundary, for
 //! `ShiftOverBoundaryPreference::KeepSpliceSite`.
 //!
-//! An insertion or duplication in a repeat fits at several equivalent places on the genome, its
-//! placements.  Positions are 1-based genome positions.
+//! An insertion, duplication or deletion in a repeat fits at several equivalent places on the
+//! genome, its placements.  Positions are 1-based genome positions.
 
 use crate::mapper::alignment;
 use crate::mapper::cigar::CigarOp;
@@ -21,7 +21,7 @@ pub(crate) enum Region {
 pub(crate) enum Placement {
     /// An insertion between `g.x` and `g.x+1`.
     Insertion(i32),
-    /// The bases from `g.start` to `g.end`, e.g. the bases that a duplication copies.
+    /// The bases from `g.start` to `g.end` that a deletion removes or a duplication copies.
     Bases(i32, i32),
 }
 
@@ -30,6 +30,26 @@ pub(crate) enum Placement {
 pub(crate) enum Placements {
     /// Insertions between `g.x` and `g.x+1` for `x` in `lo..=hi`.
     Insertions { lo: i32, hi: i32 },
+    /// Deletions of `len` bases from `g.x` for `x` in `lo..=hi`.
+    Deletions { lo: i32, hi: i32, len: i32 },
+}
+
+impl Placements {
+    /// `None` for insertions, else the number of deleted bases.
+    fn deletion_len(self) -> Option<i32> {
+        match self {
+            Placements::Insertions { .. } => None,
+            Placements::Deletions { len, .. } => Some(len),
+        }
+    }
+
+    /// The placement at `x`, the insertion point or the first deleted base.
+    fn at(self, x: i32) -> Placement {
+        match self {
+            Placements::Insertions { .. } => Placement::Insertion(x),
+            Placements::Deletions { len, .. } => Placement::Bases(x, x + len - 1),
+        }
+    }
 }
 
 /// The exons of a transcript on the genome.
@@ -86,59 +106,51 @@ impl Exons {
             .map(|pair| (pair[0].1 + 1, pair[1].0 - 1))
     }
 
-    /// Insertion points between two bases of an exon, as inclusive ranges.
-    fn exon_points(&self) -> Vec<(i32, i32)> {
-        self.spans
-            .iter()
-            .map(|(start, end)| (*start, end - 1))
-            .collect()
+    /// The positions `x` of the placements in `region`, as inclusive ranges.  `x` is the
+    /// insertion point if `len` is `None`, else the first of `len` bases.  For insertions, the
+    /// edges of the exons are not included here; `edges()` gives them.
+    fn ranges(&self, len: Option<i32>, region: Region) -> Vec<(i32, i32)> {
+        match region {
+            // Between two exon bases, or on exon bases.
+            Region::Exon => self
+                .spans
+                .iter()
+                .map(|(start, end)| (*start, end + 1 - len.unwrap_or(2)))
+                .collect(),
+            // Between two intron bases but not between the two at either end, or on intron
+            // bases but not on the two at either end.
+            Region::Intron => self
+                .introns()
+                .map(|(start, end)| match len {
+                    None => (start + 1, end - 2),
+                    Some(len) => (start + 2, end - 1 - len),
+                })
+                .collect(),
+        }
     }
 
     /// Insertion points at the edge of an exon next to an intron, as inclusive ranges.
-    fn edge_points(&self) -> Vec<(i32, i32)> {
+    fn edges(&self) -> Vec<(i32, i32)> {
         self.introns()
             .flat_map(|(start, end)| [(start - 1, start - 1), (end, end)])
             .collect()
     }
 
-    /// Insertion points in an intron that keep its essential splice-site bases, as inclusive
-    /// ranges.  They exclude the points between the two bases at each end.
-    fn intron_points(&self) -> Vec<(i32, i32)> {
-        self.introns()
-            .map(|(start, end)| (start + 1, end - 2))
-            .collect()
-    }
-
     /// The region of `placement`, if it lies fully in an exon or keeps the splice site in an
-    /// intron.
+    /// intron.  The bases of a duplication must lie there, too.
     pub(crate) fn region_of(&self, placement: Placement) -> Option<Region> {
-        let contains = |ranges: &[(i32, i32)], start: i32, end: i32| {
-            ranges.iter().any(|(lo, hi)| *lo <= start && end <= *hi)
+        let (x, len) = match placement {
+            Placement::Insertion(x) => (x, None),
+            Placement::Bases(start, end) => (start, Some(end - start + 1)),
         };
-        match placement {
-            Placement::Insertion(x) => {
-                if contains(&self.intron_points(), x, x) {
-                    Some(Region::Intron)
-                } else if contains(&self.exon_points(), x, x) || contains(&self.edge_points(), x, x)
-                {
-                    Some(Region::Exon)
-                } else {
-                    None
-                }
-            }
-            Placement::Bases(start, end) => {
-                let cores: Vec<_> = self
-                    .introns()
-                    .map(|(start, end)| (start + 2, end - 2))
-                    .collect();
-                if contains(&cores, start, end) {
-                    Some(Region::Intron)
-                } else if contains(&self.spans, start, end) {
-                    Some(Region::Exon)
-                } else {
-                    None
-                }
-            }
+        let within = |ranges: Vec<(i32, i32)>| ranges.iter().any(|(lo, hi)| *lo <= x && x <= *hi);
+        if within(self.ranges(len, Region::Intron)) {
+            Some(Region::Intron)
+        } else if within(self.ranges(len, Region::Exon)) || (len.is_none() && within(self.edges()))
+        {
+            Some(Region::Exon)
+        } else {
+            None
         }
     }
 
@@ -148,25 +160,32 @@ impl Exons {
     ///
     /// A placement in an intron that keeps the splice site goes first, then one in an exon.
     /// `given` wins in its region, else the most 3' placement on the transcript.  In an exon, an
-    /// insertion between two exon bases goes before one at the edge.
+    /// insertion between two exon bases goes before one at the edge.  `given` and `all` are
+    /// both insertions or duplications, or both deletions.
     pub(crate) fn choose(&self, given: Placement, all: Placements) -> Option<(Region, Placement)> {
         if self.region_of(given) == Some(Region::Intron) {
             return Some((Region::Intron, given));
         }
-        if let Some(placement) = self.most_3_prime(all, &self.intron_points()) {
+        let len = all.deletion_len();
+        if let Some(placement) = self.most_3_prime(all, &self.ranges(len, Region::Intron)) {
             return Some((Region::Intron, placement));
         }
         if self.region_of(given) == Some(Region::Exon) {
             return Some((Region::Exon, given));
         }
-        self.most_3_prime(all, &self.exon_points())
-            .or_else(|| self.most_3_prime(all, &self.edge_points()))
+        let edges = if len.is_none() {
+            self.edges()
+        } else {
+            Vec::new()
+        };
+        self.most_3_prime(all, &self.ranges(len, Region::Exon))
+            .or_else(|| self.most_3_prime(all, &edges))
             .map(|placement| (Region::Exon, placement))
     }
 
     /// The most 3' placement of `all` on the transcript within `ranges`.
     fn most_3_prime(&self, all: Placements, ranges: &[(i32, i32)]) -> Option<Placement> {
-        let Placements::Insertions { lo, hi } = all;
+        let (Placements::Insertions { lo, hi } | Placements::Deletions { lo, hi, .. }) = all;
         let candidates = ranges
             .iter()
             .filter_map(|(start, end)| {
@@ -179,7 +198,7 @@ impl Exons {
         } else {
             candidates.min()
         }?;
-        Some(Placement::Insertion(x))
+        Some(all.at(x))
     }
 }
 
@@ -298,6 +317,61 @@ mod test {
         // Only between the essential bases.
         let all = Placements::Insertions { lo: 201, hi: 201 };
         assert_eq!(plus.choose(Placement::Insertion(201), all), None);
+    }
+
+    #[test]
+    fn choose_deletion() {
+        let plus = exons(true);
+        let minus = exons(false);
+        // A deletion of the last exon base or of `+1`: in the exon.
+        let all = Placements::Deletions {
+            lo: 200,
+            hi: 201,
+            len: 1,
+        };
+        for exons in [&plus, &minus] {
+            assert_eq!(
+                exons.choose(Placement::Bases(201, 201), all),
+                Some((Region::Exon, Placement::Bases(200, 200)))
+            );
+        }
+        // Four bases from `+1` up to four bases from `+4`: in the intron after `+2`.
+        let all = Placements::Deletions {
+            lo: 201,
+            hi: 204,
+            len: 4,
+        };
+        assert_eq!(
+            plus.choose(Placement::Bases(201, 204), all),
+            Some((Region::Intron, Placement::Bases(204, 207)))
+        );
+        assert_eq!(
+            minus.choose(Placement::Bases(201, 204), all),
+            Some((Region::Intron, Placement::Bases(203, 206)))
+        );
+        // Over the exon edge.
+        let all = Placements::Deletions {
+            lo: 200,
+            hi: 200,
+            len: 2,
+        };
+        assert_eq!(plus.choose(Placement::Bases(200, 201), all), None);
+        // On `-2`, unless it equals the deletion of `-3`.
+        let all = Placements::Deletions {
+            lo: 299,
+            hi: 299,
+            len: 1,
+        };
+        assert_eq!(plus.choose(Placement::Bases(299, 299), all), None);
+        let all = Placements::Deletions {
+            lo: 298,
+            hi: 299,
+            len: 1,
+        };
+        assert_eq!(
+            plus.choose(Placement::Bases(299, 299), all),
+            Some((Region::Intron, Placement::Bases(298, 298)))
+        );
     }
 
     #[test]

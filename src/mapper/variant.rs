@@ -45,7 +45,8 @@ pub struct Config {
     /// a variant in the UTR.
     pub ins_at_boundary_is_intronic: bool,
     /// Let `c_to_p` move an insertion or duplication in an exon or intron to the other side
-    /// of an exon boundary, as preferred by `shift_over_boundary_preference`.  The shifts need
+    /// of an exon boundary, as preferred by `shift_over_boundary_preference`.  With
+    /// `ShiftOverBoundaryPreference::KeepSpliceSite`, this includes deletions.  The shifts need
     /// the genome alignment.  `assembly::Mapper::c_to_p()` provides it.  `c_to_p()` of this
     /// mapper fails for such variants, unless the preference is `Default`.
     pub shift_over_boundary: bool,
@@ -92,7 +93,8 @@ pub enum ShiftOverBoundaryPreference {
     /// Decide by sequence whether the variant keeps the splice site.  biocommons/hgvs does not
     /// have this value.
     ///
-    /// It applies to insertions and duplications in an exon or intron.  The variant fits at
+    /// It applies to insertions, duplications and deletions in an exon or intron, unlike
+    /// `Intron` and `Exon`, which do not shift deletions.  The variant fits at
     /// several equivalent places on the genome, its placements.  `c_to_p` checks them in this
     /// order:
     ///
@@ -106,12 +108,30 @@ pub enum ShiftOverBoundaryPreference {
     /// them, e.g. `c.111+1_111+2insC`.  An insertion at the edge of an exon keeps them, i.e.
     /// between the last exon base and `+1` or between `-1` and the first exon base.  Its
     /// bases extend the exon, whatever `Config::ins_at_boundary_is_intronic` says.  A
-    /// duplication counts as an insertion of its bases next to them.
+    /// duplication counts as an insertion of its bases next to them.  A deletion changes the
+    /// essential bases if it removes one of them.
     ///
     /// If the variant itself lies in the region of step 1 or 2, `c_to_p` uses it.  Otherwise
     /// it uses the most 3' placement in that region on the transcript.  In an exon, a placement
     /// between two exon bases goes before one at the edge.
     KeepSpliceSite,
+}
+
+impl ShiftOverBoundaryPreference {
+    /// Whether `c_to_p` shifts a variant with `edit` over exon boundaries for this preference.
+    /// The shifts need the genome alignment.
+    pub(crate) fn shifts(self, edit: &NaEdit) -> bool {
+        let is_deletion = matches!(edit, NaEdit::DelRef { .. } | NaEdit::DelNum { .. });
+        match self {
+            ShiftOverBoundaryPreference::Default => false,
+            ShiftOverBoundaryPreference::Intron | ShiftOverBoundaryPreference::Exon => {
+                edit.is_ins() || edit.is_dup()
+            }
+            ShiftOverBoundaryPreference::KeepSpliceSite => {
+                edit.is_ins() || edit.is_dup() || is_deletion
+            }
+        }
+    }
 }
 
 /// Projects variants between sequences using `alignment::Mapper`.
@@ -954,20 +974,20 @@ impl Mapper {
 
     /// Apply `ShiftOverBoundaryPreference::KeepSpliceSite` to the variant of `builder`.
     ///
-    /// For an insertion or duplication in an exon or intron, shift the variant fully 3' and
-    /// fully 5' on the genome.  All placements between the two shifts are equivalent.  Return
-    /// the builder of the placement that `Exons::choose()` picks.  `alt` is the genome alignment
-    /// as `(alt_ac, alt_aln_method)`.
+    /// For an insertion, duplication or deletion in an exon or intron, shift the variant fully
+    /// 3' and fully 5' on the genome.  All placements between the two shifts are equivalent.
+    /// Return the builder of the placement that `Exons::choose()` picks.  `alt` is the genome
+    /// alignment as `(alt_ac, alt_aln_method)`.
     fn keep_splice_site<'a>(
         &self,
         builder: AltSeqBuilder<'a>,
         alt: Option<(&str, &str)>,
     ) -> Result<AltSeqBuilder<'a>, Error> {
-        let is_ins_or_dup = builder
-            .var_c
-            .na_edit()
-            .is_some_and(|edit| edit.is_ins() || edit.is_dup());
-        if !is_ins_or_dup
+        let Some(edit) = builder.var_c.na_edit() else {
+            return Ok(builder);
+        };
+        let is_deletion = matches!(edit, NaEdit::DelRef { .. } | NaEdit::DelNum { .. });
+        if !ShiftOverBoundaryPreference::KeepSpliceSite.shifts(edit)
             || !matches!(
                 builder.variant_location()?,
                 VariantLocation::Intron | VariantLocation::Cds
@@ -998,7 +1018,7 @@ impl Mapper {
                 Err(e) => debug!("Cannot shift {} over the boundary: {}", var_g, e),
             }
         }
-        let Some((placements, (x_seq, seq))) = insertion_placements(&found) else {
+        let Some((placements, (x_seq, seq))) = placements(&found, is_deletion) else {
             return Ok(builder);
         };
 
@@ -1009,28 +1029,36 @@ impl Mapper {
                 ..builder
             });
         };
-        let var_c = match chosen {
-            _ if chosen == given => builder.var_c,
-            Placement::Insertion(x) => {
-                let chosen_var_g = genome_variant(
-                    &var_g,
+        let var_c = if chosen == given {
+            builder.var_c
+        } else {
+            let (start, end, edit) = match (chosen, is_deletion) {
+                (Placement::Insertion(x), false) => (
                     x,
                     x + 1,
                     NaEdit::Ins {
                         alternative: rotated(&seq, x_seq - x),
                     },
-                )?;
-                match self.g_to_c(&chosen_var_g, &tx_ac, alt_aln_method) {
-                    Ok(var_c) => var_c,
-                    Err(e) if is_data_error(&e) => return Err(e),
-                    Err(e) => {
-                        debug!("Cannot map {} to {}: {}", chosen_var_g, tx_ac, e);
-                        return Ok(builder);
-                    }
+                ),
+                (Placement::Bases(start, end), true) => (
+                    start,
+                    end,
+                    NaEdit::DelRef {
+                        reference: rotated(&seq, x_seq - start),
+                    },
+                ),
+                // `Exons::choose()` keeps the kind of the placements.
+                _ => return Ok(builder),
+            };
+            let chosen_var_g = genome_variant(&var_g, start, end, edit)?;
+            match self.g_to_c(&chosen_var_g, &tx_ac, alt_aln_method) {
+                Ok(var_c) => var_c,
+                Err(e) if is_data_error(&e) => return Err(e),
+                Err(e) => {
+                    debug!("Cannot map {} to {}: {}", chosen_var_g, tx_ac, e);
+                    return Ok(builder);
                 }
             }
-            // An insertion or duplication moves as an insertion.
-            Placement::Bases(..) => return Ok(builder),
         };
         Ok(AltSeqBuilder {
             // In an exon, an insertion at its edge extends the exon.
@@ -1377,7 +1405,8 @@ fn is_data_error(e: &Error) -> bool {
     )
 }
 
-/// The placement of the insertion or duplication `var_g` and its inserted or duplicated bases.
+/// The placement of the insertion, duplication or deletion `var_g` and its inserted,
+/// duplicated or deleted bases, which may be empty for a deletion.
 fn genome_placement(var_g: &HgvsVariant) -> Option<(Placement, String)> {
     let HgvsVariant::GenomeVariant { loc_edit, .. } = var_g else {
         return None;
@@ -1388,29 +1417,51 @@ fn genome_placement(var_g: &HgvsVariant) -> Option<(Placement, String)> {
         NaEdit::Ins { alternative } if end == start + 1 => {
             Some((Placement::Insertion(start), alternative.clone()))
         }
-        NaEdit::Dup { reference } => Some((Placement::Bases(start, end), reference.clone())),
+        NaEdit::Dup { reference } | NaEdit::DelRef { reference } => {
+            Some((Placement::Bases(start, end), reference.clone()))
+        }
+        NaEdit::DelNum { .. } => Some((Placement::Bases(start, end), String::new())),
         _ => None,
     }
 }
 
-/// The range of the equivalent placements `found` of an insertion or duplication, and one of
-/// them as the insertion of `seq` between `g.x` and `g.x+1`, as `(x, seq)`.
-fn insertion_placements(found: &[(Placement, String)]) -> Option<(Placements, (i32, String))> {
+/// The range of the equivalent placements `found` of an insertion or duplication, or of a
+/// deletion if `is_deletion`.  Also one of them as `(x, seq)`: the insertion of `seq` between
+/// `g.x` and `g.x+1`, or the deletion of `seq` from `g.x`.
+fn placements(
+    found: &[(Placement, String)],
+    is_deletion: bool,
+) -> Option<(Placements, (i32, String))> {
     let mut range: Option<(i32, i32)> = None;
-    let mut insertion = None;
+    let mut deletion_len = None;
+    let mut bases = None;
     for (placement, seq) in found {
-        // A duplication equals the insertion of its bases before or after them.
-        let (lo, hi) = match placement {
-            Placement::Insertion(x) => (*x, *x),
-            Placement::Bases(start, end) => (start - 1, *end),
+        let (lo, hi, x) = match (*placement, is_deletion) {
+            (Placement::Insertion(x), false) => (x, x, x),
+            // A duplication equals the insertion of its bases before or after them.
+            (Placement::Bases(start, end), false) => (start - 1, end, end),
+            (Placement::Bases(start, end), true) => {
+                if *deletion_len.get_or_insert(end - start + 1) != end - start + 1 {
+                    return None;
+                }
+                (start, start, start)
+            }
+            (Placement::Insertion(_), true) => return None,
         };
         range = Some(range.map_or((lo, hi), |(min, max)| (min.min(lo), max.max(hi))));
-        if insertion.is_none() && !seq.is_empty() {
-            insertion = Some((hi, seq.clone()));
+        if bases.is_none() && !seq.is_empty() {
+            bases = Some((x, seq.clone()));
         }
     }
     let (lo, hi) = range?;
-    Some((Placements::Insertions { lo, hi }, insertion?))
+    match deletion_len {
+        // The deleted bases may be unknown.
+        Some(len) => Some((
+            Placements::Deletions { lo, hi, len },
+            bases.unwrap_or((lo, String::new())),
+        )),
+        None => Some((Placements::Insertions { lo, hi }, bases?)),
+    }
 }
 
 /// A genome variant on the sequence of `var_g` with the location `start..=end` and `edit`.
