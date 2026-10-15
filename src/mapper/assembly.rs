@@ -6,7 +6,7 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use crate::mapper::error::Error;
-use crate::mapper::variant::{self, ShiftOverBoundaryPreference};
+use crate::mapper::variant::{self, ProteinProjection, ShiftOverBoundaryPreference};
 use crate::normalizer::Direction;
 use crate::parser::HgvsVariant;
 use crate::{data::interface::Provider, validator::ValidationLevel};
@@ -271,6 +271,21 @@ impl Mapper {
     ///
     /// * `var_c` -- `HgvsVariant::TxVariant` to project
     pub fn c_to_p(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, Error> {
+        Ok(self.c_to_p_projection(var_c)?.var_p)
+    }
+
+    /// Convert from CDS variant (c.) to protein variant (p.) as `c_to_p()` does, and also
+    /// return the c. variant that the protein is built from.
+    ///
+    /// With `Config::shift_over_boundary`, that c. variant can be an equivalent placement of
+    /// `var_c` on the other side of an exon boundary.  For example, with
+    /// `ShiftOverBoundaryPreference::KeepSpliceSite`, `NM_004985.4:c.111+1dup` gives
+    /// `NP_004976.2:p.Asp38GlyfsTer10`, built from `NM_004985.4:c.110_111insG`.
+    ///
+    /// # Args
+    ///
+    /// * `var_c` -- `HgvsVariant::TxVariant` to project
+    pub fn c_to_p_projection(&self, var_c: &HgvsVariant) -> Result<ProteinProjection, Error> {
         // Only the genome has the reference of intron bases, e.g., of a dup next to an exon.
         // Shifting a variant over an exon boundary needs the genome, too.
         let shifts = self.config.shift_over_boundary
@@ -285,8 +300,11 @@ impl Mapper {
         let alt = alt_ac
             .as_deref()
             .map(|alt_ac| (alt_ac, self.config.alt_aln_method.as_str()));
-        let var = self.inner.c_to_p_with_alt(var_c, None, alt)?;
-        self.maybe_normalize(&var)
+        let projection = self.inner.c_to_p_projection(var_c, None, alt)?;
+        Ok(ProteinProjection {
+            var_p: self.maybe_normalize(&projection.var_p)?,
+            ..projection
+        })
     }
 
     /// Obtain relevant transcript accessions.
@@ -1098,6 +1116,120 @@ mod test {
         #[test]
         fn c_to_p_ins_at_boundary_is_exonic() -> Result<(), Error> {
             check_c_to_p(CASES_KEEP_INS_AT_BOUNDARY_IS_EXONIC, false)
+        }
+
+        /// `c_to_p_projection()` returns the placement that the protein is built from.
+        #[test]
+        fn c_to_p_projection() -> Result<(), Error> {
+            let build = |shift_over_boundary_preference| {
+                let config = Config {
+                    assembly: "GRCh37".to_string(),
+                    renormalize_g: false,
+                    shift_over_boundary: true,
+                    shift_over_boundary_preference,
+                    ..Config::default()
+                };
+                Ok::<_, Error>(Mapper::new(config, build_provider()?))
+            };
+            let keep_splice_site = build(ShiftOverBoundaryPreference::KeepSpliceSite)?;
+            let exon = build(ShiftOverBoundaryPreference::Exon)?;
+            let default = build(ShiftOverBoundaryPreference::Default)?;
+            for (mapper, hgvs_c, expected_c, expected_p) in [
+                // Into the exon, between two exon bases or at the edge.
+                (
+                    &keep_splice_site,
+                    "NM_004985.4:c.111+1dup",
+                    "NM_004985.4:c.110_111insG",
+                    "NP_004976.2:p.Asp38GlyfsTer10",
+                ),
+                (
+                    &keep_splice_site,
+                    "NM_000314.4:c.209+1dup",
+                    "NM_000314.4:c.209_209+1insG",
+                    "NP_000305.3:p.Cys71LeufsTer3",
+                ),
+                (
+                    &keep_splice_site,
+                    "NM_004985.4:c.111+1del",
+                    "NM_004985.4:c.111delG",
+                    "NP_004976.2:p.Asp38IlefsTer7",
+                ),
+                (
+                    &keep_splice_site,
+                    "NM_000314.4:c.164+1_164+5del",
+                    "NM_000314.4:c.160_164delGTAAG",
+                    "NP_000305.3:p.Arg55PhefsTer6",
+                ),
+                (
+                    &keep_splice_site,
+                    "NM_000314.4:c.802-1del",
+                    "NM_000314.4:c.802delG",
+                    "NP_000305.3:p.Asp268ThrfsTer8",
+                ),
+                // Into the intron after the essential splice-site bases.
+                (
+                    &keep_splice_site,
+                    "NM_004985.4:c.111+1_111+2dup",
+                    "NM_004985.4:c.111+2_111+3insGT",
+                    "NP_004976.2:p.?",
+                ),
+                (
+                    &keep_splice_site,
+                    "NM_000314.4:c.209+1_209+2dup",
+                    "NM_000314.4:c.209+2_209+3insGT",
+                    "NP_000305.3:p.?",
+                ),
+                (
+                    &keep_splice_site,
+                    "NM_000314.4:c.164+1_164+5dup",
+                    "NM_000314.4:c.164+5_164+6insGTAAG",
+                    "NP_000305.3:p.?",
+                ),
+                (
+                    &keep_splice_site,
+                    "NM_000314.4:c.209+1_209+4del",
+                    "NM_000314.4:c.209+4_209+7delAGTA",
+                    "NP_000305.3:p.?",
+                ),
+                // Variants that stay: in the exon, and between `+1` and `+2`.
+                (
+                    &keep_splice_site,
+                    "NM_004985.4:c.112dup",
+                    "NM_004985.4:c.112dupG",
+                    "NP_004976.2:p.Asp38GlyfsTer10",
+                ),
+                (
+                    &keep_splice_site,
+                    "NM_004985.4:c.110_111insGGC",
+                    "NM_004985.4:c.110_111insGGC",
+                    "NP_004976.2:p.Glu37_Asp38insAla",
+                ),
+                (
+                    &keep_splice_site,
+                    "NM_004985.4:c.111+1_111+2insC",
+                    "NM_004985.4:c.111+1_111+2insC",
+                    "NP_004976.2:p.?",
+                ),
+                // The other preferences.
+                (
+                    &exon,
+                    "NM_004985.4:c.111+1_111+2insCGG",
+                    "NM_004985.4:c.110_111insGGC",
+                    "NP_004976.2:p.Glu37_Asp38insAla",
+                ),
+                (
+                    &default,
+                    "NM_004985.4:c.111+1_111+2insCGG",
+                    "NM_004985.4:c.111+1_111+2insCGG",
+                    "NP_004976.2:p.?",
+                ),
+            ] {
+                let var_c = HgvsVariant::from_str(hgvs_c)?;
+                let projection = mapper.c_to_p_projection(&var_c)?;
+                assert_eq!(format!("{}", projection.var_c), expected_c, "{hgvs_c}");
+                assert_eq!(format!("{}", projection.var_p), expected_p, "{hgvs_c}");
+            }
+            Ok(())
         }
 
         /// `KeepSpliceSite` also shifts deletions, so they need the genome alignment, too.

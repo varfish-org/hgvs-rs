@@ -79,7 +79,8 @@ impl Default for Config {
 /// For `Intron` and `Exon`, as in biocommons/hgvs, `c_to_p` shifts an insertion or duplication
 /// fully 3' and fully 5' on the genome.  If one of these shifts lies on the other side of an
 /// exon boundary, `c_to_p` uses it for the protein if it is in the preferred region.
-/// `KeepSpliceSite` decides by the splice site instead.  The c. variant itself does not change.
+/// `KeepSpliceSite` decides by the splice site instead.  `c_to_p` does not change the c.
+/// variant, but `assembly::Mapper::c_to_p_projection()` returns the placement it used.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 #[non_exhaustive]
 pub enum ShiftOverBoundaryPreference {
@@ -132,6 +133,24 @@ impl ShiftOverBoundaryPreference {
             }
         }
     }
+}
+
+/// The protein variant of `c_to_p` and the c. variant that it is built from.
+///
+/// `assembly::Mapper::c_to_p_projection()` returns it.  A caller can derive further
+/// consequences, e.g. a frameshift or a change of a splice site, from `var_c`, so that they
+/// agree with `var_p`.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct ProteinProjection {
+    /// The c. variant that `var_p` is built from: the given c. variant with its reference
+    /// replaced as configured, or with `Config::shift_over_boundary` an equivalent placement
+    /// of it.  E.g., `KeepSpliceSite` builds the protein of `NM_004985.4:c.111+1dup` from
+    /// `NM_004985.4:c.110_111insG`.  The placement is not normalized, as normalizing could
+    /// move it back over the exon boundary.
+    pub var_c: HgvsVariant,
+    /// The protein variant, as `c_to_p` returns it.
+    pub var_p: HgvsVariant,
 }
 
 /// Projects variants between sequences using `alignment::Mapper`.
@@ -810,17 +829,18 @@ impl Mapper {
     /// * `var_c` -- `HgvsVariant::TxVariant` to project
     /// * `pro_ac` -- Protein accession
     pub fn c_to_p(&self, var_c: &HgvsVariant, prot_ac: Option<&str>) -> Result<HgvsVariant, Error> {
-        self.c_to_p_with_alt(var_c, prot_ac, None)
+        Ok(self.c_to_p_projection(var_c, prot_ac, None)?.var_p)
     }
 
-    /// Like `c_to_p()`, but takes the reference of intron bases from the genome alignment
-    /// `alt`, given as `(alt_ac, alt_aln_method)`.
-    pub(crate) fn c_to_p_with_alt(
+    /// Like `c_to_p()`, but also returns the c. variant that the protein is built from.  Takes
+    /// the reference of intron bases and the shifts of `Config::shift_over_boundary` from the
+    /// genome alignment `alt`, given as `(alt_ac, alt_aln_method)`.
+    pub(crate) fn c_to_p_projection(
         &self,
         var_c: &HgvsVariant,
         prot_ac: Option<&str>,
         alt: Option<(&str, &str)>,
-    ) -> Result<HgvsVariant, Error> {
+    ) -> Result<ProteinProjection, Error> {
         use super::altseq::*;
 
         if let HgvsVariant::CdsVariant {
@@ -881,7 +901,10 @@ impl Mapper {
                 return Err(Error::NotProtVariant);
             };
 
-            Ok(var_p)
+            Ok(ProteinProjection {
+                var_c: builder.var_c,
+                var_p,
+            })
         } else {
             Err(Error::ExpectedCdsVariant(format!("{}", var_c)))
         }
