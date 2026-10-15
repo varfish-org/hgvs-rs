@@ -290,9 +290,7 @@ impl Mapper {
         // Only the genome has the reference of intron bases, e.g., of a dup next to an exon.
         // Shifting a variant over an exon boundary needs the genome, too.
         let shifts = self.config.shift_over_boundary
-            && var_c
-                .na_edit()
-                .is_some_and(|edit| self.config.shift_over_boundary_preference.shifts(edit));
+            && self.config.shift_over_boundary_preference.shifts(var_c);
         let alt_ac = if self.config.genome_seq_available && (var_c.spans_intron() || shifts) {
             Some(self.alt_ac_for_tx_ac(var_c.accession())?)
         } else {
@@ -306,6 +304,41 @@ impl Mapper {
             var_p: self.maybe_normalize(&projection.var_p)?,
             ..projection
         })
+    }
+
+    /// Apply `Config::shift_over_boundary` to the c. or n. variant `var_t`: return the
+    /// placement that `shift_over_boundary_preference` picks.
+    ///
+    /// For a c. variant, `c_to_p()` builds the protein from the same placement, and
+    /// `c_to_p_projection()` returns it as `var_c`.  `ShiftOverBoundaryPreference::KeepSpliceSite`
+    /// also places n. variants, e.g. of a non-coding transcript.  For example, it moves
+    /// `NR_103459.1:n.298+1del` to `NR_103459.1:n.298delG`, which keeps the splice site.
+    /// `Intron` and `Exon` leave an n. variant as it is.
+    ///
+    /// The result is `var_t` itself if `shift_over_boundary` or `genome_seq_available` is off,
+    /// or if no shift applies.  A placement that differs from `var_t` has its reference replaced
+    /// as configured, as `var_c` of `c_to_p_projection()` always has.  It is not normalized, as
+    /// normalizing could move it back over the exon boundary.
+    ///
+    /// # Args
+    ///
+    /// * `var_t` -- `HgvsVariant::CdsVariant` or `HgvsVariant::TxVariant` to place
+    pub fn shift_over_boundary(&self, var_t: &HgvsVariant) -> Result<HgvsVariant, Error> {
+        if !matches!(
+            var_t,
+            HgvsVariant::CdsVariant { .. } | HgvsVariant::TxVariant { .. }
+        ) {
+            return Err(Error::ExpectedTxVariant(var_t.to_string()));
+        }
+        let shifts = self.config.shift_over_boundary
+            && self.config.genome_seq_available
+            && self.config.shift_over_boundary_preference.shifts(var_t);
+        if !shifts {
+            return Ok(var_t.clone());
+        }
+        let alt_ac = self.alt_ac_for_tx_ac(var_t.accession())?;
+        self.inner
+            .shift_over_boundary(var_t, Some((&alt_ac, &self.config.alt_aln_method)))
     }
 
     /// Obtain relevant transcript accessions.
@@ -1412,6 +1445,133 @@ mod test {
                     "{hgvs_c}"
                 );
                 assert_eq!(projection.region, expected_region, "{hgvs_c}");
+            }
+            Ok(())
+        }
+
+        fn build_shift_over_boundary(
+            shift_over_boundary: bool,
+            shift_over_boundary_preference: ShiftOverBoundaryPreference,
+            genome_seq_available: bool,
+        ) -> Result<Mapper, Error> {
+            let config = Config {
+                assembly: "GRCh37".to_string(),
+                renormalize_g: false,
+                genome_seq_available,
+                shift_over_boundary,
+                shift_over_boundary_preference,
+                ..Config::default()
+            };
+            Ok(Mapper::new(config, build_provider()?))
+        }
+
+        /// `shift_over_boundary()` returns the placement that `KeepSpliceSite` picks, for c. and
+        /// for n. variants.  Each c. variant here moves, so the result equals `var_c` of
+        /// `c_to_p_projection()`.
+        ///
+        /// SDHC `NR_103459.1` (plus strand) is non-coding.  Its exon 5 ends with `n.297_298`
+        /// `AG`, and intron 5 starts with `n.298+1_298+3` `GTA`.  Intron 5 ends with
+        /// `n.299-2_299-1` `AG`, and exon 6 starts with `n.299_302` `GGGT`.
+        #[test]
+        fn shift_over_boundary() -> Result<(), Error> {
+            let mapper =
+                build_shift_over_boundary(true, ShiftOverBoundaryPreference::KeepSpliceSite, true)?;
+            for (hgvs_t, expected) in [
+                // Deletions of `+1` or `-1` that equal the deletion of an exon base.  The most 3'
+                // of the three `G`s goes.
+                ("NR_103459.1:n.298+1del", "NR_103459.1:n.298delG"),
+                ("NR_103459.1:n.299-1del", "NR_103459.1:n.301delG"),
+                // Dups of `+1` or `-1` that fit between two exon bases.
+                ("NR_103459.1:n.298+1dup", "NR_103459.1:n.297_298insG"),
+                ("NR_103459.1:n.299-1dup", "NR_103459.1:n.301_302insG"),
+                // A dup of `GT` that fits into the intron after the essential splice-site bases.
+                (
+                    "NR_103459.1:n.298+1_298+2dup",
+                    "NR_103459.1:n.298+2_298+3insGT",
+                ),
+                // Variants that stay: an insertion between `+1` and `+2`, and a substitution.
+                (
+                    "NR_103459.1:n.298+1_298+2insC",
+                    "NR_103459.1:n.298+1_298+2insC",
+                ),
+                ("NR_103459.1:n.298+1G>A", "NR_103459.1:n.298+1G>A"),
+                // c. variants, and an n. variant of a coding transcript.  KRAS `NM_004985.4:c.111`
+                // is `n.303`.
+                ("NM_004985.4:c.111+1dup", "NM_004985.4:c.110_111insG"),
+                ("NM_004985.4:n.303+1dup", "NM_004985.4:n.302_303insG"),
+                ("NM_004985.4:c.-12+1del", "NM_004985.4:c.-12delG"),
+                (
+                    "NM_000314.4:c.209+1_209+2dup",
+                    "NM_000314.4:c.209+2_209+3insGT",
+                ),
+            ] {
+                let var_t = HgvsVariant::from_str(hgvs_t)?;
+                let placement = mapper.shift_over_boundary(&var_t)?;
+                assert_eq!(format!("{placement}"), expected, "{hgvs_t}");
+                if matches!(var_t, HgvsVariant::CdsVariant { .. }) {
+                    assert_eq!(
+                        placement,
+                        mapper.c_to_p_projection(&var_t)?.var_c,
+                        "{hgvs_t}"
+                    );
+                }
+            }
+            Ok(())
+        }
+
+        /// `shift_over_boundary()` returns the variant as it is if no shift applies: with the
+        /// option off, without the genome, and with `Default`.  `Intron` and `Exon` pick the
+        /// placement of `c_to_p` for a c. variant and leave an n. variant as it is.
+        #[test]
+        fn shift_over_boundary_preferences() -> Result<(), Error> {
+            let off = build_shift_over_boundary(
+                false,
+                ShiftOverBoundaryPreference::KeepSpliceSite,
+                true,
+            )?;
+            let no_genome = build_shift_over_boundary(
+                true,
+                ShiftOverBoundaryPreference::KeepSpliceSite,
+                false,
+            )?;
+            let default =
+                build_shift_over_boundary(true, ShiftOverBoundaryPreference::Default, true)?;
+            let exon = build_shift_over_boundary(true, ShiftOverBoundaryPreference::Exon, true)?;
+            let intron =
+                build_shift_over_boundary(true, ShiftOverBoundaryPreference::Intron, true)?;
+            for (mapper, hgvs_t, expected) in [
+                (&off, "NM_004985.4:c.111+1dup", "NM_004985.4:c.111+1dup"),
+                (
+                    &no_genome,
+                    "NM_004985.4:c.111+1dup",
+                    "NM_004985.4:c.111+1dup",
+                ),
+                (&default, "NM_004985.4:c.111+1dup", "NM_004985.4:c.111+1dup"),
+                (&off, "NR_103459.1:n.298+1del", "NR_103459.1:n.298+1del"),
+                (
+                    &no_genome,
+                    "NR_103459.1:n.298+1del",
+                    "NR_103459.1:n.298+1del",
+                ),
+                (&exon, "NR_103459.1:n.298+1dup", "NR_103459.1:n.298+1dup"),
+                (&intron, "NR_103459.1:n.298+1dup", "NR_103459.1:n.298+1dup"),
+                (&exon, "NM_004985.4:c.111+1dup", "NM_004985.4:c.110_111insG"),
+                (
+                    &intron,
+                    "NM_004985.4:c.110_111insGGC",
+                    "NM_004985.4:c.111+1_111+2insCGG",
+                ),
+                // `Exon` does not shift deletions, and `Intron` keeps an intronic variant.
+                (&exon, "NM_004985.4:c.111+1del", "NM_004985.4:c.111+1del"),
+                (&intron, "NM_004985.4:c.111+1dup", "NM_004985.4:c.111+1dup"),
+            ] {
+                let var_t = HgvsVariant::from_str(hgvs_t)?;
+                assert_eq!(
+                    format!("{}", mapper.shift_over_boundary(&var_t)?),
+                    expected,
+                    "{hgvs_t} with {:?}",
+                    mapper.config.shift_over_boundary_preference
+                );
             }
             Ok(())
         }

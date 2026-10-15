@@ -7,7 +7,9 @@ use std::ops::Deref;
 use std::{ops::Range, sync::Arc};
 
 use crate::mapper::alignment;
-use crate::mapper::altseq::{AltSeqBuilder, VariantLocation};
+use crate::mapper::altseq::{
+    ref_transcript_data_cached, AltSeqBuilder, RefTranscriptData, VariantLocation,
+};
 use crate::mapper::splice_site::{rotated, Exons, Placement, Placements, Region};
 use crate::{
     data::interface::Provider,
@@ -82,6 +84,7 @@ impl Default for Config {
 /// exon boundary, `c_to_p` uses it for the protein if it is in the preferred region.
 /// `KeepSpliceSite` decides by the splice site instead.  `c_to_p` does not change the c.
 /// variant, but `assembly::Mapper::c_to_p_projection()` returns the placement it used.
+/// `assembly::Mapper::shift_over_boundary()` returns the placement of a c. or n. variant.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 #[non_exhaustive]
 pub enum ShiftOverBoundaryPreference {
@@ -118,22 +121,32 @@ pub enum ShiftOverBoundaryPreference {
     /// If the variant itself lies in the region of step 1 or 2, `c_to_p` uses it.  Otherwise
     /// it uses the most 3' placement in that region on the transcript.  In an exon, a placement
     /// between two exon bases goes before one at the edge.
+    ///
+    /// `assembly::Mapper::shift_over_boundary()` applies the same rule to n. variants, e.g. of
+    /// a non-coding transcript.
     KeepSpliceSite,
 }
 
 impl ShiftOverBoundaryPreference {
-    /// Whether `c_to_p` shifts a variant with `edit` over exon boundaries for this preference.
-    /// The shifts need the genome alignment.
-    pub(crate) fn shifts(self, edit: &NaEdit) -> bool {
+    /// Whether `c_to_p` and `Mapper::shift_over_boundary()` shift `var_t` over exon boundaries
+    /// for this preference.  The shifts need the genome alignment.  `Intron` and `Exon` shift
+    /// only c. variants.
+    pub(crate) fn shifts(self, var_t: &HgvsVariant) -> bool {
+        let Some(edit) = var_t.na_edit() else {
+            return false;
+        };
+        let is_ins_or_dup = edit.is_ins() || edit.is_dup();
         let is_deletion = matches!(edit, NaEdit::DelRef { .. } | NaEdit::DelNum { .. });
-        match self {
-            ShiftOverBoundaryPreference::Default => false,
-            ShiftOverBoundaryPreference::Intron | ShiftOverBoundaryPreference::Exon => {
-                edit.is_ins() || edit.is_dup()
-            }
-            ShiftOverBoundaryPreference::KeepSpliceSite => {
-                edit.is_ins() || edit.is_dup() || is_deletion
-            }
+        match (self, var_t) {
+            (
+                ShiftOverBoundaryPreference::Intron | ShiftOverBoundaryPreference::Exon,
+                HgvsVariant::CdsVariant { .. },
+            ) => is_ins_or_dup,
+            (
+                ShiftOverBoundaryPreference::KeepSpliceSite,
+                HgvsVariant::CdsVariant { .. } | HgvsVariant::TxVariant { .. },
+            ) => is_ins_or_dup || is_deletion,
+            _ => false,
         }
     }
 }
@@ -149,8 +162,9 @@ pub struct ProteinProjection {
     /// The c. variant that `var_p` is built from: the given c. variant with its reference
     /// replaced as configured, or with `Config::shift_over_boundary` an equivalent placement
     /// of it.  E.g., `KeepSpliceSite` builds the protein of `NM_004985.4:c.111+1dup` from
-    /// `NM_004985.4:c.110_111insG`.  The placement is not normalized, as normalizing could
-    /// move it back over the exon boundary.
+    /// `NM_004985.4:c.110_111insG`.  `assembly::Mapper::shift_over_boundary()` returns the
+    /// same placement.  The placement is not normalized, as normalizing could move it back
+    /// over the exon boundary.
     pub var_c: HgvsVariant,
     /// The protein variant, as `c_to_p` returns it.
     pub var_p: HgvsVariant,
@@ -863,24 +877,13 @@ impl Mapper {
             loc_edit: _,
         } = &var_c
         {
-            self.validator.validate(var_c)?;
-
-            let var_c = if self.config.replace_reference {
-                self.replace_reference_with_alt(var_c.clone(), alt)?
-            } else {
-                var_c.clone()
-            };
-
+            let var_c = self.c_to_p_input(var_c, alt)?;
             let reference_data = ref_transcript_data_cached(
                 self.provider.clone(),
                 accession.deref(),
                 prot_ac.map(|s| s.to_string()).as_deref(),
             )?;
-            let builder = AltSeqBuilder {
-                ins_at_boundary_is_intronic: self.config.ins_at_boundary_is_intronic,
-                ..AltSeqBuilder::new(var_c, &reference_data)
-            };
-            let builder = self.shift_over_boundary(builder, alt)?;
+            let builder = self.c_to_p_builder(var_c, &reference_data, alt)?;
             // `build_altseq()` decides by the same call on the same builder.
             let region = builder.variant_location()?;
 
@@ -927,6 +930,74 @@ impl Mapper {
         }
     }
 
+    /// Apply `Config::shift_over_boundary` to the c. or n. variant `var_t`, see
+    /// `assembly::Mapper::shift_over_boundary()`.  Return the placement that
+    /// `shift_over_boundary_preference` picks, or `var_t` itself if no shift applies.  `alt` is
+    /// the genome alignment as `(alt_ac, alt_aln_method)`.
+    pub(crate) fn shift_over_boundary(
+        &self,
+        var_t: &HgvsVariant,
+        alt: Option<(&str, &str)>,
+    ) -> Result<HgvsVariant, Error> {
+        if !matches!(
+            var_t,
+            HgvsVariant::CdsVariant { .. } | HgvsVariant::TxVariant { .. }
+        ) {
+            return Err(Error::ExpectedTxVariant(var_t.to_string()));
+        }
+        let preference = self.config.shift_over_boundary_preference;
+        if !self.config.shift_over_boundary || !preference.shifts(var_t) {
+            return Ok(var_t.clone());
+        }
+        let (alt_ac, alt_aln_method) =
+            alt.ok_or_else(|| Error::ShiftOverBoundaryNeedsAlignment(var_t.to_string()))?;
+        if preference == ShiftOverBoundaryPreference::KeepSpliceSite {
+            return Ok(self
+                .splice_site_placement(var_t, alt_ac, alt_aln_method)?
+                .map_or_else(|| var_t.clone(), |(_, placement)| placement));
+        }
+        // `Intron` and `Exon` decide by the region of the c. variant, as in `c_to_p`.
+        let var_c = self.c_to_p_input(var_t, alt)?;
+        let reference_data =
+            ref_transcript_data_cached(self.provider.clone(), &var_t.accession().value, None)?;
+        let builder = self.c_to_p_builder(var_c.clone(), &reference_data, alt)?;
+        Ok(if builder.var_c == var_c {
+            var_t.clone()
+        } else {
+            builder.var_c
+        })
+    }
+
+    /// `var_c` as `c_to_p` uses it: validated, and with its reference replaced as configured.
+    /// Takes the reference of intron bases from the genome alignment `alt`.
+    fn c_to_p_input(
+        &self,
+        var_c: &HgvsVariant,
+        alt: Option<(&str, &str)>,
+    ) -> Result<HgvsVariant, Error> {
+        self.validator.validate(var_c)?;
+        if self.config.replace_reference {
+            self.replace_reference_with_alt(var_c.clone(), alt)
+        } else {
+            Ok(var_c.clone())
+        }
+    }
+
+    /// The builder that `c_to_p` builds the protein from.  It holds `var_c`, or the placement
+    /// of it that `Config::shift_over_boundary` picks.
+    fn c_to_p_builder<'a>(
+        &self,
+        var_c: HgvsVariant,
+        reference_data: &'a RefTranscriptData,
+        alt: Option<(&str, &str)>,
+    ) -> Result<AltSeqBuilder<'a>, Error> {
+        let builder = AltSeqBuilder {
+            ins_at_boundary_is_intronic: self.config.ins_at_boundary_is_intronic,
+            ..AltSeqBuilder::new(var_c, reference_data)
+        };
+        self.shift_builder_over_boundary(builder, alt)
+    }
+
     /// Apply `Config::shift_over_boundary` to the variant of `builder`, as `c_to_p` of
     /// biocommons/hgvs does.
     ///
@@ -934,7 +1005,7 @@ impl Mapper {
     /// 5', that lies on the other side of an exon boundary.  Return its builder if that side
     /// is the preferred one, else `builder`.  `alt` is the genome alignment as
     /// `(alt_ac, alt_aln_method)`.
-    fn shift_over_boundary<'a>(
+    fn shift_builder_over_boundary<'a>(
         &self,
         builder: AltSeqBuilder<'a>,
         alt: Option<(&str, &str)>,
@@ -1014,50 +1085,88 @@ impl Mapper {
 
     /// Apply `ShiftOverBoundaryPreference::KeepSpliceSite` to the variant of `builder`.
     ///
-    /// For an insertion, duplication or deletion in the transcript, shift the variant fully 3'
-    /// and fully 5' on the genome.  All placements between the two shifts are equivalent.
-    /// Return the builder of the placement that `Exons::choose()` picks.  `alt` is the genome
-    /// alignment as `(alt_ac, alt_aln_method)`.
+    /// Return the builder of the placement that `splice_site_placement()` picks.  `alt` is the
+    /// genome alignment as `(alt_ac, alt_aln_method)`.
     fn keep_splice_site<'a>(
         &self,
         builder: AltSeqBuilder<'a>,
         alt: Option<(&str, &str)>,
     ) -> Result<AltSeqBuilder<'a>, Error> {
-        let Some(edit) = builder.var_c.na_edit() else {
-            return Ok(builder);
-        };
-        let is_deletion = matches!(edit, NaEdit::DelRef { .. } | NaEdit::DelNum { .. });
-        if !ShiftOverBoundaryPreference::KeepSpliceSite.shifts(edit) {
+        if !ShiftOverBoundaryPreference::KeepSpliceSite.shifts(&builder.var_c) {
             return Ok(builder);
         }
         let (alt_ac, alt_aln_method) =
             alt.ok_or_else(|| Error::ShiftOverBoundaryNeedsAlignment(builder.var_c.to_string()))?;
-        let tx_ac = builder.var_c.accession().to_string();
+        Ok(
+            match self.splice_site_placement(&builder.var_c, alt_ac, alt_aln_method)? {
+                None => builder,
+                Some((region, var_c)) => AltSeqBuilder {
+                    // In an exon, an insertion at its edge extends the exon.
+                    ins_at_boundary_is_intronic: region != Some(Region::Exon),
+                    ..AltSeqBuilder::new(var_c, builder.reference_data)
+                },
+            },
+        )
+    }
+
+    /// The placement of the c. or n. variant `var_t` that
+    /// `ShiftOverBoundaryPreference::KeepSpliceSite` picks, and its region.
+    ///
+    /// For an insertion, duplication or deletion in the transcript, shift `var_t` fully 3' and
+    /// fully 5' on the genome.  All placements between the two shifts are equivalent, and
+    /// `Exons::choose()` picks one of them.  The result is `None` if no shift applies.  The
+    /// region is `None` if every placement changes an essential splice-site base.  The
+    /// placement is `var_t` itself if `Exons::choose()` keeps it.
+    fn splice_site_placement(
+        &self,
+        var_t: &HgvsVariant,
+        alt_ac: &str,
+        alt_aln_method: &str,
+    ) -> Result<Option<(Option<Region>, HgvsVariant)>, Error> {
+        let Some(edit) = var_t.na_edit() else {
+            return Ok(None);
+        };
+        let is_deletion = matches!(edit, NaEdit::DelRef { .. } | NaEdit::DelNum { .. });
+        if !ShiftOverBoundaryPreference::KeepSpliceSite.shifts(var_t) {
+            return Ok(None);
+        }
+        let tx_ac = var_t.accession().to_string();
         let alignment = self.build_alignment_mapper(&tx_ac, alt_ac, alt_aln_method)?;
         let exons = Exons::from_alignment(&alignment);
-        // A c. range over an exon-exon junction, e.g. `c.111_112dup`, is no stretch of the
-        // genome, so it has no placements.  Check this before looking up the genome sequence.
-        if let HgvsVariant::CdsVariant { loc_edit, .. } = &builder.var_c {
-            let pos_g = alignment.c_to_g(loc_edit.loc.inner())?;
-            if let (Some(start), Some(end)) = (pos_g.inner().start, pos_g.inner().end) {
-                if exons.contains_intron(start, end) {
-                    return Ok(builder);
-                }
+        // A transcript range over an exon-exon junction, e.g. `c.111_112dup`, is no stretch of
+        // the genome, so it has no placements.  Check this before looking up the genome sequence.
+        let (pos_g, is_cds) = match var_t {
+            HgvsVariant::CdsVariant { loc_edit, .. } => {
+                (alignment.c_to_g(loc_edit.loc.inner())?, true)
+            }
+            HgvsVariant::TxVariant { loc_edit, .. } => {
+                (alignment.n_to_g(loc_edit.loc.inner())?, false)
+            }
+            _ => return Ok(None),
+        };
+        if let (Some(start), Some(end)) = (pos_g.inner().start, pos_g.inner().end) {
+            if exons.contains_intron(start, end) {
+                return Ok(None);
             }
         }
 
-        let var_g = self.c_to_g(&builder.var_c, alt_ac, alt_aln_method)?;
+        let var_g = if is_cds {
+            self.c_to_g(var_t, alt_ac, alt_aln_method)?
+        } else {
+            self.n_to_g(var_t, alt_ac, alt_aln_method)?
+        };
         let Some((given, given_seq)) = genome_placement(&var_g) else {
-            return Ok(builder);
+            return Ok(None);
         };
         // A variant outside the transcript is at no exon boundary.  An intronic variant that
         // keeps the splice site stays intronic, wherever it shifts.
         if !exons.contains(given) || exons.region_of(given) == Some(Region::Intron) {
-            return Ok(builder);
+            return Ok(None);
         }
         let mut found = vec![(given, given_seq)];
         for direction in [Direction::FiveToThree, Direction::ThreeToFive] {
-            // As in `shift_over_boundary()`, skip a shift that fails, except for missing data.
+            // As in `shift_builder_over_boundary()`, skip a shift that fails, except for
+            // missing data.
             match self.shift_var_g(&var_g, direction, alt_aln_method) {
                 Ok(shifted_var_g) => found.extend(genome_placement(&shifted_var_g)),
                 Err(e) if is_data_error(&e) => return Err(e),
@@ -1065,52 +1174,48 @@ impl Mapper {
             }
         }
         let Some((placements, (x_seq, seq))) = placements(&found, is_deletion) else {
-            return Ok(builder);
+            return Ok(None);
         };
 
         let Some((region, chosen)) = exons.choose(given, placements) else {
             // Every placement changes the splice site.
-            return Ok(AltSeqBuilder {
-                ins_at_boundary_is_intronic: true,
-                ..builder
-            });
+            return Ok(Some((None, var_t.clone())));
         };
-        let var_c = if chosen == given {
-            builder.var_c
+        if chosen == given {
+            return Ok(Some((Some(region), var_t.clone())));
+        }
+        let (start, end, edit) = match (chosen, is_deletion) {
+            (Placement::Insertion(x), false) => (
+                x,
+                x + 1,
+                NaEdit::Ins {
+                    alternative: rotated(&seq, x_seq - x),
+                },
+            ),
+            (Placement::Bases(start, end), true) => (
+                start,
+                end,
+                NaEdit::DelRef {
+                    reference: rotated(&seq, x_seq - start),
+                },
+            ),
+            // `Exons::choose()` keeps the kind of the placements.
+            _ => return Ok(None),
+        };
+        let chosen_var_g = genome_variant(&var_g, start, end, edit)?;
+        let placement = if is_cds {
+            self.g_to_c(&chosen_var_g, &tx_ac, alt_aln_method)
         } else {
-            let (start, end, edit) = match (chosen, is_deletion) {
-                (Placement::Insertion(x), false) => (
-                    x,
-                    x + 1,
-                    NaEdit::Ins {
-                        alternative: rotated(&seq, x_seq - x),
-                    },
-                ),
-                (Placement::Bases(start, end), true) => (
-                    start,
-                    end,
-                    NaEdit::DelRef {
-                        reference: rotated(&seq, x_seq - start),
-                    },
-                ),
-                // `Exons::choose()` keeps the kind of the placements.
-                _ => return Ok(builder),
-            };
-            let chosen_var_g = genome_variant(&var_g, start, end, edit)?;
-            match self.g_to_c(&chosen_var_g, &tx_ac, alt_aln_method) {
-                Ok(var_c) => var_c,
-                Err(e) if is_data_error(&e) => return Err(e),
-                Err(e) => {
-                    debug!("Cannot map {} to {}: {}", chosen_var_g, tx_ac, e);
-                    return Ok(builder);
-                }
-            }
+            self.g_to_n(&chosen_var_g, &tx_ac, alt_aln_method)
         };
-        Ok(AltSeqBuilder {
-            // In an exon, an insertion at its edge extends the exon.
-            ins_at_boundary_is_intronic: region == Region::Intron,
-            ..AltSeqBuilder::new(var_c, builder.reference_data)
-        })
+        match placement {
+            Ok(placement) => Ok(Some((Some(region), placement))),
+            Err(e) if is_data_error(&e) => Err(e),
+            Err(e) => {
+                debug!("Cannot map {} to {}: {}", chosen_var_g, tx_ac, e);
+                Ok(None)
+            }
+        }
     }
 
     /// Shift `var_g` fully in `direction` and rewrite a duplication as an insertion, as
