@@ -108,10 +108,11 @@ pub enum ShiftOverBoundaryPreference {
     /// `+2` at the donor, `-2` and `-1` at the acceptor.  An insertion between them changes
     /// them, e.g. `c.111+1_111+2insC`.  An insertion at the edge of an exon keeps them, i.e.
     /// between the last exon base and `+1` or between `-1` and the first exon base.  Its
-    /// bases extend the exon, whatever `Config::ins_at_boundary_is_intronic` says.  If the exon
-    /// starts with c.1 or ends with the last base of the CDS, they extend a UTR, which gives
-    /// `p.?`.  A duplication counts as an insertion of its bases next to them.  A deletion
-    /// changes the essential bases if it removes one of them.
+    /// bases extend the exon, whatever `Config::ins_at_boundary_is_intronic` says.  A
+    /// duplication counts as an insertion of its bases next to them.  A deletion changes the
+    /// essential bases if it removes one of them.  A placement in an exon next to c.1 or the
+    /// stop codon can leave the CDS intact.  It is then a UTR variant and gives `p.?`, see
+    /// `VariantLocation`.
     ///
     /// If the variant itself lies in the region of step 1 or 2, `c_to_p` uses it.  Otherwise
     /// it uses the most 3' placement in that region on the transcript.  In an exon, a placement
@@ -160,8 +161,8 @@ pub struct ProteinProjection {
     /// `Config::ins_at_boundary_is_intronic`, except for the variants that `KeepSpliceSite`
     /// shifts.  For them, an insertion at the edge of an exon counts as exonic.  E.g., with
     /// `KeepSpliceSite`, `NM_004985.4:c.112dupG` at the start of an exon is `Cds`.  With the
-    /// default preference and setting, it is `Intron`.  Next to c.1 or the last base of the
-    /// CDS, such an insertion leaves the CDS intact, so it is `FivePrimeUtr` or `ThreePrimeUtr`.
+    /// default preference and setting, it is `Intron`.  Next to c.1 or the stop codon, such an
+    /// insertion leaves the CDS intact, so it is `FivePrimeUtr` or `ThreePrimeUtr`.
     pub region: VariantLocation,
 }
 
@@ -3149,9 +3150,9 @@ mod test {
     }
 
     /// `KeepSpliceSite` counts an insertion at the edge of an exon as exonic.  If that exon
-    /// starts with c.1 or ends with the last base of the CDS, the insertion leaves the CDS
-    /// intact.  The projection then gives `p.?` and a UTR, with both values of
-    /// `ins_at_boundary_is_intronic`.
+    /// starts with c.1 or ends with the stop codon, the insertion leaves the CDS intact.  So
+    /// can a deletion at the edge.  The projection then gives `p.?` and a UTR, with both values
+    /// of `ins_at_boundary_is_intronic`.
     #[test]
     fn c_to_p_projection_keep_splice_site_at_cds_boundary() -> Result<(), Error> {
         use crate::mapper::altseq::VariantLocation;
@@ -3190,6 +3191,13 @@ mod test {
                 (
                     "NM_999989.1:c.30_30+1insC",
                     "NM_999989.1:c.30_30+1insC",
+                    VariantLocation::ThreePrimeUtr,
+                ),
+                // Deleting the `G` at c.30+1 equals deleting the `G` at c.30, which keeps the
+                // splice site.  c.*1 is a `G`, too, so the TAG stays.
+                (
+                    "NM_999989.1:c.30+1del",
+                    "NM_999989.1:c.30delG",
                     VariantLocation::ThreePrimeUtr,
                 ),
             ] {
