@@ -1021,8 +1021,18 @@ impl Mapper {
         let (alt_ac, alt_aln_method) =
             alt.ok_or_else(|| Error::ShiftOverBoundaryNeedsAlignment(builder.var_c.to_string()))?;
         let tx_ac = builder.var_c.accession().to_string();
-        let exons =
-            Exons::from_alignment(&self.build_alignment_mapper(&tx_ac, alt_ac, alt_aln_method)?);
+        let alignment = self.build_alignment_mapper(&tx_ac, alt_ac, alt_aln_method)?;
+        let exons = Exons::from_alignment(&alignment);
+        // A c. range over an exon-exon junction, e.g. `c.111_112dup`, is no stretch of the
+        // genome, so it has no placements.  Check this before looking up the genome sequence.
+        if let HgvsVariant::CdsVariant { loc_edit, .. } = &builder.var_c {
+            let pos_g = alignment.c_to_g(loc_edit.loc.inner())?;
+            if let (Some(start), Some(end)) = (pos_g.inner().start, pos_g.inner().end) {
+                if exons.contains_intron(start, end) {
+                    return Ok(builder);
+                }
+            }
+        }
 
         let var_g = self.c_to_g(&builder.var_c, alt_ac, alt_aln_method)?;
         let Some((given, given_seq)) = genome_placement(&var_g) else {
@@ -1046,7 +1056,7 @@ impl Mapper {
         };
 
         let Some((region, chosen)) = exons.choose(given, placements) else {
-            // Every placement changes the splice site, also an insertion at the exon edge.
+            // Every placement changes the splice site.
             return Ok(AltSeqBuilder {
                 ins_at_boundary_is_intronic: true,
                 ..builder

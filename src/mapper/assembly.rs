@@ -278,7 +278,7 @@ impl Mapper {
     /// return the c. variant that the protein is built from.
     ///
     /// With `Config::shift_over_boundary`, that c. variant can be an equivalent placement of
-    /// `var_c` on the other side of an exon boundary.  For example, with
+    /// `var_c`, e.g. on the other side of an exon boundary.  For example, with
     /// `ShiftOverBoundaryPreference::KeepSpliceSite`, `NM_004985.4:c.111+1dup` gives
     /// `NP_004976.2:p.Asp38GlyfsTer10`, built from `NM_004985.4:c.110_111insG`.
     ///
@@ -1154,6 +1154,12 @@ mod test {
                 // Into the exon, between two exon bases or at the edge.
                 (
                     &keep_splice_site,
+                    "NM_004985.4:c.111+1_111+2insCGG",
+                    "NM_004985.4:c.110_111insGGC",
+                    "NP_004976.2:p.Glu37_Asp38insAla",
+                ),
+                (
+                    &keep_splice_site,
                     "NM_004985.4:c.111+1dup",
                     "NM_004985.4:c.110_111insG",
                     "NP_004976.2:p.Asp38GlyfsTer10",
@@ -1207,6 +1213,12 @@ mod test {
                     "NM_000314.4:c.209+4_209+7delAGTA",
                     "NP_000305.3:p.?",
                 ),
+                (
+                    &keep_splice_site,
+                    "NM_004985.4:c.111+2_111+5del",
+                    "NM_004985.4:c.111+3_111+6delAAAT",
+                    "NP_004976.2:p.?",
+                ),
                 // Variants that stay: in the exon, and between `+1` and `+2`.
                 (
                     &keep_splice_site,
@@ -1244,6 +1256,54 @@ mod test {
                 let projection = mapper.c_to_p_projection(&var_c)?;
                 assert_eq!(format!("{}", projection.var_c), expected_c, "{hgvs_c}");
                 assert_eq!(format!("{}", projection.var_p), expected_p, "{hgvs_c}");
+            }
+            Ok(())
+        }
+
+        /// A c. range over an exon-exon junction is no stretch of the genome, so
+        /// `KeepSpliceSite` leaves it to `c_to_p` as `Default` does.
+        #[test]
+        fn c_to_p_over_exon_junction() -> Result<(), Error> {
+            let build = |shift_over_boundary_preference| {
+                let config = Config {
+                    assembly: "GRCh37".to_string(),
+                    renormalize_g: false,
+                    shift_over_boundary: true,
+                    shift_over_boundary_preference,
+                    ..Config::default()
+                };
+                Ok::<_, Error>(Mapper::new(config, build_provider()?))
+            };
+            let default = build(ShiftOverBoundaryPreference::Default)?;
+            let keep_splice_site = build(ShiftOverBoundaryPreference::KeepSpliceSite)?;
+            for (hgvs_c, expected_c, expected_p) in [
+                (
+                    "NM_004985.4:c.111_112dup",
+                    "NM_004985.4:c.111_112dupGG",
+                    "NP_004976.2:p.Asp38GlyfsTer8",
+                ),
+                (
+                    "NM_004985.4:c.111_112del",
+                    "NM_004985.4:c.111_112delGG",
+                    "NP_004976.2:p.Asp38PhefsTer9",
+                ),
+                (
+                    "NM_000314.4:c.209_210dup",
+                    "NM_000314.4:c.209_210dupTT",
+                    "NP_000305.3:p.Cys71PhefsTer29",
+                ),
+                (
+                    "NM_000314.4:c.209_210del",
+                    "NM_000314.4:c.209_210delTT",
+                    "NP_000305.3:p.Ala72Ter",
+                ),
+            ] {
+                let var_c = HgvsVariant::from_str(hgvs_c)?;
+                for mapper in [&default, &keep_splice_site] {
+                    let projection = mapper.c_to_p_projection(&var_c)?;
+                    assert_eq!(format!("{}", projection.var_c), expected_c, "{hgvs_c}");
+                    assert_eq!(format!("{}", projection.var_p), expected_p, "{hgvs_c}");
+                }
             }
             Ok(())
         }

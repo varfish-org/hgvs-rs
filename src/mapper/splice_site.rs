@@ -129,6 +129,12 @@ impl Exons {
         }
     }
 
+    /// Whether `g.start` to `g.end` contain a whole intron.
+    pub(crate) fn contains_intron(&self, start: i32, end: i32) -> bool {
+        self.introns()
+            .any(|(intron_start, intron_end)| start <= intron_start && intron_end <= end)
+    }
+
     /// Insertion points at the edge of an exon next to an intron, as inclusive ranges.
     fn edges(&self) -> Vec<(i32, i32)> {
         self.introns()
@@ -372,6 +378,15 @@ mod test {
             plus.choose(Placement::Bases(299, 299), all),
             Some((Region::Intron, Placement::Bases(298, 298)))
         );
+    }
+
+    #[test]
+    fn contains_intron() {
+        let exons = exons(true);
+        assert!(exons.contains_intron(200, 301));
+        assert!(exons.contains_intron(201, 300));
+        assert!(!exons.contains_intron(200, 299));
+        assert!(!exons.contains_intron(202, 301));
     }
 
     #[test]
