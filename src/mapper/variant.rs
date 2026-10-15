@@ -39,8 +39,8 @@ pub struct Config {
     pub window_size: usize,
     /// Treat insertions and duplications that touch an exon boundary as intronic in `c_to_p`,
     /// giving `p.?`.  With `false`, e.g., `c.26_26+1insC` and `c.26+1dup` change the protein.
-    /// Before c.1 and after the last base of the CDS, they change no base of the CDS and give
-    /// `p.?` like a variant in the UTR.
+    /// Before c.1 and after the stop codon, they change no base of the CDS and give `p.?` like
+    /// a variant in the UTR.
     pub ins_at_boundary_is_intronic: bool,
 }
 
@@ -1638,6 +1638,12 @@ mod test {
             record("NM_999993.1", "AAAATCAAAATGGCCAAGCTGTGGGAA", 27),
             record("NM_999994.1", "AAAATCAAAATGGCCAAGCTGTGGGAAGC", 29),
             record("NM_999995.1", "AAAATCAAAATGGCCTCCTGATGGCTAAGGGG", 28),
+            // `NM_999993.1` with stop codons after c.18 in two frames.
+            record(
+                "NM_999996.1",
+                "AAAATCAAAATGGCCAAGCTGTGGGAAGGCTAACTGATAGG",
+                27,
+            ),
         ]))
     }
 
@@ -1716,6 +1722,15 @@ mod test {
             ("NM_999993.1:c.15G>A", "MOCK:p.Trp5Ter"),
             ("NM_999993.1:c.13_14insCCTA", "MOCK:p.Trp5SerfsTer2"),
             ("NM_999993.1:c.17_18insC", "MOCK:p.Glu6AspfsTer?"),
+            // A new stop codon gives the same result as with a stop codon at the end.
+            ("NM_999993.1:c.15_16insGGGTAA", "MOCK:p.Trp5_Glu6insGlyTer"),
+            ("NM_999993.1:c.4_6delinsGGGTAA", "MOCK:p.Ala2delinsGlyTer"),
+            // The protein ends at c.18 also if a stop codon follows.
+            ("NM_999996.1:c.18A>G", "MOCK:p.Glu6="),
+            ("NM_999996.1:c.18A>C", "MOCK:p.Glu6Asp"),
+            ("NM_999996.1:c.4_6dup", "MOCK:p.Ala2dup"),
+            ("NM_999996.1:c.15_16insGGGTAA", "MOCK:p.Trp5_Glu6insGlyTer"),
+            ("NM_999996.1:c.17_18insCC", "MOCK:p.Glu6AspfsTer?"),
             // The CDS ends before the new frame changes a complete codon.
             ("NM_999993.1:c.18del", "MOCK:p.?"),
             ("NM_999993.1:c.16del", "MOCK:p.?"),
@@ -1734,6 +1749,8 @@ mod test {
             ("NM_999994.1:c.19G>A", "MOCK:p.?"),
             ("NM_999994.1:c.19_20insGTGGGAAC", "MOCK:p.?"),
             ("NM_999994.1:c.18_19insTAA", "MOCK:p.?"),
+            ("NM_999994.1:c.20dup", "MOCK:p.?"),
+            ("NM_999994.1:c.19_20dup", "MOCK:p.?"),
         ] {
             let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
             assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
@@ -2384,8 +2401,13 @@ mod test {
             ("NM_999988.1:c.28_29insAGGGGGGCCCCCTT", "MOCK:p.?"),
             // The inserted G can go after the stop codon, like `c.30dup`.
             ("NM_999988.1:c.29_30insG", "MOCK:p.?"),
-            // Without a stop codon, the CDS ends with c.27, and the copy can go after it.
+            // Without a stop codon, the CDS goes on after c.27, so the copy changes the CDS.
+            // The amino acids after the last complete codon are unknown.
             ("NM_999987.1:c.26dup", "MOCK:p.?"),
+            ("NM_999987.1:c.27_*1insA", "MOCK:p.?"),
+            // Likewise for the bases after c.27, e.g., for `c.*1dup`, which is `c.27_*1insG`.
+            ("NM_999987.1:c.*1dup", "MOCK:p.?"),
+            ("NM_999987.1:c.*1_*3dup", "MOCK:p.?"),
             // These cannot go outside the CDS.
             ("NM_999989.1:c.1_2insGCC", "MOCK:p.Met1?"),
             ("NM_999989.1:c.2dup", "MOCK:p.Met1?"),
