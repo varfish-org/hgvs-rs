@@ -119,8 +119,20 @@ pub enum ShiftOverBoundaryPreference {
     /// `VariantLocation`.
     ///
     /// If the variant itself lies in the region of step 1 or 2, `c_to_p` uses it.  Otherwise
-    /// it uses the most 3' placement in that region on the transcript.  In an exon, a placement
-    /// between two exon bases goes before one at the edge.
+    /// it uses the most 3' placement in that region on the transcript.  In an exon, a
+    /// placement that changes no exonic splice region goes first, even before the variant
+    /// itself.  Then a placement between two exon bases goes before one at the edge.
+    ///
+    /// The exonic splice regions are the 3 exon bases next to each intron, the window of
+    /// `ExonicSpliceRegionVariant` in mehari.  The first exon start and the last exon end of
+    /// the transcript have none.  A deletion changes a region if it removes one of its bases.
+    /// An insertion counts by its neighbouring base on the side away from the intron.  So the
+    /// insertion at the exon edge and those between two bases of the region change it.  The
+    /// insertion between the region and the rest of the exon does not.  E.g., PTEN exon 7 ends
+    /// with `c.485_492` `ACAAAAAG`, and `NM_000314.4:c.491del` changes `c.490_492`.  The
+    /// equivalent `c.489delA` does not, so `c_to_p` uses it.  All these placements give the
+    /// same sequence, so the protein and the region do not change.  The 3 to 8 intron bases of
+    /// the splice region are not compared.
     ///
     /// `assembly::Mapper::shift_over_boundary()` applies the same rule to n. variants, e.g. of
     /// a non-coding transcript.

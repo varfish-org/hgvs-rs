@@ -1471,7 +1471,8 @@ mod test {
         ///
         /// SDHC `NR_103459.1` (plus strand) is non-coding.  Its exon 5 ends with `n.297_298`
         /// `AG`, and intron 5 starts with `n.298+1_298+3` `GTA`.  Intron 5 ends with
-        /// `n.299-2_299-1` `AG`, and exon 6 starts with `n.299_302` `GGGT`.
+        /// `n.299-2_299-1` `AG`, and exon 6 starts with `n.299_302` `GGGT`.  Exon 4 ends with
+        /// `n.232_236` `TAAAG`.
         #[test]
         fn shift_over_boundary() -> Result<(), Error> {
             let mapper =
@@ -1495,6 +1496,9 @@ mod test {
                     "NR_103459.1:n.298+1_298+2insC",
                 ),
                 ("NR_103459.1:n.298+1G>A", "NR_103459.1:n.298+1G>A"),
+                // An exon placement that spares the exonic splice region `n.234_236` goes first.
+                ("NR_103459.1:n.235del", "NR_103459.1:n.233delA"),
+                ("NR_103459.1:n.235dup", "NR_103459.1:n.233_234insA"),
                 // c. variants, and an n. variant of a coding transcript.  KRAS `NM_004985.4:c.111`
                 // is `n.303`.
                 ("NM_004985.4:c.111+1dup", "NM_004985.4:c.110_111insG"),
@@ -1513,6 +1517,46 @@ mod test {
                         placement,
                         mapper.c_to_p_projection(&var_t)?.var_c,
                         "{hgvs_t}"
+                    );
+                }
+            }
+            Ok(())
+        }
+
+        /// Among the placements in an exon, `KeepSpliceSite` prefers one that spares the exonic
+        /// splice regions, the 3 exon bases next to an intron.  The protein and the region are
+        /// those of the given variant, as all placements give the same sequence.
+        ///
+        /// PTEN exon 7 ends with `c.485_492` `ACAAAAAG` (plus strand).  KRAS exon 3 ends with
+        /// `c.283_290` `CATTATAG`, and KRAS exon 1 ends with `c.-19_-12` `GGAGAGAG` in the 5' UTR
+        /// (minus strand).  KRAS exon 2 ends with `c.106_111` `ATAGAG`.
+        #[test]
+        fn c_to_p_projection_exonic_splice_region() -> Result<(), Error> {
+            let keep_splice_site =
+                build_shift_over_boundary(true, ShiftOverBoundaryPreference::KeepSpliceSite, true)?;
+            let default =
+                build_shift_over_boundary(true, ShiftOverBoundaryPreference::Default, true)?;
+            for (hgvs_c, expected_c) in [
+                // The given placements change `c.490_492`, the others do not.
+                ("NM_000314.4:c.491del", "NM_000314.4:c.489delA"),
+                ("NM_000314.4:c.491dup", "NM_000314.4:c.489_490insA"),
+                ("NM_000314.4:c.490_491del", "NM_000314.4:c.488_489delAA"),
+                ("NM_004985.4:c.288_289del", "NM_004985.4:c.286_287delTA"),
+                ("NM_004985.4:c.-13_-12del", "NM_004985.4:c.-16_-15delGA"),
+                // Every placement in the exon changes `c.109_111`.
+                ("NM_004985.4:c.110_111del", "NM_004985.4:c.110_111delAG"),
+            ] {
+                let var_c = HgvsVariant::from_str(hgvs_c)?;
+                let projection = keep_splice_site.c_to_p_projection(&var_c)?;
+                let given = default.c_to_p_projection(&var_c)?;
+                assert_eq!(format!("{}", projection.var_c), expected_c, "{hgvs_c}");
+                assert_eq!(projection.var_p, given.var_p, "{hgvs_c}");
+                assert_eq!(projection.region, given.region, "{hgvs_c}");
+                if projection.var_c != given.var_c {
+                    assert_eq!(
+                        keep_splice_site.shift_over_boundary(&var_c)?,
+                        projection.var_c,
+                        "{hgvs_c}"
                     );
                 }
             }

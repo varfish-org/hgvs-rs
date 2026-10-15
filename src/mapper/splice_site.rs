@@ -129,6 +129,42 @@ impl Exons {
         }
     }
 
+    /// Whether `placement` changes an exonic splice region, i.e. one of the 3 exon bases next to
+    /// an intron.  This is the window of `ExonicSpliceRegionVariant` in mehari.  A deletion
+    /// changes the region if it removes one of its bases.  An insertion counts by its
+    /// neighbouring base on the side away from the intron.  So the insertion at the exon edge
+    /// and the insertions between two bases of the region change it, but the insertion between
+    /// the region and the rest of the exon does not.
+    pub(crate) fn in_exonic_splice_region(&self, placement: Placement) -> bool {
+        // The region before the intron is `g.(start - 3)_(start - 1)`, the one after it is
+        // `g.(end + 1)_(end + 3)`.
+        self.introns().any(|(start, end)| match placement {
+            Placement::Insertion(x) => {
+                (start - 3..start).contains(&x) || (end..end + 3).contains(&x)
+            }
+            Placement::Bases(first, last) => {
+                (first < start && start - 3 <= last) || (first <= end + 3 && end < last)
+            }
+        })
+    }
+
+    /// As `ranges(len, Region::Exon)`, but only with the placements that change no exonic
+    /// splice region, see `in_exonic_splice_region()`.
+    fn ranges_outside_exonic_splice_regions(&self, len: Option<i32>) -> Vec<(i32, i32)> {
+        // A deletion counts by all its bases, an insertion by one base next to it.
+        let margin = if len.is_some() { 3 } else { 2 };
+        let count = self.spans.len();
+        self.ranges(len, Region::Exon)
+            .into_iter()
+            .enumerate()
+            .map(|(i, (lo, hi))| {
+                let lo = if i > 0 { lo + margin } else { lo };
+                let hi = if i + 1 < count { hi - margin } else { hi };
+                (lo, hi)
+            })
+            .collect()
+    }
+
     /// Whether `placement` lies within the transcript, from its first to its last base.
     pub(crate) fn contains(&self, placement: Placement) -> bool {
         let (Some((first, _)), Some((_, last))) = (self.spans.first(), self.spans.last()) else {
@@ -176,9 +212,10 @@ impl Exons {
     /// essential splice-site base.
     ///
     /// A placement in an intron that keeps the splice site goes first, then one in an exon.
-    /// `given` wins in its region, else the most 3' placement on the transcript.  In an exon, an
-    /// insertion between two exon bases goes before one at the edge.  `given` and `all` are
-    /// both insertions or duplications, or both deletions.
+    /// `given` wins in its region, else the most 3' placement on the transcript.  In an exon, a
+    /// placement that changes no exonic splice region goes first, see
+    /// `in_exonic_splice_region()`.  Then an insertion between two exon bases goes before one
+    /// at the edge.  `given` and `all` are both insertions or duplications, or both deletions.
     pub(crate) fn choose(&self, given: Placement, all: Placements) -> Option<(Region, Placement)> {
         if self.region_of(given) == Some(Region::Intron) {
             return Some((Region::Intron, given));
@@ -187,7 +224,15 @@ impl Exons {
         if let Some(placement) = self.most_3_prime(all, &self.ranges(len, Region::Intron)) {
             return Some((Region::Intron, placement));
         }
-        if self.region_of(given) == Some(Region::Exon) {
+        let given_in_exon = self.region_of(given) == Some(Region::Exon);
+        if given_in_exon && !self.in_exonic_splice_region(given) {
+            return Some((Region::Exon, given));
+        }
+        let outside_regions = self.ranges_outside_exonic_splice_regions(len);
+        if let Some(placement) = self.most_3_prime(all, &outside_regions) {
+            return Some((Region::Exon, placement));
+        }
+        if given_in_exon {
             return Some((Region::Exon, given));
         }
         let edges = if len.is_none() {
@@ -388,6 +433,117 @@ mod test {
         assert_eq!(
             plus.choose(Placement::Bases(299, 299), all),
             Some((Region::Intron, Placement::Bases(298, 298)))
+        );
+    }
+
+    #[test]
+    fn in_exonic_splice_region() {
+        // The regions are `g.198_200` before the intron and `g.301_303` after it.  The first
+        // exon start and the last exon end are next to no intron.
+        let exons = exons(true);
+        for (placement, expected) in [
+            // An insertion counts by its neighbouring base on the side away from the intron.
+            (Placement::Insertion(197), false),
+            (Placement::Insertion(198), true),
+            (Placement::Insertion(200), true),
+            (Placement::Insertion(300), true),
+            (Placement::Insertion(302), true),
+            (Placement::Insertion(303), false),
+            (Placement::Insertion(100), false),
+            (Placement::Insertion(399), false),
+            (Placement::Bases(195, 197), false),
+            (Placement::Bases(196, 198), true),
+            (Placement::Bases(301, 301), true),
+            (Placement::Bases(303, 310), true),
+            (Placement::Bases(304, 310), false),
+            (Placement::Bases(100, 102), false),
+            (Placement::Bases(398, 400), false),
+        ] {
+            assert_eq!(
+                exons.in_exonic_splice_region(placement),
+                expected,
+                "{placement:?}"
+            );
+        }
+    }
+
+    /// `ranges_outside_exonic_splice_regions()` holds the placements in an exon that
+    /// `in_exonic_splice_region()` lets pass.
+    #[test]
+    fn ranges_outside_exonic_splice_regions() {
+        let exons = exons(true);
+        for len in [None, Some(1), Some(2), Some(4)] {
+            let placements = match len {
+                None => Placements::Insertions { lo: 90, hi: 410 },
+                Some(len) => Placements::Deletions {
+                    lo: 90,
+                    hi: 410,
+                    len,
+                },
+            };
+            let within =
+                |ranges: &[(i32, i32)], x: i32| ranges.iter().any(|(lo, hi)| *lo <= x && x <= *hi);
+            let exon = exons.ranges(len, Region::Exon);
+            let outside = exons.ranges_outside_exonic_splice_regions(len);
+            for x in 90..=410 {
+                let expected = within(&exon, x) && !exons.in_exonic_splice_region(placements.at(x));
+                assert_eq!(within(&outside, x), expected, "{len:?} {x}");
+            }
+        }
+    }
+
+    #[test]
+    fn choose_outside_exonic_splice_region() {
+        let plus = exons(true);
+        let minus = exons(false);
+        // A deletion in a run from `g.193` to `g.199`.  The given one changes `g.198_200`.
+        let all = Placements::Deletions {
+            lo: 193,
+            hi: 199,
+            len: 1,
+        };
+        assert_eq!(
+            plus.choose(Placement::Bases(199, 199), all),
+            Some((Region::Exon, Placement::Bases(197, 197)))
+        );
+        assert_eq!(
+            minus.choose(Placement::Bases(199, 199), all),
+            Some((Region::Exon, Placement::Bases(193, 193)))
+        );
+        // A given placement outside the region stays.
+        assert_eq!(
+            plus.choose(Placement::Bases(194, 194), all),
+            Some((Region::Exon, Placement::Bases(194, 194)))
+        );
+        // An insertion from the exon edge to `g.195`.
+        let all = Placements::Insertions { lo: 195, hi: 200 };
+        assert_eq!(
+            plus.choose(Placement::Insertion(200), all),
+            Some((Region::Exon, Placement::Insertion(197)))
+        );
+        // After the intron, an insertion counts by the base behind it.
+        let all = Placements::Insertions { lo: 300, hi: 306 };
+        assert_eq!(
+            plus.choose(Placement::Insertion(300), all),
+            Some((Region::Exon, Placement::Insertion(306)))
+        );
+        assert_eq!(
+            minus.choose(Placement::Insertion(300), all),
+            Some((Region::Exon, Placement::Insertion(303)))
+        );
+        // Every placement in the exon changes the region: the most 3' one.
+        let all = Placements::Deletions {
+            lo: 198,
+            hi: 201,
+            len: 1,
+        };
+        assert_eq!(
+            plus.choose(Placement::Bases(201, 201), all),
+            Some((Region::Exon, Placement::Bases(200, 200)))
+        );
+        assert_eq!(
+            minus.choose(Placement::Bases(201, 201), all),
+            Some((Region::Exon, Placement::Bases(198, 198)))
         );
     }
 
