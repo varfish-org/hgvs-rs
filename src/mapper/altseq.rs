@@ -63,6 +63,34 @@ fn codon_exceptions(exceptions: &[TranslationException]) -> Vec<(usize, char)> {
         .collect()
 }
 
+/// The 0-based index in `ref_seq` after the last base that differs from `alt_seq`, or `None`
+/// if both are equal.  The differing bases are placed as far 3' as possible: the common prefix
+/// is removed first, then the common suffix of the rest.
+fn changed_end(ref_seq: &str, alt_seq: &str) -> Option<usize> {
+    if ref_seq == alt_seq {
+        return None;
+    }
+    let (ref_seq, alt_seq) = (ref_seq.as_bytes(), alt_seq.as_bytes());
+    let prefix = ref_seq
+        .iter()
+        .zip(alt_seq)
+        .take_while(|(r, a)| r == a)
+        .count();
+    let suffix = ref_seq[prefix..]
+        .iter()
+        .rev()
+        .zip(alt_seq[prefix..].iter().rev())
+        .take_while(|(r, a)| r == a)
+        .count();
+    Some(ref_seq.len() - suffix)
+}
+
+/// The amino acids of `aa_seq` up to and including its first stop codon, or all of them if it
+/// has none.
+fn up_to_first_stop(aa_seq: &str) -> &str {
+    aa_seq.find('*').map_or(aa_seq, |pos| &aa_seq[..=pos])
+}
+
 #[cached(
     ty = "LruCache<(String, String, String, Option<String>), Result<RefTranscriptData, Error>>",
     create = "{ LruCache::builder().max_size(1000).build().expect(\"valid cache size\") }",
@@ -357,8 +385,8 @@ pub struct AltSeqBuilder<'a> {
     pub reference_data: &'a RefTranscriptData,
     /// Whether the transcript reference amino acid sequence has multiple stop codons.
     pub ref_has_multiple_stops: bool,
-    /// Position of the first stop codon in the reference amino acid.  It is difficult
-    /// to handle transcripts with multiple stop codons, but we can make a reasonable
+    /// 0-based index of the first stop codon in the reference amino acid sequence.  It is
+    /// difficult to handle transcripts with multiple stop codons, but we can make a reasonable
     /// prediction up to the first stop codon.  This rescues changes to the `p.Met1`.
     pub first_stop_pos: Option<usize>,
     /// See `variant::Config::ins_at_boundary_is_intronic`; `true` by default.
@@ -591,6 +619,23 @@ impl<'a> AltSeqBuilder<'a> {
             .collect()
     }
 
+    /// Whether the effect of a variant is unknown.  The effect is unknown if the reference has
+    /// more than one stop codon and the variant changes the first one or a base after it.
+    /// biocommons/hgvs gives `p.?` for every variant on such a transcript.
+    ///
+    /// The check takes the bases in which `alt_seq` differs from the reference transcript, at
+    /// their 3'-most placement, so every description of a change gives the same result.  If no
+    /// base differs, it takes `end`, the 0-based index after the last base of the variant.
+    fn is_ambiguous(&self, alt_seq: &str, end: usize) -> bool {
+        let Some(first_stop_pos) = self.first_stop_pos.filter(|_| self.ref_has_multiple_stops)
+        else {
+            return false;
+        };
+        let first_stop_start = (self.reference_data.cds_start - 1) as usize + 3 * first_stop_pos;
+        let end = changed_end(&self.reference_data.transcript_sequence, alt_seq).unwrap_or(end);
+        first_stop_start < end
+    }
+
     /// Get starting position (AA ref index) of the last frameshift which affects the rest of
     /// the sequence, i.e. not offset by subsequent frameshifts.
     fn get_frameshift_start(&self, variant_data: AltTranscriptData) -> AltTranscriptData {
@@ -661,6 +706,7 @@ impl<'a> AltSeqBuilder<'a> {
         }
 
         let is_frameshift = net_base_change % 3 != 0;
+        let is_ambiguous = self.is_ambiguous(&seq, end);
 
         // Use max. of mod 3 value and 1 (in the event that the indel starts in the 5' UTR range).
         let variant_start_aa = std::cmp::max((loc_range_start as f64 / 3.0).ceil() as i32, 1);
@@ -675,7 +721,7 @@ impl<'a> AltSeqBuilder<'a> {
             &self.reference_data.protein_accession,
             &self.reference_data.aa_sequence,
             is_substitution,
-            self.ref_has_multiple_stops && self.first_stop_pos.map(|p| p <= start).unwrap_or(false),
+            is_ambiguous,
             self.reference_data.translation_table,
             &translation_exceptions,
         )
@@ -694,6 +740,16 @@ impl<'a> AltSeqBuilder<'a> {
             &seq[start..end]
         };
         let seq = format!("{}{}{}", &seq[..end], dup_seq, &seq[end..]);
+        // Part of the handling of more than one stop codon (#96), for which biocommons/hgvs
+        // gives `p.?`.  The alt protein must keep the stop codons after the copy, so
+        // `cds_stop` moves with the copy, as in `incorporate_delins()`.  With one stop codon,
+        // `cds_stop` stays for now.  A follow-up change moves it for every dup, as
+        // biocommons/hgvs#896 does.
+        let cds_stop = if self.ref_has_multiple_stops {
+            cds_stop + dup_seq.len() as i32
+        } else {
+            cds_stop
+        };
 
         let is_frameshift = dup_seq.len() % 3 != 0;
 
@@ -703,6 +759,7 @@ impl<'a> AltSeqBuilder<'a> {
         };
         let variant_start_aa = ((loc_end + 1) as f64 / 3.0).ceil() as i32;
         let translation_exceptions = self.alt_translation_exceptions(&seq);
+        let is_ambiguous = self.is_ambiguous(&seq, end);
 
         AltTranscriptData::new_owned(
             seq,
@@ -713,7 +770,7 @@ impl<'a> AltSeqBuilder<'a> {
             &self.reference_data.protein_accession,
             &self.reference_data.aa_sequence,
             false,
-            self.ref_has_multiple_stops && self.first_stop_pos.map(|p| p <= start).unwrap_or(false),
+            is_ambiguous,
             self.reference_data.translation_table,
             &translation_exceptions,
         )
@@ -737,6 +794,7 @@ impl<'a> AltSeqBuilder<'a> {
 
         let variant_start_aa = std::cmp::max(((loc_start as f64) / 3.0).ceil() as i32, 1);
         let translation_exceptions = self.alt_translation_exceptions(&seq);
+        let is_ambiguous = self.is_ambiguous(&seq, end);
 
         AltTranscriptData::new_owned(
             seq,
@@ -747,7 +805,7 @@ impl<'a> AltSeqBuilder<'a> {
             &self.reference_data.protein_accession,
             &self.reference_data.aa_sequence,
             false,
-            self.ref_has_multiple_stops && self.first_stop_pos.map(|p| p <= start).unwrap_or(false),
+            is_ambiguous,
             self.reference_data.translation_table,
             &translation_exceptions,
         )
@@ -1036,6 +1094,17 @@ impl<'a> AltSeqToHgvsp<'a> {
         &self.ref_data.aa_sequence
     }
 
+    /// The part of `ref_seq()` that the prediction covers.  With more than one stop codon, the
+    /// prediction ends with the first one (#96), see `AltSeqBuilder::is_ambiguous()`.
+    fn ref_protein(&self) -> &str {
+        let ref_seq = self.ref_seq();
+        if ref_seq.matches('*').count() > 1 {
+            up_to_first_stop(ref_seq)
+        } else {
+            ref_seq
+        }
+    }
+
     fn alt_seq(&self) -> &str {
         &self.alt_data.aa_sequence
     }
@@ -1056,15 +1125,16 @@ impl<'a> AltSeqToHgvsp<'a> {
             is_frameshift,
         } = &record;
 
+        let ref_protein = self.ref_protein();
         // Without a stop codon, the last amino acid of the reference protein is an ordinary
         // one, and the amino acids after it are unknown.
-        let has_stop_codon = self.ref_data.cds_end == CdsEnd::StopCodon;
+        let has_stop_codon = ref_protein.ends_with('*');
 
         // Handle the case of the variant being after the end of the protein sequence.  This can
         // happen when the variant is 5'-to-3' shifted beyond the stop codon.  In this case, we
         // can simply return `ProtLocEdit::NoChange` which will display as `p.=`.  Without a
         // stop codon, the effect is unknown, i.e., `p.?`.
-        if *start as usize > self.ref_seq().len() {
+        if *start as usize > ref_protein.len() {
             return Ok(HgvsVariant::ProtVariant {
                 accession: Accession::new(protein_accession),
                 gene_symbol: None,
@@ -1114,9 +1184,16 @@ impl<'a> AltSeqToHgvsp<'a> {
             reference = "".to_string();
             alternative = "*".to_string();
             is_sub = true;
-        } else if has_stop_codon && *start as usize == self.ref_seq().len() {
+        } else if has_stop_codon && *start as usize == ref_protein.len() {
             // extension
             fsext_len = if self.alt_seq().ends_with('*') {
+                // With more than one stop codon, both can go on after the stop codon at which
+                // the prediction ends.
+                let (insertion, deletion) = if ref_protein.len() < self.ref_seq().len() {
+                    (up_to_first_stop(insertion), up_to_first_stop(deletion))
+                } else {
+                    (insertion.as_str(), deletion.as_str())
+                };
                 UncertainLengthChange::Known(insertion.len() as i32 - deletion.len() as i32)
             } else {
                 UncertainLengthChange::Unknown
@@ -1213,7 +1290,7 @@ impl<'a> AltSeqToHgvsp<'a> {
                 alternative.clone_from(insertion);
             } else {
                 // deletion OR stop codon at variant position
-                if has_stop_codon && deletion.len() as i32 + start == self.ref_seq().len() as i32 {
+                if has_stop_codon && deletion.len() as i32 + start == ref_protein.len() as i32 {
                     // stop codon at variant position
                     aa_end = aa_start.clone();
                     reference = "".to_string();

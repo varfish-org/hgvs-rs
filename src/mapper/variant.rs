@@ -2108,14 +2108,50 @@ mod test {
         Ok(())
     }
 
-    /// Check the case with multiple stop codons.  We introduced a change in hgvs-rs
-    /// that does not handle multiple stop codons in the transcript sequence as
-    /// conservatively as the Python version.
+    /// The CDS of `NM_999992.1` codes `MG*ARQPAL*`, with the first stop codon at c.7_9.
+    /// biocommons/hgvs gives `p.?` for every variant on a transcript with more than one stop
+    /// codon.  hgvs-rs still predicts the protein for a variant that changes no base from the
+    /// first stop codon on (#96).  These predictions are what biocommons/hgvs gives for the
+    /// same change on a transcript with one stop codon.
     #[test]
     fn hgvs_c_to_p_multiple_stop_codons() -> Result<(), Error> {
-        let hgvsc = "NM_999992.1:c.4G>A";
-        let hgvsp_expected = "MOCK:p.?";
-        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+        let mapper = sanity_mock::build_mapper(false)?;
+
+        for (hgvsc, hgvsp_expected) in [
+            // Before the first stop codon.
+            ("NM_999992.1:c.1A>G", "MOCK:p.Met1?"),
+            ("NM_999992.1:c.4G>A", "MOCK:p.Gly2Arg"),
+            ("NM_999992.1:c.6G>A", "MOCK:p.Gly2="),
+            ("NM_999992.1:c.4_5inv", "MOCK:p.Gly2Pro"),
+            ("NM_999992.1:c.4_6del", "MOCK:p.Gly2Ter"),
+            // Before the first stop codon, with a new amino acid in its place.
+            ("NM_999992.1:c.4_6dup", "MOCK:p.Ter3GlyextTer1"),
+            ("NM_999992.1:c.6_7insGGG", "MOCK:p.Ter3GlyextTer1"),
+            ("NM_999992.1:c.3_4insG", "MOCK:p.Ter3ValextTer?"),
+            ("NM_999992.1:c.6del", "MOCK:p.Ter3ArgextTer?"),
+            ("NM_999992.1:c.6_7insAAATGAC", "MOCK:p.Ter3LysextTer1"),
+            // Before the first stop codon, with the same protein up to it.
+            ("NM_999992.1:c.5_6insATAAGG", "MOCK:p.="),
+            // At the first stop codon.
+            ("NM_999992.1:c.7T>C", "MOCK:p.?"),
+            ("NM_999992.1:c.7_9dup", "MOCK:p.?"),
+            ("NM_999992.1:c.8_9inv", "MOCK:p.?"),
+            // From before into the first stop codon.
+            ("NM_999992.1:c.6_7delinsAA", "MOCK:p.?"),
+            ("NM_999992.1:c.5_7dup", "MOCK:p.?"),
+            // Before the first stop codon, but the same change as one into it.
+            ("NM_999992.1:c.2_6del", "MOCK:p.?"),
+            ("NM_999992.1:c.3_7del", "MOCK:p.?"),
+            ("NM_999992.1:c.2_6dup", "MOCK:p.?"),
+            ("NM_999992.1:c.3_7dup", "MOCK:p.?"),
+            ("NM_999992.1:c.6_7insT", "MOCK:p.?"),
+            ("NM_999992.1:c.7dup", "MOCK:p.?"),
+            // After the first stop codon.
+            ("NM_999992.1:c.13C>T", "MOCK:p.?"),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
+        }
 
         Ok(())
     }
