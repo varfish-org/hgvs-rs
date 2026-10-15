@@ -18,7 +18,7 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 
 - **Situation:** `c_to_p` of the assembly mapper on a transcript without an alignment to the assembly.
 - **biocommons/hgvs:** `AssemblyMapper.c_to_p()` looks up the genome alignment for every variant and raises `HGVSDataNotAvailableError` if there is none ([assemblymapper.py][bc-am-c-to-p]).
-- **hgvs-rs:** `assembly::Mapper::c_to_p()` looks up the alignment only for a variant with an intron offset, and only with `genome_seq_available`, a setting that biocommons/hgvs does not have. Only such a variant needs bases from the genome. As in biocommons/hgvs, the genome gives the bases of a dup such as `NM_003777.3:c.4110+1dup` ([#301]). Other variants work without the alignment.
+- **hgvs-rs:** `assembly::Mapper::c_to_p()` looks up the alignment only for a variant with an intron offset, and only with `genome_seq_available`, a setting that biocommons/hgvs does not have. Only such a variant needs bases from the genome. As in biocommons/hgvs, the genome gives the bases of a dup such as `NM_003777.3:c.4110+1dup` ([#301]). Other variants work without the alignment. With `shift_over_boundary`, it also looks up the alignment for the variants that the shifts move.
 
 ## Protein prediction (`c_to_p`)
 
@@ -106,6 +106,38 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 - **biocommons/hgvs:** It counts the last codon as a stop codon. `AltTranscriptData` ends the alt protein with the last stop codon up to `cds_stop`, or else with the next one after it ([altseqbuilder.py][bc-alt-cut]). The example gives `p.(Ter6GlyextTer1)`.
 - **hgvs-rs:** The alt protein ends at c.N, as moved by the variant, because the amino acids after c.N are unknown. Otherwise, the alt protein would not line up with the reference protein. The example gives `p.Trp5_Glu6insGlyTer`, as with a stop codon after c.18. A frameshift that ends after c.N gives `fsTer?`.
 
+## Shifts over exon boundaries (`shift_over_boundary`)
+
+### Dup rewritten as an insertion
+
+- **Situation:** a shift moves a dup fully 3' or 5' on the genome and rewrites it as an insertion of its bases, e.g. `NM_000314.4:c.209+1_209+2dup` (PTEN, plus strand) with `Exon`.
+- **biocommons/hgvs:** It inserts before the duplicated bases for a 3' shift on the plus strand and for a 5' shift on the minus strand, else after them ([`_var_g_shift_with_rewrite()`][bc-shift-rewrite]). On the plus strand, the insertion thus sits at the near end of the shift. The example becomes `c.209+1_209+2insTG` in the intron, which gives `p.?`.
+- **hgvs-rs:** It inserts at the end that the shift reached, on both strands, so the insertion can reach the other side of an exon boundary. The example becomes `c.208_209insTG` in the exon, which gives `p.Cys71PhefsTer29`.
+
+### `Default` skips the shifts
+
+- **Situation:** `shift_over_boundary` with the preference `Default` on an insertion or dup in an exon or intron.
+- **biocommons/hgvs:** It computes the shifts but never keeps one, so the protein is the same as without the option. Without `alt_ac`, `VariantMapper.c_to_p()` still raises `HGVSUnsupportedOperationError` ([variantmapper.py][bc-shift-loop]).
+- **hgvs-rs:** It skips the shifts. So `Default` needs no genome, and `variant::Mapper::c_to_p()` does not fail.
+
+### Errors during a shift
+
+- **Situation:** a shift fails.
+- **biocommons/hgvs:** It skips the shift on `HGVSInvalidVariantError`, `HGVSInvalidIntervalError` or `HGVSUnsupportedOperationError` and raises any other error ([`_var_c_shifts()`][bc-shift-errors]).
+- **hgvs-rs:** Its errors do not map one to one to these. It skips the shift on any error except missing data, and it returns `DataError` and the `ReplaceReferenceFailed` of the normalizer.
+
+### Translation table of a shift
+
+- **Situation:** the protein comes from a shifted variant on a transcript with a translation table other than the standard one.
+- **biocommons/hgvs:** It builds the `AltSeqBuilder` of the shifted variant without the translation table, so it translates the shifted sequence with the standard table ([variantmapper.py][bc-shift-loop]).
+- **hgvs-rs:** It uses the reference data of the transcript, including its translation table.
+
+### Insertions and dups that leave the CDS intact
+
+- **Situation:** `Intron` or `Exon` on an insertion or dup that can go before c.1 or after the stop codon, e.g. `c.1dup` if c.-1 is not an A. See [Variants that leave the CDS intact](#variants-that-leave-the-cds-intact).
+- **biocommons/hgvs:** It counts the variant as exonic or intronic by its description and shifts it ([`get_variant_region()`][bc-region]).
+- **hgvs-rs:** The variant is a 5' or 3' UTR variant, which lies neither in an exon nor in an intron. `Intron` and `Exon` keep it, which gives `p.?`. They also skip a shift that ends in such a placement.
+
 [bc]: https://github.com/biocommons/hgvs
 [bc-commit]: https://github.com/biocommons/hgvs/tree/13289ab3b9db3c751918906c543991c74917ff61
 [bc-norm-intron]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/normalizer.py#L99-L101
@@ -133,6 +165,9 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 [bc-stop-at-variant]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseq_to_hgvsp.py#L193-L203
 [bc-895]: https://github.com/biocommons/hgvs/issues/895
 [bc-896]: https://github.com/biocommons/hgvs/pull/896
+[bc-shift-loop]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/variantmapper.py#L508-L534
+[bc-shift-errors]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/variantmapper.py#L971-L992
+[bc-shift-rewrite]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/variantmapper.py#L1013-L1045
 [#96]: https://github.com/varfish-org/hgvs-rs/pull/96
 [#218]: https://github.com/varfish-org/hgvs-rs/pull/218
 [#257]: https://github.com/varfish-org/hgvs-rs/pull/257
