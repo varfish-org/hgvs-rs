@@ -489,7 +489,7 @@ impl<'a> AltSeqBuilder<'a> {
                 let at_exon_edge = ref_data.exon_start_positions.contains(&loc.start.base)
                     || ref_data.exon_end_positions.contains(&loc.end.base);
                 // Without a stop codon, the CDS goes on after its last base, so there is no 3'
-                // UTR, see `ins_outside_cds()`.
+                // UTR, see `outside_cds()`.
                 let has_stop_codon = ref_data.cds_end == CdsEnd::StopCodon;
                 #[allow(clippy::nonminimal_bool)]
                 if has_stop_codon
@@ -504,7 +504,7 @@ impl<'a> AltSeqBuilder<'a> {
                 } else if loc.start.base < 0 && loc.end.cds_from == CdsFrom::End && !edit.is_dup() {
                     // Without a stop codon, a dup gets here, too.  Its copy can go before c.1.
                     VariantLocation::WholeGene
-                } else if let Some(utr) = self.ins_outside_cds() {
+                } else if let Some(utr) = self.outside_cds() {
                     utr
                 } else if self.ins_at_boundary_is_intronic && edit.is_dup() && at_exon_edge {
                     // The copy may sit at the exon boundary, like an insertion there.
@@ -527,17 +527,18 @@ impl<'a> AltSeqBuilder<'a> {
         }
     }
 
-    /// The UTR of an insertion that leaves the CDS intact, or `None`.
+    /// The UTR of a variant that leaves the CDS intact, or `None`.
     ///
-    /// An ins or dup leaves the CDS intact if one of its equivalent placements lies before c.1
-    /// or after the last base of the CDS.  This depends on the sequence, not on the
-    /// description.  For example, `c.1dup` is `c.-1_1insA` if c.-1 is not an A, and
-    /// `c.(N-2)_Ndup` puts its copy after c.N, the last base of the CDS.  The inserted bases can
-    /// still form an upstream ATG, so the effect on the protein is unknown, not none.
+    /// An ins, dup, del, or delins leaves the CDS intact if one of its equivalent placements
+    /// lies before c.1 or after the last base of the CDS.  This depends on the sequence, not on
+    /// the description.  For example, `c.1dup` is `c.-1_1insA` if c.-1 is not an A, `c.1del` is
+    /// `c.-1del` if c.-1 is an A, and `c.(N-2)_Ndup` puts its copy after c.N, the last base of
+    /// the CDS.  The inserted bases can still form an upstream ATG, so the effect on the protein
+    /// is unknown, not none.
     ///
     /// Without a stop codon, the CDS goes on after its last base, so there is no 3' UTR, see
     /// `after_cds_without_stop()`.
-    fn ins_outside_cds(&self) -> Option<VariantLocation> {
+    fn outside_cds(&self) -> Option<VariantLocation> {
         let (before_cds, after_cds) = self.placements_outside_cds()?;
         if before_cds {
             Some(VariantLocation::FivePrimeUtr)
@@ -562,12 +563,12 @@ impl<'a> AltSeqBuilder<'a> {
                     .is_some_and(|(_, after_cds)| after_cds))
     }
 
-    /// Whether an equivalent placement of an ins or dup lies before c.1, and whether one lies
-    /// after the last base of the CDS, see `ins_outside_cds()`.  `None` for the edits and
-    /// positions that it does not check, e.g., a deletion.
+    /// Whether an equivalent placement of the variant lies before c.1, and whether one lies
+    /// after the last base of the CDS, see `outside_cds()`.  `None` for the edits and positions
+    /// that it does not check, e.g., an inversion.
     ///
     /// With `ins_at_boundary_is_intronic`, an ins or dup with an intron position stays
-    /// intronic.
+    /// intronic.  The other variants count only with exon positions.
     fn placements_outside_cds(&self) -> Option<(bool, bool)> {
         let HgvsVariant::CdsVariant { loc_edit, .. } = &self.var_c else {
             return None;
@@ -592,16 +593,21 @@ impl<'a> AltSeqBuilder<'a> {
         };
         let offsets = (loc.start.offset.unwrap_or(0), loc.end.offset.unwrap_or(0));
         let at_boundary_is_exonic = !self.ins_at_boundary_is_intronic;
-        // `inserted` goes before the base at index `gap` of `seq`.
-        let (gap, inserted) = match (loc_edit.edit.inner(), offsets) {
-            (NaEdit::Ins { alternative }, (0, 0)) => (index(&loc.start)? + 1, alternative.as_str()),
+        // The variant replaces the bases `start..end` of `seq` with `alt_bases`.
+        let (start, end, alt_bases) = match (loc_edit.edit.inner(), offsets) {
+            (NaEdit::Ins { alternative }, (0, 0)) => {
+                let gap = index(&loc.start)? + 1;
+                (gap, gap, alternative.as_str())
+            }
             // At an exon boundary, the inserted bases go into the exon, as in
             // `get_variant_region()`.
             (NaEdit::Ins { alternative }, (-1, 0)) if at_boundary_is_exonic => {
-                (index(&loc.end)?, alternative.as_str())
+                let gap = index(&loc.end)?;
+                (gap, gap, alternative.as_str())
             }
             (NaEdit::Ins { alternative }, (0, 1)) if at_boundary_is_exonic => {
-                (index(&loc.start)? + 1, alternative.as_str())
+                let gap = index(&loc.start)? + 1;
+                (gap, gap, alternative.as_str())
             }
             // The copy can go before the duplicated bases.  If these start before c.1, the copy
             // leaves the CDS intact, even if they start before the transcript.
@@ -609,26 +615,44 @@ impl<'a> AltSeqBuilder<'a> {
             (NaEdit::Dup { .. }, (0, 0)) => {
                 let start = index(&loc.start)?;
                 let end = index(&loc.end)?;
-                (start, ref_data.transcript_sequence.get(start..=end)?)
+                (start, start, ref_data.transcript_sequence.get(start..=end)?)
             }
             // The copy of intron bases can go to the exon boundary.  Only the variant can tell
             // these bases.
             (NaEdit::Dup { reference }, (_, -1)) if at_boundary_is_exonic => {
-                (index(&loc.end)?, reference.as_str())
+                let gap = index(&loc.end)?;
+                (gap, gap, reference.as_str())
             }
             (NaEdit::Dup { reference }, (1, _)) if at_boundary_is_exonic => {
-                (index(&loc.start)? + 1, reference.as_str())
+                let gap = index(&loc.start)? + 1;
+                (gap, gap, reference.as_str())
             }
+            (NaEdit::DelRef { .. } | NaEdit::DelNum { .. }, (0, 0)) => {
+                (index(&loc.start)?, index(&loc.end)? + 1, "")
+            }
+            // An identity, e.g., `c.1A=`, changes no base.
+            (
+                NaEdit::RefAlt {
+                    reference,
+                    alternative,
+                },
+                _,
+            ) if reference == alternative => return None,
+            (NaEdit::RefAlt { alternative, .. } | NaEdit::NumAlt { alternative, .. }, (0, 0)) => (
+                index(&loc.start)?,
+                index(&loc.end)? + 1,
+                alternative.as_str(),
+            ),
             _ => return None,
         };
-        if inserted.is_empty() {
-            // Without the bases, only this placement is known.
-            Some((gap <= cds_start, gap >= cds_end))
+        if start == end && alt_bases.is_empty() {
+            // Without the inserted bases, only this placement is known.
+            Some((start <= cds_start, start >= cds_end))
         } else {
-            // `alt` ends with the reference from c.1 on if and only if a placement at or
-            // before c.1 gives `alt`.  Likewise, `alt` starts with the reference up to the
-            // last base of the CDS if and only if a placement after that base gives `alt`.
-            let alt = [seq.get(..gap)?, inserted.as_bytes(), seq.get(gap..)?].concat();
+            // `alt` ends with the reference from c.1 on if and only if a placement in front of
+            // c.1 gives `alt`.  Likewise, `alt` starts with the reference up to the last base
+            // of the CDS if and only if a placement after that base gives `alt`.
+            let alt = [seq.get(..start)?, alt_bases.as_bytes(), seq.get(end..)?].concat();
             Some((
                 alt.ends_with(seq.get(cds_start..)?),
                 alt.starts_with(seq.get(..cds_end)?),

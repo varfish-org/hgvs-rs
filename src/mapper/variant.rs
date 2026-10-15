@@ -1751,6 +1751,8 @@ mod test {
             ("NM_999994.1:c.18_19insTAA", "MOCK:p.?"),
             ("NM_999994.1:c.20dup", "MOCK:p.?"),
             ("NM_999994.1:c.19_20dup", "MOCK:p.?"),
+            // c.-1 is an A, so the deletion keeps the ATG.
+            ("NM_999994.1:c.1del", "MOCK:p.?"),
         ] {
             let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
             assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
@@ -2420,6 +2422,52 @@ mod test {
         ] {
             check_c_to_p(&exonic, hgvs_c, Some("MOCK"), Some(expected))?;
             check_c_to_p(&intronic, hgvs_c, Some("MOCK"), Some(expected))?;
+        }
+        Ok(())
+    }
+
+    /// Like an insertion, a deletion or delins that can go before c.1 or after the stop codon
+    /// changes no base of the CDS, so it gives `p.?`.
+    #[test]
+    fn cds_boundary_del_c_to_p() -> Result<(), Error> {
+        let exonic = build_mapper_cds_boundary(false);
+        let intronic = build_mapper_cds_boundary(true);
+        for tx_ac in ["NM_999989.1", "NM_999988.1"] {
+            for (edit, expected) in [
+                // c.-2_-1 is `AC`, so deleting `CA` gives the same sequence.
+                ("c.-1_1del", "MOCK:p.?"),
+                // Changes the C at c.-1 to a G and keeps the A at c.1.
+                ("c.-1_1delinsGA", "MOCK:p.?"),
+                // c.*1 is a G, like c.30.
+                ("c.30del", "MOCK:p.?"),
+                ("c.30_*1del", "MOCK:p.?"),
+                // Changes the G at c.*1 to a C and keeps the G at c.30.
+                ("c.30_*1delinsGC", "MOCK:p.?"),
+                // These cannot go outside the CDS.
+                ("c.1del", "MOCK:p.Met1?"),
+                ("c.-1_1delinsGG", "MOCK:p.Met1?"),
+                ("c.29del", "MOCK:p.Ter10TrpextTer?"),
+                ("c.28_30del", "MOCK:p.Ter10GlyextTer?"),
+                // An identity changes no base.
+                ("c.30=", "MOCK:p.Ter10="),
+            ] {
+                let hgvs_c = format!("{tx_ac}:{edit}");
+                check_c_to_p(&exonic, &hgvs_c, Some("MOCK"), Some(expected))?;
+                check_c_to_p(&intronic, &hgvs_c, Some("MOCK"), Some(expected))?;
+            }
+        }
+        // Without a stop codon, the CDS goes on after c.27, and the amino acids there are
+        // unknown.  `c.27_*1delinsAC` keeps the A at c.27.
+        for edit in [
+            "c.*1G>A",
+            "c.*1G=",
+            "c.*1_*3del",
+            "c.*1_*3inv",
+            "c.27_*1delinsAC",
+        ] {
+            let hgvs_c = format!("NM_999987.1:{edit}");
+            check_c_to_p(&exonic, &hgvs_c, Some("MOCK"), Some("MOCK:p.?"))?;
+            check_c_to_p(&intronic, &hgvs_c, Some("MOCK"), Some("MOCK:p.?"))?;
         }
         Ok(())
     }
