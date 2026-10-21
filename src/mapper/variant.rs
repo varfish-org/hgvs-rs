@@ -76,6 +76,7 @@ impl Default for Config {
 /// lies on the other side of an exon boundary, `c_to_p` uses it for the protein if it is in
 /// the preferred region.  The c. variant itself does not change.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
+#[non_exhaustive]
 pub enum ShiftOverBoundaryPreference {
     /// Keep the variant where the HGVS rules put it.
     #[default]
