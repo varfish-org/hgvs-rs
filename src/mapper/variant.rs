@@ -1,7 +1,7 @@
 //! Code for mapping variants between sequences.
 
-use cached::{Cached, LruCache};
 use log::{debug, info};
+use quick_cache::{unsync::Cache, Equivalent};
 use std::cell::RefCell;
 use std::ops::Deref;
 use std::{ops::Range, sync::Arc};
@@ -129,9 +129,9 @@ impl Mapper {
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<alignment::Mapper, Error> {
+    ) -> Result<Arc<alignment::Mapper>, Error> {
         build_alignment_mapper_cached(
-            self.provider.clone(),
+            &self.provider,
             self.config.strict_bounds,
             tx_ac,
             alt_ac,
@@ -762,8 +762,8 @@ impl Mapper {
                 var_c.clone()
             };
 
-            let reference_data = ref_transcript_data_cached(
-                self.provider.clone(),
+            let reference_data = ref_transcript_data_shared(
+                &self.provider,
                 accession.deref(),
                 prot_ac.map(|s| s.to_string()).as_deref(),
             )?;
@@ -1065,53 +1065,102 @@ impl Mapper {
     }
 }
 
-type AlignmentMapperKey = (String, String, bool, String, String, String);
-
-thread_local! {
-    /// Each thread has its own cache.  A looked-up entry moves to the front of an LRU, so a
-    /// shared cache needs an exclusive lock even for hits, and threads would queue on it.
-    static ALIGNMENT_MAPPER_CACHE: RefCell<LruCache<AlignmentMapperKey, Result<alignment::Mapper, Error>>> =
-        RefCell::new(LruCache::builder().max_size(1000).build().expect("valid cache size"));
+/// Cache key of `build_alignment_mapper_cached`.
+#[derive(Hash, PartialEq, Eq)]
+struct AlignmentMapperKey {
+    data_version: String,
+    schema_version: String,
+    strict_bounds: bool,
+    tx_ac: String,
+    alt_ac: String,
+    alt_aln_method: String,
 }
 
-/// A LRU cached version of `alignment::Mapper::new`.
+/// Borrowed form of `AlignmentMapperKey`, so that lookups need no allocation.
+///
+/// It must hash like `AlignmentMapperKey`, hence the same fields in the same order.
+#[derive(Hash)]
+struct AlignmentMapperKeyRef<'a> {
+    data_version: &'a str,
+    schema_version: &'a str,
+    strict_bounds: bool,
+    tx_ac: &'a str,
+    alt_ac: &'a str,
+    alt_aln_method: &'a str,
+}
+
+impl Equivalent<AlignmentMapperKey> for AlignmentMapperKeyRef<'_> {
+    fn equivalent(&self, key: &AlignmentMapperKey) -> bool {
+        self.data_version == key.data_version
+            && self.schema_version == key.schema_version
+            && self.strict_bounds == key.strict_bounds
+            && self.tx_ac == key.tx_ac
+            && self.alt_ac == key.alt_ac
+            && self.alt_aln_method == key.alt_aln_method
+    }
+}
+
+impl AlignmentMapperKeyRef<'_> {
+    fn to_owned(&self) -> AlignmentMapperKey {
+        AlignmentMapperKey {
+            data_version: self.data_version.to_string(),
+            schema_version: self.schema_version.to_string(),
+            strict_bounds: self.strict_bounds,
+            tx_ac: self.tx_ac.to_string(),
+            alt_ac: self.alt_ac.to_string(),
+            alt_aln_method: self.alt_aln_method.to_string(),
+        }
+    }
+}
+
+thread_local! {
+    /// Each thread has its own cache.  Even hits update the eviction state, so a shared cache
+    /// needs a lock for them, and threads would also contend on the reference counts of the
+    /// shared values.
+    static ALIGNMENT_MAPPER_CACHE: RefCell<Cache<AlignmentMapperKey, Result<Arc<alignment::Mapper>, Error>>> =
+        RefCell::new(Cache::new(1000));
+}
+
+/// A cached version of `alignment::Mapper::new`.
 /// All of this function's arguments contribute to the key;
 /// that is why the supplied provider's `data_version` and `schema_version`
 /// should return sensible values which allow distinguishing them from other providers.
 ///
 /// Because the cached value must implement `Clone`
-/// and the type is `Result<alignment::Mapper, Error>`,
+/// and the type is `Result<Arc<alignment::Mapper>, Error>`,
 /// `Error`, too, must implement `Clone`.
 /// Sadly, postgres Errors do not do that, so either:
 /// 1. wrap non-clonable errors in `Arc`
 /// 2. convert the result to an option instead
 /// 3. return a generic error instead
 fn build_alignment_mapper_cached(
-    provider: Arc<dyn Provider + Send + Sync>,
+    provider: &Arc<dyn Provider + Send + Sync>,
     strict_bounds: bool,
     tx_ac: &str,
     alt_ac: &str,
     alt_aln_method: &str,
-) -> Result<alignment::Mapper, Error> {
-    let key = (
-        provider.data_version().to_string(),
-        provider.schema_version().to_string(),
+) -> Result<Arc<alignment::Mapper>, Error> {
+    let key = AlignmentMapperKeyRef {
+        data_version: provider.data_version(),
+        schema_version: provider.schema_version(),
         strict_bounds,
-        tx_ac.to_string(),
-        alt_ac.to_string(),
-        alt_aln_method.to_string(),
-    );
-    if let Some(hit) = ALIGNMENT_MAPPER_CACHE.with_borrow_mut(|c| c.cache_get(&key).cloned()) {
-        return hit;
-    }
-    let result = alignment::Mapper::new(
-        &alignment::Config { strict_bounds },
-        provider,
         tx_ac,
         alt_ac,
         alt_aln_method,
-    );
-    ALIGNMENT_MAPPER_CACHE.with_borrow_mut(|c| c.cache_set(key, result.clone()));
+    };
+    if let Some(hit) = ALIGNMENT_MAPPER_CACHE.with_borrow(|c| c.get(&key).cloned()) {
+        return hit;
+    }
+    let key = key.to_owned();
+    let result = alignment::Mapper::new(
+        &alignment::Config { strict_bounds },
+        provider.clone(),
+        tx_ac,
+        alt_ac,
+        alt_aln_method,
+    )
+    .map(Arc::new);
+    ALIGNMENT_MAPPER_CACHE.with_borrow_mut(|c| c.insert(key, result.clone()));
     result
 }
 #[cfg(test)]
@@ -1132,6 +1181,27 @@ mod test {
     };
 
     use super::{Config, Mapper};
+
+    /// Cache lookups only hit if the borrowed key hashes like the owned one.
+    #[test]
+    fn alignment_mapper_key_ref_matches_key() {
+        use quick_cache::Equivalent;
+        use std::hash::{BuildHasher, RandomState};
+
+        let key_ref = super::AlignmentMapperKeyRef {
+            data_version: "uta_20210129",
+            schema_version: "1.1",
+            strict_bounds: true,
+            tx_ac: "NM_001637.3",
+            alt_ac: "NC_000007.13",
+            alt_aln_method: "splign",
+        };
+        let key = key_ref.to_owned();
+        let state = RandomState::new();
+
+        assert_eq!(state.hash_one(&key_ref), state.hash_one(&key));
+        assert!(key_ref.equivalent(&key));
+    }
 
     #[test]
     fn issue_131() -> Result<(), Error> {
