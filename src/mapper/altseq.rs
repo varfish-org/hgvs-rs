@@ -2,7 +2,7 @@
 
 use std::{cell::RefCell, cmp::Ordering, sync::Arc};
 
-use cached::{Cached, LruCache};
+use quick_cache::{unsync::Cache, Equivalent};
 
 use crate::{
     data::interface::{Provider, TranslationException},
@@ -62,31 +62,79 @@ fn codon_exceptions(exceptions: &[TranslationException]) -> Vec<(usize, char)> {
         .collect()
 }
 
-type RefTranscriptDataKey = (String, String, String, Option<String>);
+/// Cache key of `ref_transcript_data_shared`.
+#[derive(Hash, PartialEq, Eq)]
+struct RefTranscriptDataKey {
+    data_version: String,
+    schema_version: String,
+    tx_ac: String,
+    pro_ac: Option<String>,
+}
+
+/// Borrowed form of `RefTranscriptDataKey`, so that lookups need no allocation.
+///
+/// It must hash like `RefTranscriptDataKey`, hence the same fields in the same order.
+#[derive(Hash)]
+struct RefTranscriptDataKeyRef<'a> {
+    data_version: &'a str,
+    schema_version: &'a str,
+    tx_ac: &'a str,
+    pro_ac: Option<&'a str>,
+}
+
+impl Equivalent<RefTranscriptDataKey> for RefTranscriptDataKeyRef<'_> {
+    fn equivalent(&self, key: &RefTranscriptDataKey) -> bool {
+        self.data_version == key.data_version
+            && self.schema_version == key.schema_version
+            && self.tx_ac == key.tx_ac
+            && self.pro_ac == key.pro_ac.as_deref()
+    }
+}
+
+impl RefTranscriptDataKeyRef<'_> {
+    fn to_owned(&self) -> RefTranscriptDataKey {
+        RefTranscriptDataKey {
+            data_version: self.data_version.to_string(),
+            schema_version: self.schema_version.to_string(),
+            tx_ac: self.tx_ac.to_string(),
+            pro_ac: self.pro_ac.map(|s| s.to_string()),
+        }
+    }
+}
 
 thread_local! {
     /// Per thread, see `build_alignment_mapper_cached` in `variant.rs` for why.
-    static REF_TRANSCRIPT_DATA_CACHE: RefCell<LruCache<RefTranscriptDataKey, Result<RefTranscriptData, Error>>> =
-        RefCell::new(LruCache::builder().max_size(1000).build().expect("valid cache size"));
+    static REF_TRANSCRIPT_DATA_CACHE: RefCell<Cache<RefTranscriptDataKey, Result<Arc<RefTranscriptData>, Error>>> =
+        RefCell::new(Cache::new(1000));
 }
 
-/// A LRU cached version of `RefTranscriptData::new`.
+/// A cached version of `RefTranscriptData::new`.
 pub fn ref_transcript_data_cached(
     provider: Arc<dyn Provider + Send + Sync>,
     tx_ac: &str,
     pro_ac: Option<&str>,
 ) -> Result<RefTranscriptData, Error> {
-    let key = (
-        provider.data_version().to_string(),
-        provider.schema_version().to_string(),
-        tx_ac.to_string(),
-        pro_ac.map(|s| s.to_string()),
-    );
-    if let Some(hit) = REF_TRANSCRIPT_DATA_CACHE.with_borrow_mut(|c| c.cache_get(&key).cloned()) {
+    ref_transcript_data_shared(&provider, tx_ac, pro_ac).map(|data| data.as_ref().clone())
+}
+
+/// Like `ref_transcript_data_cached`, but returns the cached value instead of a copy.
+pub(crate) fn ref_transcript_data_shared(
+    provider: &Arc<dyn Provider + Send + Sync>,
+    tx_ac: &str,
+    pro_ac: Option<&str>,
+) -> Result<Arc<RefTranscriptData>, Error> {
+    let key = RefTranscriptDataKeyRef {
+        data_version: provider.data_version(),
+        schema_version: provider.schema_version(),
+        tx_ac,
+        pro_ac,
+    };
+    if let Some(hit) = REF_TRANSCRIPT_DATA_CACHE.with_borrow(|c| c.get(&key).cloned()) {
         return hit;
     }
-    let result = RefTranscriptData::new(provider, tx_ac, pro_ac);
-    REF_TRANSCRIPT_DATA_CACHE.with_borrow_mut(|c| c.cache_set(key, result.clone()));
+    let key = key.to_owned();
+    let result = RefTranscriptData::new(provider.clone(), tx_ac, pro_ac).map(Arc::new);
+    REF_TRANSCRIPT_DATA_CACHE.with_borrow_mut(|c| c.insert(key, result.clone()));
     result
 }
 
@@ -1430,6 +1478,27 @@ mod test {
     use crate::{mapper::Error, parser::HgvsVariant, sequences::TranslationTable};
 
     use super::{AltSeqBuilder, CdsEnd, RefTranscriptData};
+
+    /// Cache lookups only hit if the borrowed key hashes like the owned one.
+    #[test]
+    fn ref_transcript_data_key_ref_matches_key() {
+        use quick_cache::Equivalent;
+        use std::hash::{BuildHasher, RandomState};
+
+        let state = RandomState::new();
+        for pro_ac in [None, Some("NP_001628.1")] {
+            let key_ref = super::RefTranscriptDataKeyRef {
+                data_version: "uta_20210129",
+                schema_version: "1.1",
+                tx_ac: "NM_001637.3",
+                pro_ac,
+            };
+            let key = key_ref.to_owned();
+
+            assert_eq!(state.hash_one(&key_ref), state.hash_one(&key));
+            assert!(key_ref.equivalent(&key));
+        }
+    }
 
     #[test]
     fn build_altseq_fails_for_non_cds_variant() -> Result<(), anyhow::Error> {
