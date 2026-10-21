@@ -76,12 +76,6 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 - **biocommons/hgvs:** It checks for a stop codon at the variant position before it checks for a silent change ([altseq_to_hgvsp.py][bc-stop-at-variant]). So it writes the change as a substitution, `p.(Ter10Ter)`.
 - **hgvs-rs:** It writes `p.Ter10=`, as for any other silent change. HGVS writes a silent change with `=`, e.g. `p.Cys188=`. `AltSeqToHgvsp::create_variant()` in [src/mapper/altseq.rs](src/mapper/altseq.rs) turns such a substitution into `=` ([#218]).
 
-### New stop codon in front of the old one
-
-- **Situation:** an in-frame insertion forms a new stop codon right in front of the old one, so the protein stays the same. E.g., if the CDS ends with `AAA TAG`, `c.28_29insAAT` gives `AAA TAA TAG`.
-- **biocommons/hgvs:** The insertion moves `cds_stop` ([altseqbuilder.py][bc-delins-cds-stop]), so the alt protein ends with both stop codons. `c_to_p` reports the second one ([altseq_to_hgvsp.py][bc-stop-at-variant]) and gives `p.(Ter11Ter)`, a position after the end of the protein. A dup keeps `cds_stop` ([altseqbuilder.py][bc-dup-cds-stop]), so the same change `c.26_28dup` gives `p.(Ter10Ter)`. [biocommons/hgvs#895][bc-895] reports this, and [biocommons/hgvs#896][bc-896] proposes a fix.
-- **hgvs-rs:** It gives `p.=` for a change after the end of the reference protein (`AltSeqToHgvsp::convert_to_hgvs_variant()` in [src/mapper/altseq.rs](src/mapper/altseq.rs)), so the insertion gives `p.=`. The dup gives `p.=`, too, see [Dup moves `cds_stop` with its copy](#dup-moves-cds_stop-with-its-copy). E.g., `NM_001253909.2:c.416_417insGTG` turns the stop codon `TAA` into `TAG TGA` and gives `p.=`.
-
 ## Proposed fixes for biocommons/hgvs
 
 Unless an entry says otherwise, the examples use a transcript whose 5' UTR ends with `AAAATCAAAC`, whose CDS is `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`), and whose 3' UTR starts with `GGGGGCCCCC`, in a single exon. So c.-6 is a T, c.-1 a C, c.30 a G and c.*1 a G.
@@ -97,6 +91,12 @@ Unless an entry says otherwise, the examples use a transcript whose 5' UTR ends 
 - **Situation:** a dup in the CDS, which gives the same alt sequence as the insertion of its copy. E.g., `c.26_28dup` and `c.28_29insAAT` both turn `AAA TAG` into `AAA TAA TAG`.
 - **biocommons/hgvs:** An insertion moves `cds_stop` by its length ([altseqbuilder.py][bc-delins-cds-stop]), a dup keeps it ([altseqbuilder.py][bc-dup-cds-stop]). The alt protein ends with the last stop codon up to `cds_stop`, so the two descriptions give different results: `c.26_28dup` gives `p.(Ter10Ter)` and `c.28_29insAAT` gives `p.(Ter11Ter)`. [biocommons/hgvs#895][bc-895] reports this.
 - **hgvs-rs (proposed fix):** A dup moves `cds_stop` with its copy, as [biocommons/hgvs#896][bc-896] proposes. Both descriptions then give the same alt protein.
+
+### New stop codon in front of the old one
+
+- **Situation:** an in-frame insertion or dup forms a new stop codon right in front of the old one, so the protein stays the same, as in the example above.
+- **biocommons/hgvs:** The alt protein ends with both stop codons. `c_to_p` reports the second one ([altseq_to_hgvsp.py][bc-stop-at-variant]) and gives `p.(Ter11Ter)` for `c.28_29insAAT`, a position after the end of the protein. `NM_001253909.2:c.416_417insGTG` turns the stop codon `TAA` into `TAG TGA` and gives `NP_001240838.1:p.(Ter140Ter)`.
+- **hgvs-rs (proposed fix):** Translation ends at the first stop codon, so `c_to_p` counts an alt protein that only adds amino acids after the stop codon as unchanged. The position of the silent change is the codon of the first changed base, as the 3' rule picks it. Every placement of the example gives `p.Ter10=`, like `c.30G>A`, and `NM_001253909.2:c.416_417insGTG` gives `p.Ter139=`, like `c.417A>G`. hgvs-rs writes `=` where biocommons/hgvs writes `Ter10Ter`, see [Stop codon changed into another stop codon](#stop-codon-changed-into-another-stop-codon).
 
 ### Positions after a completed mitochondrial stop codon
 

@@ -1432,10 +1432,11 @@ mod test {
     fn issue_131() -> Result<(), Error> {
         let mapper = build_mapper()?;
 
+        // The insertion changes the stop codon `TAA` to `TAG`, like `c.417A>G`.
         let var_c = HgvsVariant::from_str("NM_001253909.2:c.416_417insGTG")?;
         let var_p_test = mapper.c_to_p(&var_c, None)?;
 
-        assert_eq!(format!("{}", &var_p_test), "NP_001240838.1:p.=");
+        assert_eq!(format!("{}", &var_p_test), "NP_001240838.1:p.Ter139=");
         insta::assert_yaml_snapshot!(&var_p_test);
 
         Ok(())
@@ -3060,16 +3061,16 @@ mod test {
             ("NM_999988.1:c.2dup", "MOCK:p.Met1?"),
             ("NM_999988.1:c.29_30insC", "MOCK:p.Ter10TyrextTer?"),
             ("NM_999988.1:c.29dup", "MOCK:p.Ter10="),
-            // The copy forms the stop codon TAA in front of TAG.  A dup moves `cds_stop` like an
-            // insertion, so every placement gives the same alt protein.
-            ("NM_999989.1:c.26_28dup", "MOCK:p.="),
-            ("NM_999989.1:c.27_29dup", "MOCK:p.="),
-            ("NM_999989.1:c.25_26insAAT", "MOCK:p.="),
-            ("NM_999989.1:c.28_29insAAT", "MOCK:p.="),
-            ("NM_999989.1:c.29_30insATA", "MOCK:p.="),
-            ("NM_999989.1:c.29_30insATAG", "MOCK:p.="),
-            ("NM_999988.1:c.26_28dup", "MOCK:p.="),
-            ("NM_999988.1:c.28_29insAAT", "MOCK:p.="),
+            // The copy forms the stop codon TAA in front of TAG.  Each placement changes the
+            // stop codon and keeps the protein, like `c.30G>A`.
+            ("NM_999989.1:c.26_28dup", "MOCK:p.Ter10="),
+            ("NM_999989.1:c.27_29dup", "MOCK:p.Ter10="),
+            ("NM_999989.1:c.25_26insAAT", "MOCK:p.Ter10="),
+            ("NM_999989.1:c.28_29insAAT", "MOCK:p.Ter10="),
+            ("NM_999989.1:c.29_30insATA", "MOCK:p.Ter10="),
+            ("NM_999989.1:c.29_30insATAG", "MOCK:p.Ter10="),
+            ("NM_999988.1:c.26_28dup", "MOCK:p.Ter10="),
+            ("NM_999988.1:c.28_29insAAT", "MOCK:p.Ter10="),
         ] {
             check_c_to_p(&exonic, hgvs_c, Some("MOCK"), Some(expected))?;
             check_c_to_p(&intronic, hgvs_c, Some("MOCK"), Some(expected))?;

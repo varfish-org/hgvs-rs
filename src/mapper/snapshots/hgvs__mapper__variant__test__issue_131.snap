@@ -6,5 +6,15 @@ ProtVariant:
   accession:
     value: NP_001240838.1
   gene_symbol: ~
-  loc_edit: NoChange
-
+  loc_edit:
+    Ordinary:
+      loc:
+        Certain:
+          start:
+            aa: "*"
+            number: 139
+          end:
+            aa: "*"
+            number: 139
+      edit:
+        Certain: Ident
