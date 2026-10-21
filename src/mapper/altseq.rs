@@ -11,7 +11,7 @@ use crate::{
         Accession, CdsFrom, HgvsVariant, Mu, NaEdit, ProtInterval, ProtLocEdit, ProtPos,
         ProteinEdit, UncertainLengthChange,
     },
-    sequences::{revcomp, translate_cds_with_exceptions, TranslationTable},
+    sequences::{revcomp, translate_cds, translate_cds_with_exceptions, TranslationTable},
 };
 
 /// How the CDS of a transcript ends.
@@ -649,6 +649,32 @@ impl<'a> AltSeqBuilder<'a> {
             .collect()
     }
 
+    /// The 0-based index in the alt transcript right after the first stop codon that the
+    /// inserted bases `insert_seq` form in the reading frame, or `None`.  `insert_seq_idx` is the
+    /// index of their first base.  Translation then ends within the inserted bases, so the
+    /// variant is not a frameshift, and the bases after the stop codon do not count.
+    ///
+    /// Port of `_insert_stop_seq_end()` of biocommons/hgvs (biocommons/hgvs#830).  As there, a
+    /// codon that starts before the inserted bases does not count.
+    fn insert_stop_seq_end(
+        &self,
+        insert_seq: &str,
+        insert_seq_idx: usize,
+    ) -> Result<Option<usize>, Error> {
+        let Some(frame_offset) = usize::try_from(self.reference_data.cds_start - 1)
+            .ok()
+            .and_then(|cds_start| insert_seq_idx.checked_sub(cds_start))
+            .map(|offset| offset % 3)
+        else {
+            return Ok(None);
+        };
+        let framed = format!("{}{insert_seq}", "N".repeat(frame_offset));
+        let ins_aa = translate_cds(&framed, false, "X", self.reference_data.translation_table)?;
+        Ok(ins_aa
+            .find('*')
+            .map(|stop_aa_idx| insert_seq_idx + (stop_aa_idx + 1) * 3 - frame_offset))
+    }
+
     /// Get starting position (AA ref index) of the last frameshift which affects the rest of
     /// the sequence, i.e. not offset by subsequent frameshifts.
     fn get_frameshift_start(&self, variant_data: AltTranscriptData) -> AltTranscriptData {
@@ -684,7 +710,13 @@ impl<'a> AltSeqBuilder<'a> {
         let ref_len = reference.as_ref().map(|_| end - start).unwrap_or(0) as i32;
         let alt_len = alternative.as_ref().map(|alt| alt.len()).unwrap_or(0) as i32;
         let net_base_change = alt_len - ref_len;
-        let cds_stop = cds_stop + net_base_change;
+        let mut cds_stop = cds_stop + net_base_change;
+        let insert_stop = match (&reference, &alternative) {
+            (None, Some(alternative)) => self
+                .insert_stop_seq_end(alternative, start + 1)?
+                .map(|stop_end| (stop_end, start + 1 + alternative.len())),
+            _ => None,
+        };
 
         // Incorporate the variant into the sequence (depending on the type).
         let mut is_substitution = false;
@@ -718,7 +750,12 @@ impl<'a> AltSeqBuilder<'a> {
             _ => panic!("This should not happen"),
         }
 
-        let is_frameshift = net_base_change % 3 != 0;
+        let mut is_frameshift = net_base_change % 3 != 0;
+        if let Some((stop_end, alt_end)) = insert_stop {
+            is_frameshift = false;
+            seq.replace_range(stop_end..alt_end, "");
+            cds_stop -= (alt_end - stop_end) as i32;
+        }
 
         // Use max. of mod 3 value and 1 (in the event that the indel starts in the 5' UTR range).
         let variant_start_aa = std::cmp::max((loc_range_start as f64 / 3.0).ceil() as i32, 1);
@@ -751,9 +788,16 @@ impl<'a> AltSeqBuilder<'a> {
         } else {
             &seq[start..end]
         };
-        let seq = format!("{}{}{}", &seq[..end], dup_seq, &seq[end..]);
+        let mut seq = format!("{}{}{}", &seq[..end], dup_seq, &seq[end..]);
 
-        let is_frameshift = dup_seq.len() % 3 != 0;
+        let mut is_frameshift = dup_seq.len() % 3 != 0;
+        let mut cds_stop = cds_stop;
+        if let Some(stop_end) = self.insert_stop_seq_end(dup_seq, end)? {
+            is_frameshift = false;
+            let dup_end = end + dup_seq.len();
+            seq.replace_range(stop_end..dup_end, "");
+            cds_stop -= (dup_end - stop_end) as i32;
+        }
 
         let loc_end = match &self.var_c {
             HgvsVariant::CdsVariant { loc_edit, .. } => loc_edit.loc.inner().end.base,

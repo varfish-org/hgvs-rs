@@ -2233,6 +2233,55 @@ mod test {
         Ok(())
     }
 
+    /// As in biocommons/hgvs (biocommons/hgvs#830), a stop codon that an insertion or dup forms
+    /// within its own bases ends the translation there, so the variant is in frame.  The CDS of
+    /// `NM_999985.1` is `ATG AAA GCG AAA GCG GCT AAG GCT GAA TAG` (`MKAKAAKAE*`), and the one
+    /// of `NM_999984.1` is `ATG AAA GCG AAA GCG TTT CGC GTA GAA TAG` (`MKAKAFRVE*`).  The
+    /// expectations are those of biocommons/hgvs, without the parentheses.
+    #[test]
+    fn hgvs_c_to_p_stop_codon_in_insertion() -> Result<(), Error> {
+        let record = |accession: &str, cds: &str| sanity_mock::ProviderRecord {
+            accession: accession.to_string(),
+            transcript_sequence: format!("AAAATCAAAC{cds}GGGGGCCCCC"),
+            cds_start_i: 10,
+            cds_end_i: 40,
+            translation_exceptions: Vec::new(),
+            lengths: Vec::new(),
+        };
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(
+            &config,
+            std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+                record("NM_999985.1", "ATGAAAGCGAAAGCGGCTAAGGCTGAATAG"),
+                record("NM_999984.1", "ATGAAAGCGAAAGCGTTTCGCGTAGAATAG"),
+            ])),
+        );
+
+        for (hgvs_c, expected) in [
+            // The copy holds the stop codons `TAA` and `TGA` in the new frame.
+            ("NM_999985.1:c.17_29dup", "MOCK:p.Ter10TyrextTer1"),
+            (
+                "NM_999985.1:c.29_30insCTAAGGCTGAATA",
+                "MOCK:p.Ter10TyrextTer1",
+            ),
+            ("NM_999985.1:c.6_7insTAAGG", "MOCK:p.Ala3Ter"),
+            // The stop codon is not in the frame of the CDS.
+            ("NM_999985.1:c.6_7insGGTAAGG", "MOCK:p.Ala3GlyfsTer7"),
+            // The copy forms the stop codon `TAG` in front of `AA TAG`.
+            ("NM_999984.1:c.21_25dup", "MOCK:p.Glu9Ala"),
+            ("NM_999984.1:c.22_26dup", "MOCK:p.Glu9="),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvs_c)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), expected, "{hgvs_c}");
+        }
+
+        Ok(())
+    }
+
     // The following tests correspond to the tests in `test_hgvs_variantmapper_cp_real.py`.
     //
     // For adding tests, you will have to
