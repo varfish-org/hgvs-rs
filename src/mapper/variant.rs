@@ -2187,14 +2187,48 @@ mod test {
         Ok(())
     }
 
-    /// Check the case with multiple stop codons.  We introduced a change in hgvs-rs
-    /// that does not handle multiple stop codons in the transcript sequence as
-    /// conservatively as the Python version.
+    /// As in biocommons/hgvs, a reference protein with more than one stop codon gives `p.?`
+    /// for every variant.  `NM_999992.1` codes `MG*ARQPAL*` after a 5' UTR of 9 bases, and
+    /// `NM_999986.1` codes `MGKP*A*` without a 5' UTR.
     #[test]
     fn hgvs_c_to_p_multiple_stop_codons() -> Result<(), Error> {
-        let hgvsc = "NM_999992.1:c.4G>A";
-        let hgvsp_expected = "MOCK:p.?";
-        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+        let sanity = sanity_mock::build_mapper(false)?;
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let no_utr = Mapper::new(
+            &config,
+            std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+                sanity_mock::ProviderRecord {
+                    accession: "NM_999986.1".to_string(),
+                    transcript_sequence: "ATGGGGAAACCCTAGGCCTAGGG".to_string(),
+                    cds_start_i: 0,
+                    cds_end_i: 21,
+                    translation_exceptions: Vec::new(),
+                    lengths: Vec::new(),
+                },
+            ])),
+        );
+
+        for (mapper, hgvsc) in [
+            (&sanity, "NM_999992.1:c.1A>G"),
+            (&sanity, "NM_999992.1:c.4G>A"),
+            (&sanity, "NM_999992.1:c.4_6dup"),
+            (&sanity, "NM_999992.1:c.6_7insGGG"),
+            (&sanity, "NM_999992.1:c.4_5inv"),
+            (&sanity, "NM_999992.1:c.13C>T"),
+            (&no_utr, "NM_999986.1:c.1A>G"),
+            (&no_utr, "NM_999986.1:c.4G>A"),
+            (&no_utr, "NM_999986.1:c.4_6dup"),
+            (&no_utr, "NM_999986.1:c.6_7insGGG"),
+            (&no_utr, "NM_999986.1:c.4_5inv"),
+            (&no_utr, "NM_999986.1:c.10C>T"),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), "MOCK:p.?", "{hgvsc}");
+        }
 
         Ok(())
     }
