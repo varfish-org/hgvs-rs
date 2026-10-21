@@ -27,7 +27,8 @@ pub enum CdsEnd {
 
 #[derive(Debug, Clone)]
 pub struct RefTranscriptData {
-    /// Transcript nucleotide sequence.
+    /// Transcript nucleotide sequence.  If the poly(A) tail completes the stop codon of a
+    /// mitochondrial CDS, it has the completing `A`s right after the CDS, see `new()`.
     pub transcript_sequence: Arc<str>,
     /// Translated amino acid sequence.
     pub aa_sequence: Arc<str>,
@@ -145,6 +146,11 @@ impl RefTranscriptData {
     /// complete codon, and `cds_end` holds the bases after it.  Unlike biocommons/hgvs, which
     /// rejects such a CDS, this returns an error only if a stop codon is in frame.
     ///
+    /// As in biocommons/hgvs, the poly(A) tail completes the stop codon of a CDS with the
+    /// vertebrate mitochondrial translation table that ends with `T` or `TA`.  The missing `A`s
+    /// go into the transcript sequence right after the CDS and into the translated bases.
+    /// `cds_stop` stays, as there.
+    ///
     /// # Args
     ///
     /// * `provider` -- Data provider to query.
@@ -168,10 +174,31 @@ impl RefTranscriptData {
         let cds_start = cds_start_i + 1;
         let cds_stop = cds_end_i;
 
+        let cds = &transcript_sequence[((cds_start - 1) as usize)..(cds_stop as usize)];
+        let poly_a = match tx_info.translation_table {
+            TranslationTable::VertebrateMitochondrial
+                if cds.len() % 3 == 1 && cds.ends_with('T') =>
+            {
+                "AA"
+            }
+            TranslationTable::VertebrateMitochondrial
+                if cds.len() % 3 == 2 && cds.ends_with("TA") =>
+            {
+                "A"
+            }
+            _ => "",
+        };
+        let transcript_sequence: Arc<str> = if poly_a.is_empty() {
+            transcript_sequence
+        } else {
+            let (to_cds_stop, after_cds_stop) = transcript_sequence.split_at(cds_stop as usize);
+            format!("{to_cds_stop}{poly_a}{after_cds_stop}").into()
+        };
+
         // Translate up to the last complete codon.  A CDS with an incomplete 3' end, e.g.,
         // GENCODE `cds_end_NF`, can end with an incomplete codon.
         let tx_seq_to_translate =
-            &transcript_sequence[((cds_start - 1) as usize)..(cds_stop as usize)];
+            &transcript_sequence[((cds_start - 1) as usize)..(cds_stop as usize + poly_a.len())];
         let full_codons_len = tx_seq_to_translate.len() - tx_seq_to_translate.len() % 3;
 
         let translation_exceptions = provider.as_ref().get_tx_translation_exceptions(tx_ac)?;

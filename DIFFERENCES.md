@@ -32,7 +32,7 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 
 - **Situation:** a CDS whose length is not a multiple of 3, e.g. of a GENCODE transcript with the tag `cds_end_NF`.
 - **biocommons/hgvs:** `RefTranscriptData` raises `NotImplementedError`, so `c_to_p` fails for every variant on the transcript ([reftranscriptdata.py][bc-cds-len]). A mitochondrial CDS that ends with `T` or `TA` is the exception, as the poly(A) tail completes its stop codon.
-- **hgvs-rs:** It translates the CDS up to its last complete codon, and a change after that codon gives `p.?`. It still rejects such a CDS if a stop codon is in frame, because then the frame changes, e.g. by ribosomal slippage in OAZ1 ([#299]).
+- **hgvs-rs:** It translates the CDS up to its last complete codon, and a change after that codon gives `p.?`. It still rejects such a CDS if a stop codon is in frame, because then the frame changes, e.g. by ribosomal slippage in OAZ1 ([#299]). The mitochondrial exception is the same as in biocommons/hgvs.
 
 ### Variants after a CDS without stop codon
 
