@@ -2450,6 +2450,81 @@ mod test {
         Ok(())
     }
 
+    /// `AltSeqBuilder::variant_location()` gives the region that `c_to_p` uses, if both have the
+    /// same `ins_at_boundary_is_intronic`.  `NM_999989.1` has exons of 10, 15, and 25 bases:
+    /// exon 1 is the 5' UTR, exon 2 spans c.1 to c.15, and exon 3 spans c.16 to c.*10.  The CDS
+    /// is `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`).  The proteins are those of
+    /// biocommons/hgvs, without the parentheses.
+    #[test]
+    fn variant_location_agrees_with_c_to_p() -> Result<(), Error> {
+        use crate::mapper::altseq::{ref_transcript_data_cached, AltSeqBuilder, VariantLocation};
+        use VariantLocation::*;
+
+        let provider = std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+            sanity_mock::ProviderRecord {
+                accession: "NM_999989.1".to_string(),
+                transcript_sequence: "AAAATCAAACATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGGGGCCCCC"
+                    .to_string(),
+                cds_start_i: 10,
+                cds_end_i: 40,
+                translation_exceptions: Vec::new(),
+                lengths: vec![10, 15, 25],
+            },
+        ]));
+        let reference_data =
+            ref_transcript_data_cached(provider.clone(), "NM_999989.1", Some("MOCK"))?;
+
+        for ins_at_boundary_is_intronic in [false, true] {
+            let config = Config {
+                strict_bounds: false,
+                renormalize_g: false,
+                ins_at_boundary_is_intronic,
+                ..Default::default()
+            };
+            let mapper = Mapper::new(&config, provider.clone());
+            // With `ins_at_boundary_is_intronic`, the insertions and dups at an exon boundary
+            // within the CDS are intronic.
+            let (boundary, boundary_p) = if ins_at_boundary_is_intronic {
+                (Intron, "MOCK:p.?")
+            } else {
+                (Cds, "MOCK:p.Arg7SerfsTer?")
+            };
+            for (hgvs_c, location, hgvs_p) in [
+                ("c.4A>G", Cds, "MOCK:p.Lys2Glu"),
+                ("c.-2_2del", Cds, "MOCK:p.Met1?"),
+                ("c.-1_1insGCC", Cds, "MOCK:p.Met1?"),
+                ("c.2dup", Cds, "MOCK:p.Met1?"),
+                ("c.29_30insC", Cds, "MOCK:p.Ter10TyrextTer?"),
+                ("c.30dup", Cds, "MOCK:p.="),
+                ("c.-5C>G", FivePrimeUtr, "MOCK:p.?"),
+                ("c.-1+5del", FivePrimeUtr, "MOCK:p.?"),
+                ("c.*3G>T", ThreePrimeUtr, "MOCK:p.?"),
+                ("c.30_*1insA", ThreePrimeUtr, "MOCK:p.?"),
+                ("c.-5_*2dup", ThreePrimeUtr, "MOCK:p.?"),
+                ("c.15+5del", Intron, "MOCK:p.?"),
+                ("c.15_15+3del", Intron, "MOCK:p.?"),
+                ("c.16-1_16insT", boundary, boundary_p),
+                ("c.16dup", boundary, boundary_p),
+                ("c.-10_*10del", WholeGene, "MOCK:p.0?"),
+                ("c.-5_*5inv", WholeGene, "MOCK:p.?"),
+            ] {
+                let var_c = HgvsVariant::from_str(&format!("NM_999989.1:{hgvs_c}"))?;
+                let builder = AltSeqBuilder {
+                    ins_at_boundary_is_intronic,
+                    ..AltSeqBuilder::new(var_c.clone(), &reference_data)
+                };
+                let var_p = mapper.c_to_p(&var_c, Some("MOCK"))?;
+                assert_eq!(
+                    (builder.variant_location()?, var_p.to_string().as_str()),
+                    (location, hgvs_p),
+                    "{hgvs_c} with ins_at_boundary_is_intronic = {ins_at_boundary_is_intronic}"
+                );
+            }
+        }
+
+        Ok(())
+    }
+
     mod gcp_tests {
         use std::path::Path;
 

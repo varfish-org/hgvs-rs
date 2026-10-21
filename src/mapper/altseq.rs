@@ -381,13 +381,44 @@ impl AltTranscriptData {
     }
 }
 
-/// Utility enum for locating variant in a transcript.
-#[derive(Debug, PartialEq)]
-enum VariantLocation {
-    Exon,
+/// The region of a transcript that a c. variant changes, see
+/// `AltSeqBuilder::variant_location()`.
+///
+/// As in biocommons/hgvs, the positions in the description decide the region.  `c_to_p` builds
+/// the altered protein only for `Cds`.  It gives `p.?` for a UTR or an intron, and `p.0?` for
+/// the deletion of the whole gene.  It also gives `p.?` for a `Cds` variant after a CDS without
+/// a stop codon, see there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum VariantLocation {
+    /// The variant changes bases of the CDS and has no intron position, e.g., `c.4A>G`.  It may
+    /// also change bases of a UTR, e.g., `c.-2_2del` or `c.-1_1insGCC`.
+    ///
+    /// Without `ins_at_boundary_is_intronic`, this also includes the insertions and
+    /// duplications next to an exon boundary within the CDS, e.g., `c.16-1_16insT` and
+    /// `c.16dup` if c.16 starts an exon.  The splice site stays intact, so the inserted bases
+    /// extend the exon.
+    ///
+    /// Without a stop codon, the CDS goes on after its last base `c.N`, so there is no 3' UTR.
+    /// This then includes the variants that end after `c.N`, e.g., `c.*1G>A` or
+    /// `c.(N-1)_*1del`.  The amino acids after `c.N` are unknown, so `c_to_p` gives `p.?`.
+    Cds,
+    /// The variant has an intron position, e.g., `c.15+5del`, and lies neither in a UTR nor
+    /// across the whole CDS.  This includes variants that also change bases of the CDS, e.g.,
+    /// `c.15_15+3del`.
+    ///
+    /// With `ins_at_boundary_is_intronic`, this includes the insertions and duplications at an
+    /// exon boundary within the CDS, e.g., `c.16-1_16insT` and `c.16dup` if c.16 starts an
+    /// exon.  The inserted bases may go into the intron.
     Intron,
+    /// Both ends of the variant lie before c.1, e.g., `c.-5C>G` or `c.-1+5del`.
     FivePrimeUtr,
+    /// Both ends of the variant lie after the last base `c.N` of the CDS, e.g., `c.*3G>T`, or
+    /// it is an insertion or duplication whose end does, e.g., `c.N_*1insA` or `c.-5_*2dup`.
+    /// Only a CDS with a stop codon has a 3' UTR, see `Cds`.
     ThreePrimeUtr,
+    /// The variant spans the CDS from the 5' UTR to the 3' UTR, e.g., `c.-10_*10del`.  With a
+    /// stop codon, a duplication is `ThreePrimeUtr` instead.
     WholeGene,
 }
 
@@ -453,10 +484,10 @@ impl<'a> AltSeqBuilder<'a> {
             return Err(Error::ExpectedCdsVariant(self.var_c.to_string()));
         };
         let na_edit = loc_edit.edit.inner();
-        let edit_type = match self.get_variant_region() {
+        let edit_type = match self.variant_location()? {
             // Without a stop codon, the amino acids after the CDS are unknown.
-            VariantLocation::Exon if self.after_cds_without_stop() => EditType::NotCds,
-            VariantLocation::Exon => match na_edit {
+            VariantLocation::Cds if self.after_cds_without_stop() => EditType::NotCds,
+            VariantLocation::Cds => match na_edit {
                 NaEdit::RefAlt { .. }
                 | NaEdit::NumAlt { .. }
                 | NaEdit::DelRef { .. }
@@ -504,9 +535,18 @@ impl<'a> AltSeqBuilder<'a> {
         Ok(vec![alt_data])
     }
 
-    /// Categorize variant by location in transcript.
-    fn get_variant_region(&self) -> VariantLocation {
-        match &self.var_c {
+    /// The region of the transcript that `var_c` changes.
+    ///
+    /// `build_altseq()` and thus `c_to_p` use this region.  It depends on
+    /// `ins_at_boundary_is_intronic`, so it agrees with `c_to_p` only if this field has the
+    /// value of `variant::Config::ins_at_boundary_is_intronic` of the mapper.
+    /// `AltSeqBuilder::new()` sets it to `true`, the default of the `Config`.
+    ///
+    /// # Errors
+    ///
+    /// `Error::ExpectedCdsVariant` if `var_c` is not a `HgvsVariant::CdsVariant`.
+    pub fn variant_location(&self) -> Result<VariantLocation, Error> {
+        let location = match &self.var_c {
             HgvsVariant::CdsVariant { loc_edit, .. } => {
                 let loc = loc_edit.loc.inner();
                 let edit = loc_edit.edit.inner();
@@ -538,17 +578,18 @@ impl<'a> AltSeqBuilder<'a> {
                         || (edit.is_dup() && (end_offset == -1 || start_offset == 1)))
                 {
                     // The splice site stays intact, so the inserted bases extend the exon.
-                    VariantLocation::Exon
+                    VariantLocation::Cds
                 } else if loc.start.offset.is_some() || loc.end.offset.is_some() {
                     // Leave out anything intronic for now.
                     VariantLocation::Intron
                 } else {
                     // Anything else that contains an exon.
-                    VariantLocation::Exon
+                    VariantLocation::Cds
                 }
             }
-            _ => panic!("Must be CDS variant"),
-        }
+            _ => return Err(Error::ExpectedCdsVariant(self.var_c.to_string())),
+        };
+        Ok(location)
     }
 
     /// Whether the CDS has no stop codon and the variant reaches after its last base c.N, i.e.,
@@ -1572,7 +1613,7 @@ mod test {
     }
 
     #[test]
-    fn build_altseq_fails_for_non_cds_variant() -> Result<(), anyhow::Error> {
+    fn non_cds_variant_fails() -> Result<(), anyhow::Error> {
         let reference_data = RefTranscriptData {
             transcript_sequence: "AAAATCAAAATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGG".into(),
             aa_sequence: "MKAKAFRAK*".into(),
@@ -1594,6 +1635,13 @@ mod test {
             let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
             assert!(
                 matches!(builder.build_altseq(), Err(Error::ExpectedCdsVariant(_))),
+                "{hgvs}"
+            );
+            assert!(
+                matches!(
+                    builder.variant_location(),
+                    Err(Error::ExpectedCdsVariant(_))
+                ),
                 "{hgvs}"
             );
         }
@@ -1623,14 +1671,14 @@ mod test {
 
         for ins_at_boundary_is_intronic in [false, true] {
             for (hgvs_c, expected) in [
-                ("c.27_*1insA", VariantLocation::Exon),
-                ("c.*1dup", VariantLocation::Exon),
-                ("c.*4_*5insG", VariantLocation::Exon),
-                ("c.*1G>A", VariantLocation::Exon),
-                ("c.*1_*3del", VariantLocation::Exon),
-                ("c.*1_*3inv", VariantLocation::Exon),
-                ("c.26_*1del", VariantLocation::Exon),
-                ("c.27_*1delinsTC", VariantLocation::Exon),
+                ("c.27_*1insA", VariantLocation::Cds),
+                ("c.*1dup", VariantLocation::Cds),
+                ("c.*4_*5insG", VariantLocation::Cds),
+                ("c.*1G>A", VariantLocation::Cds),
+                ("c.*1_*3del", VariantLocation::Cds),
+                ("c.*1_*3inv", VariantLocation::Cds),
+                ("c.26_*1del", VariantLocation::Cds),
+                ("c.27_*1delinsTC", VariantLocation::Cds),
                 ("c.-5_*2dup", VariantLocation::WholeGene),
                 ("c.-5_*2del", VariantLocation::WholeGene),
             ] {
@@ -1642,7 +1690,7 @@ mod test {
                     )
                 };
                 assert_eq!(
-                    builder.get_variant_region(),
+                    builder.variant_location()?,
                     expected,
                     "{hgvs_c} with ins_at_boundary_is_intronic = {ins_at_boundary_is_intronic}"
                 );
