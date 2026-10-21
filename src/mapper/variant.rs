@@ -2534,29 +2534,78 @@ mod test {
         Ok(())
     }
 
+    /// As in biocommons/hgvs (biocommons/hgvs#775), a deletion from the CDS into the 3' UTR is
+    /// a frameshift, whatever its length.
     #[test]
     fn hgvs_c_to_p_deletion_into_three_prime_utr_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.27_*3del";
         let hgvsp_expected = "MOCK:p.Lys9XaafsTer?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
-        Ok(())
-    }
-
-    #[test]
-    fn hgvs_c_to_p_deletion_into_three_prime_utr_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999995.1:c.28_*3del";
-        let hgvsp_expected = "MOCK:p.Lys10_Ter11delinsArgGlnPheArg";
+        let hgvsp_expected = "MOCK:p.Lys10ArgfsTer?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
     }
 
     #[test]
-    fn hgvs_c_to_p_delins_into_three_prime_utr_no_frameshift() -> Result<(), Error> {
+    fn hgvs_c_to_p_delins_into_three_prime_utr_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999995.1:c.28_*3delinsGGG";
-        let hgvsp_expected = "MOCK:p.Lys10_Ter11delinsGlyArgGlnPheArg";
+        let hgvsp_expected = "MOCK:p.Lys10GlyfsTer?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    /// HGVS: "deletions starting 5' of and including the translation termination (stop) codon
+    /// are described as frameshift", whatever their length.  The CDS of both transcripts is
+    /// `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`).  The 3' UTR of `NM_999977.1` is
+    /// `GCTTAGGGGCCCCC` and the one of `NM_999976.1` is `GGCTTAGGGGCCCCC`.  The expectations are
+    /// those of biocommons/hgvs, without the parentheses.
+    #[test]
+    fn hgvs_c_to_p_deletion_through_stop_codon() -> Result<(), Error> {
+        let record = |accession: &str, utr3: &str| sanity_mock::ProviderRecord {
+            accession: accession.to_string(),
+            transcript_sequence: format!("AAAATCAAACATGAAAGCGAAAGCGTTTCGCGCGAAATAG{utr3}"),
+            cds_start_i: 10,
+            cds_end_i: 40,
+            translation_exceptions: Vec::new(),
+            lengths: Vec::new(),
+        };
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(
+            &config,
+            std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+                record("NM_999977.1", "GCTTAGGGGCCCCC"),
+                record("NM_999976.1", "GGCTTAGGGGCCCCC"),
+            ])),
+        );
+
+        for (hgvsc, hgvsp_expected) in [
+            // In frame, but the new C-terminus comes from the 3' UTR.  The new stop codon sits
+            // where the old one was.
+            ("NM_999977.1:c.26_*1del", "MOCK:p.Lys9ThrfsTer2"),
+            // The same protein by a deletion of 7 bases.
+            ("NM_999976.1:c.26_*2del", "MOCK:p.Lys9ThrfsTer2"),
+            ("NM_999977.1:c.27_*1del", "MOCK:p.Lys9AsnfsTer?"),
+            ("NM_999977.1:c.26_*1delinsC", "MOCK:p.Lys9ThrfsTer?"),
+            ("NM_999977.1:c.26_*13del", "MOCK:p.Lys9XaafsTer?"),
+            // Ends with the stop codon, which counts by the length.
+            ("NM_999977.1:c.25_30del", "MOCK:p.Lys9Ala"),
+            ("NM_999977.1:c.26_30del", "MOCK:p.Lys9SerfsTer?"),
+            // Changes the stop codon first, so it is an extension.
+            ("NM_999977.1:c.27_30del", "MOCK:p.Ter10LeuextTer?"),
+            // Ends inside the stop codon.
+            ("NM_999977.1:c.26_29del", "MOCK:p.Lys9ArgfsTer?"),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
+        }
 
         Ok(())
     }

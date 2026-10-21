@@ -52,12 +52,6 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 - **biocommons/hgvs:** `c_to_p` and the normalizer raise `HGVSInvalidVariantError` ([tests][bc-am-test], [normalizer tests][bc-norm-test]).
 - **hgvs-rs:** It does not check this yet. `c_to_p` gives `NP_000050.2:p.Glu2598LysfsTer50`, and the normalizer gives `NM_000059.3:c.7791delA` ([#96]). This difference is a gap, not a decision.
 
-### Deletion of the stop codon
-
-- **Situation:** an in-frame deletion runs from the CDS through the stop codon into the 3' UTR. E.g., `c.26_*1del` turns `GCG AAA TAG AGG AGG TAG` into `GCG AGG AGG TAG`.
-- **biocommons/hgvs:** It treats a deletion as a frameshift if its start is a c. position and its end a c.* position ([altseqbuilder.py][bc-del-stop], [biocommons/hgvs#775][bc-775]). HGVS describes such deletions as frameshifts. The example gives `p.(Lys9ArgfsTer3)`.
-- **hgvs-rs:** It decides the frame by the length of the deletion only. The example gives `p.Lys9delinsArgArg`, which hides the lost stop codon. This is a known difference, not yet fixed.
-
 ### Deletion of the stop codon up to the transcript end
 
 - **Situation:** a deletion removes the stop codon and every base after it, so no codon takes the place of the stop codon. E.g., `c.28_*3del` on a transcript that ends at c.*3.
@@ -150,8 +144,6 @@ Unless an entry says otherwise, the examples use a transcript whose 5' UTR ends 
 [bc-ext]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/tests/data/ext.tsv#L12
 [bc-dup-cds-end]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/tests/test_hgvs_variantmapper.py#L113-L117
 [bc-alt-cut]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseqbuilder.py#L58-L70
-[bc-del-stop]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseqbuilder.py#L272-L276
-[bc-775]: https://github.com/biocommons/hgvs/pull/775
 [bc-fs-start]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseq_to_hgvsp.py#L83-L86
 [bc-529]: https://github.com/biocommons/hgvs/issues/529
 [bc-ins-dup]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseq_to_hgvsp.py#L296-L315

@@ -1029,7 +1029,9 @@ impl<'a> AltSeqBuilder<'a> {
             _ => panic!("This should not happen"),
         }
 
-        let mut is_frameshift = net_base_change % 3 != 0;
+        // A deletion or delins through the stop codon is a frameshift, see
+        // `through_stop_codon()`.
+        let mut is_frameshift = net_base_change % 3 != 0 || self.through_stop_codon();
         if let Some((stop_end, alt_end)) = insert_stop {
             is_frameshift = false;
             seq.replace_range(stop_end..alt_end, "");
@@ -1055,6 +1057,18 @@ impl<'a> AltSeqBuilder<'a> {
             &translation_exceptions,
             poly_a,
         )
+    }
+
+    /// Whether the variant starts in the CDS and ends in the 3' UTR.  HGVS describes such a
+    /// deletion, which removes the stop codon, as a frameshift: "deletions starting 5' of and
+    /// including the translation termination (stop) codon are described as frameshift".  Port
+    /// of biocommons/hgvs#775.
+    fn through_stop_codon(&self) -> bool {
+        let HgvsVariant::CdsVariant { loc_edit, .. } = &self.var_c else {
+            return false;
+        };
+        let loc = loc_edit.loc.inner();
+        loc.start.cds_from == CdsFrom::Start && loc.end.cds_from == CdsFrom::End
     }
 
     /// Incorporate a dup into the transcript sequence: its copy goes right after the duplicated
