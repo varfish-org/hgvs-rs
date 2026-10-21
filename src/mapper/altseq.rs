@@ -8,7 +8,7 @@ use crate::{
     data::interface::{Provider, TranslationException},
     mapper::error::Error,
     parser::{
-        Accession, CdsFrom, HgvsVariant, Mu, NaEdit, ProtInterval, ProtLocEdit, ProtPos,
+        Accession, CdsFrom, CdsPos, HgvsVariant, Mu, NaEdit, ProtInterval, ProtLocEdit, ProtPos,
         ProteinEdit, UncertainLengthChange,
     },
     sequences::{revcomp, translate_cds, translate_cds_with_exceptions, TranslationTable},
@@ -426,15 +426,17 @@ impl AltTranscriptData {
 /// The region of a transcript that a c. variant changes, see
 /// `AltSeqBuilder::variant_location()`.
 ///
-/// As in biocommons/hgvs, the positions in the description decide the region.  `c_to_p` builds
-/// the altered protein only for `Cds`.  It gives `p.?` for a UTR or an intron, and `p.0?` for
+/// As in biocommons/hgvs, the positions in the description decide the region, with one
+/// exception: an insertion, dup, deletion, delins or inversion whose alt transcript sequence
+/// keeps the start or stop codon in place is a UTR variant, see `FivePrimeUtr` and
+/// `ThreePrimeUtr`.  `c_to_p` builds the altered protein only for `Cds`.  It gives `p.?` for a UTR or an intron, and `p.0?` for
 /// the deletion of the whole gene.  It also gives `p.?` for a `Cds` variant after a CDS without
 /// a stop codon, see there.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum VariantLocation {
     /// The variant changes bases of the CDS and has no intron position, e.g., `c.4A>G`.  It may
-    /// also change bases of a UTR, e.g., `c.-2_2del` or `c.-1_1insGCC`.
+    /// also change bases of a UTR, e.g., `c.-2_2del`.
     ///
     /// Without `ins_at_boundary_is_intronic`, this also includes the insertions and
     /// duplications next to an exon boundary within the CDS, e.g., `c.16-1_16insT` and
@@ -443,7 +445,8 @@ pub enum VariantLocation {
     ///
     /// Without a stop codon, the CDS goes on after its last base `c.N`, so there is no 3' UTR.
     /// This then includes the variants that end after `c.N`, e.g., `c.*1G>A` or
-    /// `c.(N-1)_*1del`.  The amino acids after `c.N` are unknown, so `c_to_p` gives `p.?`.
+    /// `c.(N-1)_*1del`, and those whose alt sequence keeps the CDS up to `c.N`, e.g., `c.Ndup`.
+    /// The amino acids after `c.N` are unknown, so `c_to_p` gives `p.?`.
     Cds,
     /// The variant has an intron position, e.g., `c.15+5del`, and lies neither in a UTR nor
     /// across the whole CDS.  This includes variants that also change bases of the CDS, e.g.,
@@ -454,13 +457,25 @@ pub enum VariantLocation {
     /// exon.  The inserted bases may go into the intron.
     Intron,
     /// Both ends of the variant lie before c.1, e.g., `c.-5C>G` or `c.-1+5del`.
+    ///
+    /// This also includes an insertion, dup, deletion, delins or inversion whose alt transcript
+    /// sequence ends with the reference from c.1 on.  Then the same change fits in front of c.1,
+    /// and the start codon stays where it is.  Examples are `c.-1_1insGCC`, `c.1dup` if c.-1 is
+    /// not an A, `c.1del` if c.-1 is an A, and every dup from before c.1 into the CDS, such as
+    /// `c.-2_2dup`, also if it starts before the transcript.  The inserted bases can still form
+    /// an upstream ATG, so the effect on the protein is unknown.
     FivePrimeUtr,
     /// Both ends of the variant lie after the last base `c.N` of the CDS, e.g., `c.*3G>T`, or
     /// it is an insertion or duplication whose end does, e.g., `c.N_*1insA` or `c.-5_*2dup`.
-    /// Only a CDS with a stop codon has a 3' UTR, see `Cds`.
+    ///
+    /// This also includes an insertion, dup, deletion, delins or inversion whose alt transcript
+    /// sequence starts with the reference up to `c.N`.  Then the same change fits after `c.N`,
+    /// and the stop codon stays where it is.  Examples are `c.Ndup`, `c.(N-2)_Ndup`, and `c.Ndel`
+    /// if c.*1 is the same base.  Only a CDS with a stop codon has a 3' UTR, see `Cds`.
     ThreePrimeUtr,
-    /// The variant spans the CDS from the 5' UTR to the 3' UTR, e.g., `c.-10_*10del`.  With a
-    /// stop codon, a duplication is `ThreePrimeUtr` instead.
+    /// The variant spans the CDS from the 5' UTR to the 3' UTR, e.g., `c.-10_*10del`.  A
+    /// duplication is `ThreePrimeUtr` instead with a stop codon, and `FivePrimeUtr` without one,
+    /// as its copy can go before its first base.
     WholeGene,
 }
 
@@ -584,7 +599,9 @@ impl<'a> AltSeqBuilder<'a> {
     /// value of `variant::Config::ins_at_boundary_is_intronic` of the mapper.
     /// `AltSeqBuilder::new()` sets it to `true`, the default of the `Config`.  With
     /// `variant::Config::shift_over_boundary`, `c_to_p` can build the protein from a shift of
-    /// `var_c` into another region, which this method does not apply.
+    /// `var_c` into another region, which this method does not apply.  Without
+    /// `ins_at_boundary_is_intronic`, the region of a dup of intron bases can also depend on
+    /// these bases, which `c_to_p` fills in first.
     ///
     /// # Errors
     ///
@@ -600,7 +617,7 @@ impl<'a> AltSeqBuilder<'a> {
                 let at_exon_edge = ref_data.exon_start_positions.contains(&loc.start.base)
                     || ref_data.exon_end_positions.contains(&loc.end.base);
                 // Without a stop codon, the CDS goes on after its last base, so there is no 3'
-                // UTR, see `after_cds_without_stop()`.
+                // UTR, see `outside_cds()`.
                 let has_stop_codon = ref_data.cds_end == CdsEnd::StopCodon;
                 #[allow(clippy::nonminimal_bool)]
                 if has_stop_codon
@@ -612,8 +629,11 @@ impl<'a> AltSeqBuilder<'a> {
                     VariantLocation::ThreePrimeUtr
                 } else if loc.start.base < 0 && loc.end.base < 0 {
                     VariantLocation::FivePrimeUtr
-                } else if loc.start.base < 0 && loc.end.cds_from == CdsFrom::End {
+                } else if loc.start.base < 0 && loc.end.cds_from == CdsFrom::End && !edit.is_dup() {
+                    // Without a stop codon, a dup gets here, too.  Its copy can go before c.1.
                     VariantLocation::WholeGene
+                } else if let Some(utr) = self.outside_cds() {
+                    utr
                 } else if self.ins_at_boundary_is_intronic && edit.is_dup() && at_exon_edge {
                     // The copy may sit at the exon boundary, like an insertion there.
                     VariantLocation::Intron
@@ -636,15 +656,150 @@ impl<'a> AltSeqBuilder<'a> {
         Ok(location)
     }
 
+    /// The UTR of a variant that leaves the CDS intact, or `None`.
+    ///
+    /// An ins, dup, del, delins, or inv leaves the CDS intact if the same change fits before
+    /// c.1 or after the last base c.N of the CDS, i.e., if its alt transcript sequence keeps the
+    /// reference from c.1 on or up to c.N.  This depends on the sequence, not on the
+    /// description.  For example, if c.-1 is not an A, inserting the copy of `c.1dup` in front
+    /// of c.1 gives the same sequence.  If c.-1 is an A, deleting it gives the same sequence as
+    /// `c.1del`.  The copy of `c.(N-2)_Ndup` can go after c.N.  The inserted bases can still
+    /// form an upstream ATG, so the effect on the protein is unknown, not none.
+    ///
+    /// Without a stop codon, the CDS goes on after its last base, so there is no 3' UTR, see
+    /// `after_cds_without_stop()`.
+    fn outside_cds(&self) -> Option<VariantLocation> {
+        let (before_cds, after_cds) = self.placements_outside_cds()?;
+        if before_cds {
+            Some(VariantLocation::FivePrimeUtr)
+        } else if after_cds && self.reference_data.cds_end == CdsEnd::StopCodon {
+            Some(VariantLocation::ThreePrimeUtr)
+        } else {
+            None
+        }
+    }
+
     /// Whether the CDS has no stop codon and the variant reaches after its last base c.N, i.e.,
-    /// it ends with a c.* position.  The CDS goes on after c.N, but its amino acids there are
-    /// unknown.
+    /// it ends with a c.* position, or it can go there, e.g., `c.Ndup`.  The CDS goes on after
+    /// c.N, but its amino acids there are unknown.
     fn after_cds_without_stop(&self) -> bool {
         let HgvsVariant::CdsVariant { loc_edit, .. } = &self.var_c else {
             return false;
         };
         self.reference_data.cds_end != CdsEnd::StopCodon
-            && loc_edit.loc.inner().end.cds_from == CdsFrom::End
+            && (loc_edit.loc.inner().end.cds_from == CdsFrom::End
+                || self
+                    .placements_outside_cds()
+                    .is_some_and(|(_, after_cds)| after_cds))
+    }
+
+    /// Whether an equivalent placement of the variant lies before c.1, and whether one lies
+    /// after the last base of the CDS, see `outside_cds()`.  `None` for the edits and positions
+    /// that it does not check, e.g., a delins with an intron position.
+    ///
+    /// With `ins_at_boundary_is_intronic`, an ins or dup with an intron position stays
+    /// intronic.  The other variants count only with exon positions.
+    fn placements_outside_cds(&self) -> Option<(bool, bool)> {
+        let HgvsVariant::CdsVariant { loc_edit, .. } = &self.var_c else {
+            return None;
+        };
+        let loc = loc_edit.loc.inner();
+        let ref_data = self.reference_data;
+        let seq = ref_data.transcript_sequence.as_bytes();
+        let cds_start = usize::try_from(ref_data.cds_start - 1).ok()?;
+        let cds_end = usize::try_from(ref_data.cds_stop).ok()?;
+        // The 0-based index in `seq` of the base c.`pos.base`, ignoring the intron offset.
+        let index = |pos: &CdsPos| {
+            let base = i64::from(pos.base);
+            let one_based = match pos.cds_from {
+                // There is no c.0, c.-1 is the base before c.1.
+                CdsFrom::Start if base < 0 => i64::from(ref_data.cds_start) + base,
+                CdsFrom::Start => i64::from(ref_data.cds_start) + base - 1,
+                CdsFrom::End => i64::from(ref_data.cds_stop) + base,
+            };
+            usize::try_from(one_based - 1)
+                .ok()
+                .filter(|&index| index < seq.len())
+        };
+        let offsets = (loc.start.offset.unwrap_or(0), loc.end.offset.unwrap_or(0));
+        let at_boundary_is_exonic = !self.ins_at_boundary_is_intronic;
+        // The variant replaces the bases `start..end` of `seq` with `alt_bases`.
+        let inverted: String;
+        let (start, end, alt_bases) = match (loc_edit.edit.inner(), offsets) {
+            (NaEdit::Ins { alternative }, (0, 0)) => {
+                let gap = index(&loc.start)? + 1;
+                (gap, gap, alternative.as_str())
+            }
+            // At an exon boundary, the inserted bases go into the exon, as in
+            // `variant_location()`.
+            (NaEdit::Ins { alternative }, (-1, 0)) if at_boundary_is_exonic => {
+                let gap = index(&loc.end)?;
+                (gap, gap, alternative.as_str())
+            }
+            (NaEdit::Ins { alternative }, (0, 1)) if at_boundary_is_exonic => {
+                let gap = index(&loc.start)? + 1;
+                (gap, gap, alternative.as_str())
+            }
+            // The copy can go before the duplicated bases.  If these start before c.1, the copy
+            // leaves the CDS intact, even if they start before the transcript.
+            (NaEdit::Dup { .. }, (0, 0)) if loc.start.base < 0 => return Some((true, false)),
+            (NaEdit::Dup { .. }, (0, 0)) => {
+                let start = index(&loc.start)?;
+                let end = index(&loc.end)?;
+                (start, start, ref_data.transcript_sequence.get(start..=end)?)
+            }
+            // The copy of intron bases can go to the exon boundary.  Only the variant can tell
+            // these bases.
+            (NaEdit::Dup { reference }, (_, -1)) if at_boundary_is_exonic => {
+                let gap = index(&loc.end)?;
+                (gap, gap, reference.as_str())
+            }
+            (NaEdit::Dup { reference }, (1, _)) if at_boundary_is_exonic => {
+                let gap = index(&loc.start)? + 1;
+                (gap, gap, reference.as_str())
+            }
+            (NaEdit::DelRef { .. } | NaEdit::DelNum { .. }, (0, 0)) => {
+                (index(&loc.start)?, index(&loc.end)? + 1, "")
+            }
+            // An inversion is a delins of the reverse complement.
+            (NaEdit::InvRef { .. } | NaEdit::InvNum { .. }, (0, 0)) => {
+                let start = index(&loc.start)?;
+                let end = index(&loc.end)? + 1;
+                inverted = revcomp(ref_data.transcript_sequence.get(start..end)?);
+                (start, end, inverted.as_str())
+            }
+            // An identity, e.g., `c.1A=`, changes no base.
+            (
+                NaEdit::RefAlt {
+                    reference,
+                    alternative,
+                },
+                _,
+            ) if reference == alternative => return None,
+            (NaEdit::RefAlt { alternative, .. } | NaEdit::NumAlt { alternative, .. }, (0, 0)) => (
+                index(&loc.start)?,
+                index(&loc.end)? + 1,
+                alternative.as_str(),
+            ),
+            _ => return None,
+        };
+        if start == end && alt_bases.is_empty() {
+            // Without the inserted bases, only this placement is known.
+            Some((start <= cds_start, start >= cds_end))
+        } else {
+            // `alt` ends with the reference from c.1 on if and only if a placement in front of
+            // c.1 gives `alt`.  Likewise, `alt` starts with the reference up to the last base
+            // of the CDS if and only if a placement after that base gives `alt`.
+            let alt = [seq.get(..start)?, alt_bases.as_bytes(), seq.get(end..)?].concat();
+            if alt == seq {
+                // Changes no base, e.g., the inversion of `GC`.
+                return None;
+            }
+            Some((
+                alt.ends_with(seq.get(cds_start..)?),
+                alt.starts_with(seq.get(..cds_end)?),
+            ))
+        }
     }
 
     /// Helper to setup incorporate function.
@@ -1743,7 +1898,11 @@ mod test {
 
         for ins_at_boundary_is_intronic in [false, true] {
             for (hgvs_c, expected) in [
+                // The same insertion of an A after c.27.
                 ("c.27_*1insA", VariantLocation::Cds),
+                ("c.27dup", VariantLocation::Cds),
+                // The same insertion of a G into the run of five Gs after c.27.
+                ("c.27_*1insG", VariantLocation::Cds),
                 ("c.*1dup", VariantLocation::Cds),
                 ("c.*4_*5insG", VariantLocation::Cds),
                 ("c.*1G>A", VariantLocation::Cds),
@@ -1751,7 +1910,8 @@ mod test {
                 ("c.*1_*3inv", VariantLocation::Cds),
                 ("c.26_*1del", VariantLocation::Cds),
                 ("c.27_*1delinsTC", VariantLocation::Cds),
-                ("c.-5_*2dup", VariantLocation::WholeGene),
+                // The copy can go before c.-5, which leaves the CDS intact.
+                ("c.-5_*2dup", VariantLocation::FivePrimeUtr),
                 ("c.-5_*2del", VariantLocation::WholeGene),
             ] {
                 let builder = AltSeqBuilder {
@@ -1766,7 +1926,6 @@ mod test {
                     expected,
                     "{hgvs_c} with ins_at_boundary_is_intronic = {ins_at_boundary_is_intronic}"
                 );
-                assert!(builder.after_cds_without_stop(), "{hgvs_c}");
             }
         }
 

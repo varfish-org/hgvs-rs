@@ -40,6 +40,8 @@ pub struct Config {
     pub window_size: usize,
     /// Treat insertions and duplications that touch an exon boundary as intronic in `c_to_p`,
     /// giving `p.?`.  With `false`, e.g., `c.26_26+1insC` and `c.26+1dup` change the protein.
+    /// Before c.1 and after the stop codon, they change no base of the CDS and give `p.?` like
+    /// a variant in the UTR.
     pub ins_at_boundary_is_intronic: bool,
     /// Let `c_to_p` move an insertion or duplication in an exon or intron to the other side
     /// of an exon boundary, as preferred by `shift_over_boundary_preference`.  The shifts need
@@ -1544,13 +1546,15 @@ mod test {
     //     Ok(())
     // }
 
+    /// c.1257 is the last base of the stop codon, so the copy goes into the 3' UTR.
+    /// biocommons/hgvs gives `p.=`.
     #[test]
     fn map_of_dup_at_cds_end() -> Result<(), Error> {
         let mapper = build_mapper()?;
         let hgvs_c = "NM_001051.2:c.1257dupG"; // gene SSTR3
         let var_c = HgvsVariant::from_str(hgvs_c)?;
         let var_p = mapper.c_to_p(&var_c, None)?;
-        assert_eq!(format!("{}", &var_p), "NP_001042.1:p.=");
+        assert_eq!(format!("{}", &var_p), "NP_001042.1:p.?");
 
         Ok(())
     }
@@ -1705,13 +1709,11 @@ mod test {
             ) -> Result<String, crate::data::error::Error> {
                 for record in &self.records {
                     if record.accession == tx_ac {
+                        // As seqrepo, return the part of the sequence within its bounds.
                         let seq = &record.transcript_sequence;
-                        return match (begin, end) {
-                            (None, None) => Ok(seq.to_string()),
-                            (None, Some(end)) => Ok(seq[..end].to_string()),
-                            (Some(begin), None) => Ok(seq[begin..].to_string()),
-                            (Some(begin), Some(end)) => Ok(seq[begin..end].to_string()),
-                        };
+                        let end = end.unwrap_or(seq.len()).min(seq.len());
+                        let begin = begin.unwrap_or(0).min(end);
+                        return Ok(seq[begin..end].to_string());
                     }
                 }
                 Err(crate::data::error::Error::NoSequenceRecord(
@@ -2077,6 +2079,8 @@ mod test {
             ("NM_999994.1:c.18_19insTAA", "MOCK:p.?"),
             ("NM_999994.1:c.20dup", "MOCK:p.?"),
             ("NM_999994.1:c.19_20dup", "MOCK:p.?"),
+            // c.-1 is an A, so the deletion keeps the ATG.
+            ("NM_999994.1:c.1del", "MOCK:p.?"),
         ] {
             let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
             assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
@@ -2869,8 +2873,9 @@ mod test {
     /// `AltSeqBuilder::variant_location()` gives the region that `c_to_p` uses, if both have the
     /// same `ins_at_boundary_is_intronic`.  `NM_999989.1` has exons of 10, 15, and 25 bases:
     /// exon 1 is the 5' UTR, exon 2 spans c.1 to c.15, and exon 3 spans c.16 to c.*10.  The CDS
-    /// is `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`).  The proteins are those of
-    /// biocommons/hgvs, without the parentheses.
+    /// is `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`), and c.-2 to c.3 and c.30 to
+    /// c.*2 are `AC ATG` and `TAG GG`.  The proteins are those of biocommons/hgvs, without the
+    /// parentheses, except where marked.
     #[test]
     fn variant_location_agrees_with_c_to_p() -> Result<(), Error> {
         use crate::mapper::altseq::{ref_transcript_data_cached, AltSeqBuilder, VariantLocation};
@@ -2908,10 +2913,20 @@ mod test {
             for (hgvs_c, location, hgvs_p) in [
                 ("c.4A>G", Cds, "MOCK:p.Lys2Glu"),
                 ("c.-2_2del", Cds, "MOCK:p.Met1?"),
-                ("c.-1_1insGCC", Cds, "MOCK:p.Met1?"),
                 ("c.2dup", Cds, "MOCK:p.Met1?"),
                 ("c.29_30insC", Cds, "MOCK:p.Ter10TyrextTer?"),
-                ("c.30dup", Cds, "MOCK:p.="),
+                // These differ from biocommons/hgvs on purpose: the same change fits in front
+                // of c.1 or after the stop codon and keeps both intact, see `DIFFERENCES.md`.
+                // biocommons/hgvs gives `p.Met1?` for the first four, except `p.?` for `c.1dup`
+                // with `ins_at_boundary_is_intronic`, as c.1 starts an exon.  It gives `p.(=)` for
+                // the dups at the end and `p.(Ter10Ter)` for `c.30del`.
+                ("c.-1_1insGCC", FivePrimeUtr, "MOCK:p.?"),
+                ("c.1_2insA", FivePrimeUtr, "MOCK:p.?"),
+                ("c.-1_1del", FivePrimeUtr, "MOCK:p.?"),
+                ("c.1dup", FivePrimeUtr, "MOCK:p.?"),
+                ("c.30dup", ThreePrimeUtr, "MOCK:p.?"),
+                ("c.28_30dup", ThreePrimeUtr, "MOCK:p.?"),
+                ("c.30del", ThreePrimeUtr, "MOCK:p.?"),
                 ("c.-5C>G", FivePrimeUtr, "MOCK:p.?"),
                 ("c.-1+5del", FivePrimeUtr, "MOCK:p.?"),
                 ("c.*3G>T", ThreePrimeUtr, "MOCK:p.?"),
@@ -2938,6 +2953,171 @@ mod test {
             }
         }
 
+        Ok(())
+    }
+
+    /// `NM_999989.1` with exons of 10, 30, and 10 bases: exon 1 is the 5' UTR, exon 2 the CDS
+    /// `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`), and exon 3 the 3' UTR.
+    /// `NM_999988.1` has the same sequence in a single exon.  `NM_999987.1` has the CDS
+    /// without the stop codon, `MKAKAFRAK`, in a single exon.
+    fn build_mapper_cds_boundary(ins_at_boundary_is_intronic: bool) -> Mapper {
+        let record = |accession: &str, transcript_sequence: &str, cds_end_i, lengths| {
+            sanity_mock::ProviderRecord {
+                accession: accession.to_string(),
+                transcript_sequence: transcript_sequence.to_string(),
+                cds_start_i: 10,
+                cds_end_i,
+                translation_exceptions: Vec::new(),
+                lengths,
+            }
+        };
+        let sequence = "AAAATCAAACATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGGGGCCCCC";
+        let provider = std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+            record("NM_999989.1", sequence, 40, vec![10, 30, 10]),
+            record("NM_999988.1", sequence, 40, vec![50]),
+            record(
+                "NM_999987.1",
+                "AAAATCAAACATGAAAGCGAAAGCGTTTCGCGCGAAAGGGGGCCCCC",
+                37,
+                vec![47],
+            ),
+        ]));
+        let config = Config {
+            prevalidation_level: crate::validator::ValidationLevel::Intrinsic,
+            strict_bounds: false,
+            renormalize_g: false,
+            ins_at_boundary_is_intronic,
+            ..Default::default()
+        };
+        Mapper::new(&config, provider)
+    }
+
+    /// An insertion that can go before c.1 or after the stop codon changes no base of the CDS,
+    /// so it gives `p.?` like a variant in the UTR.  With `ins_at_boundary_is_intronic` set to
+    /// `false`, this includes the insertions and dups at the exon boundaries next to c.1 and
+    /// the stop codon.
+    #[test]
+    fn cds_boundary_ins_c_to_p() -> Result<(), Error> {
+        let exonic = build_mapper_cds_boundary(false);
+        let intronic = build_mapper_cds_boundary(true);
+        for (hgvs_c, expected) in [
+            // In the UTRs.
+            ("NM_999989.1:c.-3_-2insA", "MOCK:p.?"),
+            ("NM_999989.1:c.-1dup", "MOCK:p.?"),
+            ("NM_999989.1:c.*1_*2insA", "MOCK:p.?"),
+            ("NM_999989.1:c.*1dup", "MOCK:p.?"),
+            // At the start of the CDS.  In `NM_999989.1`, c.1 is at an exon boundary, in
+            // `NM_999988.1` it is not.
+            ("NM_999989.1:c.-1_1insGCC", "MOCK:p.?"),
+            ("NM_999989.1:c.1-1_1insGCC", "MOCK:p.?"),
+            ("NM_999989.1:c.1-1dupG", "MOCK:p.?"),
+            ("NM_999989.1:c.1-1dup", "MOCK:p.?"),
+            ("NM_999989.1:c.1-2_1-1dupAG", "MOCK:p.?"),
+            ("NM_999988.1:c.-1_1insGCC", "MOCK:p.?"),
+            // The copy can go before c.1.
+            ("NM_999989.1:c.1dup", "MOCK:p.?"),
+            ("NM_999989.1:c.1_3dup", "MOCK:p.?"),
+            ("NM_999988.1:c.1dup", "MOCK:p.?"),
+            ("NM_999988.1:c.1_3dup", "MOCK:p.?"),
+            ("NM_999988.1:c.-2_2dup", "MOCK:p.?"),
+            // Also if the dup starts before the transcript.  `NM_999988.1` starts with c.-10.
+            // With `GG` before it, `c.-12_2dup` is `c.2_3insGGAAAATCAAACAT`.
+            ("NM_999988.1:c.-12_2dup", "MOCK:p.?"),
+            ("NM_999988.1:c.2_3insGGAAAATCAAACAT", "MOCK:p.?"),
+            // The inserted A can go before c.1, like `c.1dup`.
+            ("NM_999988.1:c.1_2insA", "MOCK:p.?"),
+            // At the end of the CDS, likewise.
+            ("NM_999989.1:c.30_*1insA", "MOCK:p.?"),
+            ("NM_999989.1:c.30_30+1insA", "MOCK:p.?"),
+            ("NM_999989.1:c.30+1dupG", "MOCK:p.?"),
+            ("NM_999989.1:c.30+1dup", "MOCK:p.?"),
+            ("NM_999989.1:c.30+1_30+2dupGT", "MOCK:p.?"),
+            ("NM_999988.1:c.30_*1insA", "MOCK:p.?"),
+            // The copy can go after the stop codon.
+            ("NM_999989.1:c.30dup", "MOCK:p.?"),
+            ("NM_999989.1:c.28_30dup", "MOCK:p.?"),
+            ("NM_999988.1:c.30dup", "MOCK:p.?"),
+            ("NM_999988.1:c.28_30dup", "MOCK:p.?"),
+            // Also if the dup ends after the transcript.  `NM_999988.1` ends with c.*10.  With
+            // `TT` after it, `c.29_*12dup` is `c.28_29insAGGGGGGCCCCCTT`.
+            ("NM_999988.1:c.29_*12dup", "MOCK:p.?"),
+            ("NM_999988.1:c.28_29insAGGGGGGCCCCCTT", "MOCK:p.?"),
+            // The inserted G can go after the stop codon, like `c.30dup`.
+            ("NM_999988.1:c.29_30insG", "MOCK:p.?"),
+            // Without a stop codon, the CDS goes on after c.27, so the copy changes the CDS.
+            // The amino acids after the last complete codon are unknown.
+            ("NM_999987.1:c.26dup", "MOCK:p.?"),
+            ("NM_999987.1:c.27_*1insA", "MOCK:p.?"),
+            // Likewise for the bases after c.27, e.g., for `c.*1dup`, which is `c.27_*1insG`.
+            ("NM_999987.1:c.*1dup", "MOCK:p.?"),
+            ("NM_999987.1:c.*1_*3dup", "MOCK:p.?"),
+            // These cannot go outside the CDS.
+            ("NM_999989.1:c.1_2insGCC", "MOCK:p.Met1?"),
+            ("NM_999989.1:c.2dup", "MOCK:p.Met1?"),
+            ("NM_999989.1:c.29_30insC", "MOCK:p.Ter10TyrextTer?"),
+            ("NM_999989.1:c.29dup", "MOCK:p.Ter10="),
+            ("NM_999988.1:c.1_2insGCC", "MOCK:p.Met1?"),
+            ("NM_999988.1:c.2dup", "MOCK:p.Met1?"),
+            ("NM_999988.1:c.29_30insC", "MOCK:p.Ter10TyrextTer?"),
+            ("NM_999988.1:c.29dup", "MOCK:p.Ter10="),
+        ] {
+            check_c_to_p(&exonic, hgvs_c, Some("MOCK"), Some(expected))?;
+            check_c_to_p(&intronic, hgvs_c, Some("MOCK"), Some(expected))?;
+        }
+        Ok(())
+    }
+
+    /// Like an insertion, a deletion, delins, or inversion that can go before c.1 or after the
+    /// stop codon changes no base of the CDS, so it gives `p.?`.
+    #[test]
+    fn cds_boundary_del_c_to_p() -> Result<(), Error> {
+        let exonic = build_mapper_cds_boundary(false);
+        let intronic = build_mapper_cds_boundary(true);
+        for tx_ac in ["NM_999989.1", "NM_999988.1"] {
+            for (edit, expected) in [
+                // c.-2_-1 is `AC`, so deleting `CA` gives the same sequence.
+                ("c.-1_1del", "MOCK:p.?"),
+                // Changes the C at c.-1 to a G and keeps the A at c.1.
+                ("c.-1_1delinsGA", "MOCK:p.?"),
+                // c.*1 is a G, like c.30.
+                ("c.30del", "MOCK:p.?"),
+                ("c.30_*1del", "MOCK:p.?"),
+                // Changes the G at c.*1 to a C and keeps the G at c.30.
+                ("c.30_*1delinsGC", "MOCK:p.?"),
+                // c.-6 is a T, so the inversion keeps the A at c.1, like `c.-5_-1inv`.
+                ("c.-6_1inv", "MOCK:p.?"),
+                ("c.-5_-1inv", "MOCK:p.?"),
+                // c.*6 is a C, so the inversion keeps the G at c.30, like `c.*1_*5inv`.
+                ("c.30_*6inv", "MOCK:p.?"),
+                ("c.*1_*5inv", "MOCK:p.?"),
+                // These cannot go outside the CDS.
+                ("c.1del", "MOCK:p.Met1?"),
+                ("c.-1_1delinsGG", "MOCK:p.Met1?"),
+                ("c.-5_1inv", "MOCK:p.Met1?"),
+                ("c.29del", "MOCK:p.Ter10TrpextTer?"),
+                ("c.28_30del", "MOCK:p.Ter10GlyextTer?"),
+                // An identity changes no base.  c.7_8 is `GC`, so its inversion is one, too.
+                ("c.30=", "MOCK:p.Ter10="),
+                ("c.7_8inv", "MOCK:p.Ala3="),
+            ] {
+                let hgvs_c = format!("{tx_ac}:{edit}");
+                check_c_to_p(&exonic, &hgvs_c, Some("MOCK"), Some(expected))?;
+                check_c_to_p(&intronic, &hgvs_c, Some("MOCK"), Some(expected))?;
+            }
+        }
+        // Without a stop codon, the CDS goes on after c.27, and the amino acids there are
+        // unknown.  `c.27_*1delinsAC` keeps the A at c.27.
+        for edit in [
+            "c.*1G>A",
+            "c.*1G=",
+            "c.*1_*3del",
+            "c.*1_*3inv",
+            "c.27_*1delinsAC",
+        ] {
+            let hgvs_c = format!("NM_999987.1:{edit}");
+            check_c_to_p(&exonic, &hgvs_c, Some("MOCK"), Some("MOCK:p.?"))?;
+            check_c_to_p(&intronic, &hgvs_c, Some("MOCK"), Some("MOCK:p.?"))?;
+        }
         Ok(())
     }
 
