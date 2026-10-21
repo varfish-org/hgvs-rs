@@ -9,7 +9,7 @@ ProtVariant:
   loc_edit:
     Ordinary:
       loc:
-        Certain:
+        Uncertain:
           start:
             aa: "*"
             number: 139
@@ -17,4 +17,4 @@ ProtVariant:
             aa: "*"
             number: 139
       edit:
-        Certain: Ident
+        Uncertain: Ident

@@ -2,7 +2,7 @@
 
 hgvs-rs is a port of [biocommons/hgvs][bc] and aims to give the same results. This list covers the differences named in the pull requests, issues and code comments of hgvs-rs. It is not the result of a full comparison.
 
-Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does and why. The entries under [Proposed fixes for biocommons/hgvs](#proposed-fixes-for-biocommonshgvs) are deviations that hgvs-rs makes on purpose and that are to be proposed upstream. Links to the code of biocommons/hgvs point to commit [13289ab][bc-commit]. The examples on mock transcripts were run with both libraries.
+Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does and why. The entries under [Proposed fixes for biocommons/hgvs](#proposed-fixes-for-biocommonshgvs) are deviations that hgvs-rs makes on purpose and that are to be proposed upstream. Links to the code of biocommons/hgvs point to commit [13289ab][bc-commit]. The examples on mock transcripts were run with both libraries. The protein changes of hgvs-rs are shown as `c_to_p` gives them with `inferred_p_is_uncertain` set to `false`, e.g. `p.Lys9Ala`, and those of biocommons/hgvs as it gives them by default, e.g. `p.(Lys9Ala)`.
 
 ## Normalization
 
@@ -21,12 +21,6 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 - **hgvs-rs:** `assembly::Mapper::c_to_p()` looks up the alignment only for a variant with an intron offset, and only with `genome_seq_available`, a setting that biocommons/hgvs does not have. Only such a variant needs bases from the genome. As in biocommons/hgvs, the genome gives the bases of a dup such as `NM_003777.3:c.4110+1dup` ([#301]). Other variants work without the alignment. With `shift_over_boundary` and the preference `Intron` or `Exon`, it also looks up the alignment for an insertion or dup in an exon or intron, as only these shift. With `ins_at_boundary_by_sequence`, it also tries to look up the alignment for a dup of exon bases at an exon boundary, see [Insertions and dups at an exon boundary](#insertions-and-dups-at-an-exon-boundary).
 
 ## Protein prediction (`c_to_p`)
-
-### Uncertain protein changes
-
-- **Situation:** a protein change that `c_to_p` predicts, e.g. for `NM_000059.3:c.7791A>G`.
-- **biocommons/hgvs:** By default, it marks an inferred protein change as uncertain (`inferred_p_is_uncertain`) and gives `NP_000050.2:p.(Lys2597=)` ([defaults.ini][bc-uncertain], [test][bc-am-test]).
-- **hgvs-rs:** It always gives the certain form, `NP_000050.2:p.Lys2597=`. It has no global configuration such as `inferred_p_is_uncertain` (comment in `AltSeqToHgvsp::create_variant()` in [src/mapper/altseq.rs](src/mapper/altseq.rs)).
 
 ### CDS with an incomplete 3' end
 
@@ -153,7 +147,6 @@ Unless an entry says otherwise, the examples use a transcript whose 5' UTR ends 
 [bc-norm-intron]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/normalizer.py#L99-L101
 [bc-am-norm]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/assemblymapper.py#L251-L262
 [bc-am-c-to-p]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/assemblymapper.py#L169-L206
-[bc-uncertain]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/_data/defaults.ini#L5
 [bc-am-test]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/tests/test_hgvs_assemblymapper.py#L39-L43
 [bc-norm-test]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/tests/test_hgvs_normalizer.py#L187-L188
 [bc-cds-len]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/reftranscriptdata.py#L28-L39

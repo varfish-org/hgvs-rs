@@ -299,8 +299,12 @@ impl Display for ProtInterval {
 
 impl Display for ProtLocEdit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // TODO: make configurable whether inferred protein is uncertain or not?
         match self {
+            // An uncertain change as a whole, e.g., `(Gly2Arg)`, as biocommons/hgvs writes it.
+            ProtLocEdit::Ordinary {
+                loc: Mu::Uncertain(loc),
+                edit: Mu::Uncertain(edit),
+            } => write!(f, "({loc}{edit})"),
             ProtLocEdit::Ordinary { loc, edit } => write!(f, "{loc}{edit}"),
             ProtLocEdit::NoChange => write!(f, "="),
             ProtLocEdit::NoChangeUncertain => write!(f, "(=)"),

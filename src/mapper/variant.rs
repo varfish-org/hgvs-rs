@@ -16,7 +16,7 @@ use crate::{
     normalizer::{self, Direction, Normalizer},
     parser::{
         Accession, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval, GenomeLocEdit,
-        HgvsVariant, Mu, NaEdit, TxInterval, TxLocEdit, TxPos,
+        HgvsVariant, Mu, NaEdit, ProtLocEdit, TxInterval, TxLocEdit, TxPos,
     },
     sequences::revcomp,
     validator::{ValidationLevel, Validator},
@@ -63,6 +63,11 @@ pub struct Config {
     pub shift_over_boundary: bool,
     /// See `shift_over_boundary`.
     pub shift_over_boundary_preference: ShiftOverBoundaryPreference,
+    /// Mark the protein change that `c_to_p` predicts as uncertain, e.g., `p.(Gly2Arg)`,
+    /// `p.(=)` and `p.0?`, as in biocommons/hgvs.  `p.?` and `p.Met1?` stay as they are.  With
+    /// `false`, these are `p.Gly2Arg`, `p.=` and `p.0`.  `true` by default, as in
+    /// biocommons/hgvs.
+    pub inferred_p_is_uncertain: bool,
 }
 
 impl Default for Config {
@@ -81,6 +86,7 @@ impl Default for Config {
             ins_at_boundary_by_sequence: false,
             shift_over_boundary: false,
             shift_over_boundary_preference: Default::default(),
+            inferred_p_is_uncertain: true,
         }
     }
 }
@@ -847,7 +853,10 @@ impl Mapper {
                 return Err(Error::NotProtVariant);
             };
 
-            Ok(var_p)
+            Ok(with_inferred_p_uncertainty(
+                var_p,
+                self.config.inferred_p_is_uncertain,
+            ))
         } else {
             Err(Error::ExpectedCdsVariant(format!("{}", var_c)))
         }
@@ -1361,6 +1370,39 @@ fn distance_without_zero(start: i32, end: i32) -> i32 {
     end - start - i32::from(end > 0 && start < 0)
 }
 
+/// `var_p` with its change marked as uncertain or certain, see
+/// `Config::inferred_p_is_uncertain`.  `p.?` and `p.Met1?` stay as they are.
+pub(crate) fn with_inferred_p_uncertainty(var_p: HgvsVariant, uncertain: bool) -> HgvsVariant {
+    let HgvsVariant::ProtVariant {
+        accession,
+        gene_symbol,
+        loc_edit,
+    } = var_p
+    else {
+        return var_p;
+    };
+    let loc_edit = match (loc_edit, uncertain) {
+        (ProtLocEdit::Ordinary { loc, edit }, _) => ProtLocEdit::Ordinary {
+            loc: Mu::from(loc.inner().clone(), !uncertain),
+            edit: Mu::from(edit.inner().clone(), !uncertain),
+        },
+        (ProtLocEdit::NoChange | ProtLocEdit::NoChangeUncertain, true) => {
+            ProtLocEdit::NoChangeUncertain
+        }
+        (ProtLocEdit::NoChange | ProtLocEdit::NoChangeUncertain, false) => ProtLocEdit::NoChange,
+        (ProtLocEdit::NoProtein | ProtLocEdit::NoProteinUncertain, true) => {
+            ProtLocEdit::NoProteinUncertain
+        }
+        (ProtLocEdit::NoProtein | ProtLocEdit::NoProteinUncertain, false) => ProtLocEdit::NoProtein,
+        (loc_edit @ (ProtLocEdit::Unknown | ProtLocEdit::InitiationUncertain), _) => loc_edit,
+    };
+    HgvsVariant::ProtVariant {
+        accession,
+        gene_symbol,
+        loc_edit,
+    }
+}
+
 /// Whether `e` reports missing data rather than a problem with the variant.  The normalizer
 /// reports a failed lookup of the reference as `ReplaceReferenceFailed`.
 fn is_data_error(e: &Error) -> bool {
@@ -1485,7 +1527,7 @@ mod test {
 
     use crate::{
         data::uta_sr::test_helpers::build_provider,
-        parser::{HgvsVariant, NoRef},
+        parser::{HgvsVariant, Mu, NoRef, ProtLocEdit},
     };
 
     use super::{Config, Mapper};
@@ -1519,7 +1561,7 @@ mod test {
         let var_c = HgvsVariant::from_str("NM_001253909.2:c.416_417insGTG")?;
         let var_p_test = mapper.c_to_p(&var_c, None)?;
 
-        assert_eq!(format!("{}", &var_p_test), "NP_001240838.1:p.Ter139=");
+        assert_eq!(format!("{}", &var_p_test), "NP_001240838.1:p.(Ter139=)");
         insta::assert_yaml_snapshot!(&var_p_test);
 
         Ok(())
@@ -1994,19 +2036,19 @@ mod test {
 
         for (hgvsc, hgvsp_expected) in [
             // A new UGA is a stop codon.
-            ("NM_999990.1:c.15G>A", "MOCK:p.Trp5Ter"),
+            ("NM_999990.1:c.15G>A", "MOCK:p.(Trp5Ter)"),
             // The selenocysteine codon changes.
-            ("NM_999990.1:c.24A>G", "MOCK:p.Sec8Trp"),
+            ("NM_999990.1:c.24A>G", "MOCK:p.(Sec8Trp)"),
             // The selenocysteine codon stays before a variant ...
-            ("NM_999990.1:c.26G>A", "MOCK:p.Arg9His"),
+            ("NM_999990.1:c.26G>A", "MOCK:p.(Arg9His)"),
             // ... and after an in-frame deletion.
-            ("NM_999990.1:c.16_18del", "MOCK:p.Glu6del"),
+            ("NM_999990.1:c.16_18del", "MOCK:p.(Glu6del)"),
             // The ACG start codon stays methionine.
-            ("NM_999991.1:c.16_18del", "MOCK:p.Glu6del"),
+            ("NM_999991.1:c.16_18del", "MOCK:p.(Glu6del)"),
             // The readthrough stop codon does not end the protein, before a variant ...
-            ("NM_999992.1:c.23G>A", "MOCK:p.Arg8His"),
+            ("NM_999992.1:c.23G>A", "MOCK:p.(Arg8His)"),
             // ... and after an in-frame deletion.
-            ("NM_999992.1:c.4_6del", "MOCK:p.Ala2del"),
+            ("NM_999992.1:c.4_6del", "MOCK:p.(Ala2del)"),
         ] {
             let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
             assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
@@ -2114,26 +2156,32 @@ mod test {
         let mapper = Mapper::new(&config, no_stop_codon_provider());
 
         for (hgvsc, hgvsp_expected) in [
-            ("NM_999993.1:c.18A>G", "MOCK:p.Glu6="),
-            ("NM_999993.1:c.18A>C", "MOCK:p.Glu6Asp"),
-            ("NM_999993.1:c.16_18del", "MOCK:p.Glu6del"),
-            ("NM_999993.1:c.13_15del", "MOCK:p.Trp5del"),
-            ("NM_999993.1:c.15_16insGGG", "MOCK:p.Trp5_Glu6insGly"),
-            ("NM_999993.1:c.15G>A", "MOCK:p.Trp5Ter"),
-            ("NM_999993.1:c.13_14insCCTA", "MOCK:p.Trp5SerfsTer2"),
-            ("NM_999993.1:c.17_18insC", "MOCK:p.Glu6AspfsTer?"),
+            ("NM_999993.1:c.18A>G", "MOCK:p.(Glu6=)"),
+            ("NM_999993.1:c.18A>C", "MOCK:p.(Glu6Asp)"),
+            ("NM_999993.1:c.16_18del", "MOCK:p.(Glu6del)"),
+            ("NM_999993.1:c.13_15del", "MOCK:p.(Trp5del)"),
+            ("NM_999993.1:c.15_16insGGG", "MOCK:p.(Trp5_Glu6insGly)"),
+            ("NM_999993.1:c.15G>A", "MOCK:p.(Trp5Ter)"),
+            ("NM_999993.1:c.13_14insCCTA", "MOCK:p.(Trp5SerfsTer2)"),
+            ("NM_999993.1:c.17_18insC", "MOCK:p.(Glu6AspfsTer?)"),
             // A new stop codon gives the same result as with a stop codon at the end.
-            ("NM_999993.1:c.15_16insGGGTAA", "MOCK:p.Trp5_Glu6insGlyTer"),
-            ("NM_999993.1:c.4_6delinsGGGTAA", "MOCK:p.Ala2delinsGlyTer"),
+            (
+                "NM_999993.1:c.15_16insGGGTAA",
+                "MOCK:p.(Trp5_Glu6insGlyTer)",
+            ),
+            ("NM_999993.1:c.4_6delinsGGGTAA", "MOCK:p.(Ala2delinsGlyTer)"),
             // The protein ends at c.18 also if a stop codon follows.
-            ("NM_999996.1:c.18A>G", "MOCK:p.Glu6="),
-            ("NM_999996.1:c.18A>C", "MOCK:p.Glu6Asp"),
-            ("NM_999996.1:c.4_6dup", "MOCK:p.Ala2dup"),
-            ("NM_999996.1:c.15_16insGGGTAA", "MOCK:p.Trp5_Glu6insGlyTer"),
-            ("NM_999996.1:c.17_18insCC", "MOCK:p.Glu6AspfsTer?"),
+            ("NM_999996.1:c.18A>G", "MOCK:p.(Glu6=)"),
+            ("NM_999996.1:c.18A>C", "MOCK:p.(Glu6Asp)"),
+            ("NM_999996.1:c.4_6dup", "MOCK:p.(Ala2dup)"),
+            (
+                "NM_999996.1:c.15_16insGGGTAA",
+                "MOCK:p.(Trp5_Glu6insGlyTer)",
+            ),
+            ("NM_999996.1:c.17_18insCC", "MOCK:p.(Glu6AspfsTer?)"),
             // The alt protein keeps the last amino acid after an in-frame dup.
-            ("NM_999993.1:c.4_6dup", "MOCK:p.Ala2dup"),
-            ("NM_999993.1:c.6_7insGCC", "MOCK:p.Ala2dup"),
+            ("NM_999993.1:c.4_6dup", "MOCK:p.(Ala2dup)"),
+            ("NM_999993.1:c.6_7insGCC", "MOCK:p.(Ala2dup)"),
             // The CDS goes on after c.18, so there is no 3' UTR, and the amino acids after
             // c.18 are unknown.  This also holds for a variant that starts in the CDS.
             ("NM_999996.1:c.18_*1insA", "MOCK:p.?"),
@@ -2147,14 +2195,14 @@ mod test {
             ("NM_999993.1:c.16del", "MOCK:p.?"),
             // The copy follows the last amino acid.
             ("NM_999993.1:c.16_18dup", "MOCK:p.?"),
-            ("NM_999994.1:c.18A>G", "MOCK:p.Glu6="),
-            ("NM_999994.1:c.18A>C", "MOCK:p.Glu6Asp"),
-            ("NM_999994.1:c.16_18del", "MOCK:p.Glu6del"),
-            ("NM_999994.1:c.4_6dup", "MOCK:p.Ala2dup"),
-            ("NM_999994.1:c.15G>A", "MOCK:p.Trp5Ter"),
-            ("NM_999994.1:c.13_14insCCTA", "MOCK:p.Trp5SerfsTer2"),
+            ("NM_999994.1:c.18A>G", "MOCK:p.(Glu6=)"),
+            ("NM_999994.1:c.18A>C", "MOCK:p.(Glu6Asp)"),
+            ("NM_999994.1:c.16_18del", "MOCK:p.(Glu6del)"),
+            ("NM_999994.1:c.4_6dup", "MOCK:p.(Ala2dup)"),
+            ("NM_999994.1:c.15G>A", "MOCK:p.(Trp5Ter)"),
+            ("NM_999994.1:c.13_14insCCTA", "MOCK:p.(Trp5SerfsTer2)"),
             // The new frame completes the incomplete codon ...
-            ("NM_999994.1:c.16del", "MOCK:p.Glu6LysfsTer?"),
+            ("NM_999994.1:c.16del", "MOCK:p.(Glu6LysfsTer?)"),
             // ... but can keep the last amino acid.
             ("NM_999994.1:c.18del", "MOCK:p.?"),
             // Changes after the last complete codon.
@@ -2274,28 +2322,28 @@ mod test {
         );
 
         for (hgvsc, hgvsp_expected) in [
-            ("NM_999982.1:c.4G>A", "MOCK:p.Ala2Thr"),
+            ("NM_999982.1:c.4G>A", "MOCK:p.(Ala2Thr)"),
             // `TGA` codes Trp in the vertebrate mitochondrial table.
-            ("NM_999982.1:c.15G>A", "MOCK:p.Trp5="),
-            ("NM_999982.1:c.16T>C", "MOCK:p.Ter6GlnextTer?"),
-            ("NM_999982.1:c.13_15del", "MOCK:p.Trp5Ter"),
-            ("NM_999982.1:c.10_12dup", "MOCK:p.Leu4dup"),
+            ("NM_999982.1:c.15G>A", "MOCK:p.(Trp5=)"),
+            ("NM_999982.1:c.16T>C", "MOCK:p.(Ter6GlnextTer?)"),
+            ("NM_999982.1:c.13_15del", "MOCK:p.(Trp5Ter)"),
+            ("NM_999982.1:c.10_12dup", "MOCK:p.(Leu4dup)"),
             ("NM_999982.1:c.*1C>G", "MOCK:p.?"),
             // The c.* positions count the bases of the transcript, not the completing `A`s, so
             // the deletions end with the `C`s after c.16.  biocommons/hgvs deletes the `A`s
             // instead, see `DIFFERENCES.md`.
-            ("NM_999982.1:c.16_*1del", "MOCK:p.Ter6ProextTer?"),
-            ("NM_999982.1:c.16_*2del", "MOCK:p.Ter6XaaextTer?"),
+            ("NM_999982.1:c.16_*1del", "MOCK:p.(Ter6ProextTer?)"),
+            ("NM_999982.1:c.16_*2del", "MOCK:p.(Ter6XaaextTer?)"),
             // Bases inserted after the CDS go in front of the completing `A`s.  The CDS has 16
             // bases, so `c.16_17insG` is not canonical.  It is used on purpose, as
             // biocommons/hgvs counts it as exonic.  The canonical `c.16_*1insG` is a 3' UTR
             // variant by its positions.
-            ("NM_999982.1:c.16dup", "MOCK:p.Ter6LeuextTer?"),
-            ("NM_999982.1:c.16_17insG", "MOCK:p.Ter6TrpextTer?"),
+            ("NM_999982.1:c.16dup", "MOCK:p.(Ter6LeuextTer?)"),
+            ("NM_999982.1:c.16_17insG", "MOCK:p.(Ter6TrpextTer?)"),
             ("NM_999982.1:c.16_*1insG", "MOCK:p.?"),
-            ("NM_999981.1:c.4G>A", "MOCK:p.Ala2Thr"),
-            ("NM_999981.1:c.17A>C", "MOCK:p.Ter6SerextTer?"),
-            ("NM_999981.1:c.16_17del", "MOCK:p.Ter6ThrextTer?"),
+            ("NM_999981.1:c.4G>A", "MOCK:p.(Ala2Thr)"),
+            ("NM_999981.1:c.17A>C", "MOCK:p.(Ter6SerextTer?)"),
+            ("NM_999981.1:c.16_17del", "MOCK:p.(Ter6ThrextTer?)"),
         ] {
             let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
             assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
@@ -2340,7 +2388,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_silent() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.6A>G";
-        let hgvsp_expected = "MOCK:p.Lys2=";
+        let hgvsp_expected = "MOCK:p.(Lys2=)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2349,7 +2397,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_substitution() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.6A>T";
-        let hgvsp_expected = "MOCK:p.Lys2Asn";
+        let hgvsp_expected = "MOCK:p.(Lys2Asn)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2358,7 +2406,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_substitution_introduces_stop_codon() -> Result<(), Error> {
         let hgvsc = "NM_999996.1:c.8C>A";
-        let hgvsp_expected = "MOCK:p.Ser3Ter";
+        let hgvsp_expected = "MOCK:p.(Ser3Ter)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2367,7 +2415,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_substitution_removes_stop_codon() -> Result<(), Error> {
         let hgvsc = "NM_999998.1:c.30G>T";
-        let hgvsp_expected = "MOCK:p.Ter10TyrextTer3";
+        let hgvsp_expected = "MOCK:p.(Ter10TyrextTer3)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2377,7 +2425,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_insertion_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.6_7insGGG";
-        let hgvsp_expected = "MOCK:p.Lys2_Ala3insGly";
+        let hgvsp_expected = "MOCK:p.(Lys2_Ala3insGly)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2386,7 +2434,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_insertion_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.22_23insT";
-        let hgvsp_expected = "MOCK:p.Ala8ValfsTer?";
+        let hgvsp_expected = "MOCK:p.(Ala8ValfsTer?)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2395,7 +2443,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_adds_stop() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.8_9insTT";
-        let hgvsp_expected = "MOCK:p.Lys4Ter";
+        let hgvsp_expected = "MOCK:p.(Lys4Ter)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2404,7 +2452,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.10_12del";
-        let hgvsp_expected = "MOCK:p.Lys4del";
+        let hgvsp_expected = "MOCK:p.(Lys4del)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2413,7 +2461,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion2_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.4_15del";
-        let hgvsp_expected = "MOCK:p.Lys2_Ala5del";
+        let hgvsp_expected = "MOCK:p.(Lys2_Ala5del)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2422,7 +2470,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion3_no_frameshift_c_term() -> Result<(), Error> {
         let hgvsc = "NM_999995.1:c.4_6del";
-        let hgvsp_expected = "MOCK:p.Lys3del";
+        let hgvsp_expected = "MOCK:p.(Lys3del)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2431,7 +2479,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion4_no_frameshift_c_term() -> Result<(), Error> {
         let hgvsc = "NM_999994.1:c.4_9del";
-        let hgvsp_expected = "MOCK:p.Lys3_Lys4del";
+        let hgvsp_expected = "MOCK:p.(Lys3_Lys4del)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2440,7 +2488,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion5_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999994.1:c.20_25del";
-        let hgvsp_expected = "MOCK:p.Ala7_Arg9delinsGly";
+        let hgvsp_expected = "MOCK:p.(Ala7_Arg9delinsGly)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2449,7 +2497,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion6_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.5_7del";
-        let hgvsp_expected = "MOCK:p.Lys2_Ala3delinsThr";
+        let hgvsp_expected = "MOCK:p.(Lys2_Ala3delinsThr)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2458,7 +2506,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion7_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999993.1:c.13_24del";
-        let hgvsp_expected = "MOCK:p.Arg5_Ala8del";
+        let hgvsp_expected = "MOCK:p.(Arg5_Ala8del)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2467,7 +2515,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion_frameshift_nostop() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.11_12del";
-        let hgvsp_expected = "MOCK:p.Lys4SerfsTer?";
+        let hgvsp_expected = "MOCK:p.(Lys4SerfsTer?)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2476,7 +2524,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion_frameshift_adds_stop() -> Result<(), Error> {
         let hgvsc = "NM_999997.1:c.7del";
-        let hgvsp_expected = "MOCK:p.Ala3ArgfsTer6";
+        let hgvsp_expected = "MOCK:p.(Ala3ArgfsTer6)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2487,7 +2535,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion_no_frameshift_removes_stop_plus_previous() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.25_30del";
-        let hgvsp_expected = "MOCK:p.Lys9GlyfsTer?";
+        let hgvsp_expected = "MOCK:p.(Lys9GlyfsTer?)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2496,7 +2544,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_indel_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.11_12delinsTCCCA";
-        let hgvsp_expected = "MOCK:p.Lys4delinsIlePro";
+        let hgvsp_expected = "MOCK:p.(Lys4delinsIlePro)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2505,7 +2553,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_indel2_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.11_18delinsTCCCA";
-        let hgvsp_expected = "MOCK:p.Lys4_Phe6delinsIlePro";
+        let hgvsp_expected = "MOCK:p.(Lys4_Phe6delinsIlePro)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2514,7 +2562,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_indel_frameshift_nostop() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.8delinsGG";
-        let hgvsp_expected = "MOCK:p.Ala3GlyfsTer?";
+        let hgvsp_expected = "MOCK:p.(Ala3GlyfsTer?)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2523,7 +2571,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_dup_1aa_no_frameshift_2() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.10_12dup";
-        let hgvsp_expected = "MOCK:p.Lys4dup";
+        let hgvsp_expected = "MOCK:p.(Lys4dup)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2532,7 +2580,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_dup_1aa_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.16_18dup";
-        let hgvsp_expected = "MOCK:p.Phe6dup";
+        let hgvsp_expected = "MOCK:p.(Phe6dup)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2541,7 +2589,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_dup_2aa_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.16_21dup";
-        let hgvsp_expected = "MOCK:p.Phe6_Arg7dup";
+        let hgvsp_expected = "MOCK:p.(Phe6_Arg7dup)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2550,7 +2598,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_dup_2aa2_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999995.1:c.4_6dup";
-        let hgvsp_expected = "MOCK:p.Lys3dup";
+        let hgvsp_expected = "MOCK:p.(Lys3dup)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2559,7 +2607,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_3aa_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.16_24dup";
-        let hgvsp_expected = "MOCK:p.Phe6_Ala8dup";
+        let hgvsp_expected = "MOCK:p.(Phe6_Ala8dup)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2568,7 +2616,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_dup_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.12_13dup";
-        let hgvsp_expected = "MOCK:p.Ala5GlufsTer?";
+        let hgvsp_expected = "MOCK:p.(Ala5GlufsTer?)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2624,11 +2672,11 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion_into_three_prime_utr_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.27_*3del";
-        let hgvsp_expected = "MOCK:p.Lys9XaafsTer?";
+        let hgvsp_expected = "MOCK:p.(Lys9XaafsTer?)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         let hgvsc = "NM_999995.1:c.28_*3del";
-        let hgvsp_expected = "MOCK:p.Lys10ArgfsTer?";
+        let hgvsp_expected = "MOCK:p.(Lys10ArgfsTer?)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2637,7 +2685,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_delins_into_three_prime_utr_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999995.1:c.28_*3delinsGGG";
-        let hgvsp_expected = "MOCK:p.Lys10GlyfsTer?";
+        let hgvsp_expected = "MOCK:p.(Lys10GlyfsTer?)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -2674,27 +2722,27 @@ mod test {
         for (hgvsc, hgvsp_expected) in [
             // In frame, but the new C-terminus comes from the 3' UTR.  The new stop codon sits
             // where the old one was.
-            ("NM_999977.1:c.26_*1del", "MOCK:p.Lys9ThrfsTer2"),
+            ("NM_999977.1:c.26_*1del", "MOCK:p.(Lys9ThrfsTer2)"),
             // The same protein by a deletion of 7 bases.
-            ("NM_999976.1:c.26_*2del", "MOCK:p.Lys9ThrfsTer2"),
-            ("NM_999977.1:c.27_*1del", "MOCK:p.Lys9AsnfsTer?"),
-            ("NM_999977.1:c.26_*1delinsC", "MOCK:p.Lys9ThrfsTer?"),
-            ("NM_999977.1:c.26_*13del", "MOCK:p.Lys9XaafsTer?"),
+            ("NM_999976.1:c.26_*2del", "MOCK:p.(Lys9ThrfsTer2)"),
+            ("NM_999977.1:c.27_*1del", "MOCK:p.(Lys9AsnfsTer?)"),
+            ("NM_999977.1:c.26_*1delinsC", "MOCK:p.(Lys9ThrfsTer?)"),
+            ("NM_999977.1:c.26_*13del", "MOCK:p.(Lys9XaafsTer?)"),
             // Ends with the stop codon.  biocommons/hgvs decides by the length here and gives
             // `p.(Lys9Ala)`, see `DIFFERENCES.md`.
-            ("NM_999977.1:c.25_30del", "MOCK:p.Lys9AlafsTer2"),
-            ("NM_999977.1:c.26_30del", "MOCK:p.Lys9SerfsTer?"),
+            ("NM_999977.1:c.25_30del", "MOCK:p.(Lys9AlafsTer2)"),
+            ("NM_999977.1:c.26_30del", "MOCK:p.(Lys9SerfsTer?)"),
             // A delins that ends with the stop codon counts by its length, as its bases can put
             // a stop codon in the place of the old one.
-            ("NM_999977.1:c.27_30delinsGTAA", "MOCK:p.Lys9="),
-            ("NM_999977.1:c.27_30delinsGTGA", "MOCK:p.Lys9="),
-            ("NM_999977.1:c.25_30delinsGCGTAA", "MOCK:p.Lys9Ala"),
-            ("NM_999977.1:c.25_30delinsGCGTAAGCG", "MOCK:p.Lys9Ala"),
+            ("NM_999977.1:c.27_30delinsGTAA", "MOCK:p.(Lys9=)"),
+            ("NM_999977.1:c.27_30delinsGTGA", "MOCK:p.(Lys9=)"),
+            ("NM_999977.1:c.25_30delinsGCGTAA", "MOCK:p.(Lys9Ala)"),
+            ("NM_999977.1:c.25_30delinsGCGTAAGCG", "MOCK:p.(Lys9Ala)"),
             // Changes the stop codon first, so it is an extension.
-            ("NM_999977.1:c.27_30del", "MOCK:p.Ter10LeuextTer?"),
-            ("NM_999977.1:c.28_30delinsCCC", "MOCK:p.Ter10ProextTer2"),
+            ("NM_999977.1:c.27_30del", "MOCK:p.(Ter10LeuextTer?)"),
+            ("NM_999977.1:c.28_30delinsCCC", "MOCK:p.(Ter10ProextTer2)"),
             // Ends inside the stop codon.
-            ("NM_999977.1:c.26_29del", "MOCK:p.Lys9ArgfsTer?"),
+            ("NM_999977.1:c.26_29del", "MOCK:p.(Lys9ArgfsTer?)"),
             // Ends after the end of the transcript, so the bases after the deletion are
             // unknown.  biocommons/hgvs rejects the variant as out of bounds, see
             // `DIFFERENCES.md`.
@@ -2750,6 +2798,108 @@ mod test {
         let hgvsc = "NM_999999.1:c.-3_*1del";
         let hgvsp_expected = "MOCK:p.0?";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    /// `inferred_p_is_uncertain` marks a predicted change as uncertain, as biocommons/hgvs does.
+    /// The expectations are those of biocommons/hgvs with the setting on and off.
+    #[test]
+    fn hgvs_c_to_p_inferred_p_is_uncertain() -> Result<(), Error> {
+        for (hgvsc, uncertain, certain) in [
+            ("NM_999999.1:c.6A>T", "MOCK:p.(Lys2Asn)", "MOCK:p.Lys2Asn"),
+            ("NM_999999.1:c.6A>G", "MOCK:p.(Lys2=)", "MOCK:p.Lys2="),
+            (
+                "NM_999999.1:c.8_9insTT",
+                "MOCK:p.(Lys4Ter)",
+                "MOCK:p.Lys4Ter",
+            ),
+            (
+                "NM_999999.1:c.10_12del",
+                "MOCK:p.(Lys4del)",
+                "MOCK:p.Lys4del",
+            ),
+            (
+                "NM_999999.1:c.6_7insGGG",
+                "MOCK:p.(Lys2_Ala3insGly)",
+                "MOCK:p.Lys2_Ala3insGly",
+            ),
+            (
+                "NM_999999.1:c.10_12dup",
+                "MOCK:p.(Lys4dup)",
+                "MOCK:p.Lys4dup",
+            ),
+            (
+                "NM_999999.1:c.22_23insT",
+                "MOCK:p.(Ala8ValfsTer?)",
+                "MOCK:p.Ala8ValfsTer?",
+            ),
+            (
+                "NM_999999.1:c.4_15delinsTTT",
+                "MOCK:p.(Lys2_Ala5delinsPhe)",
+                "MOCK:p.Lys2_Ala5delinsPhe",
+            ),
+            (
+                "NM_999998.1:c.30G>T",
+                "MOCK:p.(Ter10TyrextTer3)",
+                "MOCK:p.Ter10TyrextTer3",
+            ),
+            ("NM_999999.1:c.1A>G", "MOCK:p.Met1?", "MOCK:p.Met1?"),
+            ("NM_999999.1:c.*3G>A", "MOCK:p.?", "MOCK:p.?"),
+            ("NM_999999.1:c.-9_*3del", "MOCK:p.0?", "MOCK:p.0"),
+            ("NM_999992.1:c.4G>A", "MOCK:p.?", "MOCK:p.?"),
+        ] {
+            for (inferred_p_is_uncertain, expected) in [(true, uncertain), (false, certain)] {
+                let config = Config {
+                    strict_bounds: false,
+                    renormalize_g: false,
+                    inferred_p_is_uncertain,
+                    ..Default::default()
+                };
+                let mapper = Mapper::new(
+                    &config,
+                    std::sync::Arc::new(sanity_mock::Provider::new(&PathBuf::from(
+                        "tests/data/mapper/sanity_cp.tsv",
+                    ))?),
+                );
+                let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+                assert_eq!(
+                    format!("{}", &var_p),
+                    expected,
+                    "{hgvsc} with inferred_p_is_uncertain = {inferred_p_is_uncertain}"
+                );
+                // The protein variant parses back.
+                assert_eq!(
+                    HgvsVariant::from_str(expected)?.to_string(),
+                    expected,
+                    "{expected}"
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    /// `with_inferred_p_uncertainty()` changes each form in both directions.
+    #[test]
+    fn with_inferred_p_uncertainty() -> Result<(), Error> {
+        for (certain, uncertain) in [
+            ("MOCK:p.Gly2Arg", "MOCK:p.(Gly2Arg)"),
+            ("MOCK:p.=", "MOCK:p.(=)"),
+            ("MOCK:p.0", "MOCK:p.0?"),
+            ("MOCK:p.?", "MOCK:p.?"),
+            ("MOCK:p.Met1?", "MOCK:p.Met1?"),
+        ] {
+            for (input, flag, expected) in [
+                (certain, true, uncertain),
+                (uncertain, true, uncertain),
+                (certain, false, certain),
+                (uncertain, false, certain),
+            ] {
+                let var_p = super::with_inferred_p_uncertainty(HgvsVariant::from_str(input)?, flag);
+                assert_eq!(var_p.to_string(), expected, "{input} with {flag}");
+            }
+        }
 
         Ok(())
     }
@@ -2830,17 +2980,17 @@ mod test {
 
         for (hgvs_c, expected) in [
             // The copy holds the stop codons `TAA` and `TGA` in the new frame.
-            ("NM_999985.1:c.17_29dup", "MOCK:p.Ter10TyrextTer1"),
+            ("NM_999985.1:c.17_29dup", "MOCK:p.(Ter10TyrextTer1)"),
             (
                 "NM_999985.1:c.29_30insCTAAGGCTGAATA",
-                "MOCK:p.Ter10TyrextTer1",
+                "MOCK:p.(Ter10TyrextTer1)",
             ),
-            ("NM_999985.1:c.6_7insTAAGG", "MOCK:p.Ala3Ter"),
+            ("NM_999985.1:c.6_7insTAAGG", "MOCK:p.(Ala3Ter)"),
             // The stop codon is not in the frame of the CDS.
-            ("NM_999985.1:c.6_7insGGTAAGG", "MOCK:p.Ala3GlyfsTer7"),
+            ("NM_999985.1:c.6_7insGGTAAGG", "MOCK:p.(Ala3GlyfsTer7)"),
             // The copy forms the stop codon `TAG` in front of `AA TAG`.
-            ("NM_999984.1:c.21_25dup", "MOCK:p.Glu9Ala"),
-            ("NM_999984.1:c.22_26dup", "MOCK:p.Glu9="),
+            ("NM_999984.1:c.21_25dup", "MOCK:p.(Glu9Ala)"),
+            ("NM_999984.1:c.22_26dup", "MOCK:p.(Glu9=)"),
         ] {
             let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvs_c)?, Some("MOCK"))?;
             assert_eq!(format!("{}", &var_p), expected, "{hgvs_c}");
@@ -2972,10 +3122,10 @@ mod test {
         let intronic = build_mapper_655_sanity(true);
         for (hgvs_c, expected_exonic) in [
             ("NM_999999.1:c.2-1_2insG", Some("MOCK:p.Met1?")),
-            ("NM_999999.1:c.26_26+1insC", Some("MOCK:p.Lys9AsnfsTer?")),
+            ("NM_999999.1:c.26_26+1insC", Some("MOCK:p.(Lys9AsnfsTer?)")),
             ("NM_999999.1:c.2dup", Some("MOCK:p.Met1?")),
             ("NM_999999.1:c.2-1dup", None),
-            ("NM_999999.1:c.26dup", Some("MOCK:p.Ter10IleextTer?")),
+            ("NM_999999.1:c.26dup", Some("MOCK:p.(Ter10IleextTer?)")),
             ("NM_999999.1:c.26+1dup", None),
         ] {
             check_c_to_p(&exonic, hgvs_c, Some("MOCK"), expected_exonic)?;
@@ -3002,11 +3152,11 @@ mod test {
         for (hgvs_c, expected_exonic) in [
             (
                 "NM_004985.4:c.111dup",
-                Some("NP_004976.2:p.Asp38GlyfsTer10"),
+                Some("NP_004976.2:p.(Asp38GlyfsTer10)"),
             ),
             (
                 "NM_004985.4:c.110_111dup",
-                Some("NP_004976.2:p.Asp38ArgfsTer8"),
+                Some("NP_004976.2:p.(Asp38ArgfsTer8)"),
             ),
             ("NM_004985.4:c.111+1dup", None),
             ("NM_004985.4:c.111+1_111+4dup", None),
@@ -3055,13 +3205,13 @@ mod test {
             let (boundary, boundary_p) = if ins_at_boundary_is_intronic {
                 (Intron, "MOCK:p.?")
             } else {
-                (Cds, "MOCK:p.Arg7SerfsTer?")
+                (Cds, "MOCK:p.(Arg7SerfsTer?)")
             };
             for (hgvs_c, location, hgvs_p) in [
-                ("c.4A>G", Cds, "MOCK:p.Lys2Glu"),
+                ("c.4A>G", Cds, "MOCK:p.(Lys2Glu)"),
                 ("c.-2_2del", Cds, "MOCK:p.Met1?"),
                 ("c.2dup", Cds, "MOCK:p.Met1?"),
-                ("c.29_30insC", Cds, "MOCK:p.Ter10TyrextTer?"),
+                ("c.29_30insC", Cds, "MOCK:p.(Ter10TyrextTer?)"),
                 // These differ from biocommons/hgvs on purpose: the same change fits in front
                 // of c.1 or after the stop codon and keeps both intact, see `DIFFERENCES.md`.
                 ("c.-1_1insGCC", FivePrimeUtr, "MOCK:p.?"),
@@ -3198,22 +3348,22 @@ mod test {
             // These cannot go outside the CDS.
             ("NM_999989.1:c.1_2insGCC", "MOCK:p.Met1?"),
             ("NM_999989.1:c.2dup", "MOCK:p.Met1?"),
-            ("NM_999989.1:c.29_30insC", "MOCK:p.Ter10TyrextTer?"),
-            ("NM_999989.1:c.29dup", "MOCK:p.Ter10="),
+            ("NM_999989.1:c.29_30insC", "MOCK:p.(Ter10TyrextTer?)"),
+            ("NM_999989.1:c.29dup", "MOCK:p.(Ter10=)"),
             ("NM_999988.1:c.1_2insGCC", "MOCK:p.Met1?"),
             ("NM_999988.1:c.2dup", "MOCK:p.Met1?"),
-            ("NM_999988.1:c.29_30insC", "MOCK:p.Ter10TyrextTer?"),
-            ("NM_999988.1:c.29dup", "MOCK:p.Ter10="),
+            ("NM_999988.1:c.29_30insC", "MOCK:p.(Ter10TyrextTer?)"),
+            ("NM_999988.1:c.29dup", "MOCK:p.(Ter10=)"),
             // The copy forms the stop codon TAA in front of TAG.  Each placement changes the
             // stop codon and keeps the protein, like `c.30G>A`.
-            ("NM_999989.1:c.26_28dup", "MOCK:p.Ter10="),
-            ("NM_999989.1:c.27_29dup", "MOCK:p.Ter10="),
-            ("NM_999989.1:c.25_26insAAT", "MOCK:p.Ter10="),
-            ("NM_999989.1:c.28_29insAAT", "MOCK:p.Ter10="),
-            ("NM_999989.1:c.29_30insATA", "MOCK:p.Ter10="),
-            ("NM_999989.1:c.29_30insATAG", "MOCK:p.Ter10="),
-            ("NM_999988.1:c.26_28dup", "MOCK:p.Ter10="),
-            ("NM_999988.1:c.28_29insAAT", "MOCK:p.Ter10="),
+            ("NM_999989.1:c.26_28dup", "MOCK:p.(Ter10=)"),
+            ("NM_999989.1:c.27_29dup", "MOCK:p.(Ter10=)"),
+            ("NM_999989.1:c.25_26insAAT", "MOCK:p.(Ter10=)"),
+            ("NM_999989.1:c.28_29insAAT", "MOCK:p.(Ter10=)"),
+            ("NM_999989.1:c.29_30insATA", "MOCK:p.(Ter10=)"),
+            ("NM_999989.1:c.29_30insATAG", "MOCK:p.(Ter10=)"),
+            ("NM_999988.1:c.26_28dup", "MOCK:p.(Ter10=)"),
+            ("NM_999988.1:c.28_29insAAT", "MOCK:p.(Ter10=)"),
         ] {
             check_c_to_p(&exonic, hgvs_c, Some("MOCK"), Some(expected))?;
             check_c_to_p(&intronic, hgvs_c, Some("MOCK"), Some(expected))?;
@@ -3248,11 +3398,11 @@ mod test {
                 ("c.1del", "MOCK:p.Met1?"),
                 ("c.-1_1delinsGG", "MOCK:p.Met1?"),
                 ("c.-5_1inv", "MOCK:p.Met1?"),
-                ("c.29del", "MOCK:p.Ter10TrpextTer?"),
-                ("c.28_30del", "MOCK:p.Ter10GlyextTer?"),
+                ("c.29del", "MOCK:p.(Ter10TrpextTer?)"),
+                ("c.28_30del", "MOCK:p.(Ter10GlyextTer?)"),
                 // An identity changes no base.  c.7_8 is `GC`, so its inversion is one, too.
-                ("c.30=", "MOCK:p.Ter10="),
-                ("c.7_8inv", "MOCK:p.Ala3="),
+                ("c.30=", "MOCK:p.(Ter10=)"),
+                ("c.7_8inv", "MOCK:p.(Ala3=)"),
             ] {
                 let hgvs_c = format!("{tx_ac}:{edit}");
                 check_c_to_p(&exonic, &hgvs_c, Some("MOCK"), Some(expected))?;
@@ -3305,9 +3455,7 @@ mod test {
                 .comment(Some(b'#'))
                 .from_path(path)?;
             for record in rdr.deserialize() {
-                let mut record: Record = record?;
-                // p.(*) => p.
-                record.hgvs_p = record.hgvs_p.map(|s| s.replace(['(', ')'], ""));
+                let record: Record = record?;
                 records.push(record);
             }
 
@@ -3331,8 +3479,14 @@ mod test {
                 .next()
                 .map(|s| s.to_string());
             let var_p = mapper.c_to_p(&var_c, prot_ac.as_deref())?;
-            let result = format!("{}", var_p);
             let expected = &record.hgvs_p.expect("problem with result in test");
+            // As in biocommons/hgvs, compare a certain expectation with the certain form.
+            let var_p = if expected.contains(":p.(") || expected.ends_with(":p.0?") {
+                var_p
+            } else {
+                super::with_inferred_p_uncertainty(var_p, false)
+            };
+            let result = format!("{}", var_p);
 
             let expected = if &result != expected {
                 expected.replace('*', "Ter")
@@ -3436,10 +3590,24 @@ mod test {
                 let hgvs_p_exp = format!("{var_p}");
                 let var_p_test = mapper.c_to_p(&var_x, Some(var_p.accession()))?;
 
-                // TODO: if expected value isn't uncertain, strip uncertain from test
-                // if var_p.posedit and not var_p.posedit.uncertain:
-                //     # if expected value isn't uncertain, strip uncertain from test
-                //     var_p_test.posedit.uncertain = False
+                // As in biocommons/hgvs: if the expected value isn't uncertain, strip
+                // uncertain from the test.
+                let expected_is_uncertain = matches!(
+                    var_p,
+                    HgvsVariant::ProtVariant {
+                        loc_edit: ProtLocEdit::Ordinary {
+                            loc: Mu::Uncertain(_),
+                            ..
+                        } | ProtLocEdit::NoChangeUncertain
+                            | ProtLocEdit::NoProteinUncertain,
+                        ..
+                    }
+                );
+                let var_p_test = if expected_is_uncertain {
+                    var_p_test
+                } else {
+                    super::with_inferred_p_uncertainty(var_p_test, false)
+                };
 
                 let mut hgvs_p_test = format!("{}", var_p_test);
 
@@ -3535,7 +3703,7 @@ mod test {
     //     let mapper = build_mapper()?;
 
     //     let s_c = "NM_000425.3:c.3772dupT";
-    //     let s_p = "NP_000416.1:p.Ter1258Leuext*96";
+    //     let s_p = "NP_000416.1:p.(Ter1258Leuext*96)";
 
     //     let var_c = HgvsVariant::from_str(s_c)?;
     //     let var_p = mapper.c_to_p(&var_c, None)?;
