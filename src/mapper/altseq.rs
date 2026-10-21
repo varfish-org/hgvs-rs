@@ -1,9 +1,8 @@
 //! Code for building alternative sequence and convertion to HGVS.p.
 
-use std::{cmp::Ordering, sync::Arc};
+use std::{cell::RefCell, cmp::Ordering, sync::Arc};
 
-use cached::proc_macro::cached;
-use cached::LruCache;
+use cached::{Cached, LruCache};
 
 use crate::{
     data::interface::{Provider, TranslationException},
@@ -63,23 +62,32 @@ fn codon_exceptions(exceptions: &[TranslationException]) -> Vec<(usize, char)> {
         .collect()
 }
 
-#[cached(
-    ty = "LruCache<(String, String, String, Option<String>), Result<RefTranscriptData, Error>>",
-    create = "{ LruCache::builder().max_size(1000).build().expect(\"valid cache size\") }",
-    cache_err = true,
-    convert = r#"{ (
-        provider.data_version().to_string(),
-        provider.schema_version().to_string(),
-        tx_ac.to_string(),
-        pro_ac.map(|s| s.to_string())
-    ) }"#
-)]
+type RefTranscriptDataKey = (String, String, String, Option<String>);
+
+thread_local! {
+    /// Per thread, see `build_alignment_mapper_cached` in `variant.rs` for why.
+    static REF_TRANSCRIPT_DATA_CACHE: RefCell<LruCache<RefTranscriptDataKey, Result<RefTranscriptData, Error>>> =
+        RefCell::new(LruCache::builder().max_size(1000).build().expect("valid cache size"));
+}
+
+/// A LRU cached version of `RefTranscriptData::new`.
 pub fn ref_transcript_data_cached(
     provider: Arc<dyn Provider + Send + Sync>,
     tx_ac: &str,
     pro_ac: Option<&str>,
 ) -> Result<RefTranscriptData, Error> {
-    RefTranscriptData::new(provider, tx_ac, pro_ac)
+    let key = (
+        provider.data_version().to_string(),
+        provider.schema_version().to_string(),
+        tx_ac.to_string(),
+        pro_ac.map(|s| s.to_string()),
+    );
+    if let Some(hit) = REF_TRANSCRIPT_DATA_CACHE.with_borrow_mut(|c| c.cache_get(&key).cloned()) {
+        return hit;
+    }
+    let result = RefTranscriptData::new(provider, tx_ac, pro_ac);
+    REF_TRANSCRIPT_DATA_CACHE.with_borrow_mut(|c| c.cache_set(key, result.clone()));
+    result
 }
 
 impl RefTranscriptData {
