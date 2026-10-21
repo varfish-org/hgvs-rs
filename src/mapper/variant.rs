@@ -7,7 +7,7 @@ use std::ops::Deref;
 use std::{ops::Range, sync::Arc};
 
 use crate::mapper::alignment;
-use crate::mapper::altseq::{AltSeqBuilder, VariantLocation};
+use crate::mapper::altseq::{ref_transcript_data_shared, AltSeqBuilder, VariantLocation};
 use crate::{
     data::interface::Provider,
     mapper::Error,
@@ -43,8 +43,9 @@ pub struct Config {
     pub ins_at_boundary_is_intronic: bool,
     /// Let `c_to_p` move an insertion or duplication in an exon or intron to the other side
     /// of an exon boundary, as preferred by `shift_over_boundary_preference`.  The shifts need
-    /// the genome alignment.  `assembly::Mapper::c_to_p()` provides it.  `c_to_p()` of this
-    /// mapper fails for such variants, unless the preference is `Default`.
+    /// the genome alignment.  `assembly::Mapper::c_to_p()` provides it if `genome_seq_available`
+    /// is set.  Without it, `c_to_p` fails with `Error::ShiftOverBoundaryNeedsAlignment` for
+    /// such variants, unless the preference is `Default`.
     pub shift_over_boundary: bool,
     /// See `shift_over_boundary`.
     pub shift_over_boundary_preference: ShiftOverBoundaryPreference,
@@ -852,22 +853,11 @@ impl Mapper {
         builder: AltSeqBuilder<'a>,
         alt: Option<(&str, &str)>,
     ) -> Result<AltSeqBuilder<'a>, Error> {
-        if !self.config.shift_over_boundary {
+        let Some(preferred) = self.shift_preference(&builder.var_c)? else {
             return Ok(builder);
-        }
-        // biocommons/hgvs also computes the shifts for DEFAULT, but never keeps one.  Skipping
-        // them gives the same protein without the genome.
-        let preferred = match self.config.shift_over_boundary_preference {
-            ShiftOverBoundaryPreference::Default => return Ok(builder),
-            ShiftOverBoundaryPreference::Intron => VariantLocation::Intron,
-            ShiftOverBoundaryPreference::Exon => VariantLocation::Cds,
         };
         let region = builder.variant_location()?;
-        let is_ins_or_dup = builder
-            .var_c
-            .na_edit()
-            .is_some_and(|edit| edit.is_ins() || edit.is_dup());
-        if !is_ins_or_dup || !matches!(region, VariantLocation::Intron | VariantLocation::Cds) {
+        if !matches!(region, VariantLocation::Intron | VariantLocation::Cds) {
             return Ok(builder);
         }
         let (alt_ac, alt_aln_method) =
@@ -920,6 +910,45 @@ impl Mapper {
             }
         }
         Ok(builder)
+    }
+
+    /// The region that `c_to_p` prefers for a shift of `var_c` over an exon boundary, or `None`
+    /// if it does not shift.  Only insertions and duplications shift.
+    fn shift_preference(&self, var_c: &HgvsVariant) -> Result<Option<VariantLocation>, Error> {
+        if !self.config.shift_over_boundary
+            || !var_c
+                .na_edit()
+                .is_some_and(|edit| edit.is_ins() || edit.is_dup())
+        {
+            return Ok(None);
+        }
+        // biocommons/hgvs also computes the shifts for DEFAULT, but never keeps one.  Skipping
+        // them gives the same protein without the genome.
+        Ok(match self.config.shift_over_boundary_preference {
+            ShiftOverBoundaryPreference::Default => None,
+            ShiftOverBoundaryPreference::Intron => Some(VariantLocation::Intron),
+            ShiftOverBoundaryPreference::Exon => Some(VariantLocation::Cds),
+        })
+    }
+
+    /// Whether `c_to_p` shifts `var_c` over an exon boundary, which needs the genome alignment.
+    /// This is the case for an insertion or duplication in an exon or intron if the preference
+    /// is not `Default`.
+    pub(crate) fn shift_needs_alignment(&self, var_c: &HgvsVariant) -> Result<bool, Error> {
+        if self.shift_preference(var_c)?.is_none() {
+            return Ok(false);
+        }
+        let reference_data =
+            ref_transcript_data_shared(&self.provider, &var_c.accession().value, None)?;
+        let region = AltSeqBuilder {
+            ins_at_boundary_is_intronic: self.config.ins_at_boundary_is_intronic,
+            ..AltSeqBuilder::new(var_c.clone(), &reference_data)
+        }
+        .variant_location()?;
+        Ok(matches!(
+            region,
+            VariantLocation::Intron | VariantLocation::Cds
+        ))
     }
 
     /// Shift `var_g` fully in `direction` and rewrite a duplication as an insertion, as

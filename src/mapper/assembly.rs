@@ -273,12 +273,9 @@ impl Mapper {
     pub fn c_to_p(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, Error> {
         // Only the genome has the reference of intron bases, e.g., of a dup next to an exon.
         // Shifting an insertion or duplication over an exon boundary needs the genome, too.
-        let shifts = self.config.shift_over_boundary
-            && self.config.shift_over_boundary_preference != ShiftOverBoundaryPreference::Default
-            && var_c
-                .na_edit()
-                .is_some_and(|edit| edit.is_ins() || edit.is_dup());
-        let alt_ac = if self.config.genome_seq_available && (var_c.spans_intron() || shifts) {
+        let alt_ac = if self.config.genome_seq_available
+            && (var_c.spans_intron() || self.inner.shift_needs_alignment(var_c)?)
+        {
             Some(self.alt_ac_for_tx_ac(var_c.accession())?)
         } else {
             None
@@ -851,7 +848,8 @@ mod test {
             Ok(())
         }
 
-        /// Only the shifts look up the genome alignment.  Without it, `Default` still works.
+        /// Only the shifts look up the genome alignment.  Without it, `Default` and the UTRs still
+        /// work.
         #[test]
         fn c_to_p_without_alignment() -> Result<(), Error> {
             // An assembly without chromosome 12, so KRAS has no alignment.
@@ -875,6 +873,20 @@ mod test {
                 build(ShiftOverBoundaryPreference::Exon)?.c_to_p(&var_c),
                 Err(crate::mapper::Error::NoAlignments(..))
             ));
+            // Nothing shifts in the UTRs, so they need no alignment.
+            for hgvs_c in ["NM_004985.4:c.-5dup", "NM_004985.4:c.*5_*6insA"] {
+                let var_c = HgvsVariant::from_str(hgvs_c)?;
+                for preference in [
+                    ShiftOverBoundaryPreference::Exon,
+                    ShiftOverBoundaryPreference::Intron,
+                ] {
+                    assert_eq!(
+                        format!("{}", build(preference)?.c_to_p(&var_c)?),
+                        "NP_004976.2:p.?",
+                        "{hgvs_c} with {preference:?}"
+                    );
+                }
+            }
             Ok(())
         }
 
