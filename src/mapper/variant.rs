@@ -961,10 +961,11 @@ impl Mapper {
     /// This deviates from biocommons/hgvs, which also uses the strand of the transcript.  It
     /// inserts before the duplicated bases for a 3' shift on the plus strand and for a 5'
     /// shift on the minus strand, else after them.  On the plus strand, its insertion thus
-    /// sits at the near end of the shift and can miss the other side of an exon boundary.
-    /// For example, biocommons/hgvs shifts PTEN `c.209+1_209+2dup` to `c.209_209+1dup` and
+    /// sits at the near end of the shift, although its docstring says that the rewrite shifts
+    /// the variant "farther", and it can miss the other side of an exon boundary.  For
+    /// example, biocommons/hgvs shifts PTEN `c.209+1_209+2dup` to `c.209_209+1dup` and
     /// rewrites it as `c.209+1_209+2insTG` in the intron.  Here, it becomes `c.208_209insTG`
-    /// in the exon.  On the minus strand, both give the same insertion.
+    /// in the exon.  On the minus strand, both give the same insertion.  See `DIFFERENCES.md`.
     fn shift_var_g(
         &self,
         var_g: &HgvsVariant,

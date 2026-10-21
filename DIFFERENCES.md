@@ -18,7 +18,7 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 
 - **Situation:** `c_to_p` of the assembly mapper on a transcript without an alignment to the assembly.
 - **biocommons/hgvs:** `AssemblyMapper.c_to_p()` looks up the genome alignment for every variant and raises `HGVSDataNotAvailableError` if there is none ([assemblymapper.py][bc-am-c-to-p]).
-- **hgvs-rs:** `assembly::Mapper::c_to_p()` looks up the alignment only for a variant with an intron offset, and only with `genome_seq_available`, a setting that biocommons/hgvs does not have. Only such a variant needs bases from the genome. As in biocommons/hgvs, the genome gives the bases of a dup such as `NM_003777.3:c.4110+1dup` ([#301]). Other variants work without the alignment. With `shift_over_boundary`, it also looks up the alignment for the variants that the shifts move.
+- **hgvs-rs:** `assembly::Mapper::c_to_p()` looks up the alignment only for a variant with an intron offset, and only with `genome_seq_available`, a setting that biocommons/hgvs does not have. Only such a variant needs bases from the genome. As in biocommons/hgvs, the genome gives the bases of a dup such as `NM_003777.3:c.4110+1dup` ([#301]). Other variants work without the alignment. With `shift_over_boundary` and the preference `Intron` or `Exon`, it also looks up the alignment for an insertion or dup in an exon or intron, as only these shift.
 
 ## Protein prediction (`c_to_p`)
 
@@ -87,8 +87,8 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 ### Dup rewritten as an insertion
 
 - **Situation:** a shift moves a dup fully 3' or 5' on the genome and rewrites it as an insertion of its bases, e.g. `NM_000314.4:c.209+1_209+2dup` (PTEN, plus strand) with `Exon`.
-- **biocommons/hgvs:** It inserts before the duplicated bases for a 3' shift on the plus strand and for a 5' shift on the minus strand, else after them ([`_var_g_shift_with_rewrite()`][bc-shift-rewrite]). On the plus strand, the insertion thus sits at the near end of the shift. The example becomes `c.209+1_209+2insTG` in the intron, which gives `p.?`.
-- **hgvs-rs:** It inserts at the end that the shift reached, on both strands, so the insertion can reach the other side of an exon boundary. The example becomes `c.208_209insTG` in the exon, which gives `p.Cys71PhefsTer29`.
+- **biocommons/hgvs:** Its docstring says that the rewrite shifts the variant "farther than would normally be possible". The code inserts before the duplicated bases for a 3' shift on the plus strand and for a 5' shift on the minus strand, else after them ([`_var_g_shift_with_rewrite()`][bc-shift-rewrite]). The shifts work on the genome, where the strand plays no role, so on the plus strand the insertion sits at the near end of the shift. The 3' shift of the example becomes `c.209_209+1insGT` and the 5' shift `c.209+1_209+2insTG`. Both are intronic, so the example gives `p.?`. Likewise, `NM_000314.4:c.802dup` with `Exon` becomes `c.802-1_802insG` and gives `p.?`, and `NM_000314.4:c.803_810dup` with `Intron` never reaches the intron and gives `p.(Phe271ThrfsTer8)`.
+- **hgvs-rs:** It inserts at the end that the shift reached, on both strands, as the docstring describes. The examples become `c.208_209insTG` (`p.Cys71PhefsTer29`), `c.802_803insG` (`p.Asp268GlyfsTer30`) and `c.802-1_802insGACAAAAT` (`p.?`). On the minus strand, both rules give the same insertion, e.g. `NM_004985.4:c.111+1dup` (KRAS) with `Exon` gives `p.Asp38GlyfsTer10` in both libraries. These results come from running biocommons/hgvs on the test data of hgvs-rs.
 
 ### `Default` skips the shifts
 
@@ -107,12 +107,6 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 - **Situation:** the protein comes from a shifted variant on a transcript with a translation table other than the standard one.
 - **biocommons/hgvs:** It builds the `AltSeqBuilder` of the shifted variant without the translation table, so it translates the shifted sequence with the standard table ([variantmapper.py][bc-shift-loop]).
 - **hgvs-rs:** It uses the reference data of the transcript, including its translation table.
-
-### Insertions and dups that leave the CDS intact
-
-- **Situation:** `Intron` or `Exon` on an insertion or dup that can go before c.1 or after the stop codon, e.g. `c.1dup` if c.-1 is not an A. See [Variants that leave the CDS intact](#variants-that-leave-the-cds-intact).
-- **biocommons/hgvs:** It counts the variant as exonic or intronic by its description and shifts it ([`get_variant_region()`][bc-region]).
-- **hgvs-rs:** The variant is a 5' or 3' UTR variant, which lies neither in an exon nor in an intron. `Intron` and `Exon` keep it, which gives `p.?`. They also skip a shift that ends in such a placement.
 
 [bc]: https://github.com/biocommons/hgvs
 [bc-commit]: https://github.com/biocommons/hgvs/tree/13289ab3b9db3c751918906c543991c74917ff61
