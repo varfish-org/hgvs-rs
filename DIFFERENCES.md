@@ -52,6 +52,12 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 - **biocommons/hgvs:** `c_to_p` and the normalizer raise `HGVSInvalidVariantError` ([tests][bc-am-test], [normalizer tests][bc-norm-test]).
 - **hgvs-rs:** It does not check this yet. `c_to_p` gives `NP_000050.2:p.Glu2598LysfsTer50`, and the normalizer gives `NM_000059.3:c.7791delA` ([#96]). This difference is a gap, not a decision.
 
+### Deletion past the end of the transcript
+
+- **Situation:** without `strict_bounds`, a deletion or delins from the CDS ends after the last base of the transcript sequence, e.g. `c.26_*20del` on a transcript that ends at c.*14.
+- **biocommons/hgvs:** It rejects the variant with `HGVSInvalidIntervalError`, as the position is out of bounds.
+- **hgvs-rs:** The bases that follow the deletion are unknown, so `c_to_p` gives `p.?`. HGVS gives `p.?` for a deletion of the last exons of DMD, which removes the stop codon, because "it is not known what sequences ... are added to the transcript". Before, hgvs-rs cut the deletion at the end of the transcript and built a protein from the bases that the transcript has, e.g. `p.Lys9XaafsTer?`.
+
 ### Deletion of the stop codon up to the transcript end
 
 - **Situation:** a deletion removes the stop codon and every base after it, so no codon takes the place of the stop codon. E.g., `c.28_*3del` on a transcript that ends at c.*3.

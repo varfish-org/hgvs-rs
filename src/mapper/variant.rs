@@ -2612,6 +2612,9 @@ mod test {
             ("NM_999977.1:c.28_30delinsCCC", "MOCK:p.Ter10ProextTer2"),
             // Ends inside the stop codon.
             ("NM_999977.1:c.26_29del", "MOCK:p.Lys9ArgfsTer?"),
+            // Ends after the end of the transcript, so the bases after the deletion are
+            // unknown.  biocommons/hgvs rejects the variant as out of bounds.
+            ("NM_999977.1:c.26_*20del", "MOCK:p.?"),
         ] {
             let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
             assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");

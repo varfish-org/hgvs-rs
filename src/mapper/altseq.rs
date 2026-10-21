@@ -1052,7 +1052,8 @@ impl<'a> AltSeqBuilder<'a> {
             &self.reference_data.protein_accession,
             &self.reference_data.aa_sequence,
             is_substitution,
-            self.ref_has_multiple_stops,
+            // The bases after the end of the transcript are unknown.
+            self.ref_has_multiple_stops || self.ends_after_transcript(),
             self.reference_data.translation_table,
             &translation_exceptions,
             poly_a,
@@ -1086,6 +1087,18 @@ impl<'a> AltSeqBuilder<'a> {
                         && loc.end.offset.unwrap_or(0) == 0
                 }
             }
+    }
+
+    /// Whether the variant ends after the last base of the transcript sequence.  This can
+    /// happen without `strict_bounds`.
+    fn ends_after_transcript(&self) -> bool {
+        let HgvsVariant::CdsVariant { loc_edit, .. } = &self.var_c else {
+            return false;
+        };
+        let end = &loc_edit.loc.inner().end;
+        end.cds_from == CdsFrom::End
+            && i64::from(self.reference_data.cds_stop) + i64::from(end.base)
+                > self.reference_data.transcript_sequence.len() as i64
     }
 
     /// Incorporate a dup into the transcript sequence: its copy goes right after the duplicated
