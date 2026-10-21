@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.1](https://github.com/varfish-org/hgvs-rs/compare/v2.0.0...v2.0.1) (2026-10-21)
+
+
+### Performance Improvements
+
+* avoid allocations and copies on mapper cache hits ([#312](https://github.com/varfish-org/hgvs-rs/issues/312)) ([9814309](https://github.com/varfish-org/hgvs-rs/commit/9814309595c876a47b5406481065ebd8812607d6))
+* use per-thread caches for alignment mappers and transcript data ([#310](https://github.com/varfish-org/hgvs-rs/issues/310)) ([7dde8d9](https://github.com/varfish-org/hgvs-rs/commit/7dde8d9649ccee9baa60401463c0b6c554717e72))
+
 ## [2.0.0](https://github.com/varfish-org/hgvs-rs/compare/v1.0.0...v2.0.0) (2026-10-13)
 
 
