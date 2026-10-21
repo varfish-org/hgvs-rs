@@ -295,7 +295,7 @@ impl Mapper {
                 if let NaEdit::Ins { alternative } = edit_n.inner() {
                     if pos_n.start.offset.is_none()
                         && pos_n.end.offset.is_none()
-                        && pos_n.end.base - pos_n.start.base > 1
+                        && distance_without_zero(pos_n.start.base, pos_n.end.base) > 1
                     {
                         (
                             Mu::Certain(TxInterval {
@@ -484,7 +484,7 @@ impl Mapper {
                     if pos_c.start.offset.is_none()
                         && pos_c.end.offset.is_none()
                         && pos_c.start.cds_from == pos_c.end.cds_from
-                        && pos_c.end.base - pos_c.start.base > 1
+                        && distance_without_zero(pos_c.start.base, pos_c.end.base) > 1
                     {
                         (
                             Mu::Certain(CdsInterval {
@@ -1267,6 +1267,13 @@ impl Mapper {
             }
         }
     }
+}
+
+/// The distance from the position `start` to `end`, as `BaseOffsetPosition.__sub__` of
+/// biocommons/hgvs computes it for positions without offset.  There is no position 0, e.g.,
+/// c.0, so the distance from c.-1 to c.1 is 1.
+fn distance_without_zero(start: i32, end: i32) -> i32 {
+    end - start - i32::from(end > 0 && start < 0)
 }
 
 /// Whether `e` reports missing data rather than a problem with the variant.  The normalizer
@@ -2564,6 +2571,37 @@ mod test {
         let var_g = HgvsVariant::from_str("NC_000007.13:g.106545832_106545833insAG")?;
         let var_c = mapper.g_to_c(&var_g, "NM_002649.2", "splign")?;
         assert_eq!(var_c.to_string(), "NM_002649.2:c.3309_*1insAG");
+        Ok(())
+    }
+
+    /// There is no c.0, so an insertion between c.-1 and c.1 stays an insertion.  It gave
+    /// `c.0C>A` and `c.0=` before.
+    #[test]
+    fn g_to_c_ins_before_c1() -> Result<(), Error> {
+        let mapper = build_mapper()?;
+        for (hgvs_g, tx_ac, hgvs_c) in [
+            // PTEN, plus strand.
+            (
+                "NC_000010.10:g.89624226_89624227insA",
+                "NM_000314.4",
+                "NM_000314.4:c.-1_1insA",
+            ),
+            // KRAS, minus strand.
+            (
+                "NC_000012.11:g.25398318_25398319insT",
+                "NM_004985.4",
+                "NM_004985.4:c.-1_1insA",
+            ),
+        ] {
+            let var_g = HgvsVariant::from_str(hgvs_g)?;
+            let var_c = mapper.g_to_c(&var_g, tx_ac, "splign")?;
+            assert_eq!(var_c.to_string(), hgvs_c, "{hgvs_g}");
+            assert_eq!(
+                mapper.c_to_g(&var_c, var_g.accession(), "splign")?,
+                var_g,
+                "{hgvs_c}"
+            );
+        }
         Ok(())
     }
 
