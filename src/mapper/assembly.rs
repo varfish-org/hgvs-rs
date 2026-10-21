@@ -653,7 +653,8 @@ mod test {
                 "NP_004976.2:p.Glu37_Asp38insAla",
                 "NP_004976.2:p.?",
             ),
-            // The same insertion, given in the exon.
+            // The same insertion, given in the exon.  This input is not 3'-normalized on
+            // purpose.
             (
                 "NM_004985.4:c.110_111insGGC",
                 "NP_004976.2:p.Glu37_Asp38insAla",
@@ -705,8 +706,9 @@ mod test {
             ),
             // Pairs of the same situation on the minus strand (KRAS) and on the plus strand
             // (PTEN).  A shift rewrites a dup as an insertion at the end of the dup that the
-            // shift reached, so both strands give the same result.  Each comment names the
-            // KRAS variant first.
+            // shift reached, so both strands give the same result.  biocommons/hgvs rewrites
+            // the dup at the other end on the plus strand, see `DIFFERENCES.md`.  Each comment
+            // names the KRAS variant first.
             //
             // An intron dup at the donor site.  It shifts to `c.111dup` and `c.209_209+1dup`,
             // and fits into the exon as `c.110_111insG` and `c.208_209insTG`.
@@ -722,32 +724,32 @@ mod test {
                 "NP_000305.3:p.Cys71PhefsTer29",
                 "NP_000305.3:p.?",
             ),
-            // An intron dup at the acceptor site.  It shifts to `c.112dup` and `c.802dup`, and
-            // fits into the exon as `c.112_113insG` and `c.802_803insG`.
+            // A dup of the first exon base, which counts as intronic.  It shifts to `c.112-1dup`
+            // and `c.802-1dup`, and fits into the exon as `c.112_113insG` and `c.802_803insG`.
             (
-                "NM_004985.4:c.112-1dup",
+                "NM_004985.4:c.112dup",
                 "NP_004976.2:p.?",
                 "NP_004976.2:p.Asp38GlyfsTer10",
                 "NP_004976.2:p.?",
             ),
             (
-                "NM_000314.4:c.802-1dup",
+                "NM_000314.4:c.802dup",
                 "NP_000305.3:p.?",
                 "NP_000305.3:p.Asp268GlyfsTer30",
                 "NP_000305.3:p.?",
             ),
-            // An exon dup before the donor site.  It shifts to `c.110_111dup` and
-            // `c.208_209dup`, and fits into the intron as `c.111_111+1insAG` and
-            // `c.209_209+1insCT`.  These insertions at the exon edge count as intronic.
+            // A dup of the last two exon bases, which counts as intronic.  It fits into the
+            // intron as `c.111_111+1insAG` and `c.209_209+1insCT`, and into the exon as
+            // `c.107_108insAG` and `c.206_207insCT`.
             (
-                "NM_004985.4:c.109_110dup",
-                "NP_004976.2:p.Asp38ArgfsTer8",
+                "NM_004985.4:c.110_111dup",
+                "NP_004976.2:p.?",
                 "NP_004976.2:p.Asp38ArgfsTer8",
                 "NP_004976.2:p.?",
             ),
             (
-                "NM_000314.4:c.207_208dup",
-                "NP_000305.3:p.Cys71PhefsTer29",
+                "NM_000314.4:c.208_209dup",
+                "NP_000305.3:p.?",
                 "NP_000305.3:p.Cys71PhefsTer29",
                 "NP_000305.3:p.?",
             ),
