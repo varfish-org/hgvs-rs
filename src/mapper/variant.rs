@@ -3060,6 +3060,16 @@ mod test {
             ("NM_999988.1:c.2dup", "MOCK:p.Met1?"),
             ("NM_999988.1:c.29_30insC", "MOCK:p.Ter10TyrextTer?"),
             ("NM_999988.1:c.29dup", "MOCK:p.Ter10="),
+            // The copy forms the stop codon TAA in front of TAG.  A dup moves `cds_stop` like an
+            // insertion, so every placement gives the same alt protein.
+            ("NM_999989.1:c.26_28dup", "MOCK:p.="),
+            ("NM_999989.1:c.27_29dup", "MOCK:p.="),
+            ("NM_999989.1:c.25_26insAAT", "MOCK:p.="),
+            ("NM_999989.1:c.28_29insAAT", "MOCK:p.="),
+            ("NM_999989.1:c.29_30insATA", "MOCK:p.="),
+            ("NM_999989.1:c.29_30insATAG", "MOCK:p.="),
+            ("NM_999988.1:c.26_28dup", "MOCK:p.="),
+            ("NM_999988.1:c.28_29insAAT", "MOCK:p.="),
         ] {
             check_c_to_p(&exonic, hgvs_c, Some("MOCK"), Some(expected))?;
             check_c_to_p(&intronic, hgvs_c, Some("MOCK"), Some(expected))?;

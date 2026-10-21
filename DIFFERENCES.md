@@ -44,7 +44,7 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 
 - **Situation:** the CDS has no stop codon, and a variant in it forms a new stop codon, or a stop codon follows c.N. E.g., `c.15_16insGGGTAA` turns `TGG GAA` at c.13 to c.18 into `TGG GGG TAA GAA`.
 - **biocommons/hgvs:** It counts the last codon as a stop codon. `AltTranscriptData` ends the alt protein with the last stop codon up to `cds_stop`, or else with the next one after it ([altseqbuilder.py][bc-alt-cut]). The example gives `p.(Ter6GlyextTer1)`.
-- **hgvs-rs:** The alt protein ends at c.N, as moved by the variant, because the amino acids after c.N are unknown. Otherwise, the alt protein would not line up with the reference protein. The example gives `p.Trp5_Glu6insGlyTer`, as with a stop codon after c.18. A frameshift that ends after c.N gives `fsTer?`. For the same reason, a dup moves `cds_stop` with its copy, as an insertion does.
+- **hgvs-rs:** The alt protein ends at c.N, as moved by the variant, because the amino acids after c.N are unknown. Otherwise, the alt protein would not line up with the reference protein. The example gives `p.Trp5_Glu6insGlyTer`, as with a stop codon after c.18. A frameshift that ends after c.N gives `fsTer?`. A dup moves `cds_stop` with its copy, as an insertion does, see [Dup moves `cds_stop` with its copy](#dup-moves-cds_stop-with-its-copy).
 
 ### Deletion with more reference bases than positions
 
@@ -80,7 +80,7 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 
 - **Situation:** an in-frame insertion forms a new stop codon right in front of the old one, so the protein stays the same. E.g., if the CDS ends with `AAA TAG`, `c.28_29insAAT` gives `AAA TAA TAG`.
 - **biocommons/hgvs:** The insertion moves `cds_stop` ([altseqbuilder.py][bc-delins-cds-stop]), so the alt protein ends with both stop codons. `c_to_p` reports the second one ([altseq_to_hgvsp.py][bc-stop-at-variant]) and gives `p.(Ter11Ter)`, a position after the end of the protein. A dup keeps `cds_stop` ([altseqbuilder.py][bc-dup-cds-stop]), so the same change `c.26_28dup` gives `p.(Ter10Ter)`. [biocommons/hgvs#895][bc-895] reports this, and [biocommons/hgvs#896][bc-896] proposes a fix.
-- **hgvs-rs:** It gives `p.=` for a change after the end of the reference protein (`AltSeqToHgvsp::convert_to_hgvs_variant()` in [src/mapper/altseq.rs](src/mapper/altseq.rs)), so the insertion gives `p.=`. The dup gives `p.Ter10=`, see [Stop codon changed into another stop codon](#stop-codon-changed-into-another-stop-codon). E.g., `NM_001253909.2:c.416_417insGTG` turns the stop codon `TAA` into `TAG TGA` and gives `p.=`.
+- **hgvs-rs:** It gives `p.=` for a change after the end of the reference protein (`AltSeqToHgvsp::convert_to_hgvs_variant()` in [src/mapper/altseq.rs](src/mapper/altseq.rs)), so the insertion gives `p.=`. The dup gives `p.=`, too, see [Dup moves `cds_stop` with its copy](#dup-moves-cds_stop-with-its-copy). E.g., `NM_001253909.2:c.416_417insGTG` turns the stop codon `TAA` into `TAG TGA` and gives `p.=`.
 
 ## Proposed fixes for biocommons/hgvs
 
@@ -91,6 +91,12 @@ Unless an entry says otherwise, the examples use a transcript whose 5' UTR ends 
 - **Situation:** an insertion, dup, deletion, delins or inversion whose alt transcript sequence keeps the start codon or the stop codon where it is, because the same change fits in front of c.1 or after the stop codon. Every placement of such a change gives the same alt sequence, so they cannot differ in their effect.
 - **biocommons/hgvs:** It decides the region by the positions in the description ([`get_variant_region()`][bc-region]). A description that touches c.1 or the stop codon counts as exonic, and the protein is built from it literally. `c.-1_1insGCC`, `c.1dup`, `c.-1_1del` and `c.-6_1inv` give `p.Met1?`, and `c.1_3dup` gives `p.(Met1dup)`, although the ATG stays intact. `c.30dup` and `c.28_30dup` give `p.(=)`, and `c.30del` and `c.29_30insG` give `p.(Ter10Ter)`, although the stop codon is unchanged. Likewise, `NM_022051.2:c.-1_1insGCC` gives `NP_071334.1:p.Met1?` (`INITMET02` in [ext.tsv][bc-ext]), and `NM_001051.2:c.1257dupG`, where c.1257 is the last base of the stop codon, gives `NP_001042.1:p.(=)` ([test][bc-dup-cds-end]). With `ins_at_boundary_is_intronic` set to `False` and c.1 at an exon start, `c.1-1_1insC` gives `p.Met1?`. A dup from far into the 5' UTR, e.g. `c.-21_2dup` on a 5' UTR of 25 bases, leaves no ATG at the old start index and gives `p.Met1?`, while the intact CDS just moves 23 bases downstream.
 - **hgvs-rs (proposed fix):** It checks the alt transcript sequence. If it ends with the reference from c.1 on, or starts with the reference up to the last base of the CDS, the variant is a 5' or 3' UTR variant, and `c_to_p` gives `p.?`, as for any UTR variant. All of the examples give `p.?`, and every description of the same change gives the same result. Without a stop codon, there is no 3' UTR, see [Variants after a CDS without stop codon](#variants-after-a-cds-without-stop-codon).
+
+### Dup moves `cds_stop` with its copy
+
+- **Situation:** a dup in the CDS, which gives the same alt sequence as the insertion of its copy. E.g., `c.26_28dup` and `c.28_29insAAT` both turn `AAA TAG` into `AAA TAA TAG`.
+- **biocommons/hgvs:** An insertion moves `cds_stop` by its length ([altseqbuilder.py][bc-delins-cds-stop]), a dup keeps it ([altseqbuilder.py][bc-dup-cds-stop]). The alt protein ends with the last stop codon up to `cds_stop`, so the two descriptions give different results: `c.26_28dup` gives `p.(Ter10Ter)` and `c.28_29insAAT` gives `p.(Ter11Ter)`. [biocommons/hgvs#895][bc-895] reports this.
+- **hgvs-rs (proposed fix):** A dup moves `cds_stop` with its copy, as [biocommons/hgvs#896][bc-896] proposes. Both descriptions then give the same alt protein.
 
 ### Positions after a completed mitochondrial stop codon
 

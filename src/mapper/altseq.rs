@@ -1070,14 +1070,11 @@ impl<'a> AltSeqBuilder<'a> {
         let mut seq = format!("{}{}{}", &seq[..end], dup_seq, &seq[end..]);
 
         let mut is_frameshift = dup_seq.len() % 3 != 0;
-        // Without a stop codon, the alt protein ends at `cds_stop`, see `AltTranscriptData`.  So
-        // `cds_stop` moves with the copy, as in `incorporate_delins()`, and the alt protein
-        // keeps the last codons of the CDS.  With a stop codon, biocommons/hgvs keeps `cds_stop`.
-        let mut cds_stop = if self.reference_data.aa_sequence.contains('*') {
-            cds_stop
-        } else {
-            cds_stop + dup_seq.len() as i32
-        };
+        // `cds_stop` moves with the copy, as in `incorporate_delins()`, so that a dup gives the
+        // same alt protein as the insertion of its copy.  Without a stop codon, the alt protein
+        // then keeps the last codons of the CDS.  biocommons/hgvs keeps `cds_stop`, and
+        // biocommons/hgvs#896 proposes the same move.
+        let mut cds_stop = cds_stop + dup_seq.len() as i32;
         if let Some(stop_end) = self.insert_stop_seq_end(dup_seq, end)? {
             is_frameshift = false;
             let dup_end = end + dup_seq.len();
