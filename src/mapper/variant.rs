@@ -1,8 +1,8 @@
 //! Code for mapping variants between sequences.
 
-use cached::proc_macro::cached;
-use cached::LruCache;
+use cached::{Cached, LruCache};
 use log::{debug, info};
+use std::cell::RefCell;
 use std::ops::Deref;
 use std::{ops::Range, sync::Arc};
 
@@ -1065,9 +1065,16 @@ impl Mapper {
     }
 }
 
+type AlignmentMapperKey = (String, String, bool, String, String, String);
+
+thread_local! {
+    /// Each thread has its own cache.  A looked-up entry moves to the front of an LRU, so a
+    /// shared cache needs an exclusive lock even for hits, and threads would queue on it.
+    static ALIGNMENT_MAPPER_CACHE: RefCell<LruCache<AlignmentMapperKey, Result<alignment::Mapper, Error>>> =
+        RefCell::new(LruCache::builder().max_size(1000).build().expect("valid cache size"));
+}
+
 /// A LRU cached version of `alignment::Mapper::new`.
-/// The indirection here is due to the fact that `cached` cannot deal with `self` arguments.
-/// The `convert` argument constructs the key to be used in the cache.
 /// All of this function's arguments contribute to the key;
 /// that is why the supplied provider's `data_version` and `schema_version`
 /// should return sensible values which allow distinguishing them from other providers.
@@ -1079,17 +1086,6 @@ impl Mapper {
 /// 1. wrap non-clonable errors in `Arc`
 /// 2. convert the result to an option instead
 /// 3. return a generic error instead
-#[cached(
-    ty = "LruCache<(String, String, bool, String, String, String), Result<alignment::Mapper, Error>>",
-    create = "{ LruCache::builder().max_size(1000).build().expect(\"valid cache size\") }",
-    cache_err = true,
-    convert = r#"{ (provider.data_version().to_string(),
-                    provider.schema_version().to_string(),
-                    strict_bounds,
-                    tx_ac.to_string(),
-                    alt_ac.to_string(),
-                    alt_aln_method.to_string()) }"#
-)]
 fn build_alignment_mapper_cached(
     provider: Arc<dyn Provider + Send + Sync>,
     strict_bounds: bool,
@@ -1097,13 +1093,26 @@ fn build_alignment_mapper_cached(
     alt_ac: &str,
     alt_aln_method: &str,
 ) -> Result<alignment::Mapper, Error> {
-    alignment::Mapper::new(
+    let key = (
+        provider.data_version().to_string(),
+        provider.schema_version().to_string(),
+        strict_bounds,
+        tx_ac.to_string(),
+        alt_ac.to_string(),
+        alt_aln_method.to_string(),
+    );
+    if let Some(hit) = ALIGNMENT_MAPPER_CACHE.with_borrow_mut(|c| c.cache_get(&key).cloned()) {
+        return hit;
+    }
+    let result = alignment::Mapper::new(
         &alignment::Config { strict_bounds },
         provider,
         tx_ac,
         alt_ac,
         alt_aln_method,
-    )
+    );
+    ALIGNMENT_MAPPER_CACHE.with_borrow_mut(|c| c.cache_set(key, result.clone()));
+    result
 }
 #[cfg(test)]
 mod test {
