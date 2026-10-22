@@ -2901,6 +2901,13 @@ mod test {
             }
         }
 
+        // It leaves other variants as they are.
+        let var_c = HgvsVariant::from_str("NM_000314.4:c.209dup")?;
+        assert_eq!(
+            super::with_inferred_p_uncertainty(var_c.clone(), true),
+            var_c
+        );
+
         Ok(())
     }
 
