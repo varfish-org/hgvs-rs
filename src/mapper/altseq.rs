@@ -703,6 +703,7 @@ impl<'a> AltSeqBuilder<'a> {
         }
     }
 
+    /// Incorporate a substitution, deletion, insertion or delins into the transcript sequence.
     fn incorporate_delins(&self) -> Result<AltTranscriptData, Error> {
         let (mut seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
         let loc_range_start;
@@ -791,6 +792,8 @@ impl<'a> AltSeqBuilder<'a> {
         )
     }
 
+    /// Incorporate a dup into the transcript sequence: its copy goes right after the duplicated
+    /// bases.
     fn incorporate_dup(&self) -> Result<AltTranscriptData, Error> {
         let (seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
 
