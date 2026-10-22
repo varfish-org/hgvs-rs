@@ -2574,8 +2574,7 @@ mod test {
         Ok(())
     }
 
-    /// There is no c.0, so an insertion between c.-1 and c.1 stays an insertion.  It gave
-    /// `c.0C>A` and `c.0=` before.
+    /// There is no c.0, so an insertion between c.-1 and c.1 stays an insertion.
     #[test]
     fn g_to_c_ins_before_c1() -> Result<(), Error> {
         let mapper = build_mapper()?;

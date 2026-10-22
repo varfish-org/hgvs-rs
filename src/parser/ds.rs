@@ -953,10 +953,10 @@ pub struct ProtPos {
 mod test {
     use pretty_assertions::assert_eq;
 
-    use super::{TxInterval, TxPos};
+    use super::{RnaInterval, RnaPos, TxInterval, TxPos};
     use crate::parser::Mu;
 
-    /// There is no position 0, so `n.-1_1` has 2 bases.
+    /// There is no position 0, so `n.-1_1` and `r.-1_1` have 2 bases.
     #[test]
     fn range_without_zero() {
         let interval = |start, end| TxInterval {
@@ -980,6 +980,17 @@ mod test {
                 range,
                 "{start}_{end}"
             );
+            let rna = RnaInterval {
+                start: RnaPos {
+                    base: start,
+                    offset: None,
+                },
+                end: RnaPos {
+                    base: end,
+                    offset: None,
+                },
+            };
+            assert_eq!(std::ops::Range::<i32>::from(rna), range, "r.{start}_{end}");
         }
     }
 
