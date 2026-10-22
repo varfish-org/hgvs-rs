@@ -77,6 +77,19 @@ fn codon_exceptions(exceptions: &[TranslationException]) -> Vec<(usize, char)> {
         .collect()
 }
 
+/// The length of the common prefix of `a` and `b`.
+fn common_prefix_len(a: &[u8], b: &[u8]) -> usize {
+    // Comparing chunks is much faster than comparing single bytes.
+    let chunks: usize = (a.chunks(64).zip(b.chunks(64)))
+        .take_while(|(a, b)| a == b)
+        .map(|(a, _)| a.len())
+        .sum();
+    chunks
+        + (a[chunks..].iter().zip(&b[chunks..]))
+            .take_while(|(a, b)| a == b)
+            .count()
+}
+
 /// Cache key of `ref_transcript_data_shared`.
 #[derive(Hash, PartialEq, Eq)]
 struct RefTranscriptDataKey {
@@ -1657,11 +1670,7 @@ impl<'a> AltSeqToHgvsp<'a> {
         let ref_seq = self.ref_data.transcript_sequence.as_bytes();
         let alt_seq = self.alt_data.transcript_sequence.as_bytes();
         let cds_start = usize::try_from(self.ref_data.cds_start - 1).ok()?;
-        let first_diff = ref_seq
-            .iter()
-            .zip(alt_seq)
-            .take_while(|(r, a)| r == a)
-            .count();
+        let first_diff = common_prefix_len(ref_seq, alt_seq);
         if ref_seq != alt_seq && first_diff >= cds_start {
             i32::try_from((first_diff - cds_start) / 3 + 1).ok()
         } else {
@@ -2081,6 +2090,25 @@ mod test {
 
             assert_eq!(state.hash_one(&key_ref), state.hash_one(&key));
             assert!(key_ref.equivalent(&key));
+        }
+    }
+
+    /// `common_prefix_len()` counts across and within its chunks of 64 bytes.
+    #[test]
+    fn common_prefix_len() {
+        for len in [0, 1, 63, 64, 65, 128, 130] {
+            let a = vec![b'A'; len];
+            for other_len in [len.saturating_sub(1), len, len + 1] {
+                for diff in 0..=other_len {
+                    let mut b = vec![b'A'; other_len];
+                    if let Some(base) = b.get_mut(diff) {
+                        *base = b'C';
+                    }
+                    let expected = a.iter().zip(&b).take_while(|(a, b)| a == b).count();
+                    assert_eq!(super::common_prefix_len(&a, &b), expected, "{len} {diff}");
+                    assert_eq!(super::common_prefix_len(&b, &a), expected, "{len} {diff}");
+                }
+            }
         }
     }
 
