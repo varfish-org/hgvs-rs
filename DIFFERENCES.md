@@ -2,7 +2,7 @@
 
 hgvs-rs is a port of [biocommons/hgvs][bc] and aims to give the same results. This list covers the differences named in the pull requests, issues and code comments of hgvs-rs. It is not the result of a full comparison.
 
-Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does and why. Links to the code of biocommons/hgvs point to commit [13289ab][bc-commit]. The examples on mock transcripts were run with both libraries.
+Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does and why. The entries under [Proposed fixes for biocommons/hgvs](#proposed-fixes-for-biocommonshgvs) are deviations that hgvs-rs makes on purpose and that are to be proposed upstream. Links to the code of biocommons/hgvs point to commit [13289ab][bc-commit]. The examples on mock transcripts were run with both libraries.
 
 ## Normalization
 
@@ -38,13 +38,13 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 
 - **Situation:** the CDS has no stop codon, and a variant ends with a position after its last base c.N, e.g. `c.N_*1insA`, `c.*1G>A` or `c.(N-1)_*1del`.
 - **biocommons/hgvs:** It counts the last codon as a stop codon. A variant with a c.* start, and an insertion or dup with a c.* end, is a 3' UTR variant and gives `p.?` ([`get_variant_region()`][bc-region]). Other variants that end with a c.* position get an extension. If the CDS ends with `GCG AAA`, followed by `GGGGG`, `c.26_*1del` gives `p.(Ter9ArgextTer?)`. A dup that ends at c.N fails with `IndexError` if bases follow c.N.
-- **hgvs-rs:** Without a stop codon, the CDS goes on after c.N, so there is no 3' UTR. These variants are CDS variants, and `c_to_p` gives `p.?`, as the amino acids after c.N are unknown. The same holds for a variant whose bases follow c.N, e.g. `c.Ndup`. The example gives `p.?`.
+- **hgvs-rs:** Without a stop codon, the CDS goes on after c.N, so there is no 3' UTR. These variants are CDS variants, and `c_to_p` gives `p.?`, as the amino acids after c.N are unknown. The same holds for a variant that can go after c.N, e.g. `c.Ndup`. The example gives `p.?`.
 
 ### Alt protein of a CDS without stop codon
 
 - **Situation:** the CDS has no stop codon, and a variant in it forms a new stop codon, or a stop codon follows c.N. E.g., `c.15_16insGGGTAA` turns `TGG GAA` at c.13 to c.18 into `TGG GGG TAA GAA`.
 - **biocommons/hgvs:** It counts the last codon as a stop codon. `AltTranscriptData` ends the alt protein with the last stop codon up to `cds_stop`, or else with the next one after it ([altseqbuilder.py][bc-alt-cut]). The example gives `p.(Ter6GlyextTer1)`.
-- **hgvs-rs:** The alt protein ends at c.N, as moved by the variant, because the amino acids after c.N are unknown. Otherwise, the alt protein would not line up with the reference protein. The example gives `p.Trp5_Glu6insGlyTer`, as with a stop codon after c.18. A frameshift that ends after c.N gives `fsTer?`. For the same reason, a dup moves `cds_stop` with its copy, as an insertion does.
+- **hgvs-rs:** The alt protein ends at c.N, as moved by the variant, because the amino acids after c.N are unknown. Otherwise, the alt protein would not line up with the reference protein. The example gives `p.Trp5_Glu6insGlyTer`, as with a stop codon after c.18. A frameshift that ends after c.N gives `fsTer?`. A dup moves `cds_stop` with its copy, as an insertion does, see [Dup moves `cds_stop` with its copy](#dup-moves-cds_stop-with-its-copy).
 
 ### Deletion with more reference bases than positions
 
@@ -76,13 +76,27 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 - **biocommons/hgvs:** It checks for a stop codon at the variant position before it checks for a silent change ([altseq_to_hgvsp.py][bc-stop-at-variant]). So it writes the change as a substitution, `p.(Ter10Ter)`.
 - **hgvs-rs:** It writes `p.Ter10=`, as for any other silent change. HGVS writes a silent change with `=`, e.g. `p.Cys188=`. `AltSeqToHgvsp::create_variant()` in [src/mapper/altseq.rs](src/mapper/altseq.rs) turns such a substitution into `=` ([#218]).
 
+## Proposed fixes for biocommons/hgvs
+
+Unless an entry says otherwise, the examples use a transcript whose 5' UTR ends with `AAAATCAAAC`, whose CDS is `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`), and whose 3' UTR starts with `GGGGGCCCCC`, in a single exon. So c.-6 is a T, c.-1 a C, c.30 a G and c.*1 a G.
+
+### Variants that leave the CDS intact
+
+- **Situation:** an insertion, dup, deletion, delins or inversion whose alt transcript sequence keeps the start codon or the stop codon where it is, because the same change fits in front of c.1 or after the stop codon. Every placement of such a change gives the same alt sequence, so they cannot differ in their effect.
+- **biocommons/hgvs:** It decides the region by the positions in the description ([`get_variant_region()`][bc-region]). A description that touches c.1 or the stop codon counts as exonic, and the protein is built from it literally. `c.-1_1insGCC`, `c.1dup`, `c.-1_1del` and `c.-6_1inv` give `p.Met1?`, and `c.1_3dup` gives `p.(Met1dup)`, although the ATG stays intact. `c.30dup` and `c.28_30dup` give `p.(=)`, and `c.30del` and `c.29_30insG` give `p.(Ter10Ter)`, although the stop codon is unchanged. Likewise, `NM_022051.2:c.-1_1insGCC` gives `NP_071334.1:p.Met1?` (`INITMET02` in [ext.tsv][bc-ext]), and `NM_001051.2:c.1257dupG`, where c.1257 is the last base of the stop codon, gives `NP_001042.1:p.(=)` ([test][bc-dup-cds-end]). With `ins_at_boundary_is_intronic` set to `False` and c.1 at an exon start, `c.1-1_1insC` gives `p.Met1?`. A dup from far into the 5' UTR, e.g. `c.-21_2dup` on a 5' UTR of 25 bases, leaves no ATG at the old start index and gives `p.Met1?`, while the intact CDS just moves 23 bases downstream.
+- **hgvs-rs (proposed fix):** It checks the alt transcript sequence. If it ends with the reference from c.1 on, or starts with the reference up to the last base of the CDS, the variant is a 5' or 3' UTR variant, and `c_to_p` gives `p.?`, as for any UTR variant. All of the examples give `p.?`, and every description of the same change gives the same result. Without a stop codon, there is no 3' UTR, see [Variants after a CDS without stop codon](#variants-after-a-cds-without-stop-codon). A stop codon that the poly(A) tail completes is not complete in the transcript sequence, so a change right after c.N can still change it. For example, `c.16dup` of the [mitochondrial example](#positions-after-a-completed-mitochondrial-stop-codon) gives `p.Ter6LeuextTer?`, as in biocommons/hgvs. This sequence check does not apply to an insertion with a c.* end, e.g. `c.16_*1insG`. As in biocommons/hgvs, its positions make it a 3' UTR variant, and it gives `p.?`.
+
+### Dup moves `cds_stop` with its copy
+
+- **Situation:** a dup in the CDS, which gives the same alt sequence as the insertion of its copy. E.g., `c.26_28dup` and `c.28_29insAAT` both turn `AAA TAG` into `AAA TAA TAG`.
+- **biocommons/hgvs:** An insertion moves `cds_stop` by its length ([altseqbuilder.py][bc-delins-cds-stop]), a dup keeps it ([altseqbuilder.py][bc-dup-cds-stop]). The alt protein ends with the last stop codon up to `cds_stop`, so the two descriptions give different results: `c.26_28dup` gives `p.(Ter10Ter)` and `c.28_29insAAT` gives `p.(Ter11Ter)`. [biocommons/hgvs#895][bc-895] reports this.
+- **hgvs-rs (proposed fix):** A dup moves `cds_stop` with its copy, as [biocommons/hgvs#896][bc-896] proposes. Both descriptions then give the same alt protein.
+
 ### New stop codon in front of the old one
 
-- **Situation:** an in-frame insertion forms a new stop codon right in front of the old one, so the protein stays the same. E.g., if the CDS ends with `AAA TAG`, `c.28_29insAAT` gives `AAA TAA TAG`.
-- **biocommons/hgvs:** The insertion moves `cds_stop` ([altseqbuilder.py][bc-delins-cds-stop]), so the alt protein ends with both stop codons. `c_to_p` reports the second one ([altseq_to_hgvsp.py][bc-stop-at-variant]) and gives `p.(Ter11Ter)`, a position after the end of the protein. A dup keeps `cds_stop` ([altseqbuilder.py][bc-dup-cds-stop]), so the same change `c.26_28dup` gives `p.(Ter10Ter)`. [biocommons/hgvs#895][bc-895] reports this, and [biocommons/hgvs#896][bc-896] proposes a fix.
-- **hgvs-rs:** It gives `p.=` for a change after the end of the reference protein (`AltSeqToHgvsp::convert_to_hgvs_variant()` in [src/mapper/altseq.rs](src/mapper/altseq.rs)), so the insertion gives `p.=`. The dup gives `p.Ter10=`, see [Stop codon changed into another stop codon](#stop-codon-changed-into-another-stop-codon). E.g., `NM_001253909.2:c.416_417insGTG` turns the stop codon `TAA` into `TAG TGA` and gives `p.=`.
-
-## Proposed fixes for biocommons/hgvs
+- **Situation:** an in-frame insertion or dup forms a new stop codon right in front of the old one, so the protein stays the same, as in the example above.
+- **biocommons/hgvs:** The alt protein ends with both stop codons. `c_to_p` reports the second one ([altseq_to_hgvsp.py][bc-stop-at-variant]) and gives `p.(Ter11Ter)` for `c.28_29insAAT`, a position after the end of the protein. `NM_001253909.2:c.416_417insGTG` turns the stop codon `TAA` into `TAG TGA` and gives `NP_001240838.1:p.(Ter140Ter)`.
+- **hgvs-rs (proposed fix):** Translation ends at the first stop codon, so `c_to_p` counts an alt protein that only adds amino acids after the stop codon as unchanged. The position of the silent change is the codon of the first changed base, as the 3' rule picks it. Every placement of the example gives `p.Ter10=`, like `c.30G>A`, and `NM_001253909.2:c.416_417insGTG` gives `p.Ter139=`, like `c.417A>G`. hgvs-rs writes `=` where biocommons/hgvs writes `Ter10Ter`, see [Stop codon changed into another stop codon](#stop-codon-changed-into-another-stop-codon).
 
 ### Positions after a completed mitochondrial stop codon
 
@@ -116,6 +130,12 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 - **biocommons/hgvs:** It builds the `AltSeqBuilder` of the shifted variant without the translation table, so it translates the shifted sequence with the standard table ([variantmapper.py][bc-shift-loop]).
 - **hgvs-rs:** It uses the reference data of the transcript, including its translation table.
 
+### Insertions and dups that leave the CDS intact
+
+- **Situation:** `Intron` or `Exon` on an insertion or dup that fits in front of c.1 or after the stop codon, e.g. `c.1dup` if c.-1 is not an A. See [Variants that leave the CDS intact](#variants-that-leave-the-cds-intact).
+- **biocommons/hgvs:** It counts the variant as exonic or intronic by its description and shifts it ([`get_variant_region()`][bc-region]).
+- **hgvs-rs:** The variant is a 5' or 3' UTR variant, which lies neither in an exon nor in an intron. `Intron` and `Exon` keep it, which gives `p.?`. They also skip a shift that ends in such a placement.
+
 [bc]: https://github.com/biocommons/hgvs
 [bc-commit]: https://github.com/biocommons/hgvs/tree/13289ab3b9db3c751918906c543991c74917ff61
 [bc-norm-intron]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/normalizer.py#L99-L101
@@ -127,6 +147,8 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 [bc-cds-len]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/reftranscriptdata.py#L28-L39
 [bc-setup]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseqbuilder.py#L376-L413
 [bc-region]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseqbuilder.py#L205-L225
+[bc-ext]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/tests/data/ext.tsv#L12
+[bc-dup-cds-end]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/tests/test_hgvs_variantmapper.py#L113-L117
 [bc-alt-cut]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseqbuilder.py#L58-L70
 [bc-del-stop]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseqbuilder.py#L272-L276
 [bc-775]: https://github.com/biocommons/hgvs/pull/775
