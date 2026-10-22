@@ -52,11 +52,11 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 - **biocommons/hgvs:** `c_to_p` and the normalizer raise `HGVSInvalidVariantError` ([tests][bc-am-test], [normalizer tests][bc-norm-test]).
 - **hgvs-rs:** It does not check this yet. `c_to_p` gives `NP_000050.2:p.Glu2598LysfsTer50`, and the normalizer gives `NM_000059.3:c.7791delA` ([#96]). This difference is a gap, not a decision.
 
-### Deletion of the stop codon
+### Deletion past the end of the transcript
 
-- **Situation:** an in-frame deletion runs from the CDS through the stop codon into the 3' UTR. E.g., `c.26_*1del` turns `GCG AAA TAG AGG AGG TAG` into `GCG AGG AGG TAG`.
-- **biocommons/hgvs:** It treats a deletion as a frameshift if its start is a c. position and its end a c.* position ([altseqbuilder.py][bc-del-stop], [biocommons/hgvs#775][bc-775]). HGVS describes such deletions as frameshifts. The example gives `p.(Lys9ArgfsTer3)`.
-- **hgvs-rs:** It decides the frame by the length of the deletion only. The example gives `p.Lys9delinsArgArg`, which hides the lost stop codon. This is a known difference, not yet fixed.
+- **Situation:** without `strict_bounds`, a deletion or delins from the CDS ends after the last base of the transcript sequence, e.g. `c.26_*20del` on a transcript that ends at c.*14.
+- **biocommons/hgvs:** It rejects the variant with `HGVSInvalidIntervalError`, as the position is out of bounds.
+- **hgvs-rs:** The bases that follow the deletion are unknown, so `c_to_p` gives `p.?`. HGVS gives `p.?` for a deletion of the last exons of DMD, which removes the stop codon, because "it is not known what sequences ... are added to the transcript". Before, hgvs-rs cut the deletion at the end of the transcript and built a protein from the bases that the transcript has, e.g. `p.Lys9XaafsTer?`.
 
 ### Deletion of the stop codon up to the transcript end
 
@@ -79,6 +79,12 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 ## Proposed fixes for biocommons/hgvs
 
 Unless an entry says otherwise, the examples use a transcript whose 5' UTR ends with `AAAATCAAAC`, whose CDS is `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`), and whose 3' UTR starts with `GGGGGCCCCC`, in a single exon. So c.-6 is a T, c.-1 a C, c.30 a G and c.*1 a G.
+
+### Deletion that ends with the stop codon
+
+- **Situation:** a deletion starts in front of the stop codon and ends with its last base c.N, e.g. `c.25_30del`, which removes `AAA TAG` from the CDS of the example.
+- **biocommons/hgvs:** It treats a deletion from a c. to a c.* position as a frameshift ([altseqbuilder.py][bc-del-stop], [biocommons/hgvs#775][bc-775]), as HGVS says that "deletions starting 5' of and including the translation termination (stop) codon are described as frameshift". A deletion that ends at c.N counts by its length only. If the 3' UTR starts with `GCTTAG`, `c.25_30del` gives `p.(Lys9Ala)`, and [its test][bc-del-stop-test] expects `p.(Lys9_Ter10delinsGly)` on a transcript whose 3' UTR is `GGGG`. Both hide that the new C-terminus comes from the 3' UTR.
+- **hgvs-rs (proposed fix):** It applies the HGVS rule to these deletions, too. The examples give `p.Lys9AlafsTer2` and `p.Lys9GlyfsTer?`. A delins that ends at c.N still counts by its length, as in biocommons/hgvs, as its bases can put a stop codon in the place of the old one. E.g., `c.25_30delinsGCGTAA` gives `p.Lys9Ala`. biocommons/hgvs#775 turns a delins that ends in the 3' UTR into a frameshift even then: `c.25_*1delinsGCGTAAG` gives `p.(Lys9AlafsTer2)`. hgvs-rs ports this as is.
 
 ### Variants that leave the CDS intact
 
@@ -152,6 +158,7 @@ Unless an entry says otherwise, the examples use a transcript whose 5' UTR ends 
 [bc-alt-cut]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseqbuilder.py#L58-L70
 [bc-del-stop]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseqbuilder.py#L272-L276
 [bc-775]: https://github.com/biocommons/hgvs/pull/775
+[bc-del-stop-test]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/tests/test_hgvs_variantmapper_cp_sanity.py#L98-L101
 [bc-fs-start]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseq_to_hgvsp.py#L83-L86
 [bc-529]: https://github.com/biocommons/hgvs/issues/529
 [bc-ins-dup]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseq_to_hgvsp.py#L296-L315

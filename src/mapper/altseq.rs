@@ -1029,7 +1029,9 @@ impl<'a> AltSeqBuilder<'a> {
             _ => panic!("This should not happen"),
         }
 
-        let mut is_frameshift = net_base_change % 3 != 0;
+        // A deletion or delins through the stop codon is a frameshift, see
+        // `through_stop_codon()`.
+        let mut is_frameshift = net_base_change % 3 != 0 || self.through_stop_codon();
         if let Some((stop_end, alt_end)) = insert_stop {
             is_frameshift = false;
             seq.replace_range(stop_end..alt_end, "");
@@ -1050,11 +1052,54 @@ impl<'a> AltSeqBuilder<'a> {
             &self.reference_data.protein_accession,
             &self.reference_data.aa_sequence,
             is_substitution,
-            self.ref_has_multiple_stops,
+            // The bases after the end of the transcript are unknown.
+            self.ref_has_multiple_stops || self.ends_after_transcript(),
             self.reference_data.translation_table,
             &translation_exceptions,
             poly_a,
         )
+    }
+
+    /// Whether the variant starts in the CDS and ends in the 3' UTR, or is a deletion that
+    /// starts before the stop codon and ends with its last base.  HGVS describes such a
+    /// deletion, which removes the stop codon, as a frameshift: "deletions starting 5' of and
+    /// including the translation termination (stop) codon are described as frameshift".
+    /// biocommons/hgvs does so for the first case only (biocommons/hgvs#775), see
+    /// `DIFFERENCES.md`.  A delins that ends with the last base of the stop codon counts by its
+    /// length, as in biocommons/hgvs, as its bases can put a stop codon in the place of the old
+    /// one.
+    fn through_stop_codon(&self) -> bool {
+        let HgvsVariant::CdsVariant { loc_edit, .. } = &self.var_c else {
+            return false;
+        };
+        let loc = loc_edit.loc.inner();
+        let cds_len = self.reference_data.cds_stop - self.reference_data.cds_start + 1;
+        loc.start.cds_from == CdsFrom::Start
+            && match loc.end.cds_from {
+                CdsFrom::End => true,
+                CdsFrom::Start => {
+                    matches!(
+                        loc_edit.edit.inner(),
+                        NaEdit::DelRef { .. } | NaEdit::DelNum { .. }
+                    ) && self.reference_data.cds_end == CdsEnd::StopCodon
+                        && cds_len % 3 == 0
+                        && loc.start.base <= cds_len - 3
+                        && loc.end.base == cds_len
+                        && loc.end.offset.unwrap_or(0) == 0
+                }
+            }
+    }
+
+    /// Whether the variant ends after the last base of the transcript sequence.  This can
+    /// happen without `strict_bounds`.
+    fn ends_after_transcript(&self) -> bool {
+        let HgvsVariant::CdsVariant { loc_edit, .. } = &self.var_c else {
+            return false;
+        };
+        let end = &loc_edit.loc.inner().end;
+        end.cds_from == CdsFrom::End
+            && i64::from(self.reference_data.cds_stop) + i64::from(end.base)
+                > self.reference_data.transcript_sequence.len() as i64
     }
 
     /// Incorporate a dup into the transcript sequence: its copy goes right after the duplicated
