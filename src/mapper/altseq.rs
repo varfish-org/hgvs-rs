@@ -481,6 +481,70 @@ pub enum VariantLocation {
     WholeGene,
 }
 
+/// Whether the alt sequence that replaces `seq[start..end]` with `alt` ends with
+/// `seq[cds_start..]`, and whether it starts with `seq[..cds_end]`, see
+/// `AltSeqBuilder::placements_outside_cds()`.  `None` if it changes no base, e.g., the inversion
+/// of `GC`, or if an index lies outside `seq`.
+///
+/// If `start == end` and `alt` is empty, there are no bases to compare, and the result comes
+/// from `start` alone, without a bounds check: whether it lies at or before `cds_start`, and
+/// whether it lies at or behind `cds_end`.
+///
+/// The alt sequence is `seq[..start]`, `alt`, and `seq[end..]`, so it need not be built: the
+/// comparison with `seq[cds_start..]` skips `seq[end..]`, and the one with `seq[..cds_end]`
+/// skips `seq[..start]`.
+fn keeps_ref_suffix_and_prefix(
+    seq: &[u8],
+    start: usize,
+    end: usize,
+    alt: &[u8],
+    cds_start: usize,
+    cds_end: usize,
+) -> Option<(bool, bool)> {
+    if start == end && alt.is_empty() {
+        // No bases to compare, so the gap at `start` decides.
+        return Some((start <= cds_start, start >= cds_end));
+    }
+    if start > seq.len() || end > seq.len() {
+        return None;
+    }
+    let same_length = start + alt.len() == end;
+    if same_length && alt == &seq[start..end] {
+        return None;
+    }
+    if cds_start > seq.len() || cds_end > seq.len() {
+        return None;
+    }
+    // The alt sequence from `lo` on must be `seq[cds_start..]`.  Behind `alt`, it is
+    // `seq[end..]`, which lines up, so only the bases up to the end of `alt` count.
+    let keeps_suffix = if end <= cds_start {
+        true
+    } else if let Some(lo) = (cds_start + start + alt.len()).checked_sub(end) {
+        let cds_part = &seq[cds_start..end];
+        match lo.checked_sub(start) {
+            Some(skip) => alt[skip..] == *cds_part,
+            None => {
+                let (head, tail) = cds_part.split_at(start - lo);
+                (same_length || seq[lo..start] == *head) && alt == tail
+            }
+        }
+    } else {
+        // The alt sequence is shorter than `seq[cds_start..]`.
+        false
+    };
+    // The alt sequence up to `start` is `seq[..start]`.
+    let keeps_prefix = if cds_end <= start {
+        true
+    } else if let Some(behind_alt) = (cds_end - start).checked_sub(alt.len()) {
+        let alt_end = start + alt.len();
+        alt == &seq[start..alt_end]
+            && (same_length || seq.get(end..end + behind_alt) == Some(&seq[alt_end..cds_end]))
+    } else {
+        alt[..cds_end - start] == seq[start..cds_end]
+    };
+    Some((keeps_suffix, keeps_prefix))
+}
+
 /// Utility enum for edit type.
 enum EditType {
     NaRefAlt,
@@ -912,23 +976,7 @@ impl<'a> AltSeqBuilder<'a> {
             ),
             _ => return None,
         };
-        if start == end && alt_bases.is_empty() {
-            // Without the inserted bases, only this placement is known.
-            Some((start <= cds_start, start >= cds_end))
-        } else {
-            // `alt` ends with the reference from c.1 on if and only if a placement in front of
-            // c.1 gives `alt`.  Likewise, `alt` starts with the reference up to the last base
-            // of the CDS if and only if a placement after that base gives `alt`.
-            let alt = [seq.get(..start)?, alt_bases.as_bytes(), seq.get(end..)?].concat();
-            if alt == seq {
-                // Changes no base, e.g., the inversion of `GC`.
-                return None;
-            }
-            Some((
-                alt.ends_with(seq.get(cds_start..)?),
-                alt.starts_with(seq.get(..cds_end)?),
-            ))
-        }
+        keeps_ref_suffix_and_prefix(seq, start, end, alt_bases.as_bytes(), cds_start, cds_end)
     }
 
     /// Helper to setup incorporate function.
@@ -2030,6 +2078,107 @@ mod test {
 
             assert_eq!(state.hash_one(&key_ref), state.hash_one(&key));
             assert!(key_ref.equivalent(&key));
+        }
+    }
+
+    /// `keeps_ref_suffix_and_prefix()` agrees with building the whole alt sequence and
+    /// comparing its ends with the reference, as `placements_outside_cds()` did before.  It
+    /// checks every replacement of up to 8 bases, and of none, at every position of short
+    /// transcripts, by every sequence of up to 3 bases and by every copy of up to 8 bases near
+    /// it, as for dups and shifted insertions.  The transcripts have repeats across c.1 and
+    /// c.N, no stop codon, no UTRs, and a CDS that ends beyond the transcript.
+    #[test]
+    fn keeps_ref_suffix_and_prefix_agrees_with_alt_sequence() {
+        fn by_alt_sequence(
+            seq: &[u8],
+            start: usize,
+            end: usize,
+            alt: &[u8],
+            cds_start: usize,
+            cds_end: usize,
+        ) -> Option<(bool, bool)> {
+            if start == end && alt.is_empty() {
+                return Some((start <= cds_start, start >= cds_end));
+            }
+            let alt = [seq.get(..start)?, alt, seq.get(end..)?].concat();
+            if alt == seq {
+                return None;
+            }
+            Some((
+                alt.ends_with(seq.get(cds_start..)?),
+                alt.starts_with(seq.get(..cds_end)?),
+            ))
+        }
+
+        // The 5' UTR, the CDS and the 3' UTR.
+        let parts = [
+            (
+                "AAAATCAAAC",
+                "ATGAAAGCGAAAGCGTTTCGCGCGAAATAG",
+                "GGGGGGCCCCC",
+            ),
+            ("AAAATCAAAC", "ATGAAAGCGAAAGCGTTTCGCGCGAAA", "GGGGGCCCCC"),
+            ("GAAAAAA", "ATGAAAAAAAAATAA", "AAAAAAG"),
+            ("CACACAC", "ATGCACACATGA", "CACACA"),
+            ("", "ATGAAATAA", ""),
+        ];
+        // The sequence, and the 0-based indices of c.1 and behind c.N.
+        let mut transcripts: Vec<_> = (parts.iter())
+            .map(|(utr5, cds, utr3)| {
+                let cds_start = utr5.len();
+                (
+                    format!("{utr5}{cds}{utr3}"),
+                    cds_start,
+                    cds_start + cds.len(),
+                )
+            })
+            .collect();
+        transcripts.push(("ATGAAATA".to_string(), 0, 9));
+
+        let mut short_alts = vec![Vec::new()];
+        for len in 1..=3 {
+            let longer: Vec<Vec<u8>> = (short_alts.iter())
+                .filter(|alt| alt.len() == len - 1)
+                .flat_map(|alt| b"ACGT".map(|base| [alt.as_slice(), &[base]].concat()))
+                .collect();
+            short_alts.extend(longer);
+        }
+
+        let mut outcomes = std::collections::HashSet::new();
+        for (seq, cds_start, cds_end) in &transcripts {
+            let (seq, cds_start, cds_end) = (seq.as_bytes(), *cds_start, *cds_end);
+            for start in 0..=seq.len() + 1 {
+                let mut alts: Vec<&[u8]> = short_alts.iter().map(Vec::as_slice).collect();
+                for len in 1..=8 {
+                    for from in start.saturating_sub(8)..=start + 8 {
+                        alts.extend(seq.get(from..from + len));
+                    }
+                }
+                // An end before `start` checks reversed intervals, too.
+                for end in start.saturating_sub(2)..=start + 8 {
+                    for alt in &alts {
+                        let expected = by_alt_sequence(seq, start, end, alt, cds_start, cds_end);
+                        assert_eq!(
+                            super::keeps_ref_suffix_and_prefix(
+                                seq, start, end, alt, cds_start, cds_end
+                            ),
+                            expected,
+                            "{start}..{end} by {:?} in {:?}",
+                            std::str::from_utf8(alt),
+                            std::str::from_utf8(seq),
+                        );
+                        outcomes.insert(expected);
+                    }
+                }
+            }
+        }
+        for outcome in [
+            None,
+            Some((false, false)),
+            Some((true, false)),
+            Some((false, true)),
+        ] {
+            assert!(outcomes.contains(&outcome), "{outcome:?}");
         }
     }
 
