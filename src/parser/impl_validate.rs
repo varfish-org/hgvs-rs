@@ -167,10 +167,28 @@ impl Validateable for ProtLocEdit {
 
 #[cfg(test)]
 mod test {
+    use std::str::FromStr;
+
     use crate::{
-        parser::GenomeInterval,
+        parser::{GenomeInterval, HgvsVariant},
         validator::{Error, Validateable},
     };
+
+    /// There is no c.0, so `c.-1_1` has 2 bases, as in biocommons/hgvs.
+    #[test]
+    fn validate_cds_length_without_c0() -> Result<(), anyhow::Error> {
+        for (hgvs_c, valid) in [
+            ("NM_000314.4:c.-1_1del2", true),
+            ("NM_000314.4:c.-1_1del3", false),
+            ("NM_000314.4:c.-2_1inv3", true),
+            ("NM_000314.4:c.-3_-1del3", true),
+            ("NM_000314.4:c.1_3del3", true),
+        ] {
+            let var_c = HgvsVariant::from_str(hgvs_c)?;
+            assert_eq!(var_c.validate().is_ok(), valid, "{hgvs_c}");
+        }
+        Ok(())
+    }
 
     #[test]
     fn validate_genomeinterval() -> Result<(), Error> {
