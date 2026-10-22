@@ -298,8 +298,8 @@ impl Mapper {
         let alt = alt_ac
             .as_deref()
             .map(|alt_ac| (alt_ac, self.config.alt_aln_method.as_str()));
-        let (var, region) = self.inner.c_to_p_with_alt(var_c, None, alt)?;
-        Ok((self.maybe_normalize(&var)?, region))
+        // `maybe_normalize()` would only validate the protein variant and return a copy.
+        self.inner.c_to_p_with_alt(var_c, None, alt)
     }
 
     /// The `AltSeqBuilder` that `c_to_p()` builds the protein from, without the shifts of
