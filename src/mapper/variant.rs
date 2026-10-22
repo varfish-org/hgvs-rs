@@ -785,17 +785,29 @@ impl Mapper {
     /// * `var_c` -- `HgvsVariant::TxVariant` to project
     /// * `pro_ac` -- Protein accession
     pub fn c_to_p(&self, var_c: &HgvsVariant, prot_ac: Option<&str>) -> Result<HgvsVariant, Error> {
+        self.c_to_p_with_region(var_c, prot_ac)
+            .map(|(var_p, _)| var_p)
+    }
+
+    /// Like `c_to_p()`, but also returns the region of the transcript that it built the protein
+    /// for, see `AltSeqBuilder::variant_location()`.  With `Config::shift_over_boundary`, this
+    /// is the region of the shift that it uses.
+    pub fn c_to_p_with_region(
+        &self,
+        var_c: &HgvsVariant,
+        prot_ac: Option<&str>,
+    ) -> Result<(HgvsVariant, VariantLocation), Error> {
         self.c_to_p_with_alt(var_c, prot_ac, None)
     }
 
-    /// Like `c_to_p()`, but takes the reference of intron bases from the genome alignment
-    /// `alt`, given as `(alt_ac, alt_aln_method)`.
+    /// Like `c_to_p_with_region()`, but takes the reference of intron bases from the genome
+    /// alignment `alt`, given as `(alt_ac, alt_aln_method)`.
     pub(crate) fn c_to_p_with_alt(
         &self,
         var_c: &HgvsVariant,
         prot_ac: Option<&str>,
         alt: Option<(&str, &str)>,
-    ) -> Result<HgvsVariant, Error> {
+    ) -> Result<(HgvsVariant, VariantLocation), Error> {
         use super::altseq::*;
 
         if let HgvsVariant::CdsVariant {
@@ -818,14 +830,14 @@ impl Mapper {
                 prot_ac.map(|s| s.to_string()).as_deref(),
             )?;
             let builder = self.alt_seq_builder(var_c, &reference_data, alt)?;
-            let builder = self.shift_over_boundary(builder, alt)?;
+            let (builder, region) = self.shift_over_boundary(builder, alt)?;
 
             // NB: the following comment is from the original code.
             // TODO: handle case where you get 2+ alt sequences back;  currently get list of 1 element
             // loop structure implemented to handle this, but doesn't really do anything currently.
 
             let var_ps: Result<Vec<_>, Error> = builder
-                .build_altseq()?
+                .build_altseq_in(region)?
                 .into_iter()
                 .map(|alt_data| {
                     let builder = AltSeqToHgvsp::new(&reference_data, alt_data);
@@ -853,9 +865,9 @@ impl Mapper {
                 return Err(Error::NotProtVariant);
             };
 
-            Ok(with_inferred_p_uncertainty(
-                var_p,
-                self.config.inferred_p_is_uncertain,
+            Ok((
+                with_inferred_p_uncertainty(var_p, self.config.inferred_p_is_uncertain),
+                region,
             ))
         } else {
             Err(Error::ExpectedCdsVariant(format!("{}", var_c)))
@@ -866,20 +878,20 @@ impl Mapper {
     /// biocommons/hgvs does.
     ///
     /// For an insertion or duplication in an exon or intron, take the first shift, 3' then
-    /// 5', that lies on the other side of an exon boundary.  Return its builder if that side
-    /// is the preferred one, else `builder`.  `alt` is the genome alignment as
-    /// `(alt_ac, alt_aln_method)`.
+    /// 5', that lies on the other side of an exon boundary.  Return its builder and region if
+    /// that side is the preferred one, else `builder` and its region.  `alt` is the genome
+    /// alignment as `(alt_ac, alt_aln_method)`.
     fn shift_over_boundary<'a>(
         &self,
         builder: AltSeqBuilder<'a>,
         alt: Option<(&str, &str)>,
-    ) -> Result<AltSeqBuilder<'a>, Error> {
-        let Some(preferred) = self.shift_preference(&builder.var_c)? else {
-            return Ok(builder);
-        };
+    ) -> Result<(AltSeqBuilder<'a>, VariantLocation), Error> {
         let region = builder.variant_location()?;
+        let Some(preferred) = self.shift_preference(&builder.var_c)? else {
+            return Ok((builder, region));
+        };
         if !matches!(region, VariantLocation::Intron | VariantLocation::Cds) {
-            return Ok(builder);
+            return Ok((builder, region));
         }
         let (alt_ac, alt_aln_method) =
             alt.ok_or_else(|| Error::ShiftOverBoundaryNeedsAlignment(builder.var_c.to_string()))?;
@@ -919,13 +931,13 @@ impl Mapper {
             ) && shifted_region != region
             {
                 return Ok(if shifted_region == preferred {
-                    shifted
+                    (shifted, shifted_region)
                 } else {
-                    builder
+                    (builder, region)
                 });
             }
         }
-        Ok(builder)
+        Ok((builder, region))
     }
 
     /// The region that `c_to_p` prefers for a shift of `var_c` over an exon boundary, or `None`

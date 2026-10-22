@@ -633,6 +633,15 @@ impl<'a> AltSeqBuilder<'a> {
     /// Variant sequence data, or `Error::ExpectedCdsVariant` if `var_c` is not a
     /// `HgvsVariant::CdsVariant`.
     pub fn build_altseq(&self) -> Result<Vec<AltTranscriptData>, Error> {
+        self.build_altseq_in(self.variant_location()?)
+    }
+
+    /// Like `build_altseq()`, for the `region` that `variant_location()` gives, so that a
+    /// caller that has it need not compute it again.
+    pub(crate) fn build_altseq_in(
+        &self,
+        region: VariantLocation,
+    ) -> Result<Vec<AltTranscriptData>, Error> {
         // NB: the following comment is from the original Python code.
         // Should loop over each allele rather than assume only 1 variant; return a list for now.
 
@@ -640,7 +649,7 @@ impl<'a> AltSeqBuilder<'a> {
             return Err(Error::ExpectedCdsVariant(self.var_c.to_string()));
         };
         let na_edit = loc_edit.edit.inner();
-        let edit_type = match self.variant_location()? {
+        let edit_type = match region {
             // Without a stop codon, the amino acids after the CDS are unknown.
             VariantLocation::Cds if self.after_cds_without_stop() => EditType::NotCds,
             VariantLocation::Cds => match na_edit {
@@ -702,6 +711,7 @@ impl<'a> AltSeqBuilder<'a> {
     /// uses.  With `variant::Config::shift_over_boundary`, `c_to_p` can build the protein from a
     /// shift of `var_c` into another region, which this method does not apply.  The region of a
     /// dup of intron bases can also depend on these bases, which `c_to_p` fills in first.
+    /// `c_to_p_with_region()` of either mapper returns the region that `c_to_p` uses.
     ///
     /// # Errors
     ///
