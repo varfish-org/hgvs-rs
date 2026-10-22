@@ -394,7 +394,8 @@ impl AltTranscriptData {
             // or if a stop codon follows `cds_stop`.
             let orig_aa_len = (cds_stop - cds_start + 1) as usize / 3;
             let orig_aa_len = std::cmp::min(orig_aa_len, seq_aa.len());
-            if !ref_aa_sequence.contains('*') {
+            // The stop codon is usually last, which spares the scan.
+            if !(ref_aa_sequence.ends_with('*') || ref_aa_sequence.contains('*')) {
                 seq_aa[..orig_aa_len].to_owned()
             } else if let Some(stop_pos) = seq_aa[..orig_aa_len]
                 .rfind('*')
@@ -592,8 +593,10 @@ impl<'a> AltSeqBuilder<'a> {
     /// A builder for `var_c` on `reference_data`, with the defaults of `variant::Config`.
     #[allow(deprecated)] // first_stop_pos
     pub fn new(var_c: HgvsVariant, reference_data: &'a RefTranscriptData) -> Self {
-        let ref_has_multiple_stops = reference_data.aa_sequence.matches('*').count() > 1;
+        // One scan only: `rfind` finds the usual single stop codon at the end right away.
         let first_stop_pos = reference_data.aa_sequence.find('*');
+        let ref_has_multiple_stops = first_stop_pos
+            .is_some_and(|first| reference_data.aa_sequence.rfind('*') != Some(first));
 
         Self {
             var_c,
