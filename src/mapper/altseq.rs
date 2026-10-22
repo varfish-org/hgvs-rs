@@ -411,17 +411,19 @@ pub struct AltSeqBuilder<'a> {
     pub var_c: HgvsVariant,
     /// Information about the transcript reference.
     pub reference_data: &'a RefTranscriptData,
-    /// Whether the transcript reference amino acid sequence has multiple stop codons.
+    /// Whether the transcript reference amino acid sequence has multiple stop codons.  As in
+    /// biocommons/hgvs, `c_to_p` then gives `p.?` for every variant.
     pub ref_has_multiple_stops: bool,
-    /// Position of the first stop codon in the reference amino acid.  It is difficult
-    /// to handle transcripts with multiple stop codons, but we can make a reasonable
-    /// prediction up to the first stop codon.  This rescues changes to the `p.Met1`.
+    /// 0-based index of the first stop codon in the reference amino acid sequence.
+    #[deprecated(note = "unused, `c_to_p` gives `p.?` for a reference with several stop codons")]
     pub first_stop_pos: Option<usize>,
     /// See `variant::Config::ins_at_boundary_is_intronic`; `true` by default.
     pub ins_at_boundary_is_intronic: bool,
 }
 
 impl<'a> AltSeqBuilder<'a> {
+    /// A builder for `var_c` on `reference_data`, with the defaults of `variant::Config`.
+    #[allow(deprecated)] // first_stop_pos
     pub fn new(var_c: HgvsVariant, reference_data: &'a RefTranscriptData) -> Self {
         let ref_has_multiple_stops = reference_data.aa_sequence.matches('*').count() > 1;
         let first_stop_pos = reference_data.aa_sequence.find('*');
@@ -731,7 +733,7 @@ impl<'a> AltSeqBuilder<'a> {
             &self.reference_data.protein_accession,
             &self.reference_data.aa_sequence,
             is_substitution,
-            self.ref_has_multiple_stops && self.first_stop_pos.map(|p| p <= start).unwrap_or(false),
+            self.ref_has_multiple_stops,
             self.reference_data.translation_table,
             &translation_exceptions,
         )
@@ -769,7 +771,7 @@ impl<'a> AltSeqBuilder<'a> {
             &self.reference_data.protein_accession,
             &self.reference_data.aa_sequence,
             false,
-            self.ref_has_multiple_stops && self.first_stop_pos.map(|p| p <= start).unwrap_or(false),
+            self.ref_has_multiple_stops,
             self.reference_data.translation_table,
             &translation_exceptions,
         )
@@ -803,7 +805,7 @@ impl<'a> AltSeqBuilder<'a> {
             &self.reference_data.protein_accession,
             &self.reference_data.aa_sequence,
             false,
-            self.ref_has_multiple_stops && self.first_stop_pos.map(|p| p <= start).unwrap_or(false),
+            self.ref_has_multiple_stops,
             self.reference_data.translation_table,
             &translation_exceptions,
         )
