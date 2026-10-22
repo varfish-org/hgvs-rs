@@ -1,5 +1,31 @@
 # Changelog
 
+## [3.0.0](https://github.com/varfish-org/hgvs-rs/compare/v2.0.1...v3.0.0) (2026-10-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* c_to_p gives p.(Gly2Arg) instead of p.Gly2Arg and p.(=) instead of p.= by default. Set inferred_p_is_uncertain to false for the certain forms. variant::Config and assembly::Config have the new public field inferred_p_is_uncertain.
+* variant::Config and assembly::Config have the new public fields shift_over_boundary and shift_over_boundary_preference. mapper::Error has the new variant ShiftOverBoundaryNeedsAlignment.
+
+### Features
+
+* **mapper:** complete mitochondrial stop codons by poly(A) ([#314](https://github.com/varfish-org/hgvs-rs/issues/314)) ([28e1161](https://github.com/varfish-org/hgvs-rs/commit/28e1161bcd56f1a2a65fc5cba675545f79092ef2))
+* **mapper:** decide boundary insertions by the splice site ([#317](https://github.com/varfish-org/hgvs-rs/issues/317)) ([3d2c1bf](https://github.com/varfish-org/hgvs-rs/commit/3d2c1bfb73ac3b0c287e0ec4b517492e664d0dfd))
+* **mapper:** expose the variant region of a c. variant ([#306](https://github.com/varfish-org/hgvs-rs/issues/306)) ([58f7c2b](https://github.com/varfish-org/hgvs-rs/commit/58f7c2bc071a005760eceb3706c3928465f544ae))
+* **mapper:** return the region that c_to_p uses, and speed up c_to_p ([#321](https://github.com/varfish-org/hgvs-rs/issues/321)) ([dbded42](https://github.com/varfish-org/hgvs-rs/commit/dbded4216c3985e8df450282eb2c0f3e5c9a3d44))
+* port inferred_p_is_uncertain from biocommons/hgvs ([#318](https://github.com/varfish-org/hgvs-rs/issues/318)) ([cd43758](https://github.com/varfish-org/hgvs-rs/commit/cd43758dd38fa0d017148b762d72f0a6cfbead34))
+* port shift_over_boundary from biocommons/hgvs ([#307](https://github.com/varfish-org/hgvs-rs/issues/307)) ([e76f3bb](https://github.com/varfish-org/hgvs-rs/commit/e76f3bb03a1dba04e758e019bdbdf0fd02c6004b))
+
+
+### Bug Fixes
+
+* **mapper:** count no c.0 in g_to_c insertions ([#313](https://github.com/varfish-org/hgvs-rs/issues/313)) ([e854006](https://github.com/varfish-org/hgvs-rs/commit/e85400639f5ee2a6733dd56d81740c192156965f))
+* **mapper:** decide CDS boundary variants by sequence ([#315](https://github.com/varfish-org/hgvs-rs/issues/315)) ([633fe38](https://github.com/varfish-org/hgvs-rs/commit/633fe38bb7fcacdd64d297b29b75c428fd907c26))
+* **mapper:** describe deletions through the stop codon as frameshifts ([#316](https://github.com/varfish-org/hgvs-rs/issues/316)) ([d800a5f](https://github.com/varfish-org/hgvs-rs/commit/d800a5fb5bbe2223f1a0841290957d61984f412b))
+* **mapper:** give p.? for a reference with several stop codons ([#304](https://github.com/varfish-org/hgvs-rs/issues/304)) ([c6c1546](https://github.com/varfish-org/hgvs-rs/commit/c6c15467db4dd81f3a31df1100b0c8f704fcd155))
+* **mapper:** port _insert_stop_seq_end and fix CDSs without stop codon ([#305](https://github.com/varfish-org/hgvs-rs/issues/305)) ([07ca9b6](https://github.com/varfish-org/hgvs-rs/commit/07ca9b6057518ca1c8c53c705e4caf281799dbc1))
+
 ## [2.0.1](https://github.com/varfish-org/hgvs-rs/compare/v2.0.0...v2.0.1) (2026-10-21)
 
 

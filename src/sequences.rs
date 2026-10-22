@@ -298,7 +298,7 @@ pub fn translate_cds(
 
     let mut result = Vec::with_capacity(seq.len() / 3 + ter_symbol.len());
 
-    for chunk in seq.as_bytes().chunks_exact(3) {
+    for chunk in seq.as_bytes().as_chunks::<3>().0 {
         // map raw ascii to 4-bit IUPAC (handles U to T and lower to upper implicitly)
         let v0 = DNA_ASCII_TO_IUPAC[chunk[0] as usize];
         let v1 = DNA_ASCII_TO_IUPAC[chunk[1] as usize];

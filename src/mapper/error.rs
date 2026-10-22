@@ -81,6 +81,8 @@ pub enum Error {
     InsertionSequenceEmpty,
     #[error("duplication is missing its reference sequence: {0}")]
     DuplicationReferenceMissing(String),
+    #[error("shift_over_boundary needs a genome alignment for {0}")]
+    ShiftOverBoundaryNeedsAlignment(String),
     #[error("cannot build CIGAR string from empty exons")]
     EmptyExons,
     #[error("found no exons for tx_ac={0}, alt_ac={1}, alt_aln_method={2}")]
