@@ -22,4 +22,6 @@ pub enum Error {
     EndMustBePositive(String),
     #[error("sart <= end must hold in {0}")]
     StartMustBeLessThanEnd(String),
+    #[error("there is no position 0 in {0}")]
+    PositionMustNotBeZero(String),
 }
