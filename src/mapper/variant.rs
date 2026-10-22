@@ -2328,14 +2328,26 @@ mod test {
                 check_c_to_p(&mapper, hgvs_c, Some("MOCK"), Some(expected))?;
             }
         }
-        for hgvs_c in [
-            "NM_999999.1:c.6_4del",
-            "NM_999999.1:c.6_4dup",
-            "NM_999999.1:c.5000_5001insA",
-        ] {
+        for hgvs_c in ["NM_999999.1:c.6_4del", "NM_999999.1:c.6_4dup"] {
             let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvs_c)?, Some("MOCK"));
-            assert!(var_p.is_err(), "{hgvs_c} gave {var_p:?}");
+            assert!(
+                matches!(
+                    var_p,
+                    Err(crate::mapper::Error::ValidationFailed(
+                        crate::validator::Error::StartMustBeLessThanEnd(_)
+                    ))
+                ),
+                "{hgvs_c} gave {var_p:?}"
+            );
         }
+        let var_p = mapper.c_to_p(
+            &HgvsVariant::from_str("NM_999999.1:c.5000_5001insA")?,
+            Some("MOCK"),
+        );
+        assert!(
+            matches!(var_p, Err(crate::mapper::Error::CoordinateOutOfBounds(ref pos)) if pos == "5000"),
+            "{var_p:?}"
+        );
 
         Ok(())
     }
