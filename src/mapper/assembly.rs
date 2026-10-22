@@ -5,6 +5,7 @@ use std::ops::Range;
 
 use std::sync::Arc;
 
+use crate::mapper::altseq::{AltSeqBuilder, RefTranscriptData};
 use crate::mapper::error::Error;
 use crate::mapper::variant::{self, ShiftOverBoundaryPreference};
 use crate::normalizer::Direction;
@@ -55,6 +56,9 @@ pub struct Config {
     pub window_size: usize,
     /// See `variant::Config::ins_at_boundary_is_intronic`.
     pub ins_at_boundary_is_intronic: bool,
+    /// See `variant::Config::ins_at_boundary_by_sequence`.  The intron bases come from the
+    /// genome, so this needs `genome_seq_available`.
+    pub ins_at_boundary_by_sequence: bool,
     /// See `variant::Config::shift_over_boundary`.  This needs `genome_seq_available`.
     pub shift_over_boundary: bool,
     /// See `variant::Config::shift_over_boundary_preference`.
@@ -79,6 +83,7 @@ impl Default for Config {
             shuffle_direction: Default::default(),
             window_size: 20,
             ins_at_boundary_is_intronic: true,
+            ins_at_boundary_by_sequence: false,
             shift_over_boundary: false,
             shift_over_boundary_preference: Default::default(),
         }
@@ -132,6 +137,7 @@ impl Mapper {
             shuffle_direction: config.shuffle_direction,
             window_size: config.window_size,
             ins_at_boundary_is_intronic: config.ins_at_boundary_is_intronic,
+            ins_at_boundary_by_sequence: config.ins_at_boundary_by_sequence,
             shift_over_boundary: config.shift_over_boundary,
             shift_over_boundary_preference: config.shift_over_boundary_preference,
         };
@@ -271,20 +277,63 @@ impl Mapper {
     ///
     /// * `var_c` -- `HgvsVariant::TxVariant` to project
     pub fn c_to_p(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, Error> {
-        // Only the genome has the reference of intron bases, e.g., of a dup next to an exon.
-        // Shifting an insertion or duplication over an exon boundary needs the genome, too.
-        let alt_ac = if self.config.genome_seq_available
-            && (var_c.spans_intron() || self.inner.shift_needs_alignment(var_c)?)
-        {
-            Some(self.alt_ac_for_tx_ac(var_c.accession())?)
-        } else {
-            None
-        };
+        let alt_ac = self.c_to_p_alt_ac(var_c)?;
         let alt = alt_ac
             .as_deref()
             .map(|alt_ac| (alt_ac, self.config.alt_aln_method.as_str()));
         let var = self.inner.c_to_p_with_alt(var_c, None, alt)?;
         self.maybe_normalize(&var)
+    }
+
+    /// The `AltSeqBuilder` that `c_to_p()` builds the protein from, without the shifts of
+    /// `shift_over_boundary`.  It has the settings of `Config`, the reference replaced as
+    /// configured, and, with `ins_at_boundary_by_sequence`, the intron bases next to an exon
+    /// boundary from the genome.  So its `variant_location()` gives the region that `c_to_p()`
+    /// uses, unless a shift applies.
+    ///
+    /// # Args
+    ///
+    /// * `var_c` -- `HgvsVariant::CdsVariant`
+    /// * `reference_data` -- reference data of the transcript of `var_c`, e.g., from
+    ///   `altseq::ref_transcript_data_cached()`
+    pub fn alt_seq_builder<'a>(
+        &self,
+        var_c: &HgvsVariant,
+        reference_data: &'a RefTranscriptData,
+    ) -> Result<AltSeqBuilder<'a>, Error> {
+        let alt_ac = self.c_to_p_alt_ac(var_c)?;
+        let alt = alt_ac
+            .as_deref()
+            .map(|alt_ac| (alt_ac, self.config.alt_aln_method.as_str()));
+        let var_c = if self.config.replace_reference {
+            self.inner.replace_reference_with_alt(var_c.clone(), alt)?
+        } else {
+            var_c.clone()
+        };
+        self.inner.alt_seq_builder(var_c, reference_data, alt)
+    }
+
+    /// The genome sequence for `c_to_p()` of `var_c`, if it needs or can use it.
+    fn c_to_p_alt_ac(&self, var_c: &HgvsVariant) -> Result<Option<String>, Error> {
+        if !self.config.genome_seq_available {
+            return Ok(None);
+        }
+        // Only the genome has the reference of intron bases, e.g., of a dup next to an exon.
+        // Shifting an insertion or duplication over an exon boundary needs the genome, too.
+        if var_c.spans_intron() || self.inner.shift_needs_alignment(var_c)? {
+            return Ok(Some(self.alt_ac_for_tx_ac(var_c.accession())?));
+        }
+        // `ins_at_boundary_by_sequence` reads the intron bases next to a dup of exon bases at an
+        // exon boundary from the genome.  Without an alignment, `ins_at_boundary_is_intronic`
+        // decides.
+        if self.inner.boundary_wants_alignment(var_c)? {
+            return match self.alt_ac_for_tx_ac(var_c.accession()) {
+                Ok(alt_ac) => Ok(Some(alt_ac)),
+                Err(Error::NoAlignments(..)) => Ok(None),
+                Err(e) => Err(e),
+            };
+        }
+        Ok(None)
     }
 
     /// Obtain relevant transcript accessions.
@@ -597,6 +646,223 @@ mod test {
             let intronic = build_mapper(true)?;
             assert_eq!(format!("{}", intronic.c_to_p(&var_c)?), "NP_003768.2:p.?");
 
+            Ok(())
+        }
+    }
+
+    /// `ins_at_boundary_by_sequence` on GRCh37.  PTEN (plus strand) exon 3 ends with `TCT` at
+    /// c.207_209, followed by `GTAAGT`, and exon 8 starts with `GAC` at c.802_804, after
+    /// `TTTAG`.  KRAS (minus strand) exon 2 ends with `GAG` at c.109_111, followed by `GTA`,
+    /// and exon 3 starts with `GAT` at c.112_114, after `AG`.
+    mod boundary_by_sequence {
+        use anyhow::Error;
+        use std::collections::HashMap;
+        use std::str::FromStr;
+
+        use crate::data::uta_sr::test_helpers::build_provider;
+        use crate::mapper::altseq::{ref_transcript_data_cached, VariantLocation};
+        use crate::parser::HgvsVariant;
+
+        use super::{Config, Mapper};
+
+        fn build_mapper(
+            ins_at_boundary_is_intronic: bool,
+            ins_at_boundary_by_sequence: bool,
+            asm_map: Option<HashMap<String, String>>,
+        ) -> Result<Mapper, Error> {
+            let config = Config {
+                assembly: "GRCh37".to_string(),
+                renormalize_g: false,
+                ins_at_boundary_is_intronic,
+                ins_at_boundary_by_sequence,
+                asm_map,
+                ..Config::default()
+            };
+            Ok(Mapper::new(config, build_provider()?))
+        }
+
+        /// `(var_c, var_p)` with `ins_at_boundary_by_sequence`, for both values of
+        /// `ins_at_boundary_is_intronic`.  biocommons/hgvs gives `p.?` for each of them with
+        /// `ins_at_boundary_is_intronic` and the protein change of the exonic reading without it,
+        /// see `DIFFERENCES.md`.
+        const CASES: &[(&str, &str)] = &[
+            // The copy starts with the `GT` of the donor, which stays at the exon edge.
+            ("NM_000314.4:c.209+1_209+7dup", "NP_000305.3:p.?"),
+            ("NM_000314.4:c.209_209+1insGTA", "NP_000305.3:p.?"),
+            ("NM_004985.4:c.111+1_111+3dup", "NP_004976.2:p.?"),
+            ("NM_004985.4:c.111_111+1insGTA", "NP_004976.2:p.?"),
+            // The `GT` moves behind the inserted bases, so they extend the exon.
+            (
+                "NM_000314.4:c.209_209+1insC",
+                "NP_000305.3:p.Cys71LeufsTer3",
+            ),
+            ("NM_000314.4:c.209+1dup", "NP_000305.3:p.Cys71LeufsTer3"),
+            ("NM_000314.4:c.209dup", "NP_000305.3:p.Cys71LeufsTer3"),
+            (
+                "NM_004985.4:c.111_111+1insC",
+                "NP_004976.2:p.Asp38ArgfsTer10",
+            ),
+            // The copy ends with the `AG` of the acceptor, which stays at the exon edge.
+            ("NM_000314.4:c.802-5_802-1dup", "NP_000305.3:p.?"),
+            ("NM_000314.4:c.802-1_802insCAG", "NP_000305.3:p.?"),
+            ("NM_004985.4:c.112-2_112-1dup", "NP_004976.2:p.?"),
+            ("NM_004985.4:c.112-1_112insCAG", "NP_004976.2:p.?"),
+            // The `AG` moves in front of the inserted bases, so they extend the exon.
+            ("NM_000314.4:c.802-1_802insT", "NP_000305.3:p.Asp268Ter"),
+            ("NM_000314.4:c.802dup", "NP_000305.3:p.Asp268GlyfsTer30"),
+            ("NM_004985.4:c.112-1_112insT", "NP_004976.2:p.Asp38Ter"),
+            ("NM_004985.4:c.112dup", "NP_004976.2:p.Asp38GlyfsTer10"),
+        ];
+
+        /// `alt_seq_builder()` gives the region that `c_to_p()` uses.
+        #[test]
+        fn c_to_p() -> Result<(), Error> {
+            let provider = build_provider()?;
+            for ins_at_boundary_is_intronic in [false, true] {
+                let mapper = build_mapper(ins_at_boundary_is_intronic, true, None)?;
+                for (hgvs_c, expected) in CASES {
+                    let var_c = HgvsVariant::from_str(hgvs_c)?;
+                    let var_p = mapper.c_to_p(&var_c)?.to_string();
+                    let reference_data = ref_transcript_data_cached(
+                        provider.clone(),
+                        &var_c.accession().value,
+                        None,
+                    )?;
+                    let location = mapper
+                        .alt_seq_builder(&var_c, &reference_data)?
+                        .variant_location()?;
+                    let expected_location = if expected.ends_with("p.?") {
+                        VariantLocation::Intron
+                    } else {
+                        VariantLocation::Cds
+                    };
+                    assert_eq!(
+                        (var_p.as_str(), location),
+                        (*expected, expected_location),
+                        "{hgvs_c} with ins_at_boundary_is_intronic = {ins_at_boundary_is_intronic}"
+                    );
+                }
+            }
+            Ok(())
+        }
+
+        /// Without the genome bases, `ins_at_boundary_is_intronic` decides, unless a dup of
+        /// intron bases tells them.
+        #[test]
+        fn fallback() -> Result<(), Error> {
+            // An assembly without chromosome 10, so PTEN has no alignment.
+            let asm_map = HashMap::from([("NC_000012.11".to_string(), "12".to_string())]);
+            for (ins_at_boundary_is_intronic, expected) in [
+                (true, "NP_000305.3:p.?"),
+                (false, "NP_000305.3:p.Cys71LeufsTer3"),
+            ] {
+                let without_alignment =
+                    build_mapper(ins_at_boundary_is_intronic, true, Some(asm_map.clone()))?;
+                let var_c = HgvsVariant::from_str("NM_000314.4:c.209dup")?;
+                assert_eq!(
+                    without_alignment.c_to_p(&var_c)?.to_string(),
+                    expected,
+                    "ins_at_boundary_is_intronic = {ins_at_boundary_is_intronic}"
+                );
+
+                // The variant mapper has no genome alignment.
+                let mapper = build_mapper(ins_at_boundary_is_intronic, true, None)?;
+                let variant_mapper = mapper.variant_mapper();
+                let var_c = HgvsVariant::from_str("NM_000314.4:c.209_209+1insC")?;
+                assert_eq!(
+                    variant_mapper.c_to_p(&var_c, None)?.to_string(),
+                    expected,
+                    "ins_at_boundary_is_intronic = {ins_at_boundary_is_intronic}"
+                );
+                for hgvs_c in [
+                    "NM_000314.4:c.209+1_209+7dupGTAAGTA",
+                    "NM_000314.4:c.802-5_802-1dupTTTAG",
+                ] {
+                    let var_c = HgvsVariant::from_str(hgvs_c)?;
+                    assert_eq!(
+                        variant_mapper.c_to_p(&var_c, None)?.to_string(),
+                        "NP_000305.3:p.?",
+                        "{hgvs_c} with ins_at_boundary_is_intronic = {ins_at_boundary_is_intronic}"
+                    );
+                }
+
+                // The seqrepo cache lacks the genome bases after KRAS c.290.
+                let var_c = HgvsVariant::from_str("NM_004985.4:c.290_290+1insC")?;
+                assert_eq!(
+                    mapper.c_to_p(&var_c)?,
+                    build_mapper(ins_at_boundary_is_intronic, false, None)?.c_to_p(&var_c)?,
+                    "ins_at_boundary_is_intronic = {ins_at_boundary_is_intronic}"
+                );
+            }
+            Ok(())
+        }
+
+        /// Away from an exon boundary, `ins_at_boundary_by_sequence` changes nothing.
+        #[test]
+        fn away_from_boundary() -> Result<(), Error> {
+            for hgvs_c in [
+                "NM_000314.4:c.207dup",
+                "NM_000314.4:c.207_208insA",
+                "NM_000314.4:c.209+5del",
+            ] {
+                let var_c = HgvsVariant::from_str(hgvs_c)?;
+                assert_eq!(
+                    build_mapper(false, true, None)?.c_to_p(&var_c)?,
+                    build_mapper(false, false, None)?.c_to_p(&var_c)?,
+                    "{hgvs_c}"
+                );
+            }
+            Ok(())
+        }
+
+        /// `alt_seq_builder()` follows `genome_seq_available` and `replace_reference`.
+        #[test]
+        fn alt_seq_builder_settings() -> Result<(), Error> {
+            let provider = build_provider()?;
+            let reference_data = ref_transcript_data_cached(provider.clone(), "NM_000314.4", None)?;
+            let mapper = |genome_seq_available, replace_reference| {
+                Mapper::new(
+                    Config {
+                        assembly: "GRCh37".to_string(),
+                        renormalize_g: false,
+                        ins_at_boundary_by_sequence: true,
+                        genome_seq_available,
+                        replace_reference,
+                        ..Config::default()
+                    },
+                    provider.clone(),
+                )
+            };
+
+            // Without the genome, `ins_at_boundary_is_intronic` decides.
+            let var_c = HgvsVariant::from_str("NM_000314.4:c.209_209+1insC")?;
+            assert_eq!(
+                mapper(false, true)
+                    .alt_seq_builder(&var_c, &reference_data)?
+                    .variant_location()?,
+                VariantLocation::Intron
+            );
+            assert_eq!(
+                mapper(true, true)
+                    .alt_seq_builder(&var_c, &reference_data)?
+                    .variant_location()?,
+                VariantLocation::Cds
+            );
+
+            let var_c = HgvsVariant::from_str("NM_000314.4:c.209dup")?;
+            for (replace_reference, expected) in [
+                (false, "NM_000314.4:c.209dup"),
+                (true, "NM_000314.4:c.209dupT"),
+            ] {
+                assert_eq!(
+                    mapper(true, replace_reference)
+                        .alt_seq_builder(&var_c, &reference_data)?
+                        .var_c
+                        .to_string(),
+                    expected,
+                    "replace_reference = {replace_reference}"
+                );
+            }
             Ok(())
         }
     }

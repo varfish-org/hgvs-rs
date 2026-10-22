@@ -7,7 +7,9 @@ use std::ops::Deref;
 use std::{ops::Range, sync::Arc};
 
 use crate::mapper::alignment;
-use crate::mapper::altseq::{ref_transcript_data_shared, AltSeqBuilder, VariantLocation};
+use crate::mapper::altseq::{
+    ref_transcript_data_shared, AltSeqBuilder, RefTranscriptData, VariantLocation,
+};
 use crate::{
     data::interface::Provider,
     mapper::Error,
@@ -43,6 +45,16 @@ pub struct Config {
     /// Before c.1 and after the stop codon, they change no base of the CDS and give `p.?` like
     /// a variant in the UTR.
     pub ins_at_boundary_is_intronic: bool,
+    /// Decide for each insertion or dup at an exon boundary whether its bases are intronic,
+    /// instead of by `ins_at_boundary_is_intronic`.  They are intronic if the alt sequence keeps
+    /// the splice-site dinucleotide of the intron right at the exon edge: `+1` and `+2` after the
+    /// last exon base, or `-2` and `-1` before the first one.  Else the exon boundary moves, and
+    /// they join the exon.  E.g., the copy of `c.26+1_26+7dup` starts with the `GT` of the
+    /// donor, so it is intronic, and `c.26_26+1insC` moves the `GT` by one base, so the `C`
+    /// extends the exon.  This needs the intron bases from the genome, which
+    /// `assembly::Mapper` looks up.  Without them, a dup of at least two intron bases tells them
+    /// itself, and else `ins_at_boundary_is_intronic` decides.  `false` by default.
+    pub ins_at_boundary_by_sequence: bool,
     /// Let `c_to_p` move an insertion or duplication in an exon or intron to the other side
     /// of an exon boundary, as preferred by `shift_over_boundary_preference`.  The shifts need
     /// the genome alignment.  `assembly::Mapper::c_to_p()` provides it if `genome_seq_available`
@@ -66,6 +78,7 @@ impl Default for Config {
             shuffle_direction: Default::default(),
             window_size: 20,
             ins_at_boundary_is_intronic: true,
+            ins_at_boundary_by_sequence: false,
             shift_over_boundary: false,
             shift_over_boundary_preference: Default::default(),
         }
@@ -798,10 +811,7 @@ impl Mapper {
                 accession.deref(),
                 prot_ac.map(|s| s.to_string()).as_deref(),
             )?;
-            let builder = AltSeqBuilder {
-                ins_at_boundary_is_intronic: self.config.ins_at_boundary_is_intronic,
-                ..AltSeqBuilder::new(var_c, &reference_data)
-            };
+            let builder = self.alt_seq_builder(var_c, &reference_data, alt)?;
             let builder = self.shift_over_boundary(builder, alt)?;
 
             // NB: the following comment is from the original code.
@@ -892,10 +902,7 @@ impl Mapper {
                 }
             };
 
-            let shifted = AltSeqBuilder {
-                ins_at_boundary_is_intronic: self.config.ins_at_boundary_is_intronic,
-                ..AltSeqBuilder::new(shifted_var_c, builder.reference_data)
-            };
+            let shifted = self.alt_seq_builder(shifted_var_c, builder.reference_data, alt)?;
             let shifted_region = shifted.variant_location()?;
             if matches!(
                 shifted_region,
@@ -939,15 +946,91 @@ impl Mapper {
         }
         let reference_data =
             ref_transcript_data_shared(&self.provider, &var_c.accession().value, None)?;
-        let region = AltSeqBuilder {
-            ins_at_boundary_is_intronic: self.config.ins_at_boundary_is_intronic,
-            ..AltSeqBuilder::new(var_c.clone(), &reference_data)
-        }
-        .variant_location()?;
+        let region = self
+            .alt_seq_builder(var_c.clone(), &reference_data, None)?
+            .variant_location()?;
         Ok(matches!(
             region,
             VariantLocation::Intron | VariantLocation::Cds
         ))
+    }
+
+    /// Whether `c_to_p` can use the genome alignment for `var_c` with
+    /// `Config::ins_at_boundary_by_sequence`, which a variant with an intron position gets
+    /// anyway.  This is the case for a dup of exon bases at an exon boundary.
+    pub(crate) fn boundary_wants_alignment(&self, var_c: &HgvsVariant) -> Result<bool, Error> {
+        if !self.config.ins_at_boundary_by_sequence
+            || var_c.spans_intron()
+            || !var_c.na_edit().is_some_and(NaEdit::is_dup)
+        {
+            return Ok(false);
+        }
+        let reference_data =
+            ref_transcript_data_shared(&self.provider, &var_c.accession().value, None)?;
+        Ok(AltSeqBuilder::new(var_c.clone(), &reference_data)
+            .boundary_intron_interval()
+            .is_some())
+    }
+
+    /// The `AltSeqBuilder` that `c_to_p` uses for `var_c`, with the settings of `Config`.  With
+    /// `ins_at_boundary_by_sequence`, it takes the intron bases next to an exon boundary from
+    /// the genome alignment `alt`, given as `(alt_ac, alt_aln_method)`.
+    pub(crate) fn alt_seq_builder<'a>(
+        &self,
+        var_c: HgvsVariant,
+        reference_data: &'a RefTranscriptData,
+        alt: Option<(&str, &str)>,
+    ) -> Result<AltSeqBuilder<'a>, Error> {
+        let builder = AltSeqBuilder {
+            ins_at_boundary_is_intronic: self.config.ins_at_boundary_is_intronic,
+            ins_at_boundary_by_sequence: self.config.ins_at_boundary_by_sequence,
+            ..AltSeqBuilder::new(var_c, reference_data)
+        };
+        let boundary_intron_bases = match alt {
+            Some(alt) if builder.ins_at_boundary_by_sequence => {
+                self.boundary_intron_bases(&builder, alt)?
+            }
+            _ => None,
+        };
+        Ok(AltSeqBuilder {
+            boundary_intron_bases,
+            ..builder
+        })
+    }
+
+    /// The two intron bases next to the exon boundary at which the variant of `builder` puts
+    /// its bases, in the orientation of the transcript, from the genome alignment `alt`.
+    /// `None` if the variant puts no bases there, or if the genome lacks the bases.
+    fn boundary_intron_bases(
+        &self,
+        builder: &AltSeqBuilder,
+        (alt_ac, alt_aln_method): (&str, &str),
+    ) -> Result<Option<String>, Error> {
+        let Some(interval) = builder.boundary_intron_interval() else {
+            return Ok(None);
+        };
+        let mapper =
+            self.build_alignment_mapper(&builder.var_c.accession().value, alt_ac, alt_aln_method)?;
+        let range: Range<i32> = mapper.c_to_g(&interval)?.inner().clone().try_into()?;
+        let (Ok(start), Ok(end)) = (usize::try_from(range.start), usize::try_from(range.end))
+        else {
+            return Ok(None);
+        };
+        match self.provider.get_seq_part(alt_ac, Some(start), Some(end)) {
+            Ok(seq) if seq.len() == 2 => Ok(Some(if mapper.strand == -1 {
+                revcomp(&seq)
+            } else {
+                seq
+            })),
+            Ok(_) => Ok(None),
+            Err(e) => {
+                debug!(
+                    "No intron bases at the boundary of {}: {}",
+                    builder.var_c, e
+                );
+                Ok(None)
+            }
+        }
     }
 
     /// Shift `var_g` fully in `direction` and rewrite a duplication as an insertion, as
@@ -1156,7 +1239,7 @@ impl Mapper {
 
     /// Like `replace_reference()`, but takes the reference of an intronic c. variant from the
     /// genome alignment `alt`, given as `(alt_ac, alt_aln_method)`.
-    fn replace_reference_with_alt(
+    pub(crate) fn replace_reference_with_alt(
         &self,
         var: HgvsVariant,
         alt: Option<(&str, &str)>,

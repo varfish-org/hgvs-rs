@@ -8,8 +8,8 @@ use crate::{
     data::interface::{Provider, TranslationException},
     mapper::error::Error,
     parser::{
-        Accession, CdsFrom, CdsPos, HgvsVariant, Mu, NaEdit, ProtInterval, ProtLocEdit, ProtPos,
-        ProteinEdit, UncertainLengthChange,
+        Accession, CdsFrom, CdsInterval, CdsPos, HgvsVariant, Mu, NaEdit, ProtInterval,
+        ProtLocEdit, ProtPos, ProteinEdit, UncertainLengthChange,
     },
     sequences::{revcomp, translate_cds, translate_cds_with_exceptions, TranslationTable},
 };
@@ -429,7 +429,8 @@ impl AltTranscriptData {
 /// As in biocommons/hgvs, the positions in the description decide the region, with one
 /// exception: an insertion, dup, deletion, delins or inversion whose alt transcript sequence
 /// keeps the start or stop codon in place is a UTR variant, see `FivePrimeUtr` and
-/// `ThreePrimeUtr`.  `c_to_p` builds the altered protein only for `Cds`.  It gives `p.?` for a
+/// `ThreePrimeUtr`.  The option `ins_at_boundary_by_sequence` adds a second exception, see
+/// `Cds`.  `c_to_p` builds the altered protein only for `Cds`.  It gives `p.?` for a
 /// UTR or an intron, and `p.0?` for the deletion of the whole gene.  It also gives `p.?` for a
 /// `Cds` variant after a CDS without a stop codon, see there.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -438,10 +439,12 @@ pub enum VariantLocation {
     /// The variant changes bases of the CDS and has no intron position, e.g., `c.4A>G`.  It may
     /// also change bases of a UTR, e.g., `c.-2_2del`.
     ///
-    /// Without `ins_at_boundary_is_intronic`, this also includes the insertions and
-    /// duplications next to an exon boundary within the CDS, e.g., `c.16-1_16insT` and
-    /// `c.16dup` if c.16 starts an exon.  The splice site stays intact, so the inserted bases
-    /// extend the exon.
+    /// It also includes the insertions and duplications next to an exon boundary within the
+    /// CDS whose bases join the exon, e.g., `c.16-1_16insT` and `c.16dup` if c.16 starts an
+    /// exon.  `ins_at_boundary_is_intronic` decides this for all of them.  With
+    /// `ins_at_boundary_by_sequence`, the alt sequence decides it for each one, if the intron
+    /// bases next to the boundary are known: the bases join the exon if the splice-site
+    /// dinucleotide moves away from the exon edge.
     ///
     /// Without a stop codon, the CDS goes on after its last base `c.N`, so there is no 3' UTR.
     /// This then includes the variants that end after `c.N`, e.g., `c.*1G>A` or
@@ -452,9 +455,8 @@ pub enum VariantLocation {
     /// across the whole CDS.  This includes variants that also change bases of the CDS, e.g.,
     /// `c.15_15+3del`.
     ///
-    /// With `ins_at_boundary_is_intronic`, this includes the insertions and duplications at an
-    /// exon boundary within the CDS, e.g., `c.16-1_16insT` and `c.16dup` if c.16 starts an
-    /// exon.  The inserted bases may go into the intron.
+    /// It also includes the insertions and duplications at an exon boundary within the CDS
+    /// whose bases go into the intron, see `Cds`.
     Intron,
     /// Both ends of the variant lie before c.1, e.g., `c.-5C>G` or `c.-1+5del`.
     ///
@@ -505,6 +507,21 @@ pub struct AltSeqBuilder<'a> {
     pub first_stop_pos: Option<usize>,
     /// See `variant::Config::ins_at_boundary_is_intronic`; `true` by default.
     pub ins_at_boundary_is_intronic: bool,
+    /// See `variant::Config::ins_at_boundary_by_sequence`; `false` by default.
+    pub ins_at_boundary_by_sequence: bool,
+    /// For an insertion or dup at an exon boundary, the two intron bases next to it in the
+    /// orientation of the transcript: `+1` and `+2` after the last exon base, or `-2` and `-1`
+    /// before the first one.  `ins_at_boundary_by_sequence` needs them, unless a dup of intron
+    /// bases tells them.  `None` by default; `assembly::Mapper::alt_seq_builder()` sets them.
+    pub boundary_intron_bases: Option<String>,
+}
+
+/// The side of the exon at whose boundary an insertion puts its bases.
+enum ExonEdge {
+    /// After the last exon base, in front of the donor site.
+    End,
+    /// Before the first exon base, behind the acceptor site.
+    Start,
 }
 
 impl<'a> AltSeqBuilder<'a> {
@@ -520,6 +537,8 @@ impl<'a> AltSeqBuilder<'a> {
             ref_has_multiple_stops,
             first_stop_pos,
             ins_at_boundary_is_intronic: true,
+            ins_at_boundary_by_sequence: false,
+            boundary_intron_bases: None,
         }
     }
 
@@ -594,14 +613,15 @@ impl<'a> AltSeqBuilder<'a> {
 
     /// The region of the transcript that `var_c` changes.
     ///
-    /// `build_altseq()` and thus `c_to_p` use this region.  It depends on
-    /// `ins_at_boundary_is_intronic`, so it agrees with `c_to_p` only if this field has the
-    /// value of `variant::Config::ins_at_boundary_is_intronic` of the mapper.
-    /// `AltSeqBuilder::new()` sets it to `true`, the default of the `Config`.  With
-    /// `variant::Config::shift_over_boundary`, `c_to_p` can build the protein from a shift of
-    /// `var_c` into another region, which this method does not apply.  Without
-    /// `ins_at_boundary_is_intronic`, the region of a dup of intron bases can also depend on
-    /// these bases, which `c_to_p` fills in first.
+    /// `build_altseq()` and thus `c_to_p` use this region.  It depends on the fields
+    /// `ins_at_boundary_is_intronic`, `ins_at_boundary_by_sequence` and `boundary_intron_bases`.
+    /// So it agrees with `c_to_p` only if they hold what `c_to_p` uses: the settings of
+    /// `variant::Config` and, with `ins_at_boundary_by_sequence`, the intron bases from the
+    /// genome.  `AltSeqBuilder::new()` sets the defaults of `variant::Config` and no intron
+    /// bases.  `assembly::Mapper::alt_seq_builder()` returns the builder that its `c_to_p()`
+    /// uses.  With `variant::Config::shift_over_boundary`, `c_to_p` can build the protein from a
+    /// shift of `var_c` into another region, which this method does not apply.  The region of a
+    /// dup of intron bases can also depend on these bases, which `c_to_p` fills in first.
     ///
     /// # Errors
     ///
@@ -619,6 +639,7 @@ impl<'a> AltSeqBuilder<'a> {
                 // Without a stop codon, the CDS goes on after its last base, so there is no 3'
                 // UTR, see `outside_cds()`.
                 let has_stop_codon = ref_data.cds_end == CdsEnd::StopCodon;
+                let boundary_is_intronic = self.boundary_is_intronic();
                 #[allow(clippy::nonminimal_bool)]
                 if has_stop_codon
                     && (loc.start.cds_from == CdsFrom::End && loc.end.cds_from == CdsFrom::End
@@ -634,10 +655,10 @@ impl<'a> AltSeqBuilder<'a> {
                     VariantLocation::WholeGene
                 } else if let Some(utr) = self.outside_cds() {
                     utr
-                } else if self.ins_at_boundary_is_intronic && edit.is_dup() && at_exon_edge {
+                } else if boundary_is_intronic && edit.is_dup() && at_exon_edge {
                     // The copy may sit at the exon boundary, like an insertion there.
                     VariantLocation::Intron
-                } else if !self.ins_at_boundary_is_intronic
+                } else if !boundary_is_intronic
                     && ((edit.is_ins() && matches!((start_offset, end_offset), (-1, 0) | (0, 1)))
                         || (edit.is_dup() && (end_offset == -1 || start_offset == 1)))
                 {
@@ -654,6 +675,110 @@ impl<'a> AltSeqBuilder<'a> {
             _ => return Err(Error::ExpectedCdsVariant(self.var_c.to_string())),
         };
         Ok(location)
+    }
+
+    /// Whether the bases of an insertion or dup at an exon boundary are intronic, by
+    /// `ins_at_boundary_by_sequence` if it can decide, else by `ins_at_boundary_is_intronic`.
+    fn boundary_is_intronic(&self) -> bool {
+        self.ins_at_boundary_by_sequence
+            .then(|| self.keeps_splice_site())
+            .flatten()
+            .unwrap_or(self.ins_at_boundary_is_intronic)
+    }
+
+    /// Whether the alt sequence of an insertion or dup at an exon boundary keeps the
+    /// splice-site dinucleotide right at the exon edge, see
+    /// `variant::Config::ins_at_boundary_by_sequence`.  `None` if the variant is no such
+    /// insertion or dup, or if the intron bases are unknown.
+    fn keeps_splice_site(&self) -> Option<bool> {
+        let (edge, _, inserted, intron_dup) = self.boundary_insertion()?;
+        let intron = match &self.boundary_intron_bases {
+            Some(bases) if bases.len() == 2 => bases.clone(),
+            // A dup of at least two intron bases next to the boundary starts or ends with them.
+            _ if intron_dup && inserted.len() >= 2 => match edge {
+                ExonEdge::End => inserted[..2].to_string(),
+                ExonEdge::Start => inserted[inserted.len() - 2..].to_string(),
+            },
+            _ => return None,
+        };
+        Some(match edge {
+            ExonEdge::End => format!("{inserted}{intron}").starts_with(&intron),
+            ExonEdge::Start => format!("{intron}{inserted}").ends_with(&intron),
+        })
+    }
+
+    /// The c. interval of the two intron bases next to the exon boundary at which an insertion
+    /// or dup puts its bases, e.g., `c.26+1_26+2` or `c.27-2_27-1`, or `None` for other
+    /// variants, see `boundary_intron_bases`.
+    pub(crate) fn boundary_intron_interval(&self) -> Option<CdsInterval> {
+        let (edge, base, ..) = self.boundary_insertion()?;
+        let pos = |offset| CdsPos {
+            base,
+            offset: Some(offset),
+            cds_from: CdsFrom::Start,
+        };
+        Some(match edge {
+            ExonEdge::End => CdsInterval {
+                start: pos(1),
+                end: pos(2),
+            },
+            ExonEdge::Start => CdsInterval {
+                start: pos(-2),
+                end: pos(-1),
+            },
+        })
+    }
+
+    /// The exon edge at which an insertion or dup at an exon boundary puts its bases, the c.
+    /// base of the exon next to the boundary, the bases, and whether they are a copy of the
+    /// intron bases next to the boundary, or `None` for other variants.  A dup puts its copy
+    /// next to the duplicated bases, so a dup that ends with the last exon base or with intron
+    /// base `-1` puts it at the boundary, as does one that starts with the first exon base or
+    /// with intron base `+1`.
+    fn boundary_insertion(&self) -> Option<(ExonEdge, i32, String, bool)> {
+        let HgvsVariant::CdsVariant { loc_edit, .. } = &self.var_c else {
+            return None;
+        };
+        let loc = loc_edit.loc.inner();
+        if loc.start.cds_from != CdsFrom::Start || loc.end.cds_from != CdsFrom::Start {
+            return None;
+        }
+        let ref_data = self.reference_data;
+        let offsets = (loc.start.offset.unwrap_or(0), loc.end.offset.unwrap_or(0));
+        match (loc_edit.edit.inner(), offsets) {
+            (NaEdit::Ins { alternative }, (0, 1)) => {
+                Some((ExonEdge::End, loc.start.base, alternative.clone(), false))
+            }
+            (NaEdit::Ins { alternative }, (-1, 0)) => {
+                Some((ExonEdge::Start, loc.end.base, alternative.clone(), false))
+            }
+            (NaEdit::Dup { reference }, (1, _)) if !reference.is_empty() => {
+                Some((ExonEdge::End, loc.start.base, reference.clone(), true))
+            }
+            (NaEdit::Dup { reference }, (_, -1)) if !reference.is_empty() => {
+                Some((ExonEdge::Start, loc.end.base, reference.clone(), true))
+            }
+            (NaEdit::Dup { .. }, (0, 0)) if loc.start.base > 0 => {
+                let (edge, base) = if ref_data.exon_end_positions.contains(&loc.end.base) {
+                    (ExonEdge::End, loc.end.base)
+                } else if ref_data.exon_start_positions.contains(&loc.start.base) {
+                    (ExonEdge::Start, loc.start.base)
+                } else {
+                    return None;
+                };
+                let cds_start = usize::try_from(ref_data.cds_start).ok()?;
+                let start =
+                    cds_start.checked_add_signed(isize::try_from(loc.start.base).ok()?)? - 2;
+                let end = cds_start.checked_add_signed(isize::try_from(loc.end.base).ok()?)? - 1;
+                Some((
+                    edge,
+                    base,
+                    ref_data.transcript_sequence.get(start..end)?.to_string(),
+                    false,
+                ))
+            }
+            _ => None,
+        }
     }
 
     /// The UTR of a variant that leaves the CDS intact, or `None`.
@@ -726,7 +851,7 @@ impl<'a> AltSeqBuilder<'a> {
                 .filter(|&index| index < seq.len())
         };
         let offsets = (loc.start.offset.unwrap_or(0), loc.end.offset.unwrap_or(0));
-        let at_boundary_is_exonic = !self.ins_at_boundary_is_intronic;
+        let at_boundary_is_exonic = !self.boundary_is_intronic();
         // The variant replaces the bases `start..end` of `seq` with `alt_bases`.
         let inverted: String;
         let (start, end, alt_bases) = match (loc_edit.edit.inner(), offsets) {
