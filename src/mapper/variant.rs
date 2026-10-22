@@ -867,9 +867,7 @@ impl Mapper {
         let var_g = self.c_to_g(&builder.var_c, alt_ac, alt_aln_method)?;
         let mut seen = vec![var_g.to_string()];
         for direction in [Direction::FiveToThree, Direction::ThreeToFive] {
-            // biocommons/hgvs skips a shift that fails as an invalid variant or interval or as
-            // an unsupported operation.  The errors of hgvs-rs do not map one to one, so this
-            // skips any error except missing data.
+            // Skip a shift that fails, unless data is missing, see `DIFFERENCES.md`.
             let shifted_var_g = match self.shift_var_g(&var_g, direction, alt_aln_method) {
                 Ok(shifted_var_g) => shifted_var_g,
                 Err(e) if is_data_error(&e) => return Err(e),
@@ -922,8 +920,7 @@ impl Mapper {
         {
             return Ok(None);
         }
-        // biocommons/hgvs also computes the shifts for DEFAULT, but never keeps one.  Skipping
-        // them gives the same protein without the genome.
+        // `Default` keeps the variant, so it needs no shift and no genome, see `DIFFERENCES.md`.
         Ok(match self.config.shift_over_boundary_preference {
             ShiftOverBoundaryPreference::Default => None,
             ShiftOverBoundaryPreference::Intron => Some(VariantLocation::Intron),
@@ -958,14 +955,8 @@ impl Mapper {
     /// them for a 3' shift and before them for a 5' shift on the genome.  The dup is fully
     /// shifted, so the insertion cannot move further in `direction` either.
     ///
-    /// This deviates from biocommons/hgvs, which also uses the strand of the transcript.  It
-    /// inserts before the duplicated bases for a 3' shift on the plus strand and for a 5'
-    /// shift on the minus strand, else after them.  On the plus strand, its insertion thus
-    /// sits at the near end of the shift, although its docstring says that the rewrite shifts
-    /// the variant "farther", and it can miss the other side of an exon boundary.  For
-    /// example, biocommons/hgvs shifts PTEN `c.209+1_209+2dup` to `c.209_209+1dup` and
-    /// rewrites it as `c.209+1_209+2insTG` in the intron.  Here, it becomes `c.208_209insTG`
-    /// in the exon.  On the minus strand, both give the same insertion.  See `DIFFERENCES.md`.
+    /// biocommons/hgvs picks the end by the strand of the transcript instead, see
+    /// `DIFFERENCES.md`.
     fn shift_var_g(
         &self,
         var_g: &HgvsVariant,
