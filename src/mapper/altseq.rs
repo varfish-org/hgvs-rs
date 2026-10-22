@@ -12,6 +12,7 @@ use crate::{
         ProtLocEdit, ProtPos, ProteinEdit, UncertainLengthChange,
     },
     sequences::{revcomp, translate_cds, translate_cds_with_exceptions, TranslationTable},
+    validator::Validateable,
 };
 
 /// How the CDS of a transcript ends.
@@ -667,17 +668,6 @@ enum ExonEdge {
     Start,
 }
 
-/// Key that orders c. positions along the transcript: 5' UTR and CDS positions by their base
-/// (there is no c.0), then the 3' UTR, and within a base the intron before it, the base, the
-/// intron after it.
-fn cds_pos_order_key(pos: &CdsPos) -> (bool, i32, i32) {
-    (
-        pos.cds_from == CdsFrom::End,
-        pos.base,
-        pos.offset.unwrap_or(0),
-    )
-}
-
 impl<'a> AltSeqBuilder<'a> {
     /// A builder for `var_c` on `reference_data`, with the defaults of `variant::Config`.
     #[allow(deprecated)] // first_stop_pos
@@ -708,11 +698,12 @@ impl<'a> AltSeqBuilder<'a> {
     ///
     /// - `Error::ExpectedCdsVariant` if `var_c` is not a `HgvsVariant::CdsVariant`.
     /// - `Error::ValidationFailed` with `StartMustBeLessThanEnd` if the start of the
-    ///   interval lies after its end, e.g. `c.6_4del`.
-    /// - `Error::CoordinateOutOfBounds` for a position that does not exist, i.e. `c.0` or
-    ///   `c.*0`, or that lies after the CDS, e.g. `c.5000_5001insA` on a shorter transcript.  A
-    ///   position within the CDS or a `c.*N` position after the end of the transcript sequence
-    ///   is clamped to its last base instead, as in biocommons/hgvs.
+    ///   interval lies after its end, e.g. `c.6_4del`, and with `PositionMustNotBeZero` for
+    ///   `c.0` or `c.*0`, see `CdsInterval::validate()`.
+    /// - `Error::CoordinateOutOfBounds` for a position after the CDS, e.g. `c.5000_5001insA`
+    ///   on a shorter transcript.  A position within the CDS or a `c.*N` position after the
+    ///   end of the transcript sequence is clamped to its last base instead, as in
+    ///   biocommons/hgvs.
     pub fn build_altseq(&self) -> Result<Vec<AltTranscriptData>, Error> {
         self.build_altseq_in(self.variant_location()?, false)
     }
@@ -731,18 +722,9 @@ impl<'a> AltSeqBuilder<'a> {
         let HgvsVariant::CdsVariant { loc_edit, .. } = &self.var_c else {
             return Err(Error::ExpectedCdsVariant(self.var_c.to_string()));
         };
-        let loc = loc_edit.loc.inner();
-        // There is no c.0 and no c.*0.
-        for pos in [&loc.start, &loc.end] {
-            if pos.base == 0 {
-                return Err(Error::CoordinateOutOfBounds(pos.to_string()));
-            }
-        }
-        if cds_pos_order_key(&loc.start) > cds_pos_order_key(&loc.end) {
-            return Err(
-                crate::validator::Error::StartMustBeLessThanEnd(self.var_c.to_string()).into(),
-            );
-        }
+        // The validator of the mapper only warns unless it is strict, so check the interval
+        // here: its start must not lie after its end, and there is no c.0 or c.*0.
+        loc_edit.loc.inner().validate()?;
         let na_edit = loc_edit.edit.inner();
         let edit_type = match region {
             // Without a stop codon, the amino acids after the CDS are unknown.
@@ -787,6 +769,8 @@ impl<'a> AltSeqBuilder<'a> {
                     tracing::warn!("The whole-gene variant {} is not a clean deletion. Assuming whole gene deletion.", self.var_c);
                     EditType::WholeGeneDeleted
                 }
+                // Reachable without a stop codon only, e.g. `c.-1_*1insA`: with one, the
+                // insertion is a 3' UTR variant.
                 NaEdit::Ins { .. } => {
                     tracing::warn!("Whole-gene insertion; consequence assumed to not affect protein product");
                     EditType::NotCds
@@ -1135,7 +1119,7 @@ impl<'a> AltSeqBuilder<'a> {
     /// biocommons/hgvs.
     fn setup_incorporate(&self) -> Result<(String, i32, i32, usize, usize), Error> {
         let HgvsVariant::CdsVariant { loc_edit, .. } = &self.var_c else {
-            return Err(Error::ExpectedCdsVariant(self.var_c.to_string()));
+            unreachable!("build_altseq_in checked for a CDS variant");
         };
         let seq = self.reference_data.transcript_sequence.to_string();
         let cds_start = usize::try_from(self.reference_data.cds_start)
@@ -1188,6 +1172,12 @@ impl<'a> AltSeqBuilder<'a> {
             start_end.push(index);
         }
 
+        // The validated interval maps to ordered indices; keep the slices safe anyway.
+        if start_end[0] > start_end[1] {
+            return Err(
+                crate::validator::Error::StartMustBeLessThanEnd(self.var_c.to_string()).into(),
+            );
+        }
         let start = start_end[0];
         let end = std::cmp::min(start_end[1] + 1, seq.len());
 
@@ -1315,7 +1305,7 @@ impl<'a> AltSeqBuilder<'a> {
         let (mut seq, cds_start, cds_stop, start, end) = self.setup_incorporate()?;
         let loc_range_start = match &self.var_c {
             HgvsVariant::CdsVariant { loc_edit, .. } => loc_edit.loc.inner().start.base,
-            _ => return Err(Error::ExpectedCdsVariant(self.var_c.to_string())),
+            _ => unreachable!("build_altseq_in checked for a CDS variant"),
         };
         // NB: as in biocommons/hgvs, the length of the deleted reference comes from the
         // interval, not from the given reference or count.
@@ -1459,7 +1449,7 @@ impl<'a> AltSeqBuilder<'a> {
 
         let loc_end = match &self.var_c {
             HgvsVariant::CdsVariant { loc_edit, .. } => loc_edit.loc.inner().end.base,
-            _ => panic!("can only work on CDS variants"),
+            _ => unreachable!("build_altseq_in checked for a CDS variant"),
         };
         let variant_start_aa = ((loc_end + 1) as f64 / 3.0).ceil() as i32;
         let translation_exceptions = self.alt_translation_exceptions(&seq);
@@ -1496,7 +1486,7 @@ impl<'a> AltSeqBuilder<'a> {
 
         let loc_start = match &self.var_c {
             HgvsVariant::CdsVariant { loc_edit, .. } => loc_edit.loc.inner().start.base,
-            _ => panic!("can only work on CDS variants"),
+            _ => unreachable!("build_altseq_in checked for a CDS variant"),
         };
 
         let variant_start_aa = std::cmp::max(((loc_start as f64) / 3.0).ceil() as i32, 1);
@@ -2211,7 +2201,7 @@ mod test {
 
     use crate::{mapper::Error, parser::HgvsVariant, sequences::TranslationTable};
 
-    use super::{AltSeqBuilder, AltTranscriptData, CdsEnd, RefTranscriptData};
+    use super::{AltSeqBuilder, AltTranscriptData, CdsEnd, RefTranscriptData, VariantLocation};
 
     /// Cache lookups only hit if the borrowed key hashes like the owned one.
     #[test]
@@ -2666,7 +2656,7 @@ mod test {
         Ok(())
     }
 
-    /// Positions of the CDS that are not on the transcript, and c.0, which does not exist.
+    /// Positions of the CDS that are not on the transcript.
     #[test]
     fn build_altseq_fails_for_positions_off_the_transcript() -> Result<(), anyhow::Error> {
         let reference_data = mock_reference_data();
@@ -2677,10 +2667,6 @@ mod test {
             ("MOCK:c.5000del", "5000"),
             ("MOCK:c.1_5000del", "5000"),
             ("MOCK:c.5000_5001dup", "5000"),
-            ("MOCK:c.0A>T", "0"),
-            ("MOCK:c.-1_0insA", "0"),
-            ("MOCK:c.*0A>T", "*0"),
-            ("MOCK:c.30_*0del", "*0"),
         ] {
             let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
             let result = builder.build_altseq();
@@ -2756,11 +2742,60 @@ mod test {
         Ok(())
     }
 
-    /// Intervals whose start lies after their end, within and across the CDS.
+    /// A whole-gene insertion reaches the whole-gene arm on a transcript without stop codon
+    /// only; it leaves the protein as is.
     #[test]
-    fn build_altseq_fails_for_inverted_intervals() -> Result<(), anyhow::Error> {
+    fn build_altseq_whole_gene_insertion_without_stop_codon() -> Result<(), anyhow::Error> {
+        let reference_data = RefTranscriptData {
+            transcript_sequence: "AAAATCAAAATGAAAGCGAAAGCGTTTCGCGCGAAAGGGG".into(),
+            aa_sequence: "MKAKAFRAK".into(),
+            cds_stop: 36,
+            cds_end: CdsEnd::NoStopCodon,
+            ..mock_reference_data()
+        };
+
+        for hgvs in ["MOCK:c.-1_*1insA", "MOCK:c.-3_*2insA"] {
+            let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
+            assert_eq!(
+                builder.variant_location()?,
+                VariantLocation::WholeGene,
+                "{hgvs}"
+            );
+            let alt_data = builder.build_altseq()?.remove(0);
+            assert_eq!(
+                alt_data.transcript_sequence,
+                reference_data.transcript_sequence.as_ref(),
+                "{hgvs}"
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Intervals whose start lies after their end, within and across the CDS, and positions
+    /// 0, which do not exist: the builder validates the interval, see `CdsInterval`.
+    #[test]
+    fn build_altseq_fails_for_invalid_intervals() -> Result<(), anyhow::Error> {
         let reference_data = mock_reference_data();
 
+        for hgvs in [
+            "MOCK:c.0A>T",
+            "MOCK:c.-1_0insA",
+            "MOCK:c.*0A>T",
+            "MOCK:c.30_*0del",
+        ] {
+            let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
+            let result = builder.build_altseq();
+            assert!(
+                matches!(
+                    &result,
+                    Err(Error::ValidationFailed(
+                        crate::validator::Error::PositionMustNotBeZero(_)
+                    ))
+                ),
+                "{hgvs} gave {result:?}"
+            );
+        }
         for hgvs in [
             "MOCK:c.6_4del",
             "MOCK:c.6_4dup",
