@@ -1626,6 +1626,7 @@ mod test {
             data_version: String,
             schema_version: String,
             records: Vec<ProviderRecord>,
+            translation_table: crate::sequences::TranslationTable,
         }
 
         impl Provider {
@@ -1649,6 +1650,18 @@ mod test {
                     records,
                     data_version: dummy_version.clone(),
                     schema_version: dummy_version,
+                    translation_table: Default::default(),
+                }
+            }
+
+            /// Use `translation_table` for every transcript.
+            pub fn with_translation_table(
+                self,
+                translation_table: crate::sequences::TranslationTable,
+            ) -> Self {
+                Self {
+                    translation_table,
+                    ..self
                 }
             }
         }
@@ -1764,7 +1777,7 @@ mod test {
                             cds_end_i: Some(record.cds_end_i),
                             lengths: record.lengths.clone(),
                             hgnc: "MOCK".to_string(),
-                            ..Default::default()
+                            translation_table: self.translation_table,
                         });
                     }
                 }
@@ -2067,6 +2080,156 @@ mod test {
         ] {
             let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
             assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
+        }
+
+        Ok(())
+    }
+
+    /// Transcripts whose CDS ends with an incomplete stop codon, as many mitochondrial ones do:
+    ///
+    /// * `NM_999982.1`: `ATG GCC AAG CTG TGG T`, followed by `CCCC`.
+    /// * `NM_999981.1`: `ATG GCC AAG CTG TGG TA`, followed by `CCCC`.
+    /// * `NM_999980.1`: `ATG GCC AAG CTG TGG C`, followed by `CCCC`.
+    fn poly_a_provider(
+        translation_table: crate::sequences::TranslationTable,
+    ) -> std::sync::Arc<sanity_mock::Provider> {
+        let record =
+            |accession: &str, transcript_sequence: &str, cds_end_i| sanity_mock::ProviderRecord {
+                accession: accession.to_string(),
+                transcript_sequence: transcript_sequence.to_string(),
+                cds_start_i: 5,
+                cds_end_i,
+                translation_exceptions: Vec::new(),
+                lengths: Vec::new(),
+            };
+        std::sync::Arc::new(
+            sanity_mock::Provider::with_records(vec![
+                record("NM_999982.1", "AAAACATGGCCAAGCTGTGGTCCCC", 21),
+                record("NM_999981.1", "AAAACATGGCCAAGCTGTGGTACCCC", 22),
+                record("NM_999980.1", "AAAACATGGCCAAGCTGTGGCCCCC", 21),
+            ])
+            .with_translation_table(translation_table),
+        )
+    }
+
+    /// As in biocommons/hgvs, the poly(A) tail completes a stop codon that ends with `T` or
+    /// `TA`, but only with the vertebrate mitochondrial translation table.  The completing
+    /// `A`s go into the translated bases only, so the transcript sequence and `cds_stop` stay.
+    #[test]
+    fn poly_a_completes_mitochondrial_stop_codon() -> Result<(), Error> {
+        use crate::mapper::altseq::{CdsEnd, RefTranscriptData};
+        use crate::sequences::TranslationTable;
+
+        for (translation_table, tx_ac, transcript_sequence, aa_sequence, cds_stop, cds_end) in [
+            (
+                TranslationTable::VertebrateMitochondrial,
+                "NM_999982.1",
+                "AAAACATGGCCAAGCTGTGGTCCCC",
+                "MAKLW*",
+                21,
+                CdsEnd::StopCodon,
+            ),
+            (
+                TranslationTable::VertebrateMitochondrial,
+                "NM_999981.1",
+                "AAAACATGGCCAAGCTGTGGTACCCC",
+                "MAKLW*",
+                22,
+                CdsEnd::StopCodon,
+            ),
+            (
+                TranslationTable::VertebrateMitochondrial,
+                "NM_999980.1",
+                "AAAACATGGCCAAGCTGTGGCCCCC",
+                "MAKLW",
+                21,
+                CdsEnd::IncompleteCodon("C".to_string()),
+            ),
+            (
+                TranslationTable::Standard,
+                "NM_999982.1",
+                "AAAACATGGCCAAGCTGTGGTCCCC",
+                "MAKLW",
+                21,
+                CdsEnd::IncompleteCodon("T".to_string()),
+            ),
+        ] {
+            let ref_data =
+                RefTranscriptData::new(poly_a_provider(translation_table), tx_ac, Some("MOCK"))?;
+            assert_eq!(
+                (
+                    ref_data.transcript_sequence.as_ref(),
+                    ref_data.aa_sequence.as_ref(),
+                    ref_data.cds_stop,
+                    ref_data.cds_end,
+                ),
+                (transcript_sequence, aa_sequence, cds_stop, cds_end),
+                "{tx_ac} with {translation_table:?}"
+            );
+        }
+
+        Ok(())
+    }
+
+    /// `c_to_p` on the mitochondrial transcripts of `poly_a_provider()`.  The expectations are
+    /// those of biocommons/hgvs, without the parentheses, except where marked.
+    #[test]
+    fn hgvs_c_to_p_mitochondrial_poly_a() -> Result<(), Error> {
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(
+            &config,
+            poly_a_provider(crate::sequences::TranslationTable::VertebrateMitochondrial),
+        );
+
+        for (hgvsc, hgvsp_expected) in [
+            ("NM_999982.1:c.4G>A", "MOCK:p.Ala2Thr"),
+            // `TGA` codes Trp in the vertebrate mitochondrial table.
+            ("NM_999982.1:c.15G>A", "MOCK:p.Trp5="),
+            ("NM_999982.1:c.16T>C", "MOCK:p.Ter6GlnextTer?"),
+            ("NM_999982.1:c.13_15del", "MOCK:p.Trp5Ter"),
+            ("NM_999982.1:c.10_12dup", "MOCK:p.Leu4dup"),
+            ("NM_999982.1:c.*1C>G", "MOCK:p.?"),
+            // The c.* positions count the bases of the transcript, not the completing `A`s, so
+            // the deletions end with the `C`s after c.16.  biocommons/hgvs deletes the `A`s
+            // instead, see `DIFFERENCES.md`.
+            ("NM_999982.1:c.16_*1del", "MOCK:p.Ter6ProextTer?"),
+            ("NM_999982.1:c.16_*2del", "MOCK:p.Ter6XaaextTer?"),
+            // Bases inserted after the CDS go in front of the completing `A`s.  The CDS has 16
+            // bases, so `c.16_17insG` is not canonical.  It is used on purpose, as
+            // biocommons/hgvs counts it as exonic.  The canonical `c.16_*1insG` is a 3' UTR
+            // variant by its positions.
+            ("NM_999982.1:c.16dup", "MOCK:p.Ter6LeuextTer?"),
+            ("NM_999982.1:c.16_17insG", "MOCK:p.Ter6TrpextTer?"),
+            ("NM_999982.1:c.16_*1insG", "MOCK:p.?"),
+            ("NM_999981.1:c.4G>A", "MOCK:p.Ala2Thr"),
+            ("NM_999981.1:c.17A>C", "MOCK:p.Ter6SerextTer?"),
+            ("NM_999981.1:c.16_17del", "MOCK:p.Ter6ThrextTer?"),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
+        }
+
+        // The alt transcript has the bases of the transcript only.
+        let ref_data = crate::mapper::altseq::RefTranscriptData::new(
+            poly_a_provider(crate::sequences::TranslationTable::VertebrateMitochondrial),
+            "NM_999982.1",
+            Some("MOCK"),
+        )?;
+        for (hgvsc, transcript_sequence) in [
+            ("NM_999982.1:c.16_*1del", "AAAACATGGCCAAGCTGTGGCCC"),
+            ("NM_999982.1:c.16T>C", "AAAACATGGCCAAGCTGTGGCCCCC"),
+        ] {
+            let alt_data =
+                crate::mapper::altseq::AltSeqBuilder::new(HgvsVariant::from_str(hgvsc)?, &ref_data)
+                    .build_altseq()?;
+            assert_eq!(
+                alt_data[0].transcript_sequence, transcript_sequence,
+                "{hgvsc}"
+            );
         }
 
         Ok(())

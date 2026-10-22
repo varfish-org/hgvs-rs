@@ -51,6 +51,21 @@ pub struct RefTranscriptData {
     pub cds_end: CdsEnd,
 }
 
+/// The `A`s that the poly(A) tail adds to complete the stop codon of `cds`, as biocommons/hgvs
+/// adds them: `AA` after a final `T` and `A` after a final `TA`, with the vertebrate
+/// mitochondrial translation table only.
+fn poly_a(translation_table: TranslationTable, cds: &str) -> &'static str {
+    match translation_table {
+        TranslationTable::VertebrateMitochondrial if cds.len() % 3 == 1 && cds.ends_with('T') => {
+            "AA"
+        }
+        TranslationTable::VertebrateMitochondrial if cds.len() % 3 == 2 && cds.ends_with("TA") => {
+            "A"
+        }
+        _ => "",
+    }
+}
+
 /// The 0-based codon indices and the amino acids of the translation `exceptions`.
 fn codon_exceptions(exceptions: &[TranslationException]) -> Vec<(usize, char)> {
     exceptions
@@ -139,11 +154,23 @@ pub(crate) fn ref_transcript_data_shared(
 }
 
 impl RefTranscriptData {
+    /// The `A`s that complete the stop codon of a mitochondrial CDS, see `new()`.
+    pub(crate) fn poly_a(&self) -> &'static str {
+        self.transcript_sequence
+            .get((self.cds_start - 1) as usize..self.cds_stop as usize)
+            .map_or("", |cds| poly_a(self.translation_table, cds))
+    }
+
     /// Construct new instance fetching data from the provider..
     ///
     /// If the length of the CDS is not a multiple of 3, the protein ends with the last
     /// complete codon, and `cds_end` holds the bases after it.  Unlike biocommons/hgvs, which
     /// rejects such a CDS, this returns an error only if a stop codon is in frame.
+    ///
+    /// As in biocommons/hgvs, the poly(A) tail completes the stop codon of a CDS with the
+    /// vertebrate mitochondrial translation table that ends with `T` or `TA`, see `poly_a()`.
+    /// The missing `A`s go into the translated bases only, so `transcript_sequence`,
+    /// `cds_stop` and the c. positions stay as they are.
     ///
     /// # Args
     ///
@@ -170,8 +197,8 @@ impl RefTranscriptData {
 
         // Translate up to the last complete codon.  A CDS with an incomplete 3' end, e.g.,
         // GENCODE `cds_end_NF`, can end with an incomplete codon.
-        let tx_seq_to_translate =
-            &transcript_sequence[((cds_start - 1) as usize)..(cds_stop as usize)];
+        let cds = &transcript_sequence[((cds_start - 1) as usize)..(cds_stop as usize)];
+        let tx_seq_to_translate = &format!("{cds}{}", poly_a(tx_info.translation_table, cds));
         let full_codons_len = tx_seq_to_translate.len() - tx_seq_to_translate.len() % 3;
 
         let translation_exceptions = provider.as_ref().get_tx_translation_exceptions(tx_ac)?;
@@ -299,11 +326,14 @@ impl AltTranscriptData {
             is_ambiguous,
             translation_table,
             &[],
+            None,
         )
     }
 
     /// Like `new`, but takes ownership of `seq`, and sets the amino acids of
-    /// `translation_exceptions` at their 0-based codons of the CDS.
+    /// `translation_exceptions` at their 0-based codons of the CDS.  `poly_a` holds the `A`s
+    /// that complete a mitochondrial stop codon and their 0-based index in `seq`.  They go into
+    /// the translated bases only.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_owned(
         seq: String,
@@ -317,15 +347,27 @@ impl AltTranscriptData {
         is_ambiguous: bool,
         translation_table: TranslationTable,
         translation_exceptions: &[(usize, char)],
+        poly_a: Option<(usize, &str)>,
     ) -> Result<Self, Error> {
         let transcript_sequence = seq;
         let aa_sequence = if !transcript_sequence.is_empty() {
+            let cds_index = (cds_start - 1) as usize;
+            let with_poly_a;
             // In case of SEPHS2 / HGNC:19686, the last amino acid is both a selenocysteine
             // and a stop codon.
             // We handle this by explicitly truncating the sequence at the Sec + stop codon.
             // This heuristic may not always be correct;
             // alternatively/additionally, we could check `protein_accession` for known cases.
-            let seq_cds = if translation_table == TranslationTable::Selenocysteine
+            let seq_cds = if let Some((index, bases)) =
+                poly_a.filter(|(index, _)| (cds_index..=transcript_sequence.len()).contains(index))
+            {
+                with_poly_a = format!(
+                    "{}{bases}{}",
+                    &transcript_sequence[cds_index..index],
+                    &transcript_sequence[index..]
+                );
+                with_poly_a.as_str()
+            } else if translation_table == TranslationTable::Selenocysteine
                 && ref_aa_sequence.ends_with('U')
             {
                 &transcript_sequence[((cds_start - 1) as usize)..cds_stop as usize]
@@ -733,6 +775,23 @@ impl<'a> AltSeqBuilder<'a> {
             .map(|stop_aa_idx| insert_seq_idx + (stop_aa_idx + 1) * 3 - frame_offset))
     }
 
+    /// The `A`s that complete a mitochondrial stop codon and their 0-based index in `alt_seq`,
+    /// see `RefTranscriptData::new()`.  The change of `alt_seq` ends at the 0-based index `end`
+    /// of the reference.  If it ends right after the CDS, e.g., an insertion there, the `A`s
+    /// follow it.  `None` if there are none, or if the change reaches into the 3' UTR, e.g.,
+    /// `c.16_*1del`, which removes the base that the `A`s follow.
+    fn poly_a_in(&self, alt_seq: &str, end: usize) -> Option<(usize, &'static str)> {
+        let bases = self.reference_data.poly_a();
+        let cds_end = self.reference_data.cds_stop as usize;
+        if bases.is_empty() || end > cds_end {
+            return None;
+        }
+        // The change moves the end of the CDS by its length change.
+        let index =
+            (cds_end + alt_seq.len()).checked_sub(self.reference_data.transcript_sequence.len())?;
+        Some((index, bases))
+    }
+
     /// Get starting position (AA ref index) of the last frameshift which affects the rest of
     /// the sequence, i.e. not offset by subsequent frameshifts.
     fn get_frameshift_start(&self, variant_data: AltTranscriptData) -> AltTranscriptData {
@@ -767,6 +826,8 @@ impl<'a> AltSeqBuilder<'a> {
             _ => panic!("Can only work on CDS variants"),
         };
         let ref_len = reference.as_ref().map(|_| end - start).unwrap_or(0) as i32;
+        // An insertion changes no base and goes in at `start + 1`.
+        let change_end = if reference.is_some() { end } else { start + 1 };
         let alt_len = alternative.as_ref().map(|alt| alt.len()).unwrap_or(0) as i32;
         let net_base_change = alt_len - ref_len;
         let mut cds_stop = cds_stop + net_base_change;
@@ -819,6 +880,7 @@ impl<'a> AltSeqBuilder<'a> {
         // Use max. of mod 3 value and 1 (in the event that the indel starts in the 5' UTR range).
         let variant_start_aa = std::cmp::max((loc_range_start as f64 / 3.0).ceil() as i32, 1);
         let translation_exceptions = self.alt_translation_exceptions(&seq);
+        let poly_a = self.poly_a_in(&seq, change_end);
 
         AltTranscriptData::new_owned(
             seq,
@@ -832,6 +894,7 @@ impl<'a> AltSeqBuilder<'a> {
             self.ref_has_multiple_stops,
             self.reference_data.translation_table,
             &translation_exceptions,
+            poly_a,
         )
     }
 
@@ -873,6 +936,8 @@ impl<'a> AltSeqBuilder<'a> {
         };
         let variant_start_aa = ((loc_end + 1) as f64 / 3.0).ceil() as i32;
         let translation_exceptions = self.alt_translation_exceptions(&seq);
+        // The copy goes in at `end`.
+        let poly_a = self.poly_a_in(&seq, end);
 
         AltTranscriptData::new_owned(
             seq,
@@ -886,6 +951,7 @@ impl<'a> AltSeqBuilder<'a> {
             self.ref_has_multiple_stops,
             self.reference_data.translation_table,
             &translation_exceptions,
+            poly_a,
         )
     }
 
@@ -907,6 +973,7 @@ impl<'a> AltSeqBuilder<'a> {
 
         let variant_start_aa = std::cmp::max(((loc_start as f64) / 3.0).ceil() as i32, 1);
         let translation_exceptions = self.alt_translation_exceptions(&seq);
+        let poly_a = self.poly_a_in(&seq, end);
 
         AltTranscriptData::new_owned(
             seq,
@@ -920,6 +987,7 @@ impl<'a> AltSeqBuilder<'a> {
             self.ref_has_multiple_stops,
             self.reference_data.translation_table,
             &translation_exceptions,
+            poly_a,
         )
     }
 
@@ -937,6 +1005,7 @@ impl<'a> AltSeqBuilder<'a> {
             true,
             self.reference_data.translation_table,
             &[],
+            None,
         )
     }
 
@@ -954,6 +1023,7 @@ impl<'a> AltSeqBuilder<'a> {
             false,
             self.reference_data.translation_table,
             &[],
+            None,
         )
     }
 }
