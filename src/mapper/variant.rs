@@ -1383,8 +1383,8 @@ pub(crate) fn with_inferred_p_uncertainty(var_p: HgvsVariant, uncertain: bool) -
     };
     let loc_edit = match (loc_edit, uncertain) {
         (ProtLocEdit::Ordinary { loc, edit }, _) => ProtLocEdit::Ordinary {
-            loc: Mu::from(loc.inner().clone(), !uncertain),
-            edit: Mu::from(edit.inner().clone(), !uncertain),
+            loc: Mu::from(loc.unwrap(), !uncertain),
+            edit: Mu::from(edit.unwrap(), !uncertain),
         },
         (ProtLocEdit::NoChange | ProtLocEdit::NoChangeUncertain, true) => {
             ProtLocEdit::NoChangeUncertain
