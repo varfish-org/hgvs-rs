@@ -650,8 +650,6 @@ mod test {
         }
     }
 
-    /// Corresponds to `tests/issues/test_714.py` of biocommons/hgvs.  Its transcripts are not
-    /// in the test data, so these cases use KRAS and PTEN instead.
     /// `ins_at_boundary_by_sequence` on GRCh37.  PTEN (plus strand) exon 3 ends with `TCT` at
     /// c.207_209, followed by `GTAAGT`, and exon 8 starts with `GAC` at c.802_804, after
     /// `TTTAG`.  KRAS (minus strand) exon 2 ends with `GAG` at c.109_111, followed by `GTA`,
@@ -869,6 +867,8 @@ mod test {
         }
     }
 
+    /// Corresponds to `tests/issues/test_714.py` of biocommons/hgvs.  Its transcripts are not
+    /// in the test data, so these cases use KRAS and PTEN instead.
     mod issue_714 {
         use anyhow::Error;
         use std::collections::HashMap;
