@@ -1697,6 +1697,8 @@ mod test {
     ///
     /// * `NM_999993.1`: `ATG GCC AAG CTG TGG GAA` (`MAKLWE`).
     /// * `NM_999994.1`: `ATG GCC AAG CTG TGG GAA GC` (`MAKLWE` and an incomplete codon).
+    /// * `NM_999996.1`: `NM_999993.1` followed by `GGCTAACTGATAGG`, with stop codons after
+    ///   c.18 in two frames.
     ///
     /// The CDS of `NM_999995.1` has a stop codon, but its length is not a multiple of 3, as a
     /// +1 ribosomal frameshift skips the `T` after `TCC`: `ATG GCC TCC T GAT GGC TAA`
@@ -1715,6 +1717,11 @@ mod test {
             record("NM_999993.1", "AAAATCAAAATGGCCAAGCTGTGGGAA", 27),
             record("NM_999994.1", "AAAATCAAAATGGCCAAGCTGTGGGAAGC", 29),
             record("NM_999995.1", "AAAATCAAAATGGCCTCCTGATGGCTAAGGGG", 28),
+            record(
+                "NM_999996.1",
+                "AAAATCAAAATGGCCAAGCTGTGGGAAGGCTAACTGATAGG",
+                27,
+            ),
         ]))
     }
 
@@ -1793,6 +1800,26 @@ mod test {
             ("NM_999993.1:c.15G>A", "MOCK:p.Trp5Ter"),
             ("NM_999993.1:c.13_14insCCTA", "MOCK:p.Trp5SerfsTer2"),
             ("NM_999993.1:c.17_18insC", "MOCK:p.Glu6AspfsTer?"),
+            // A new stop codon gives the same result as with a stop codon at the end.
+            ("NM_999993.1:c.15_16insGGGTAA", "MOCK:p.Trp5_Glu6insGlyTer"),
+            ("NM_999993.1:c.4_6delinsGGGTAA", "MOCK:p.Ala2delinsGlyTer"),
+            // The protein ends at c.18 also if a stop codon follows.
+            ("NM_999996.1:c.18A>G", "MOCK:p.Glu6="),
+            ("NM_999996.1:c.18A>C", "MOCK:p.Glu6Asp"),
+            ("NM_999996.1:c.4_6dup", "MOCK:p.Ala2dup"),
+            ("NM_999996.1:c.15_16insGGGTAA", "MOCK:p.Trp5_Glu6insGlyTer"),
+            ("NM_999996.1:c.17_18insCC", "MOCK:p.Glu6AspfsTer?"),
+            // The alt protein keeps the last amino acid after an in-frame dup.
+            ("NM_999993.1:c.4_6dup", "MOCK:p.Ala2dup"),
+            ("NM_999993.1:c.6_7insGCC", "MOCK:p.Ala2dup"),
+            // The CDS goes on after c.18, so there is no 3' UTR, and the amino acids after
+            // c.18 are unknown.  This also holds for a variant that starts in the CDS.
+            ("NM_999996.1:c.18_*1insA", "MOCK:p.?"),
+            ("NM_999996.1:c.*1G>A", "MOCK:p.?"),
+            ("NM_999996.1:c.*2dup", "MOCK:p.?"),
+            ("NM_999996.1:c.*1_*3inv", "MOCK:p.?"),
+            ("NM_999996.1:c.17_*1del", "MOCK:p.?"),
+            ("NM_999996.1:c.18_*1delinsTC", "MOCK:p.?"),
             // The CDS ends before the new frame changes a complete codon.
             ("NM_999993.1:c.18del", "MOCK:p.?"),
             ("NM_999993.1:c.16del", "MOCK:p.?"),
@@ -1801,6 +1828,7 @@ mod test {
             ("NM_999994.1:c.18A>G", "MOCK:p.Glu6="),
             ("NM_999994.1:c.18A>C", "MOCK:p.Glu6Asp"),
             ("NM_999994.1:c.16_18del", "MOCK:p.Glu6del"),
+            ("NM_999994.1:c.4_6dup", "MOCK:p.Ala2dup"),
             ("NM_999994.1:c.15G>A", "MOCK:p.Trp5Ter"),
             ("NM_999994.1:c.13_14insCCTA", "MOCK:p.Trp5SerfsTer2"),
             // The new frame completes the incomplete codon ...
@@ -1811,6 +1839,8 @@ mod test {
             ("NM_999994.1:c.19G>A", "MOCK:p.?"),
             ("NM_999994.1:c.19_20insGTGGGAAC", "MOCK:p.?"),
             ("NM_999994.1:c.18_19insTAA", "MOCK:p.?"),
+            ("NM_999994.1:c.20dup", "MOCK:p.?"),
+            ("NM_999994.1:c.19_20dup", "MOCK:p.?"),
         ] {
             let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
             assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
@@ -2228,6 +2258,55 @@ mod test {
         ] {
             let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
             assert_eq!(format!("{}", &var_p), "MOCK:p.?", "{hgvsc}");
+        }
+
+        Ok(())
+    }
+
+    /// As in biocommons/hgvs (biocommons/hgvs#830), a stop codon that an insertion or dup forms
+    /// within its own bases ends the translation there, so the variant is in frame.  The CDS of
+    /// `NM_999985.1` is `ATG AAA GCG AAA GCG GCT AAG GCT GAA TAG` (`MKAKAAKAE*`), and the one
+    /// of `NM_999984.1` is `ATG AAA GCG AAA GCG TTT CGC GTA GAA TAG` (`MKAKAFRVE*`).  The
+    /// expectations are those of biocommons/hgvs, without the parentheses.
+    #[test]
+    fn hgvs_c_to_p_stop_codon_in_insertion() -> Result<(), Error> {
+        let record = |accession: &str, cds: &str| sanity_mock::ProviderRecord {
+            accession: accession.to_string(),
+            transcript_sequence: format!("AAAATCAAAC{cds}GGGGGCCCCC"),
+            cds_start_i: 10,
+            cds_end_i: 40,
+            translation_exceptions: Vec::new(),
+            lengths: Vec::new(),
+        };
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(
+            &config,
+            std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+                record("NM_999985.1", "ATGAAAGCGAAAGCGGCTAAGGCTGAATAG"),
+                record("NM_999984.1", "ATGAAAGCGAAAGCGTTTCGCGTAGAATAG"),
+            ])),
+        );
+
+        for (hgvs_c, expected) in [
+            // The copy holds the stop codons `TAA` and `TGA` in the new frame.
+            ("NM_999985.1:c.17_29dup", "MOCK:p.Ter10TyrextTer1"),
+            (
+                "NM_999985.1:c.29_30insCTAAGGCTGAATA",
+                "MOCK:p.Ter10TyrextTer1",
+            ),
+            ("NM_999985.1:c.6_7insTAAGG", "MOCK:p.Ala3Ter"),
+            // The stop codon is not in the frame of the CDS.
+            ("NM_999985.1:c.6_7insGGTAAGG", "MOCK:p.Ala3GlyfsTer7"),
+            // The copy forms the stop codon `TAG` in front of `AA TAG`.
+            ("NM_999984.1:c.21_25dup", "MOCK:p.Glu9Ala"),
+            ("NM_999984.1:c.22_26dup", "MOCK:p.Glu9="),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvs_c)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), expected, "{hgvs_c}");
         }
 
         Ok(())

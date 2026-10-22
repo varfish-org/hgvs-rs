@@ -10,6 +10,11 @@
 This is a port of [biocommons/hgvs](https://github.com/biocommons/hgvs) to the Rust programming language.
 The `data::cdot::*` code is based on a port of  [SACGF/cdot](https://github.com/SACGF/cdot) to Rust.
 
+## Differences from biocommons/hgvs
+
+hgvs-rs aims to give the same results as biocommons/hgvs.
+[DIFFERENCES.md](DIFFERENCES.md) lists the known differences, with the reason for each.
+
 ## Choosing a Provider
 
 The crate includes three `Provider` implementations for accessing transcript and sequence data:

@@ -11,7 +11,7 @@ use crate::{
         Accession, CdsFrom, HgvsVariant, Mu, NaEdit, ProtInterval, ProtLocEdit, ProtPos,
         ProteinEdit, UncertainLengthChange,
     },
-    sequences::{revcomp, translate_cds_with_exceptions, TranslationTable},
+    sequences::{revcomp, translate_cds, translate_cds_with_exceptions, TranslationTable},
 };
 
 /// How the CDS of a transcript ends.
@@ -344,26 +344,23 @@ impl AltTranscriptData {
             } else {
                 ref_aa_sequence.to_owned()
             };
-            // Compute original protein/amino acid chain length.  We need this further down to
-            // handle the case of transcripts without stop codons (this happens for some bad
-            // transcripts from ENSEMBL, e.g., ENST00000420031.2).  In this case, we will
-            // artificially cut down the amino acid sequence to this length.
+            // With a stop codon, the alt protein ends after the last stop codon up to
+            // `cds_stop`, or else at the next one after it.  Without a stop codon, e.g., in
+            // ENST00000420031.2, the amino acids after `cds_stop` are unknown, so the alt
+            // protein ends at `cds_stop`, which the caller moves by the length change of the
+            // variant.  So it lines up with `ref_aa_sequence`, also if it has a new stop codon
+            // or if a stop codon follows `cds_stop`.
             let orig_aa_len = (cds_stop - cds_start + 1) as usize / 3;
             let orig_aa_len = std::cmp::min(orig_aa_len, seq_aa.len());
-            let stop_pos = seq_aa[..orig_aa_len]
+            if !ref_aa_sequence.contains('*') {
+                seq_aa[..orig_aa_len].to_owned()
+            } else if let Some(stop_pos) = seq_aa[..orig_aa_len]
                 .rfind('*')
-                .or_else(|| seq_aa.find('*'));
-            if let Some(stop_pos) = stop_pos {
+                .or_else(|| seq_aa.find('*'))
+            {
                 seq_aa[..(stop_pos + 1)].to_owned()
             } else {
-                // Double-check whether we have a stop codon in the reference AA sequence.
-                // If this is not the case then use the original CDS.  Otherwise, we fall
-                // back to the full alternative sequence in `seq_aa`.
-                if let Some(_pos) = ref_aa_sequence.find('*') {
-                    seq_aa
-                } else {
-                    seq_aa[..orig_aa_len].to_owned()
-                }
+                seq_aa
             }
         } else {
             "".to_owned()
@@ -385,6 +382,7 @@ impl AltTranscriptData {
 }
 
 /// Utility enum for locating variant in a transcript.
+#[derive(Debug, PartialEq)]
 enum VariantLocation {
     Exon,
     Intron,
@@ -456,6 +454,8 @@ impl<'a> AltSeqBuilder<'a> {
         };
         let na_edit = loc_edit.edit.inner();
         let edit_type = match self.get_variant_region() {
+            // Without a stop codon, the amino acids after the CDS are unknown.
+            VariantLocation::Exon if self.after_cds_without_stop() => EditType::NotCds,
             VariantLocation::Exon => match na_edit {
                 NaEdit::RefAlt { .. }
                 | NaEdit::NumAlt { .. }
@@ -515,9 +515,13 @@ impl<'a> AltSeqBuilder<'a> {
                 let ref_data = self.reference_data;
                 let at_exon_edge = ref_data.exon_start_positions.contains(&loc.start.base)
                     || ref_data.exon_end_positions.contains(&loc.end.base);
+                // Without a stop codon, the CDS goes on after its last base, so there is no 3'
+                // UTR, see `after_cds_without_stop()`.
+                let has_stop_codon = ref_data.cds_end == CdsEnd::StopCodon;
                 #[allow(clippy::nonminimal_bool)]
-                if loc.start.cds_from == CdsFrom::End && loc.end.cds_from == CdsFrom::End
-                    || ((edit.is_ins() || edit.is_dup()) && loc.end.cds_from == CdsFrom::End)
+                if has_stop_codon
+                    && (loc.start.cds_from == CdsFrom::End && loc.end.cds_from == CdsFrom::End
+                        || ((edit.is_ins() || edit.is_dup()) && loc.end.cds_from == CdsFrom::End))
                 {
                     // 3' UTR if both ends are 3' UTR or if the variant is an insertion/duplication
                     // and the end is 3' UTR.
@@ -545,6 +549,17 @@ impl<'a> AltSeqBuilder<'a> {
             }
             _ => panic!("Must be CDS variant"),
         }
+    }
+
+    /// Whether the CDS has no stop codon and the variant reaches after its last base c.N, i.e.,
+    /// it ends with a c.* position.  The CDS goes on after c.N, but its amino acids there are
+    /// unknown.
+    fn after_cds_without_stop(&self) -> bool {
+        let HgvsVariant::CdsVariant { loc_edit, .. } = &self.var_c else {
+            return false;
+        };
+        self.reference_data.cds_end != CdsEnd::StopCodon
+            && loc_edit.loc.inner().end.cds_from == CdsFrom::End
     }
 
     /// Helper to setup incorporate function.
@@ -649,6 +664,32 @@ impl<'a> AltSeqBuilder<'a> {
             .collect()
     }
 
+    /// The 0-based index in the alt transcript right after the first stop codon that the
+    /// inserted bases `insert_seq` form in the reading frame, or `None`.  `insert_seq_idx` is the
+    /// index of their first base.  Translation then ends within the inserted bases, so the
+    /// variant is not a frameshift, and the bases after the stop codon do not count.
+    ///
+    /// Port of `_insert_stop_seq_end()` of biocommons/hgvs (biocommons/hgvs#830).  As there, a
+    /// codon that starts before the inserted bases does not count.
+    fn insert_stop_seq_end(
+        &self,
+        insert_seq: &str,
+        insert_seq_idx: usize,
+    ) -> Result<Option<usize>, Error> {
+        let Some(frame_offset) = usize::try_from(self.reference_data.cds_start - 1)
+            .ok()
+            .and_then(|cds_start| insert_seq_idx.checked_sub(cds_start))
+            .map(|offset| offset % 3)
+        else {
+            return Ok(None);
+        };
+        let framed = format!("{}{insert_seq}", "N".repeat(frame_offset));
+        let ins_aa = translate_cds(&framed, false, "X", self.reference_data.translation_table)?;
+        Ok(ins_aa
+            .find('*')
+            .map(|stop_aa_idx| insert_seq_idx + (stop_aa_idx + 1) * 3 - frame_offset))
+    }
+
     /// Get starting position (AA ref index) of the last frameshift which affects the rest of
     /// the sequence, i.e. not offset by subsequent frameshifts.
     fn get_frameshift_start(&self, variant_data: AltTranscriptData) -> AltTranscriptData {
@@ -662,6 +703,7 @@ impl<'a> AltSeqBuilder<'a> {
         }
     }
 
+    /// Incorporate a substitution, deletion, insertion or delins into the transcript sequence.
     fn incorporate_delins(&self) -> Result<AltTranscriptData, Error> {
         let (mut seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
         let loc_range_start;
@@ -684,7 +726,13 @@ impl<'a> AltSeqBuilder<'a> {
         let ref_len = reference.as_ref().map(|_| end - start).unwrap_or(0) as i32;
         let alt_len = alternative.as_ref().map(|alt| alt.len()).unwrap_or(0) as i32;
         let net_base_change = alt_len - ref_len;
-        let cds_stop = cds_stop + net_base_change;
+        let mut cds_stop = cds_stop + net_base_change;
+        let insert_stop = match (&reference, &alternative) {
+            (None, Some(alternative)) => self
+                .insert_stop_seq_end(alternative, start + 1)?
+                .map(|stop_end| (stop_end, start + 1 + alternative.len())),
+            _ => None,
+        };
 
         // Incorporate the variant into the sequence (depending on the type).
         let mut is_substitution = false;
@@ -718,7 +766,12 @@ impl<'a> AltSeqBuilder<'a> {
             _ => panic!("This should not happen"),
         }
 
-        let is_frameshift = net_base_change % 3 != 0;
+        let mut is_frameshift = net_base_change % 3 != 0;
+        if let Some((stop_end, alt_end)) = insert_stop {
+            is_frameshift = false;
+            seq.replace_range(stop_end..alt_end, "");
+            cds_stop -= (alt_end - stop_end) as i32;
+        }
 
         // Use max. of mod 3 value and 1 (in the event that the indel starts in the 5' UTR range).
         let variant_start_aa = std::cmp::max((loc_range_start as f64 / 3.0).ceil() as i32, 1);
@@ -739,6 +792,8 @@ impl<'a> AltSeqBuilder<'a> {
         )
     }
 
+    /// Incorporate a dup into the transcript sequence: its copy goes right after the duplicated
+    /// bases.
     fn incorporate_dup(&self) -> Result<AltTranscriptData, Error> {
         let (seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
 
@@ -751,9 +806,23 @@ impl<'a> AltSeqBuilder<'a> {
         } else {
             &seq[start..end]
         };
-        let seq = format!("{}{}{}", &seq[..end], dup_seq, &seq[end..]);
+        let mut seq = format!("{}{}{}", &seq[..end], dup_seq, &seq[end..]);
 
-        let is_frameshift = dup_seq.len() % 3 != 0;
+        let mut is_frameshift = dup_seq.len() % 3 != 0;
+        // Without a stop codon, the alt protein ends at `cds_stop`, see `AltTranscriptData`.  So
+        // `cds_stop` moves with the copy, as in `incorporate_delins()`, and the alt protein
+        // keeps the last codons of the CDS.  With a stop codon, biocommons/hgvs keeps `cds_stop`.
+        let mut cds_stop = if self.reference_data.aa_sequence.contains('*') {
+            cds_stop
+        } else {
+            cds_stop + dup_seq.len() as i32
+        };
+        if let Some(stop_end) = self.insert_stop_seq_end(dup_seq, end)? {
+            is_frameshift = false;
+            let dup_end = end + dup_seq.len();
+            seq.replace_range(stop_end..dup_end, "");
+            cds_stop -= (dup_end - stop_end) as i32;
+        }
 
         let loc_end = match &self.var_c {
             HgvsVariant::CdsVariant { loc_edit, .. } => loc_edit.loc.inner().end.base,
@@ -1527,6 +1596,58 @@ mod test {
                 matches!(builder.build_altseq(), Err(Error::ExpectedCdsVariant(_))),
                 "{hgvs}"
             );
+        }
+
+        Ok(())
+    }
+
+    /// Without a stop codon, the CDS goes on after its last base c.27, so there is no 3' UTR.
+    /// The CDS is `ATG AAA GCG AAA GCG TTT CGC GCG AAA` (`MKAKAFRAK`), followed by
+    /// `GGGGGCCCCC`.
+    #[test]
+    fn variant_region_without_stop_codon() -> Result<(), anyhow::Error> {
+        use super::VariantLocation;
+
+        let reference_data = RefTranscriptData {
+            transcript_sequence: "AAAATCAAACATGAAAGCGAAAGCGTTTCGCGCGAAAGGGGGCCCCC".into(),
+            aa_sequence: "MKAKAFRAK".into(),
+            cds_start: 11,
+            cds_stop: 37,
+            protein_accession: "MOCK".into(),
+            translation_table: TranslationTable::Standard,
+            translation_exceptions: Vec::new(),
+            exon_start_positions: vec![-10],
+            exon_end_positions: vec![37],
+            cds_end: CdsEnd::NoStopCodon,
+        };
+
+        for ins_at_boundary_is_intronic in [false, true] {
+            for (hgvs_c, expected) in [
+                ("c.27_*1insA", VariantLocation::Exon),
+                ("c.*1dup", VariantLocation::Exon),
+                ("c.*4_*5insG", VariantLocation::Exon),
+                ("c.*1G>A", VariantLocation::Exon),
+                ("c.*1_*3del", VariantLocation::Exon),
+                ("c.*1_*3inv", VariantLocation::Exon),
+                ("c.26_*1del", VariantLocation::Exon),
+                ("c.27_*1delinsTC", VariantLocation::Exon),
+                ("c.-5_*2dup", VariantLocation::WholeGene),
+                ("c.-5_*2del", VariantLocation::WholeGene),
+            ] {
+                let builder = AltSeqBuilder {
+                    ins_at_boundary_is_intronic,
+                    ..AltSeqBuilder::new(
+                        HgvsVariant::from_str(&format!("NM_999987.1:{hgvs_c}"))?,
+                        &reference_data,
+                    )
+                };
+                assert_eq!(
+                    builder.get_variant_region(),
+                    expected,
+                    "{hgvs_c} with ins_at_boundary_is_intronic = {ins_at_boundary_is_intronic}"
+                );
+                assert!(builder.after_cds_without_stop(), "{hgvs_c}");
+            }
         }
 
         Ok(())
