@@ -5,7 +5,7 @@ use std::ops::Range;
 
 use std::sync::Arc;
 
-use crate::mapper::altseq::{AltSeqBuilder, RefTranscriptData};
+use crate::mapper::altseq::{AltSeqBuilder, RefTranscriptData, VariantLocation};
 use crate::mapper::error::Error;
 use crate::mapper::variant::{self, ShiftOverBoundaryPreference};
 use crate::normalizer::Direction;
@@ -281,12 +281,25 @@ impl Mapper {
     ///
     /// * `var_c` -- `HgvsVariant::TxVariant` to project
     pub fn c_to_p(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, Error> {
+        self.c_to_p_with_region(var_c).map(|(var_p, _)| var_p)
+    }
+
+    /// Like `c_to_p()`, but also returns the region of the transcript that it built the protein
+    /// for, see `variant::Mapper::c_to_p_with_region()`.
+    ///
+    /// # Args
+    ///
+    /// * `var_c` -- `HgvsVariant::CdsVariant` to project
+    pub fn c_to_p_with_region(
+        &self,
+        var_c: &HgvsVariant,
+    ) -> Result<(HgvsVariant, VariantLocation), Error> {
         let alt_ac = self.c_to_p_alt_ac(var_c)?;
         let alt = alt_ac
             .as_deref()
             .map(|alt_ac| (alt_ac, self.config.alt_aln_method.as_str()));
-        let var = self.inner.c_to_p_with_alt(var_c, None, alt)?;
-        self.maybe_normalize(&var)
+        // `maybe_normalize()` would only validate the protein variant and return a copy.
+        self.inner.c_to_p_with_alt(var_c, None, alt)
     }
 
     /// The `AltSeqBuilder` that `c_to_p()` builds the protein from, without the shifts of

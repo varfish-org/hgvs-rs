@@ -785,17 +785,29 @@ impl Mapper {
     /// * `var_c` -- `HgvsVariant::TxVariant` to project
     /// * `pro_ac` -- Protein accession
     pub fn c_to_p(&self, var_c: &HgvsVariant, prot_ac: Option<&str>) -> Result<HgvsVariant, Error> {
+        self.c_to_p_with_region(var_c, prot_ac)
+            .map(|(var_p, _)| var_p)
+    }
+
+    /// Like `c_to_p()`, but also returns the region of the transcript that it built the protein
+    /// for, see `AltSeqBuilder::variant_location()`.  With `Config::shift_over_boundary`, this
+    /// is the region of the shift that it uses.
+    pub fn c_to_p_with_region(
+        &self,
+        var_c: &HgvsVariant,
+        prot_ac: Option<&str>,
+    ) -> Result<(HgvsVariant, VariantLocation), Error> {
         self.c_to_p_with_alt(var_c, prot_ac, None)
     }
 
-    /// Like `c_to_p()`, but takes the reference of intron bases from the genome alignment
-    /// `alt`, given as `(alt_ac, alt_aln_method)`.
+    /// Like `c_to_p_with_region()`, but takes the reference of intron bases from the genome
+    /// alignment `alt`, given as `(alt_ac, alt_aln_method)`.
     pub(crate) fn c_to_p_with_alt(
         &self,
         var_c: &HgvsVariant,
         prot_ac: Option<&str>,
         alt: Option<(&str, &str)>,
-    ) -> Result<HgvsVariant, Error> {
+    ) -> Result<(HgvsVariant, VariantLocation), Error> {
         use super::altseq::*;
 
         if let HgvsVariant::CdsVariant {
@@ -818,14 +830,15 @@ impl Mapper {
                 prot_ac.map(|s| s.to_string()).as_deref(),
             )?;
             let builder = self.alt_seq_builder(var_c, &reference_data, alt)?;
-            let builder = self.shift_over_boundary(builder, alt)?;
+            let (builder, region) = self.shift_over_boundary(builder, alt)?;
 
             // NB: the following comment is from the original code.
             // TODO: handle case where you get 2+ alt sequences back;  currently get list of 1 element
             // loop structure implemented to handle this, but doesn't really do anything currently.
 
             let var_ps: Result<Vec<_>, Error> = builder
-                .build_altseq()?
+                // `p.` reads no amino acid behind the alt protein, so the translation can stop.
+                .build_altseq_in(region, true)?
                 .into_iter()
                 .map(|alt_data| {
                     let builder = AltSeqToHgvsp::new(&reference_data, alt_data);
@@ -853,9 +866,9 @@ impl Mapper {
                 return Err(Error::NotProtVariant);
             };
 
-            Ok(with_inferred_p_uncertainty(
-                var_p,
-                self.config.inferred_p_is_uncertain,
+            Ok((
+                with_inferred_p_uncertainty(var_p, self.config.inferred_p_is_uncertain),
+                region,
             ))
         } else {
             Err(Error::ExpectedCdsVariant(format!("{}", var_c)))
@@ -866,20 +879,20 @@ impl Mapper {
     /// biocommons/hgvs does.
     ///
     /// For an insertion or duplication in an exon or intron, take the first shift, 3' then
-    /// 5', that lies on the other side of an exon boundary.  Return its builder if that side
-    /// is the preferred one, else `builder`.  `alt` is the genome alignment as
-    /// `(alt_ac, alt_aln_method)`.
+    /// 5', that lies on the other side of an exon boundary.  Return its builder and region if
+    /// that side is the preferred one, else `builder` and its region.  `alt` is the genome
+    /// alignment as `(alt_ac, alt_aln_method)`.
     fn shift_over_boundary<'a>(
         &self,
         builder: AltSeqBuilder<'a>,
         alt: Option<(&str, &str)>,
-    ) -> Result<AltSeqBuilder<'a>, Error> {
-        let Some(preferred) = self.shift_preference(&builder.var_c)? else {
-            return Ok(builder);
-        };
+    ) -> Result<(AltSeqBuilder<'a>, VariantLocation), Error> {
         let region = builder.variant_location()?;
+        let Some(preferred) = self.shift_preference(&builder.var_c)? else {
+            return Ok((builder, region));
+        };
         if !matches!(region, VariantLocation::Intron | VariantLocation::Cds) {
-            return Ok(builder);
+            return Ok((builder, region));
         }
         let (alt_ac, alt_aln_method) =
             alt.ok_or_else(|| Error::ShiftOverBoundaryNeedsAlignment(builder.var_c.to_string()))?;
@@ -919,13 +932,13 @@ impl Mapper {
             ) && shifted_region != region
             {
                 return Ok(if shifted_region == preferred {
-                    shifted
+                    (shifted, shifted_region)
                 } else {
-                    builder
+                    (builder, region)
                 });
             }
         }
-        Ok(builder)
+        Ok((builder, region))
     }
 
     /// The region that `c_to_p` prefers for a shift of `var_c` over an exon boundary, or `None`
@@ -1383,8 +1396,8 @@ pub(crate) fn with_inferred_p_uncertainty(var_p: HgvsVariant, uncertain: bool) -
     };
     let loc_edit = match (loc_edit, uncertain) {
         (ProtLocEdit::Ordinary { loc, edit }, _) => ProtLocEdit::Ordinary {
-            loc: Mu::from(loc.inner().clone(), !uncertain),
-            edit: Mu::from(edit.inner().clone(), !uncertain),
+            loc: Mu::from(loc.unwrap(), !uncertain),
+            edit: Mu::from(edit.unwrap(), !uncertain),
         },
         (ProtLocEdit::NoChange | ProtLocEdit::NoChangeUncertain, true) => {
             ProtLocEdit::NoChangeUncertain
@@ -3261,6 +3274,43 @@ mod test {
     /// `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`), and exon 3 the 3' UTR.
     /// `NM_999988.1` has the same sequence in a single exon.  `NM_999987.1` has the CDS
     /// without the stop codon, `MKAKAFRAK`, in a single exon.
+    /// `c_to_p` translates the alt transcript here only up to the original length, as the alt
+    /// protein has a stop codon there, so the invalid base `Z` in the 3' UTR does not fail the
+    /// translation.  The CDS is `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`).
+    #[test]
+    fn c_to_p_ignores_invalid_bases_behind_the_protein() -> Result<(), Error> {
+        let provider = std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+            sanity_mock::ProviderRecord {
+                accession: "NM_999986.1".to_string(),
+                transcript_sequence: "AAAATCAAACATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGGGGZCCCCC"
+                    .to_string(),
+                cds_start_i: 10,
+                cds_end_i: 40,
+                translation_exceptions: Vec::new(),
+                lengths: vec![51],
+            },
+        ]));
+        let config = Config {
+            prevalidation_level: crate::validator::ValidationLevel::Intrinsic,
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(&config, provider);
+        for (hgvs_c, hgvs_p) in [
+            ("c.4A>G", "MOCK:p.(Lys2Glu)"),
+            ("c.4A>T", "MOCK:p.(Lys2Ter)"),
+        ] {
+            let var_c = HgvsVariant::from_str(&format!("NM_999986.1:{hgvs_c}"))?;
+            assert_eq!(
+                mapper.c_to_p(&var_c, Some("MOCK"))?.to_string(),
+                hgvs_p,
+                "{hgvs_c}"
+            );
+        }
+        Ok(())
+    }
+
     fn build_mapper_cds_boundary(ins_at_boundary_is_intronic: bool) -> Mapper {
         let record = |accession: &str, transcript_sequence: &str, cds_end_i, lengths| {
             sanity_mock::ProviderRecord {
