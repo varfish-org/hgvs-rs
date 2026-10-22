@@ -77,6 +77,45 @@ fn codon_exceptions(exceptions: &[TranslationException]) -> Vec<(usize, char)> {
         .collect()
 }
 
+/// The translation of `seq` by `translate_cds_with_exceptions(seq, false, "X", ..)` of its first
+/// `codons` codons, the original length, and, if they have no stop codon, of the codons up to
+/// the first one behind them.  With a stop codon in the reference, the alt protein of
+/// `AltTranscriptData::new_owned()` ends with the last stop codon among the first `codons`
+/// codons, or else with the first one behind them, so it needs no more.  This spares most of
+/// the 3' UTR.  Without a stop codon in the reference, the alt protein ends after `codons`
+/// codons, but this still goes on to the first stop codon behind them.
+fn translate_until_stop(
+    seq: &str,
+    codons: usize,
+    translation_table: TranslationTable,
+    exceptions: &[(usize, char)],
+) -> Result<String, Error> {
+    // The codons to translate at a time behind the first `codons`.
+    const CHUNK: usize = 64;
+    let mut end = codons.saturating_mul(3).min(seq.len());
+    let mut aa =
+        translate_cds_with_exceptions(&seq[..end], false, "X", translation_table, exceptions)?;
+    let mut stop = aa.contains('*');
+    while !stop && end < seq.len() {
+        let start = end;
+        end = (start + 3 * CHUNK).min(seq.len());
+        let first_codon = start / 3;
+        let exceptions: Vec<_> = (exceptions.iter())
+            .filter_map(|&(codon, amino_acid)| Some((codon.checked_sub(first_codon)?, amino_acid)))
+            .collect();
+        let part = translate_cds_with_exceptions(
+            &seq[start..end],
+            false,
+            "X",
+            translation_table,
+            &exceptions,
+        )?;
+        stop = part.contains('*');
+        aa.push_str(&part);
+    }
+    Ok(aa)
+}
+
 /// The length of the common prefix of `a` and `b`.
 fn common_prefix_len(a: &[u8], b: &[u8]) -> usize {
     // Comparing chunks is much faster than comparing single bytes.
@@ -341,13 +380,19 @@ impl AltTranscriptData {
             translation_table,
             &[],
             None,
+            false,
         )
     }
 
     /// Like `new`, but takes ownership of `seq`, and sets the amino acids of
     /// `translation_exceptions` at their 0-based codons of the CDS.  `poly_a` holds the `A`s
     /// that complete a mitochondrial stop codon and their 0-based index in `seq`.  They go into
-    /// the translated bases only.
+    /// the translated bases only.  With `until_stop`, it translates only the codons up to the
+    /// original length and, if they have no stop codon, those up to the first one, see
+    /// `translate_until_stop()`.  This gives the same `aa_sequence`, but an invalid base behind
+    /// the translated codons no longer fails the translation.  Without a stop codon in the
+    /// reference, `aa_sequence` can end before the translated codons, and an invalid base in
+    /// between still fails the translation.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_owned(
         seq: String,
@@ -362,6 +407,7 @@ impl AltTranscriptData {
         translation_table: TranslationTable,
         translation_exceptions: &[(usize, char)],
         poly_a: Option<(usize, &str)>,
+        until_stop: bool,
     ) -> Result<Self, Error> {
         let transcript_sequence = seq;
         let aa_sequence = if !transcript_sequence.is_empty() {
@@ -389,7 +435,17 @@ impl AltTranscriptData {
                 &transcript_sequence[((cds_start - 1) as usize)..]
             };
 
-            let seq_aa = if variant_start_aa.is_some() {
+            let orig_aa_len = (cds_stop - cds_start + 1) as usize / 3;
+            let seq_aa = if variant_start_aa.is_none() {
+                ref_aa_sequence.to_owned()
+            } else if until_stop {
+                translate_until_stop(
+                    seq_cds,
+                    orig_aa_len,
+                    translation_table,
+                    translation_exceptions,
+                )?
+            } else {
                 translate_cds_with_exceptions(
                     seq_cds,
                     false,
@@ -397,8 +453,6 @@ impl AltTranscriptData {
                     translation_table,
                     translation_exceptions,
                 )?
-            } else {
-                ref_aa_sequence.to_owned()
             };
             // With a stop codon, the alt protein ends after the last stop codon up to
             // `cds_stop`, or else at the next one after it.  Without a stop codon, e.g., in
@@ -406,7 +460,6 @@ impl AltTranscriptData {
             // protein ends at `cds_stop`, which the caller moves by the length change of the
             // variant.  So it lines up with `ref_aa_sequence`, also if it has a new stop codon
             // or if a stop codon follows `cds_stop`.
-            let orig_aa_len = (cds_stop - cds_start + 1) as usize / 3;
             let orig_aa_len = std::cmp::min(orig_aa_len, seq_aa.len());
             // The stop codon is usually last, which spares the scan.
             if !(ref_aa_sequence.ends_with('*') || ref_aa_sequence.contains('*')) {
@@ -634,14 +687,16 @@ impl<'a> AltSeqBuilder<'a> {
     /// Variant sequence data, or `Error::ExpectedCdsVariant` if `var_c` is not a
     /// `HgvsVariant::CdsVariant`.
     pub fn build_altseq(&self) -> Result<Vec<AltTranscriptData>, Error> {
-        self.build_altseq_in(self.variant_location()?)
+        self.build_altseq_in(self.variant_location()?, false)
     }
 
     /// Like `build_altseq()`, for the `region` that `variant_location()` gives, so that a
-    /// caller that has it need not compute it again.
+    /// caller that has it need not compute it again.  With `until_stop`, it translates less of
+    /// the alt transcript, see `AltTranscriptData::new_owned()`.
     pub(crate) fn build_altseq_in(
         &self,
         region: VariantLocation,
+        until_stop: bool,
     ) -> Result<Vec<AltTranscriptData>, Error> {
         // NB: the following comment is from the original Python code.
         // Should loop over each allele rather than assume only 1 variant; return a list for now.
@@ -689,9 +744,9 @@ impl<'a> AltSeqBuilder<'a> {
 
         // Get the start of the "terminal" frameshift (i.e. one never "cancelled out").
         let alt_data = match edit_type {
-            EditType::NaRefAlt => self.incorporate_delins(),
-            EditType::Dup => self.incorporate_dup(),
-            EditType::Inv => self.incorporate_inv(),
+            EditType::NaRefAlt => self.incorporate_delins(until_stop),
+            EditType::Dup => self.incorporate_dup(until_stop),
+            EditType::Inv => self.incorporate_inv(until_stop),
             EditType::NotCds => self.create_alt_equals_ref_noncds(),
             EditType::WholeGeneDeleted => self.create_no_protein(),
         }?;
@@ -1165,7 +1220,7 @@ impl<'a> AltSeqBuilder<'a> {
     }
 
     /// Incorporate a substitution, deletion, insertion or delins into the transcript sequence.
-    fn incorporate_delins(&self) -> Result<AltTranscriptData, Error> {
+    fn incorporate_delins(&self, until_stop: bool) -> Result<AltTranscriptData, Error> {
         let (mut seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
         let loc_range_start;
 
@@ -1257,6 +1312,7 @@ impl<'a> AltSeqBuilder<'a> {
             self.reference_data.translation_table,
             &translation_exceptions,
             poly_a,
+            until_stop,
         )
     }
 
@@ -1304,7 +1360,7 @@ impl<'a> AltSeqBuilder<'a> {
 
     /// Incorporate a dup into the transcript sequence: its copy goes right after the duplicated
     /// bases.
-    fn incorporate_dup(&self) -> Result<AltTranscriptData, Error> {
+    fn incorporate_dup(&self, until_stop: bool) -> Result<AltTranscriptData, Error> {
         let (seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
 
         // Intron bases are not in the transcript sequence, so take them from the variant.
@@ -1353,11 +1409,12 @@ impl<'a> AltSeqBuilder<'a> {
             self.reference_data.translation_table,
             &translation_exceptions,
             poly_a,
+            until_stop,
         )
     }
 
     /// Incorporate inversion into sequence.
-    fn incorporate_inv(&self) -> Result<AltTranscriptData, Error> {
+    fn incorporate_inv(&self, until_stop: bool) -> Result<AltTranscriptData, Error> {
         let (seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
 
         let seq = format!(
@@ -1389,6 +1446,7 @@ impl<'a> AltSeqBuilder<'a> {
             self.reference_data.translation_table,
             &translation_exceptions,
             poly_a,
+            until_stop,
         )
     }
 
@@ -1407,6 +1465,7 @@ impl<'a> AltSeqBuilder<'a> {
             self.reference_data.translation_table,
             &[],
             None,
+            false,
         )
     }
 
@@ -1425,6 +1484,7 @@ impl<'a> AltSeqBuilder<'a> {
             self.reference_data.translation_table,
             &[],
             None,
+            false,
         )
     }
 }
@@ -2258,6 +2318,208 @@ mod test {
             );
         }
 
+        Ok(())
+    }
+
+    /// `translate_until_stop()` gives a prefix of the full translation that holds the first
+    /// `codons` codons and, if they have no stop codon, ends with the first one behind them,
+    /// across chunks and with translation exceptions behind the first chunk.
+    #[test]
+    fn translate_until_stop_is_a_prefix_of_the_full_translation() -> Result<(), anyhow::Error> {
+        use crate::sequences::translate_cds_with_exceptions;
+
+        let gcc = |n: usize| "GCC".repeat(n);
+        let seqs = [
+            format!("ATG{}TAA{}", gcc(10), gcc(5)),
+            format!("ATG{}TGA{}TAG{}", gcc(70), gcc(60), gcc(3)),
+            format!("ATG{}NNNTAAGC", gcc(150)),
+            format!("ATG{}GC", gcc(150)),
+            String::new(),
+        ];
+        let exception_sets = [
+            vec![],
+            vec![(3, 'U')],
+            vec![(71, 'U'), (100, 'M'), (500, 'W')],
+        ];
+        for seq in &seqs {
+            for exceptions in &exception_sets {
+                let full = translate_cds_with_exceptions(
+                    seq,
+                    false,
+                    "X",
+                    TranslationTable::Standard,
+                    exceptions,
+                )?;
+                for codons in [0, 1, 5, 11, 64, 65, 71, 200, usize::MAX / 2] {
+                    let part = super::translate_until_stop(
+                        seq,
+                        codons,
+                        TranslationTable::Standard,
+                        exceptions,
+                    )?;
+                    let head = codons.min(full.len());
+                    let expected = match full[..head].find('*') {
+                        Some(_) => head,
+                        None => full[head..].find('*').map_or(full.len(), |i| head + i + 1),
+                    };
+                    assert!(full.starts_with(&part), "{seq} {exceptions:?} {codons}");
+                    assert!(part.len() >= expected, "{seq} {exceptions:?} {codons}");
+                    assert!(
+                        part.len() == full.len() || part[..expected].contains('*'),
+                        "{seq} {exceptions:?} {codons}"
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// `c_to_p` translates the alt transcript only as far as the alt protein reaches.  This
+    /// gives the same alt data and `p.` as the full translation of `build_altseq()`, for
+    /// substitutions, deletions, insertions, dups, delins and inversions at every CDS position
+    /// and across c.N: with a 3' UTR with `N` bases, without a stop codon, with a 3' UTR without
+    /// stop codons that frameshifts and extensions read into, and with an invalid base in the
+    /// 3' UTR.  Only there the full translation fails, where the alt protein ends before it.
+    #[test]
+    fn translation_until_stop_gives_the_same_protein() -> Result<(), anyhow::Error> {
+        use super::{AltSeqToHgvsp, VariantLocation};
+        use crate::sequences::translate_cds;
+        use std::collections::HashSet;
+
+        let gcc = "GCC".repeat(80);
+        // The 5' UTR, the CDS, the 3' UTR, and whether the 3' UTR has an invalid base.
+        let transcripts = [
+            (
+                "AAAATCAAAC",
+                "ATGAAAGCGAAAGCGTTTCGCGCGAAATAG",
+                "GCCAAATAAGGNNNCCTGAGGGTAGCCCCC".to_string(),
+                false,
+            ),
+            (
+                "AAAATCAAAC",
+                "ATGAAAGCGAAAGCGTTTCGCGCGAAA",
+                "GGGGGCCCCC".to_string(),
+                false,
+            ),
+            (
+                "AAAATCAAAC",
+                "ATGAAAGCGAAAGCGTTTCGCGCGAAATAG",
+                format!("{gcc}NNN{gcc}"),
+                false,
+            ),
+            (
+                "AAAATCAAAC",
+                "ATGAAAGCGAAAGCGTTTCGCGCGAAATAG",
+                "GCCAAATAAGGZGGCCCCC".to_string(),
+                true,
+            ),
+        ];
+        for (utr5, cds, utr3, invalid) in transcripts {
+            let transcript_sequence = format!("{utr5}{cds}{utr3}");
+            let aa_sequence = translate_cds(cds, true, "*", TranslationTable::Standard)?;
+            let cds_end = if aa_sequence.ends_with('*') {
+                CdsEnd::StopCodon
+            } else {
+                CdsEnd::NoStopCodon
+            };
+            let reference_data = RefTranscriptData {
+                transcript_sequence: transcript_sequence.as_str().into(),
+                aa_sequence: aa_sequence.into(),
+                cds_start: utr5.len() as i32 + 1,
+                cds_stop: (utr5.len() + cds.len()) as i32,
+                protein_accession: "MOCK".into(),
+                translation_table: TranslationTable::Standard,
+                translation_exceptions: Vec::new(),
+                exon_start_positions: vec![-(utr5.len() as i32)],
+                exon_end_positions: vec![(transcript_sequence.len() - utr5.len()) as i32],
+                cds_end,
+            };
+
+            let n = cds.len();
+            let mut hgvs_cs = vec![
+                "c.-2_2del".to_string(),
+                "c.-1_1insA".to_string(),
+                format!("c.{n}_*1insTT"),
+                format!("c.{n}_*1insA"),
+                "c.*1_*2insA".to_string(),
+                "c.*2del".to_string(),
+            ];
+            for p in (n - 3)..=n {
+                hgvs_cs.push(format!("c.{p}_*1del"));
+                hgvs_cs.push(format!("c.{p}_*2delinsT"));
+            }
+            for p in 1..=n {
+                let base = &cds[p - 1..p];
+                for alt in ["A", "C", "G", "T"].into_iter().filter(|alt| *alt != base) {
+                    hgvs_cs.push(format!("c.{p}{base}>{alt}"));
+                }
+                hgvs_cs.push(format!("c.{p}del"));
+                hgvs_cs.push(format!("c.{p}dup"));
+                if p < n {
+                    for ins in ["A", "AA", "AAA", "TAA", "TGA", "C", "GCC"] {
+                        hgvs_cs.push(format!("c.{p}_{}ins{ins}", p + 1));
+                    }
+                    for delins in ["T", "TAA", "GG", "TGAC"] {
+                        hgvs_cs.push(format!("c.{p}_{}delins{delins}", p + 1));
+                    }
+                    hgvs_cs.push(format!("c.{p}_{}del", p + 1));
+                    hgvs_cs.push(format!("c.{p}_{}dup", p + 1));
+                }
+                if p + 2 <= n {
+                    hgvs_cs.push(format!("c.{p}_{}del", p + 2));
+                    hgvs_cs.push(format!("c.{p}_{}dup", p + 2));
+                    hgvs_cs.push(format!("c.{p}_{}inv", p + 2));
+                }
+                if p + 3 <= n {
+                    hgvs_cs.push(format!("c.{p}_{}del", p + 3));
+                }
+            }
+
+            let (mut same, mut fixed, mut regions) = (0, 0, HashSet::new());
+            for hgvs_c in &hgvs_cs {
+                let var_c = HgvsVariant::from_str(&format!("NM_999999.1:{hgvs_c}"))?;
+                let builder = AltSeqBuilder::new(var_c, &reference_data);
+                let region = builder.variant_location()?;
+                regions.insert(region);
+                let full = builder.build_altseq_in(region, false);
+                let until_stop = builder.build_altseq_in(region, true);
+                match (full, until_stop) {
+                    (Ok(full), Ok(until_stop)) => {
+                        assert_eq!(
+                            format!("{full:?}"),
+                            format!("{until_stop:?}"),
+                            "{hgvs_c} in {transcript_sequence}"
+                        );
+                        let p = |alt_data: Vec<_>| {
+                            alt_data
+                                .into_iter()
+                                .map(|data| AltSeqToHgvsp::new(&reference_data, data).build_hgvsp())
+                                .map(|var_p| format!("{var_p:?}"))
+                                .collect::<Vec<_>>()
+                        };
+                        assert_eq!(p(full), p(until_stop), "{hgvs_c} in {transcript_sequence}");
+                        same += 1;
+                    }
+                    (Err(_), Ok(_)) => {
+                        assert!(invalid, "{hgvs_c} in {transcript_sequence}");
+                        fixed += 1;
+                    }
+                    (full, until_stop) => assert_eq!(
+                        format!("{:?}", full.map(|_| ())),
+                        format!("{:?}", until_stop.map(|_| ())),
+                        "{hgvs_c} in {transcript_sequence}"
+                    ),
+                }
+            }
+            assert!(same > 0, "{transcript_sequence}");
+            assert_eq!(fixed > 0, invalid, "{transcript_sequence}");
+            for region in [VariantLocation::Cds, VariantLocation::FivePrimeUtr] {
+                assert!(
+                    regions.contains(&region),
+                    "{region:?} {transcript_sequence}"
+                );
+            }
+        }
         Ok(())
     }
 

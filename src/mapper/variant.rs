@@ -837,7 +837,8 @@ impl Mapper {
             // loop structure implemented to handle this, but doesn't really do anything currently.
 
             let var_ps: Result<Vec<_>, Error> = builder
-                .build_altseq_in(region)?
+                // `p.` reads no amino acid behind the alt protein, so the translation can stop.
+                .build_altseq_in(region, true)?
                 .into_iter()
                 .map(|alt_data| {
                     let builder = AltSeqToHgvsp::new(&reference_data, alt_data);
@@ -3273,6 +3274,43 @@ mod test {
     /// `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`), and exon 3 the 3' UTR.
     /// `NM_999988.1` has the same sequence in a single exon.  `NM_999987.1` has the CDS
     /// without the stop codon, `MKAKAFRAK`, in a single exon.
+    /// `c_to_p` translates the alt transcript here only up to the original length, as the alt
+    /// protein has a stop codon there, so the invalid base `Z` in the 3' UTR does not fail the
+    /// translation.  The CDS is `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`).
+    #[test]
+    fn c_to_p_ignores_invalid_bases_behind_the_protein() -> Result<(), Error> {
+        let provider = std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+            sanity_mock::ProviderRecord {
+                accession: "NM_999986.1".to_string(),
+                transcript_sequence: "AAAATCAAACATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGGGGZCCCCC"
+                    .to_string(),
+                cds_start_i: 10,
+                cds_end_i: 40,
+                translation_exceptions: Vec::new(),
+                lengths: vec![51],
+            },
+        ]));
+        let config = Config {
+            prevalidation_level: crate::validator::ValidationLevel::Intrinsic,
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(&config, provider);
+        for (hgvs_c, hgvs_p) in [
+            ("c.4A>G", "MOCK:p.(Lys2Glu)"),
+            ("c.4A>T", "MOCK:p.(Lys2Ter)"),
+        ] {
+            let var_c = HgvsVariant::from_str(&format!("NM_999986.1:{hgvs_c}"))?;
+            assert_eq!(
+                mapper.c_to_p(&var_c, Some("MOCK"))?.to_string(),
+                hgvs_p,
+                "{hgvs_c}"
+            );
+        }
+        Ok(())
+    }
+
     fn build_mapper_cds_boundary(ins_at_boundary_is_intronic: bool) -> Mapper {
         let record = |accession: &str, transcript_sequence: &str, cds_end_i, lengths| {
             sanity_mock::ProviderRecord {
