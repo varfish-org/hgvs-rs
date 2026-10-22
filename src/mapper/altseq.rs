@@ -540,7 +540,9 @@ impl<'a> AltSeqBuilder<'a> {
     /// `build_altseq()` and thus `c_to_p` use this region.  It depends on
     /// `ins_at_boundary_is_intronic`, so it agrees with `c_to_p` only if this field has the
     /// value of `variant::Config::ins_at_boundary_is_intronic` of the mapper.
-    /// `AltSeqBuilder::new()` sets it to `true`, the default of the `Config`.
+    /// `AltSeqBuilder::new()` sets it to `true`, the default of the `Config`.  With
+    /// `variant::Config::shift_over_boundary`, `c_to_p` can build the protein from a shift of
+    /// `var_c` into another region, which this method does not apply.
     ///
     /// # Errors
     ///
