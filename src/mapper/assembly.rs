@@ -776,11 +776,93 @@ mod test {
                     expected,
                     "ins_at_boundary_is_intronic = {ins_at_boundary_is_intronic}"
                 );
-                let var_c = HgvsVariant::from_str("NM_000314.4:c.209+1_209+7dupGTAAGTA")?;
+                for hgvs_c in [
+                    "NM_000314.4:c.209+1_209+7dupGTAAGTA",
+                    "NM_000314.4:c.802-5_802-1dupTTTAG",
+                ] {
+                    let var_c = HgvsVariant::from_str(hgvs_c)?;
+                    assert_eq!(
+                        variant_mapper.c_to_p(&var_c, None)?.to_string(),
+                        "NP_000305.3:p.?",
+                        "{hgvs_c} with ins_at_boundary_is_intronic = {ins_at_boundary_is_intronic}"
+                    );
+                }
+
+                // The seqrepo cache lacks the genome bases after KRAS c.290.
+                let var_c = HgvsVariant::from_str("NM_004985.4:c.290_290+1insC")?;
                 assert_eq!(
-                    variant_mapper.c_to_p(&var_c, None)?.to_string(),
-                    "NP_000305.3:p.?",
+                    mapper.c_to_p(&var_c)?,
+                    build_mapper(ins_at_boundary_is_intronic, false, None)?.c_to_p(&var_c)?,
                     "ins_at_boundary_is_intronic = {ins_at_boundary_is_intronic}"
+                );
+            }
+            Ok(())
+        }
+
+        /// Away from an exon boundary, `ins_at_boundary_by_sequence` changes nothing.
+        #[test]
+        fn away_from_boundary() -> Result<(), Error> {
+            for hgvs_c in [
+                "NM_000314.4:c.207dup",
+                "NM_000314.4:c.207_208insA",
+                "NM_000314.4:c.209+5del",
+            ] {
+                let var_c = HgvsVariant::from_str(hgvs_c)?;
+                assert_eq!(
+                    build_mapper(false, true, None)?.c_to_p(&var_c)?,
+                    build_mapper(false, false, None)?.c_to_p(&var_c)?,
+                    "{hgvs_c}"
+                );
+            }
+            Ok(())
+        }
+
+        /// `alt_seq_builder()` follows `genome_seq_available` and `replace_reference`.
+        #[test]
+        fn alt_seq_builder_settings() -> Result<(), Error> {
+            let provider = build_provider()?;
+            let reference_data = ref_transcript_data_cached(provider.clone(), "NM_000314.4", None)?;
+            let mapper = |genome_seq_available, replace_reference| {
+                Mapper::new(
+                    Config {
+                        assembly: "GRCh37".to_string(),
+                        renormalize_g: false,
+                        ins_at_boundary_by_sequence: true,
+                        genome_seq_available,
+                        replace_reference,
+                        ..Config::default()
+                    },
+                    provider.clone(),
+                )
+            };
+
+            // Without the genome, `ins_at_boundary_is_intronic` decides.
+            let var_c = HgvsVariant::from_str("NM_000314.4:c.209_209+1insC")?;
+            assert_eq!(
+                mapper(false, true)
+                    .alt_seq_builder(&var_c, &reference_data)?
+                    .variant_location()?,
+                VariantLocation::Intron
+            );
+            assert_eq!(
+                mapper(true, true)
+                    .alt_seq_builder(&var_c, &reference_data)?
+                    .variant_location()?,
+                VariantLocation::Cds
+            );
+
+            let var_c = HgvsVariant::from_str("NM_000314.4:c.209dup")?;
+            for (replace_reference, expected) in [
+                (false, "NM_000314.4:c.209dup"),
+                (true, "NM_000314.4:c.209dupT"),
+            ] {
+                assert_eq!(
+                    mapper(true, replace_reference)
+                        .alt_seq_builder(&var_c, &reference_data)?
+                        .var_c
+                        .to_string(),
+                    expected,
+                    "replace_reference = {replace_reference}"
                 );
             }
             Ok(())
