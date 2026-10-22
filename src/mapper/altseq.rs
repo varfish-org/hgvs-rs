@@ -1931,9 +1931,8 @@ impl<'a> AltSeqToHgvsp<'a> {
                 end: end.expect("must provide end"),
             };
             // NB: order matters.
-            // NB: in the original Python module, it is configurable whether the result
-            // of protein prediction is certain or uncertain by a global configuration
-            // variable.
+            // `c_to_p` marks the result as uncertain, see
+            // `variant::Config::inferred_p_is_uncertain`.
             ProtLocEdit::Ordinary {
                 edit: Mu::Certain(if is_sub {
                     // cases like Ter525Ter should be Ter525=

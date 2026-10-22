@@ -63,6 +63,8 @@ pub struct Config {
     pub shift_over_boundary: bool,
     /// See `variant::Config::shift_over_boundary_preference`.
     pub shift_over_boundary_preference: ShiftOverBoundaryPreference,
+    /// See `variant::Config::inferred_p_is_uncertain`; `true` by default.
+    pub inferred_p_is_uncertain: bool,
 }
 
 impl Default for Config {
@@ -86,6 +88,7 @@ impl Default for Config {
             ins_at_boundary_by_sequence: false,
             shift_over_boundary: false,
             shift_over_boundary_preference: Default::default(),
+            inferred_p_is_uncertain: true,
         }
     }
 }
@@ -140,6 +143,7 @@ impl Mapper {
             ins_at_boundary_by_sequence: config.ins_at_boundary_by_sequence,
             shift_over_boundary: config.shift_over_boundary,
             shift_over_boundary_preference: config.shift_over_boundary_preference,
+            inferred_p_is_uncertain: config.inferred_p_is_uncertain,
         };
         let inner = variant::Mapper::new(&inner_config, provider.clone());
         let asm_map = config.asm_map.clone().unwrap_or_else(|| {
@@ -635,7 +639,7 @@ mod test {
             let exonic = build_mapper(false)?;
             assert_eq!(
                 format!("{}", exonic.c_to_p(&var_c)?),
-                "NP_003768.2:p.Glu1371GlyfsTer23"
+                "NP_003768.2:p.(Glu1371GlyfsTer23)"
             );
             // Without the genome, the variant mapper lacks the reference of the dup.
             assert!(matches!(
@@ -694,13 +698,13 @@ mod test {
             // The `GT` moves behind the inserted bases, so they extend the exon.
             (
                 "NM_000314.4:c.209_209+1insC",
-                "NP_000305.3:p.Cys71LeufsTer3",
+                "NP_000305.3:p.(Cys71LeufsTer3)",
             ),
-            ("NM_000314.4:c.209+1dup", "NP_000305.3:p.Cys71LeufsTer3"),
-            ("NM_000314.4:c.209dup", "NP_000305.3:p.Cys71LeufsTer3"),
+            ("NM_000314.4:c.209+1dup", "NP_000305.3:p.(Cys71LeufsTer3)"),
+            ("NM_000314.4:c.209dup", "NP_000305.3:p.(Cys71LeufsTer3)"),
             (
                 "NM_004985.4:c.111_111+1insC",
-                "NP_004976.2:p.Asp38ArgfsTer10",
+                "NP_004976.2:p.(Asp38ArgfsTer10)",
             ),
             // The copy ends with the `AG` of the acceptor, which stays at the exon edge.
             ("NM_000314.4:c.802-5_802-1dup", "NP_000305.3:p.?"),
@@ -708,10 +712,10 @@ mod test {
             ("NM_004985.4:c.112-2_112-1dup", "NP_004976.2:p.?"),
             ("NM_004985.4:c.112-1_112insCAG", "NP_004976.2:p.?"),
             // The `AG` moves in front of the inserted bases, so they extend the exon.
-            ("NM_000314.4:c.802-1_802insT", "NP_000305.3:p.Asp268Ter"),
-            ("NM_000314.4:c.802dup", "NP_000305.3:p.Asp268GlyfsTer30"),
-            ("NM_004985.4:c.112-1_112insT", "NP_004976.2:p.Asp38Ter"),
-            ("NM_004985.4:c.112dup", "NP_004976.2:p.Asp38GlyfsTer10"),
+            ("NM_000314.4:c.802-1_802insT", "NP_000305.3:p.(Asp268Ter)"),
+            ("NM_000314.4:c.802dup", "NP_000305.3:p.(Asp268GlyfsTer30)"),
+            ("NM_004985.4:c.112-1_112insT", "NP_004976.2:p.(Asp38Ter)"),
+            ("NM_004985.4:c.112dup", "NP_004976.2:p.(Asp38GlyfsTer10)"),
         ];
 
         /// `alt_seq_builder()` gives the region that `c_to_p()` uses.
@@ -754,7 +758,7 @@ mod test {
             let asm_map = HashMap::from([("NC_000012.11".to_string(), "12".to_string())]);
             for (ins_at_boundary_is_intronic, expected) in [
                 (true, "NP_000305.3:p.?"),
-                (false, "NP_000305.3:p.Cys71LeufsTer3"),
+                (false, "NP_000305.3:p.(Cys71LeufsTer3)"),
             ] {
                 let without_alignment =
                     build_mapper(ins_at_boundary_is_intronic, true, Some(asm_map.clone()))?;
@@ -916,43 +920,43 @@ mod test {
             (
                 "NM_004985.4:c.111+1_111+2insCGG",
                 "NP_004976.2:p.?",
-                "NP_004976.2:p.Glu37_Asp38insAla",
+                "NP_004976.2:p.(Glu37_Asp38insAla)",
                 "NP_004976.2:p.?",
             ),
             // The same insertion, given in the exon.  This input is not 3'-normalized on
             // purpose.
             (
                 "NM_004985.4:c.110_111insGGC",
-                "NP_004976.2:p.Glu37_Asp38insAla",
-                "NP_004976.2:p.Glu37_Asp38insAla",
+                "NP_004976.2:p.(Glu37_Asp38insAla)",
+                "NP_004976.2:p.(Glu37_Asp38insAla)",
                 "NP_004976.2:p.?",
             ),
             // A dup over the exon end, which fits into the exon as `c.108_109insGAG`.
             (
                 "NM_004985.4:c.110_111+1dup",
                 "NP_004976.2:p.?",
-                "NP_004976.2:p.Glu37dup",
+                "NP_004976.2:p.(Glu37dup)",
                 "NP_004976.2:p.?",
             ),
             // A dup over the acceptor site, which fits into the exon as `c.112_113insGG`.
             (
                 "NM_004985.4:c.112-1_112dup",
                 "NP_004976.2:p.?",
-                "NP_004976.2:p.Asp38GlyfsTer8",
+                "NP_004976.2:p.(Asp38GlyfsTer8)",
                 "NP_004976.2:p.?",
             ),
             // A dup of the last exon base, which fits into the exon as `c.208_209insT`.
             (
                 "NM_000314.4:c.209dup",
                 "NP_000305.3:p.?",
-                "NP_000305.3:p.Cys71LeufsTer3",
+                "NP_000305.3:p.(Cys71LeufsTer3)",
                 "NP_000305.3:p.?",
             ),
             // A dup over the acceptor site, which fits into the exon as `c.802_803insGG`.
             (
                 "NM_000314.4:c.802-1_802dup",
                 "NP_000305.3:p.?",
-                "NP_000305.3:p.Asp268GlyfsTer9",
+                "NP_000305.3:p.(Asp268GlyfsTer9)",
                 "NP_000305.3:p.?",
             ),
             // A dup in the poly-T before the acceptor, which cannot reach the exon.
@@ -981,13 +985,13 @@ mod test {
             (
                 "NM_004985.4:c.111+1dup",
                 "NP_004976.2:p.?",
-                "NP_004976.2:p.Asp38GlyfsTer10",
+                "NP_004976.2:p.(Asp38GlyfsTer10)",
                 "NP_004976.2:p.?",
             ),
             (
                 "NM_000314.4:c.209+1_209+2dup",
                 "NP_000305.3:p.?",
-                "NP_000305.3:p.Cys71PhefsTer29",
+                "NP_000305.3:p.(Cys71PhefsTer29)",
                 "NP_000305.3:p.?",
             ),
             // A dup of the first exon base, which counts as intronic.  It shifts to `c.112-1dup`
@@ -995,13 +999,13 @@ mod test {
             (
                 "NM_004985.4:c.112dup",
                 "NP_004976.2:p.?",
-                "NP_004976.2:p.Asp38GlyfsTer10",
+                "NP_004976.2:p.(Asp38GlyfsTer10)",
                 "NP_004976.2:p.?",
             ),
             (
                 "NM_000314.4:c.802dup",
                 "NP_000305.3:p.?",
-                "NP_000305.3:p.Asp268GlyfsTer30",
+                "NP_000305.3:p.(Asp268GlyfsTer30)",
                 "NP_000305.3:p.?",
             ),
             // A dup of the last two exon bases, which counts as intronic.  It fits into the
@@ -1010,13 +1014,13 @@ mod test {
             (
                 "NM_004985.4:c.110_111dup",
                 "NP_004976.2:p.?",
-                "NP_004976.2:p.Asp38ArgfsTer8",
+                "NP_004976.2:p.(Asp38ArgfsTer8)",
                 "NP_004976.2:p.?",
             ),
             (
                 "NM_000314.4:c.208_209dup",
                 "NP_000305.3:p.?",
-                "NP_000305.3:p.Cys71PhefsTer29",
+                "NP_000305.3:p.(Cys71PhefsTer29)",
                 "NP_000305.3:p.?",
             ),
             // An exon dup after the acceptor site.  It shifts to `c.112_121dup` and
@@ -1024,14 +1028,14 @@ mod test {
             // `c.802-1_802insGACAAAAT`.  These insertions at the exon edge count as intronic.
             (
                 "NM_004985.4:c.113_122dup",
-                "NP_004976.2:p.Lys42PhefsTer9",
-                "NP_004976.2:p.Lys42PhefsTer9",
+                "NP_004976.2:p.(Lys42PhefsTer9)",
+                "NP_004976.2:p.(Lys42PhefsTer9)",
                 "NP_004976.2:p.?",
             ),
             (
                 "NM_000314.4:c.803_810dup",
-                "NP_000305.3:p.Phe271ThrfsTer8",
-                "NP_000305.3:p.Phe271ThrfsTer8",
+                "NP_000305.3:p.(Phe271ThrfsTer8)",
+                "NP_000305.3:p.(Phe271ThrfsTer8)",
                 "NP_000305.3:p.?",
             ),
         ];
@@ -1043,31 +1047,31 @@ mod test {
             // `c.111+1_111+2insG`.
             (
                 "NM_004985.4:c.111+1dup",
-                "NP_004976.2:p.Asp38GlyfsTer10",
-                "NP_004976.2:p.Asp38GlyfsTer10",
+                "NP_004976.2:p.(Asp38GlyfsTer10)",
+                "NP_004976.2:p.(Asp38GlyfsTer10)",
                 "NP_004976.2:p.?",
             ),
             // A dup of the last exon base.  Both of its rewrites, `c.208_209insT` and
             // `c.209_209+1insT`, count as exonic.
             (
                 "NM_000314.4:c.209dup",
-                "NP_000305.3:p.Cys71LeufsTer3",
-                "NP_000305.3:p.Cys71LeufsTer3",
-                "NP_000305.3:p.Cys71LeufsTer3",
+                "NP_000305.3:p.(Cys71LeufsTer3)",
+                "NP_000305.3:p.(Cys71LeufsTer3)",
+                "NP_000305.3:p.(Cys71LeufsTer3)",
             ),
             // A dup of the first exon base on both strands.  It shifts to `c.112-1dup` and
             // `c.802-1dup`, and fits into the intron as `c.112-2_112-1insG` and
             // `c.802-2_802-1insG`.
             (
                 "NM_004985.4:c.112dup",
-                "NP_004976.2:p.Asp38GlyfsTer10",
-                "NP_004976.2:p.Asp38GlyfsTer10",
+                "NP_004976.2:p.(Asp38GlyfsTer10)",
+                "NP_004976.2:p.(Asp38GlyfsTer10)",
                 "NP_004976.2:p.?",
             ),
             (
                 "NM_000314.4:c.802dup",
-                "NP_000305.3:p.Asp268GlyfsTer30",
-                "NP_000305.3:p.Asp268GlyfsTer30",
+                "NP_000305.3:p.(Asp268GlyfsTer30)",
+                "NP_000305.3:p.(Asp268GlyfsTer30)",
                 "NP_000305.3:p.?",
             ),
         ];
@@ -1135,7 +1139,7 @@ mod test {
                     "{}",
                     build(ShiftOverBoundaryPreference::Default)?.c_to_p(&var_c)?
                 ),
-                "NP_004976.2:p.Glu37_Asp38insAla"
+                "NP_004976.2:p.(Glu37_Asp38insAla)"
             );
             assert!(matches!(
                 build(ShiftOverBoundaryPreference::Exon)?.c_to_p(&var_c),
@@ -1188,7 +1192,7 @@ mod test {
             let mapper = build_mapper_38(true)?;
             let hgvs_g = "NC_000007.13:g.36561662C>T";
             let hgvs_c = "NM_001637.3:c.1582G>A";
-            let hgvs_p = "NP_001628.1:p.Gly528Arg";
+            let hgvs_p = "NP_001628.1:p.(Gly528Arg)";
 
             let var_g = HgvsVariant::from_str(hgvs_g)?;
             let var_c = mapper.g_to_c(&var_g, "NM_001637.3")?;
@@ -1210,7 +1214,7 @@ mod test {
             // perform comprehensive validation yet (1 bp interval/position, but 3bp
             // deleted).
             assert_eq!(
-                "NP_000050.2:p.Glu2598LysfsTer50",
+                "NP_000050.2:p.(Glu2598LysfsTer50)",
                 format!("{}", mapper.c_to_p(&var_c)?)
             );
 
@@ -1218,11 +1222,11 @@ mod test {
         }
 
         #[rstest]
-        #[case("NM_000059.3:c.7791A>G", "NP_000050.2:p.Lys2597=", "BRCA2", 38)]
-        #[case("NM_000302.3:c.1594_1596del", "NP_000293.2:p.Glu532del", "PLOD1", 38)]
+        #[case("NM_000059.3:c.7791A>G", "NP_000050.2:p.(Lys2597=)", "BRCA2", 38)]
+        #[case("NM_000302.3:c.1594_1596del", "NP_000293.2:p.(Glu532del)", "PLOD1", 38)]
         #[case(
             "NM_000090.3:c.2490_2516del",
-            "NP_000081.1:p.Glu832_Gly840del",
+            "NP_000081.1:p.(Glu832_Gly840del)",
             "COL3A1",
             38
         )]
@@ -1239,7 +1243,7 @@ mod test {
             "SDR5A2",
             38
         )]
-        #[case("NM_001637.3:c.1582_1583inv", "NP_001628.1:p.Gly528Pro", "AOAH", 38)]
+        #[case("NM_001637.3:c.1582_1583inv", "NP_001628.1:p.(Gly528Pro)", "AOAH", 38)]
         #[case("NM_025137.3:c.-20_*20inv", "NP_079413.3:p.?", "SPG11", 38)]
         fn project_c_to_x(
             #[case] hgvs_c: &str,
@@ -1337,21 +1341,25 @@ mod test {
         #[rstest]
         #[case(
             "NM_080877.2:c.1733_1735delinsTTT",
-            "NP_543153.1:p.Pro578_Lys579delinsLeuTer",
+            "NP_543153.1:p.(Pro578_Lys579delinsLeuTer)",
             "SLC34A3"
         )]
         #[case(
             "NM_001034853.1:c.2847_2848delAGinsCT",
-            "NP_001030025.1:p.Glu949_Glu950delinsAspTer",
+            "NP_001030025.1:p.(Glu949_Glu950delinsAspTer)",
             "RPGR"
         )]
         #[case(
             "NM_001034853.1:c.2847_2848inv",
-            "NP_001030025.1:p.Glu949_Glu950delinsAspTer",
+            "NP_001030025.1:p.(Glu949_Glu950delinsAspTer)",
             "RPGR"
         )]
-        #[case("NM_080877.2:c.1735A>T", "NP_543153.1:p.Lys579Ter", "SLC34A3")]
-        #[case("NM_080877.2:c.1795_*3delinsTAG", "NP_543153.1:p.Leu599Ter", "SLC34A3")]
+        #[case("NM_080877.2:c.1735A>T", "NP_543153.1:p.(Lys579Ter)", "SLC34A3")]
+        #[case(
+            "NM_080877.2:c.1795_*3delinsTAG",
+            "NP_543153.1:p.(Leu599Ter)",
+            "SLC34A3"
+        )]
         fn c_to_p_with_stop_gain(
             #[case] hgvs_c: &str,
             #[case] hgvs_p: &str,
@@ -1683,7 +1691,7 @@ mod test {
                 "NC_000007.13:g.36561662C>T",
                 "NM_001637.3:c.1582G>A",
                 "NM_001637.3:n.1983G>A",
-                "NP_001628.1:p.Gly528Arg",
+                "NP_001628.1:p.(Gly528Arg)",
             )
         }
 

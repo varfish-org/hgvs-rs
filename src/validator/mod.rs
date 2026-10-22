@@ -140,6 +140,7 @@ impl ExtrinsicValidator {
             ins_at_boundary_by_sequence: false,
             shift_over_boundary: false,
             shift_over_boundary_preference: Default::default(),
+            inferred_p_is_uncertain: true,
         };
         Self {
             strict,

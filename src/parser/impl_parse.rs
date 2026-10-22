@@ -6,7 +6,7 @@ use nom::{
     character::complete::char,
     character::complete::{alphanumeric1, digit1, satisfy},
     combinator::{all_consuming, map, opt, recognize},
-    sequence::pair,
+    sequence::{delimited, pair},
     AsChar, IResult,
 };
 
@@ -324,7 +324,11 @@ impl Parseable for ProtInterval {
 
 impl ProtLocEdit {
     fn parse_initiation_uncertain(input: &str) -> IResult<&str, Self> {
-        map(tag("Met1?"), |_| ProtLocEdit::InitiationUncertain).parse(input)
+        // `Met1?` is uncertain already, so `(Met1?)` is the same.
+        map(alt((tag("Met1?"), tag("(Met1?)"))), |_| {
+            ProtLocEdit::InitiationUncertain
+        })
+        .parse(input)
     }
 
     fn parse_no_change(input: &str) -> IResult<&str, Self> {
@@ -347,6 +351,22 @@ impl ProtLocEdit {
         map(tag("0?"), |_| ProtLocEdit::NoProteinUncertain).parse(input)
     }
 
+    /// An uncertain change as a whole, e.g., `(Gly2Arg)`.
+    fn parse_ordinary_uncertain(input: &str) -> IResult<&str, Self> {
+        map(
+            delimited(
+                tag("("),
+                pair(ProtInterval::parse, ProteinEdit::parse),
+                tag(")"),
+            ),
+            |(loc, edit)| ProtLocEdit::Ordinary {
+                loc: Mu::Uncertain(loc),
+                edit: Mu::Uncertain(edit),
+            },
+        )
+        .parse(input)
+    }
+
     fn parse_ordinary(input: &str) -> IResult<&str, Self> {
         map(
             pair(Mu::<ProtInterval>::parse, Mu::<ProteinEdit>::parse),
@@ -360,6 +380,7 @@ impl Parseable for ProtLocEdit {
     fn parse(input: &str) -> IResult<&str, Self> {
         alt((
             Self::parse_initiation_uncertain,
+            Self::parse_ordinary_uncertain,
             Self::parse_ordinary,
             Self::parse_no_protein_uncertain,
             Self::parse_no_protein,

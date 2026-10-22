@@ -1607,7 +1607,7 @@ pub mod tests {
         let hgvs_g = "NC_000017.10:g.41197701G>C";
         let hgvs_n = "NM_007294.4:n.5699C>G";
         let hgvs_c = "NM_007294.4:c.5586C>G";
-        let hgvs_p = "NP_009225.1:p.His1862Gln";
+        let hgvs_p = "NP_009225.1:p.(His1862Gln)";
 
         let var_g = HgvsVariant::from_str(hgvs_g)?;
         let var_n = mapper.g_to_n(&var_g, "NM_007294.4")?;
