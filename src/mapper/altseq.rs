@@ -667,12 +667,16 @@ impl<'a> AltSeqBuilder<'a> {
     /// form an upstream ATG, so the effect on the protein is unknown, not none.
     ///
     /// Without a stop codon, the CDS goes on after its last base, so there is no 3' UTR, see
-    /// `after_cds_without_stop()`.
+    /// `after_cds_without_stop()`.  A stop codon that the poly(A) tail completes ends after c.N,
+    /// so a change after c.N can still change it, e.g., `c.Ndup`.
     fn outside_cds(&self) -> Option<VariantLocation> {
         let (before_cds, after_cds) = self.placements_outside_cds()?;
         if before_cds {
             Some(VariantLocation::FivePrimeUtr)
-        } else if after_cds && self.reference_data.cds_end == CdsEnd::StopCodon {
+        } else if after_cds
+            && self.reference_data.cds_end == CdsEnd::StopCodon
+            && self.reference_data.poly_a().is_empty()
+        {
             Some(VariantLocation::ThreePrimeUtr)
         } else {
             None
