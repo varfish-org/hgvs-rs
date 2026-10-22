@@ -145,8 +145,9 @@ pub fn ref_transcript_data_cached(
     ref_transcript_data_shared(&provider, tx_ac, pro_ac).map(|data| data.as_ref().clone())
 }
 
-/// Like `ref_transcript_data_cached`, but returns the cached value instead of a copy.
-pub(crate) fn ref_transcript_data_shared(
+/// Like `ref_transcript_data_cached`, but returns the cached value instead of a copy.  As there,
+/// the cache is per thread.
+pub fn ref_transcript_data_shared(
     provider: &Arc<dyn Provider + Send + Sync>,
     tx_ac: &str,
     pro_ac: Option<&str>,
