@@ -422,6 +422,7 @@ pub struct AltSeqBuilder<'a> {
 }
 
 impl<'a> AltSeqBuilder<'a> {
+    /// A builder for `var_c` on `reference_data`, with the defaults of `variant::Config`.
     #[allow(deprecated)] // first_stop_pos
     pub fn new(var_c: HgvsVariant, reference_data: &'a RefTranscriptData) -> Self {
         let ref_has_multiple_stops = reference_data.aa_sequence.matches('*').count() > 1;
