@@ -82,6 +82,14 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 - **biocommons/hgvs:** The insertion moves `cds_stop` ([altseqbuilder.py][bc-delins-cds-stop]), so the alt protein ends with both stop codons. `c_to_p` reports the second one ([altseq_to_hgvsp.py][bc-stop-at-variant]) and gives `p.(Ter11Ter)`, a position after the end of the protein. A dup keeps `cds_stop` ([altseqbuilder.py][bc-dup-cds-stop]), so the same change `c.26_28dup` gives `p.(Ter10Ter)`. [biocommons/hgvs#895][bc-895] reports this, and [biocommons/hgvs#896][bc-896] proposes a fix.
 - **hgvs-rs:** It gives `p.=` for a change after the end of the reference protein (`AltSeqToHgvsp::convert_to_hgvs_variant()` in [src/mapper/altseq.rs](src/mapper/altseq.rs)), so the insertion gives `p.=`. The dup gives `p.Ter10=`, see [Stop codon changed into another stop codon](#stop-codon-changed-into-another-stop-codon). E.g., `NM_001253909.2:c.416_417insGTG` turns the stop codon `TAA` into `TAG TGA` and gives `p.=`.
 
+## Proposed fixes for biocommons/hgvs
+
+### Positions after a completed mitochondrial stop codon
+
+- **Situation:** a variant with a c.* position on a mitochondrial transcript whose stop codon the poly(A) tail completes, e.g. `c.16_*1del` on a CDS `ATG GCC AAG CTG TGG T` that is followed by `CCCC`.
+- **biocommons/hgvs:** `RefTranscriptData` puts the completing `A`s into the transcript sequence after the CDS ([reftranscriptdata.py][bc-cds-len]), but `cds_stop` stays, and `AltSeqBuilder` counts the c.* positions from `cds_stop` ([altseqbuilder.py][bc-setup]). So c.*1 is the first completing `A`, not the first base after the CDS. The example deletes `TA` instead of `TC` and gives `p.(Ter6ThrextTer?)`.
+- **hgvs-rs (proposed fix):** The completing `A`s go into the translated bases only, so the c.* positions count the bases of the transcript. The example gives `p.Ter6ProextTer?`.
+
 ## Shifts over exon boundaries (`shift_over_boundary`)
 
 ### Dup rewritten as an insertion
@@ -117,6 +125,7 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 [bc-am-test]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/tests/test_hgvs_assemblymapper.py#L39-L43
 [bc-norm-test]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/tests/test_hgvs_normalizer.py#L187-L188
 [bc-cds-len]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/reftranscriptdata.py#L28-L39
+[bc-setup]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseqbuilder.py#L376-L413
 [bc-region]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseqbuilder.py#L205-L225
 [bc-alt-cut]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseqbuilder.py#L58-L70
 [bc-del-stop]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseqbuilder.py#L272-L276
