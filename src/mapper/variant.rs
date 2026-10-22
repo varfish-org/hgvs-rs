@@ -1548,7 +1548,7 @@ mod test {
     // }
 
     /// c.1257 is the last base of the stop codon, so the copy goes into the 3' UTR.
-    /// biocommons/hgvs gives `p.=`.
+    /// biocommons/hgvs gives `p.=`, see `DIFFERENCES.md`.
     #[test]
     fn map_of_dup_at_cds_end() -> Result<(), Error> {
         let mapper = build_mapper()?;
@@ -2918,9 +2918,6 @@ mod test {
                 ("c.29_30insC", Cds, "MOCK:p.Ter10TyrextTer?"),
                 // These differ from biocommons/hgvs on purpose: the same change fits in front
                 // of c.1 or after the stop codon and keeps both intact, see `DIFFERENCES.md`.
-                // biocommons/hgvs gives `p.Met1?` for the first four, except `p.?` for `c.1dup`
-                // with `ins_at_boundary_is_intronic`, as c.1 starts an exon.  It gives `p.(=)` for
-                // the dups at the end and `p.(Ter10Ter)` for `c.30del`.
                 ("c.-1_1insGCC", FivePrimeUtr, "MOCK:p.?"),
                 ("c.1_2insA", FivePrimeUtr, "MOCK:p.?"),
                 ("c.-1_1del", FivePrimeUtr, "MOCK:p.?"),

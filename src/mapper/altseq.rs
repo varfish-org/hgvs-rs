@@ -429,9 +429,9 @@ impl AltTranscriptData {
 /// As in biocommons/hgvs, the positions in the description decide the region, with one
 /// exception: an insertion, dup, deletion, delins or inversion whose alt transcript sequence
 /// keeps the start or stop codon in place is a UTR variant, see `FivePrimeUtr` and
-/// `ThreePrimeUtr`.  `c_to_p` builds the altered protein only for `Cds`.  It gives `p.?` for a UTR or an intron, and `p.0?` for
-/// the deletion of the whole gene.  It also gives `p.?` for a `Cds` variant after a CDS without
-/// a stop codon, see there.
+/// `ThreePrimeUtr`.  `c_to_p` builds the altered protein only for `Cds`.  It gives `p.?` for a
+/// UTR or an intron, and `p.0?` for the deletion of the whole gene.  It also gives `p.?` for a
+/// `Cds` variant after a CDS without a stop codon, see there.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum VariantLocation {
@@ -1072,8 +1072,8 @@ impl<'a> AltSeqBuilder<'a> {
         let mut is_frameshift = dup_seq.len() % 3 != 0;
         // `cds_stop` moves with the copy, as in `incorporate_delins()`, so that a dup gives the
         // same alt protein as the insertion of its copy.  Without a stop codon, the alt protein
-        // then keeps the last codons of the CDS.  biocommons/hgvs keeps `cds_stop`, and
-        // biocommons/hgvs#896 proposes the same move.
+        // then keeps the last codons of the CDS.  biocommons/hgvs keeps `cds_stop`, see
+        // `DIFFERENCES.md`.
         let mut cds_stop = cds_stop + dup_seq.len() as i32;
         if let Some(stop_end) = self.insert_stop_seq_end(dup_seq, end)? {
             is_frameshift = false;
