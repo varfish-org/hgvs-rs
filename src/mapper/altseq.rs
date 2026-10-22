@@ -619,6 +619,8 @@ enum EditType {
     Delins {
         alternative: String,
     },
+    /// An identity without bases, e.g. `c.4=`: nothing changes.
+    Identity,
     /// A deletion of the interval.
     Del,
     /// An insertion of the given bases after the start of the interval.
@@ -746,6 +748,10 @@ impl<'a> AltSeqBuilder<'a> {
             // Without a stop codon, the amino acids after the CDS are unknown.
             VariantLocation::Cds if self.after_cds_without_stop() => EditType::NotCds,
             VariantLocation::Cds => match na_edit {
+                NaEdit::RefAlt {
+                    reference,
+                    alternative,
+                } if reference.is_empty() && alternative.is_empty() => EditType::Identity,
                 // The deleted bases are those of the interval, whether the edit gives them
                 // as a sequence or as a count, as in biocommons/hgvs.
                 NaEdit::RefAlt { alternative, .. } | NaEdit::NumAlt { alternative, .. } => {
@@ -794,6 +800,7 @@ impl<'a> AltSeqBuilder<'a> {
                 self.incorporate_delins(true, Some(alternative), until_stop)
             }
             EditType::Del => self.incorporate_delins(true, None, until_stop),
+            EditType::Identity => self.incorporate_delins(false, None, until_stop),
             EditType::Ins { alternative } => {
                 self.incorporate_delins(false, Some(alternative), until_stop)
             }
@@ -1313,15 +1320,17 @@ impl<'a> AltSeqBuilder<'a> {
         // NB: as in biocommons/hgvs, the length of the deleted reference comes from the
         // interval, not from the given reference or count.
         let ref_len = if deletes { end - start } else { 0 };
-        // An insertion changes no base and goes in at `start + 1`.
-        let change_end = if deletes { end } else { start + 1 };
+        // An insertion changes no base and goes in after the start base, or at the end of
+        // the sequence if the start base lies past it (see `setup_incorporate()`).
+        let insert_at = std::cmp::min(start + 1, seq.len());
+        let change_end = if deletes { end } else { insert_at };
         let alt_len = alternative.as_ref().map(|alt| alt.len()).unwrap_or(0);
         let net_base_change = alt_len as i32 - ref_len as i32;
         let mut cds_stop = cds_stop + net_base_change;
         let insert_stop = match (deletes, &alternative) {
             (false, Some(alternative)) => self
-                .insert_stop_seq_end(alternative, start + 1)?
-                .map(|stop_end| (stop_end, start + 1 + alternative.len())),
+                .insert_stop_seq_end(alternative, insert_at)?
+                .map(|stop_end| (stop_end, insert_at + alternative.len())),
             _ => None,
         };
 
@@ -1340,8 +1349,8 @@ impl<'a> AltSeqBuilder<'a> {
                 seq.replace_range(start..end, "");
             }
             (false, alternative) => {
-                // insertion, after the start base
-                seq.insert_str(start + 1, alternative.as_deref().unwrap_or(""));
+                // insertion, or an identity without bases
+                seq.insert_str(insert_at, alternative.as_deref().unwrap_or(""));
             }
         }
 
@@ -2703,7 +2712,11 @@ mod test {
             cds_end: CdsEnd::NoStopCodon,
         };
 
-        for (hgvs, alt_seq) in [("MOCK:c.15_30del", "AAAATCAAAATGAAAGCGAAAGC")] {
+        for (hgvs, alt_seq) in [
+            ("MOCK:c.15_30del", "AAAATCAAAATGAAAGCGAAAGC"),
+            // The insertion goes to the end of the sequence.
+            ("MOCK:c.22_23insA", "AAAATCAAAATGAAAGCGAAAGCGTTTCGCA"),
+        ] {
             let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
             let alt_data = builder.build_altseq()?.remove(0);
             assert_eq!(alt_data.transcript_sequence, alt_seq, "{hgvs}");
@@ -2713,6 +2726,32 @@ mod test {
         assert!(
             matches!(builder.build_altseq(), Err(Error::CoordinateOutOfBounds(pos)) if pos == "31")
         );
+
+        Ok(())
+    }
+
+    /// An identity without bases changes nothing, like one with bases.
+    #[test]
+    fn build_altseq_keeps_identity_edits() -> Result<(), anyhow::Error> {
+        let reference_data = mock_reference_data();
+
+        for hgvs in [
+            "MOCK:c.4=",
+            "MOCK:c.4_6=",
+            "MOCK:c.30=",
+            "MOCK:c.4A=",
+            "MOCK:c.4_6AAA=",
+        ] {
+            let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
+            let alt_data = builder.build_altseq()?.remove(0);
+            assert_eq!(
+                alt_data.transcript_sequence,
+                reference_data.transcript_sequence.as_ref(),
+                "{hgvs}"
+            );
+            assert_eq!(alt_data.cds_stop, reference_data.cds_stop, "{hgvs}");
+            assert!(!alt_data.is_frameshift, "{hgvs}");
+        }
 
         Ok(())
     }
