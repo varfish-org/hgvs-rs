@@ -131,6 +131,9 @@ impl<'a> Normalizer<'a> {
         if as_is {
             return Ok(var);
         }
+        if let Some((pos, edit)) = self.substitution(&var, None) {
+            return self.build_result_construct(var, pos, pos, edit, cds_to_tx);
+        }
 
         // Compute boundary for the shuffling depending on the configuration and normalize
         // the alleles.
@@ -161,6 +164,9 @@ impl<'a> Normalizer<'a> {
         } = self.check_and_guard(var, is_genome)?;
         if as_is {
             return Ok(var);
+        }
+        if let Some((pos, edit)) = self.substitution(&var, Some(&boundary)) {
+            return self.build_result_construct(var, pos, pos, edit, cds_to_tx);
         }
 
         // directly use the provided boundary instead of calling self.get_boundary()
@@ -212,14 +218,12 @@ impl<'a> Normalizer<'a> {
         };
 
         // Guard against identity variants.
-        if let Some(na_edit) = var.na_edit() {
-            if format!("{na_edit}") == "=" {
-                return Ok(CheckAndGuardResult {
-                    var,
-                    as_is: true,
-                    cds_to_tx: false,
-                });
-            }
+        if var.na_edit().is_some_and(is_identity) {
+            return Ok(CheckAndGuardResult {
+                var,
+                as_is: true,
+                cds_to_tx: false,
+            });
         }
 
         // For CDS variants, first convert to transcript variatn and perform normalization on this
@@ -873,6 +877,50 @@ impl<'a> Normalizer<'a> {
         )
     }
 
+    /// The 1-based position and the edit that normalization gives `var` if it substitutes one
+    /// base by another.
+    ///
+    /// Such a change has nothing to trim and cannot shift, so normalizing it only takes the
+    /// reference base from the sequence, as `get_ref_alt()` does.  This spares the boundary and
+    /// the sequence windows around the variant.  `None` for every other change, for a base that
+    /// cannot be read, lies outside `boundary`, or equals the alternative, and for a base right
+    /// after the end of the target, which `build_result()` turns into a delins.  These take the
+    /// full normalization.
+    fn substitution(
+        &self,
+        var: &HgvsVariant,
+        boundary: Option<&Range<i32>>,
+    ) -> Option<(i32, NaEdit)> {
+        let Some(NaEdit::RefAlt { alternative, .. }) = var.na_edit() else {
+            return None;
+        };
+        let range = var.loc_range()?;
+        if alternative.len() != 1
+            || range.end - range.start != 1
+            || boundary.is_some_and(|b| range.start < b.start || range.end > b.end)
+        {
+            return None;
+        }
+        let begin = usize::try_from(range.start).ok()?;
+        let reference = self
+            .provider
+            .get_seq_part(var.accession(), Some(begin), Some(begin + 1))
+            .ok()?;
+        if reference.len() != 1 || reference == *alternative {
+            return None;
+        }
+        let pos = range.start + 1;
+        (pos != self.get_tgt_len(var).ok()?.saturating_add(1)).then(|| {
+            (
+                pos,
+                NaEdit::RefAlt {
+                    reference,
+                    alternative: alternative.clone(),
+                },
+            )
+        })
+    }
+
     fn get_ref_alt(
         &self,
         var: &HgvsVariant,
@@ -913,6 +961,18 @@ impl<'a> Normalizer<'a> {
         };
 
         Ok((reference, alternative))
+    }
+}
+
+/// Whether `edit` changes nothing, i.e., whether its `Display` gives `=`.
+fn is_identity(edit: &NaEdit) -> bool {
+    match edit {
+        NaEdit::RefAlt {
+            reference,
+            alternative,
+        } => reference == alternative,
+        NaEdit::NumAlt { count, alternative } => *count == 0 && alternative.is_empty(),
+        _ => false,
     }
 }
 
@@ -1147,11 +1207,11 @@ mod test {
 
     use pretty_assertions::assert_eq;
 
-    use super::{Config, Direction, Normalizer};
+    use super::{is_identity, Config, Direction, Normalizer};
     use crate::{
         data::uta_sr::test_helpers::build_provider,
         mapper::variant::Mapper,
-        parser::{HgvsVariant, NoRef},
+        parser::{HgvsVariant, NaEdit, NoRef},
         validator::IntrinsicValidator,
     };
 
@@ -2175,6 +2235,97 @@ mod test {
                 &res,
                 &raw,
                 &exp
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn identity_as_displayed() {
+        let ref_alt = |reference: &str, alternative: &str| NaEdit::RefAlt {
+            reference: reference.to_string(),
+            alternative: alternative.to_string(),
+        };
+        let num_alt = |count: i32, alternative: &str| NaEdit::NumAlt {
+            count,
+            alternative: alternative.to_string(),
+        };
+        let edits = [
+            ref_alt("", ""),
+            ref_alt("A", "A"),
+            ref_alt("A", "G"),
+            ref_alt("", "A"),
+            ref_alt("A", ""),
+            ref_alt("AC", "AC"),
+            ref_alt("AC", "GT"),
+            ref_alt("AC", "A"),
+            num_alt(0, ""),
+            num_alt(0, "A"),
+            num_alt(1, ""),
+            num_alt(1, "A"),
+            NaEdit::DelRef {
+                reference: "A".to_string(),
+            },
+            NaEdit::DelNum { count: 0 },
+            NaEdit::Ins {
+                alternative: "A".to_string(),
+            },
+            NaEdit::Dup {
+                reference: "A".to_string(),
+            },
+            NaEdit::InvRef {
+                reference: "AC".to_string(),
+            },
+            NaEdit::InvNum { count: 0 },
+        ];
+        for edit in edits {
+            assert_eq!(is_identity(&edit), format!("{edit}") == "=", "{edit:?}");
+        }
+    }
+
+    /// `Normalizer::normalize()` without the shortcut for substitutions.
+    fn normalize_in_full(
+        norm: &Normalizer<'_>,
+        var: &HgvsVariant,
+    ) -> Result<HgvsVariant, super::Error> {
+        let is_genome = matches!(var, HgvsVariant::GenomeVariant { .. });
+        let super::CheckAndGuardResult {
+            var,
+            as_is,
+            cds_to_tx,
+        } = norm.check_and_guard(var, is_genome)?;
+        if as_is {
+            return Ok(var);
+        }
+        let boundary = norm.get_boundary(&var)?;
+        let (start, end, reference, alternative) =
+            norm.normalize_alleles(&var, boundary.clone())?;
+        norm.build_result(var, start, end, reference, alternative, boundary, cds_to_tx)
+    }
+
+    #[test]
+    fn substitutions_as_in_full_normalization() -> Result<(), Error> {
+        let mapper = Mapper::new(&Default::default(), build_provider()?);
+        let (norm, norm5, normc, norm5c) = normalizers(&mapper)?;
+
+        let cases = [
+            (&norm, "NM_001001656.1:c.935T>C"),
+            (&norm, "NM_001001656.1:c.945G>C"),
+            (&normc, "NM_001001656.1:c.935T>C"),
+            (&normc, "NM_001001656.1:c.945G>C"),
+            (&norm5, "NM_001001656.1:c.1A>T"),
+            (&norm5c, "NM_001001656.1:c.1A>T"),
+        ];
+        for (norm, input) in cases {
+            let raw = HgvsVariant::from_str(input)?;
+            // The shortcut applies, and gives what the full normalization gives.
+            let checked = norm.check_and_guard(&raw, false)?;
+            assert!(norm.substitution(&checked.var, None).is_some(), "{input}");
+            assert_eq!(
+                norm.normalize(&raw)?,
+                normalize_in_full(norm, &raw)?,
+                "{input}"
             );
         }
 
