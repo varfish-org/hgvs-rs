@@ -2768,6 +2768,48 @@ mod test {
         Ok(())
     }
 
+    /// A codon with an `N` translates to `X` (`Xaa`), an unknown amino acid, not a stop.  So
+    /// the inserted amino acids go on behind it.  The CDS is `ATG AAA GCG CAA CTG TGG TAA`
+    /// (`MKAQLW*`).  The expectations are those of biocommons/hgvs.
+    #[test]
+    fn hgvs_c_to_p_unknown_amino_acid() -> Result<(), Error> {
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(
+            &config,
+            std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+                sanity_mock::ProviderRecord {
+                    accession: "NM_999975.1".to_string(),
+                    transcript_sequence: "AAAATCAAACATGAAAGCGCAACTGTGGTAAGGGGGCCCCC".to_string(),
+                    cds_start_i: 10,
+                    cds_end_i: 31,
+                    translation_exceptions: Vec::new(),
+                    lengths: Vec::new(),
+                },
+            ])),
+        );
+
+        for (hgvsc, hgvsp_expected) in [
+            ("NM_999975.1:c.10delinsN", "MOCK:p.(Gln4Xaa)"),
+            (
+                "NM_999975.1:c.9_10insNNNNNNNNN",
+                "MOCK:p.(Ala3_Gln4insXaaXaaXaa)",
+            ),
+            (
+                "NM_999975.1:c.10delinsNNNNNNNNNNNAAAAAAAAAAA",
+                "MOCK:p.(Gln4delinsXaaXaaXaaXaaLysLysLysLys)",
+            ),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
+        }
+
+        Ok(())
+    }
+
     /// See recommendations re p.? (p.Met1?) at:
     /// http://varnomen.hgvs.org/recommendations/protein/variant/substitution/
     #[test]
