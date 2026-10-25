@@ -6,7 +6,7 @@ use quick_cache::{unsync::Cache, Equivalent};
 
 use crate::{
     data::interface::{Provider, TranslationException},
-    mapper::error::Error,
+    mapper::{error::Error, provider_id, CacheEntry},
     parser::{
         Accession, CdsFrom, CdsInterval, CdsPos, HgvsVariant, Mu, NaEdit, ProtInterval,
         ProtLocEdit, ProtPos, ProteinEdit, UncertainLengthChange,
@@ -130,11 +130,10 @@ fn common_prefix_len(a: &[u8], b: &[u8]) -> usize {
             .count()
 }
 
-/// Cache key of `ref_transcript_data_shared`.
+/// Cache key of `ref_transcript_data_shared`.  The provider is `provider_id()` of it.
 #[derive(Hash, PartialEq, Eq)]
 struct RefTranscriptDataKey {
-    data_version: String,
-    schema_version: String,
+    provider: usize,
     tx_ac: String,
     pro_ac: Option<String>,
 }
@@ -144,16 +143,14 @@ struct RefTranscriptDataKey {
 /// It must hash like `RefTranscriptDataKey`, hence the same fields in the same order.
 #[derive(Hash)]
 struct RefTranscriptDataKeyRef<'a> {
-    data_version: &'a str,
-    schema_version: &'a str,
+    provider: usize,
     tx_ac: &'a str,
     pro_ac: Option<&'a str>,
 }
 
 impl Equivalent<RefTranscriptDataKey> for RefTranscriptDataKeyRef<'_> {
     fn equivalent(&self, key: &RefTranscriptDataKey) -> bool {
-        self.data_version == key.data_version
-            && self.schema_version == key.schema_version
+        self.provider == key.provider
             && self.tx_ac == key.tx_ac
             && self.pro_ac == key.pro_ac.as_deref()
     }
@@ -162,21 +159,24 @@ impl Equivalent<RefTranscriptDataKey> for RefTranscriptDataKeyRef<'_> {
 impl RefTranscriptDataKeyRef<'_> {
     fn to_owned(&self) -> RefTranscriptDataKey {
         RefTranscriptDataKey {
-            data_version: self.data_version.to_string(),
-            schema_version: self.schema_version.to_string(),
+            provider: self.provider,
             tx_ac: self.tx_ac.to_string(),
             pro_ac: self.pro_ac.map(|s| s.to_string()),
         }
     }
 }
 
+type RefTranscriptDataCache =
+    Cache<RefTranscriptDataKey, CacheEntry<Result<Arc<RefTranscriptData>, Error>>>;
+
 thread_local! {
     /// Per thread, see `build_alignment_mapper_cached` in `variant.rs` for why.
-    static REF_TRANSCRIPT_DATA_CACHE: RefCell<Cache<RefTranscriptDataKey, Result<Arc<RefTranscriptData>, Error>>> =
+    static REF_TRANSCRIPT_DATA_CACHE: RefCell<RefTranscriptDataCache> =
         RefCell::new(Cache::new(1000));
 }
 
-/// A cached version of `RefTranscriptData::new`.
+/// A cached version of `RefTranscriptData::new`.  The cache tells providers apart by their
+/// identity, see `provider_id()`, not by their data or schema version.
 pub fn ref_transcript_data_cached(
     provider: Arc<dyn Provider + Send + Sync>,
     tx_ac: &str,
@@ -193,17 +193,19 @@ pub fn ref_transcript_data_shared(
     pro_ac: Option<&str>,
 ) -> Result<Arc<RefTranscriptData>, Error> {
     let key = RefTranscriptDataKeyRef {
-        data_version: provider.data_version(),
-        schema_version: provider.schema_version(),
+        provider: provider_id(provider),
         tx_ac,
         pro_ac,
     };
-    if let Some(hit) = REF_TRANSCRIPT_DATA_CACHE.with_borrow(|c| c.get(&key).cloned()) {
+    if let Some(hit) =
+        REF_TRANSCRIPT_DATA_CACHE.with_borrow(|c| c.get(&key).map(|e| e.value.clone()))
+    {
         return hit;
     }
     let key = key.to_owned();
     let result = RefTranscriptData::new(provider.clone(), tx_ac, pro_ac).map(Arc::new);
-    REF_TRANSCRIPT_DATA_CACHE.with_borrow_mut(|c| c.insert(key, result.clone()));
+    REF_TRANSCRIPT_DATA_CACHE
+        .with_borrow_mut(|c| c.insert(key, CacheEntry::new(provider, &result)));
     result
 }
 
@@ -2218,8 +2220,7 @@ mod test {
         let state = RandomState::new();
         for pro_ac in [None, Some("NP_001628.1")] {
             let key_ref = super::RefTranscriptDataKeyRef {
-                data_version: "uta_20210129",
-                schema_version: "1.1",
+                provider: 1,
                 tx_ac: "NM_001637.3",
                 pro_ac,
             };

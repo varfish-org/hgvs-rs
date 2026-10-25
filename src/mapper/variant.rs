@@ -10,6 +10,7 @@ use crate::mapper::alignment;
 use crate::mapper::altseq::{
     ref_transcript_data_shared, AltSeqBuilder, RefTranscriptData, VariantLocation,
 };
+use crate::mapper::{provider_id, CacheEntry};
 use crate::{
     data::interface::Provider,
     mapper::Error,
@@ -1428,11 +1429,10 @@ fn is_data_error(e: &Error) -> bool {
     )
 }
 
-/// Cache key of `build_alignment_mapper_cached`.
+/// Cache key of `build_alignment_mapper_cached`.  The provider is `provider_id()` of it.
 #[derive(Hash, PartialEq, Eq)]
 struct AlignmentMapperKey {
-    data_version: String,
-    schema_version: String,
+    provider: usize,
     strict_bounds: bool,
     tx_ac: String,
     alt_ac: String,
@@ -1444,8 +1444,7 @@ struct AlignmentMapperKey {
 /// It must hash like `AlignmentMapperKey`, hence the same fields in the same order.
 #[derive(Hash)]
 struct AlignmentMapperKeyRef<'a> {
-    data_version: &'a str,
-    schema_version: &'a str,
+    provider: usize,
     strict_bounds: bool,
     tx_ac: &'a str,
     alt_ac: &'a str,
@@ -1454,8 +1453,7 @@ struct AlignmentMapperKeyRef<'a> {
 
 impl Equivalent<AlignmentMapperKey> for AlignmentMapperKeyRef<'_> {
     fn equivalent(&self, key: &AlignmentMapperKey) -> bool {
-        self.data_version == key.data_version
-            && self.schema_version == key.schema_version
+        self.provider == key.provider
             && self.strict_bounds == key.strict_bounds
             && self.tx_ac == key.tx_ac
             && self.alt_ac == key.alt_ac
@@ -1466,8 +1464,7 @@ impl Equivalent<AlignmentMapperKey> for AlignmentMapperKeyRef<'_> {
 impl AlignmentMapperKeyRef<'_> {
     fn to_owned(&self) -> AlignmentMapperKey {
         AlignmentMapperKey {
-            data_version: self.data_version.to_string(),
-            schema_version: self.schema_version.to_string(),
+            provider: self.provider,
             strict_bounds: self.strict_bounds,
             tx_ac: self.tx_ac.to_string(),
             alt_ac: self.alt_ac.to_string(),
@@ -1476,18 +1473,20 @@ impl AlignmentMapperKeyRef<'_> {
     }
 }
 
+type AlignmentMapperCache =
+    Cache<AlignmentMapperKey, CacheEntry<Result<Arc<alignment::Mapper>, Error>>>;
+
 thread_local! {
     /// Each thread has its own cache.  Even hits update the eviction state, so a shared cache
     /// needs a lock for them, and threads would also contend on the reference counts of the
     /// shared values.
-    static ALIGNMENT_MAPPER_CACHE: RefCell<Cache<AlignmentMapperKey, Result<Arc<alignment::Mapper>, Error>>> =
+    static ALIGNMENT_MAPPER_CACHE: RefCell<AlignmentMapperCache> =
         RefCell::new(Cache::new(1000));
 }
 
 /// A cached version of `alignment::Mapper::new`.
-/// All of this function's arguments contribute to the key;
-/// that is why the supplied provider's `data_version` and `schema_version`
-/// should return sensible values which allow distinguishing them from other providers.
+/// All of this function's arguments contribute to the key, the provider by its identity, see
+/// `provider_id()`.
 ///
 /// Because the cached value must implement `Clone`
 /// and the type is `Result<Arc<alignment::Mapper>, Error>`,
@@ -1504,14 +1503,14 @@ fn build_alignment_mapper_cached(
     alt_aln_method: &str,
 ) -> Result<Arc<alignment::Mapper>, Error> {
     let key = AlignmentMapperKeyRef {
-        data_version: provider.data_version(),
-        schema_version: provider.schema_version(),
+        provider: provider_id(provider),
         strict_bounds,
         tx_ac,
         alt_ac,
         alt_aln_method,
     };
-    if let Some(hit) = ALIGNMENT_MAPPER_CACHE.with_borrow(|c| c.get(&key).cloned()) {
+    if let Some(hit) = ALIGNMENT_MAPPER_CACHE.with_borrow(|c| c.get(&key).map(|e| e.value.clone()))
+    {
         return hit;
     }
     let key = key.to_owned();
@@ -1523,7 +1522,7 @@ fn build_alignment_mapper_cached(
         alt_aln_method,
     )
     .map(Arc::new);
-    ALIGNMENT_MAPPER_CACHE.with_borrow_mut(|c| c.insert(key, result.clone()));
+    ALIGNMENT_MAPPER_CACHE.with_borrow_mut(|c| c.insert(key, CacheEntry::new(provider, &result)));
     result
 }
 #[cfg(test)]
@@ -1552,8 +1551,7 @@ mod test {
         use std::hash::{BuildHasher, RandomState};
 
         let key_ref = super::AlignmentMapperKeyRef {
-            data_version: "uta_20210129",
-            schema_version: "1.1",
+            provider: 1,
             strict_bounds: true,
             tx_ac: "NM_001637.3",
             alt_ac: "NC_000007.13",
@@ -1794,6 +1792,15 @@ mod test {
                     data_version: dummy_version.clone(),
                     schema_version: dummy_version,
                     translation_table: Default::default(),
+                }
+            }
+
+            /// Use `version` as data and schema version.
+            pub fn with_version(self, version: &str) -> Self {
+                Self {
+                    data_version: version.to_string(),
+                    schema_version: version.to_string(),
+                    ..self
                 }
             }
 
@@ -3346,6 +3353,43 @@ mod test {
             check_c_to_p(&exonic, hgvs_c, None, expected_exonic)?;
             check_c_to_p(&intronic, hgvs_c, None, Some("NP_004976.2:p.?"))?;
         }
+        Ok(())
+    }
+
+    /// The cache of `ref_transcript_data_cached()` tells providers apart by identity, also with
+    /// the same versions, and also after one is dropped.
+    #[test]
+    fn ref_transcript_data_cached_per_provider() -> Result<(), Error> {
+        use crate::{data::interface::Provider, mapper::altseq::ref_transcript_data_cached};
+        use std::sync::Arc;
+
+        let provider = |transcript_sequence: &str| -> Arc<dyn Provider + Send + Sync> {
+            Arc::new(
+                sanity_mock::Provider::with_records(vec![sanity_mock::ProviderRecord {
+                    accession: "NM_999988.1".to_string(),
+                    transcript_sequence: transcript_sequence.to_string(),
+                    cds_start_i: 0,
+                    cds_end_i: 9,
+                    translation_exceptions: Vec::new(),
+                    lengths: vec![9],
+                }])
+                .with_version("same"),
+            )
+        };
+        let aa_sequence = |provider: &Arc<dyn Provider + Send + Sync>| -> Result<String, Error> {
+            let data = ref_transcript_data_cached(provider.clone(), "NM_999988.1", Some("MOCK"))?;
+            Ok(data.aa_sequence.to_string())
+        };
+
+        let first = provider("ATGAAATAG");
+        let second = provider("ATGGGGTAG");
+        assert_eq!(aa_sequence(&first)?, "MK*");
+        assert_eq!(aa_sequence(&second)?, "MG*");
+        drop(first);
+        let third = provider("ATGTTTTAG");
+        assert_eq!(aa_sequence(&third)?, "MF*");
+        assert_eq!(aa_sequence(&second)?, "MG*");
+
         Ok(())
     }
 
