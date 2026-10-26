@@ -3178,6 +3178,13 @@ mod test {
                 check_c_to_p(&mapper, hgvs_c, Some("MOCK"), Some(expected))?;
             }
         }
+        // A whole-gene identity deletes nothing: `p.?`, as in biocommons/hgvs.
+        check_c_to_p(
+            &mapper,
+            "NM_999999.1:c.-3_*2=",
+            Some("MOCK"),
+            Some("MOCK:p.?"),
+        )?;
         for hgvs_c in ["NM_999999.1:c.6_4del", "NM_999999.1:c.6_4dup"] {
             let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvs_c)?, Some("MOCK"));
             assert!(

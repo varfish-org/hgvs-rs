@@ -700,10 +700,10 @@ impl<'a> AltSeqBuilder<'a> {
     /// - `Error::ValidationFailed` with `StartMustBeLessThanEnd` if the start of the
     ///   interval lies after its end, e.g. `c.6_4del`, and with `PositionMustNotBeZero` for
     ///   `c.0` or `c.*0`, see `CdsInterval::validate()`.
-    /// - `Error::CoordinateOutOfBounds` for a position after the CDS, e.g. `c.5000_5001insA`
-    ///   on a shorter transcript.  A position within the CDS or a `c.*N` position after the
-    ///   end of the transcript sequence is clamped to its last base instead, as in
-    ///   biocommons/hgvs.
+    /// - `Error::CoordinateOutOfBounds` for a c. position, written without `*`, that lies
+    ///   after the end of the transcript sequence and after the CDS, e.g. `c.5000_5001insA` on
+    ///   a shorter transcript.  A position within the CDS or a `c.*N` position after the end
+    ///   of the transcript sequence is clamped to its last base instead, as in biocommons/hgvs.
     pub fn build_altseq(&self) -> Result<Vec<AltTranscriptData>, Error> {
         self.build_altseq_in(self.variant_location()?, false)
     }
@@ -765,6 +765,11 @@ impl<'a> AltSeqBuilder<'a> {
                     tracing::warn!("Whole-gene inversion; consequence assumed to not affected protein product");
                     EditType::NotCds
                 }
+                // An identity, e.g. `c.-3_*2=`, changes nothing.
+                NaEdit::RefAlt {
+                    reference,
+                    alternative,
+                } if reference == alternative => EditType::NotCds,
                 NaEdit::RefAlt { .. } | NaEdit::NumAlt { .. } => {
                     tracing::warn!("The whole-gene variant {} is not a clean deletion. Assuming whole gene deletion.", self.var_c);
                     EditType::WholeGeneDeleted
@@ -1113,10 +1118,11 @@ impl<'a> AltSeqBuilder<'a> {
     ///
     /// # Errors
     ///
-    /// `Error::CoordinateOutOfBounds` for `c.0` and `c.*0`, which do not exist, and for a c.
-    /// position after the end of the CDS.  A position after the end of the transcript
-    /// sequence that is still within the CDS or the 3' UTR is clamped to the end, as in
-    /// biocommons/hgvs.
+    /// `Error::CoordinateOutOfBounds` for a c. position, written without `*`, that lies after
+    /// the end of the transcript sequence and after the CDS.  A position after the end of the
+    /// transcript sequence that is still within the CDS, and a `c.*N` position, are clamped
+    /// to the end, as in biocommons/hgvs.  `build_altseq_in()` has validated the interval, so
+    /// there is no c.0 or c.*0.
     fn setup_incorporate(&self) -> Result<(String, i32, i32, usize, usize), Error> {
         let HgvsVariant::CdsVariant { loc_edit, .. } = &self.var_c else {
             unreachable!("build_altseq_in checked for a CDS variant");
@@ -1136,11 +1142,7 @@ impl<'a> AltSeqBuilder<'a> {
                     cds_start - 1
                 }
                 CdsFrom::Start => {
-                    // There is no c.0.
-                    let base = usize::try_from(pos.base)
-                        .ok()
-                        .filter(|&base| base > 0)
-                        .ok_or_else(out_of_bounds)?;
+                    let base = usize::try_from(pos.base).map_err(|_| out_of_bounds())?;
                     let index = if pos.offset.unwrap_or(0) < 0 {
                         // Intron before `pos.base`: the exon base before it.
                         (cds_start - 1 + base).checked_sub(2)
@@ -1160,11 +1162,7 @@ impl<'a> AltSeqBuilder<'a> {
                     }
                 }
                 CdsFrom::End => {
-                    // There is no c.*0.
-                    let base = usize::try_from(pos.base)
-                        .ok()
-                        .filter(|&base| base > 0)
-                        .ok_or_else(out_of_bounds)?;
+                    let base = usize::try_from(pos.base).map_err(|_| out_of_bounds())?;
                     // 3' UTR, clamped to the end of the transcript.
                     std::cmp::min(cds_stop + base - 1, seq.len())
                 }
@@ -2060,7 +2058,7 @@ impl<'a> AltSeqToHgvsp<'a> {
                 alternative.clone_from(insertion);
             }
         } else {
-            panic!("Unexpected variant: {:?}", record);
+            unreachable!("the branches before cover every case: {:?}", record);
         }
 
         self.create_variant(
@@ -2721,12 +2719,15 @@ mod test {
     fn build_altseq_keeps_identity_edits() -> Result<(), anyhow::Error> {
         let reference_data = mock_reference_data();
 
+        // The last two are whole-gene identities, which delete nothing.
         for hgvs in [
             "MOCK:c.4=",
             "MOCK:c.4_6=",
             "MOCK:c.30=",
             "MOCK:c.4A=",
             "MOCK:c.4_6AAA=",
+            "MOCK:c.-3_*2=",
+            "MOCK:c.-3_*2A=",
         ] {
             let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
             let alt_data = builder.build_altseq()?.remove(0);
@@ -2803,7 +2804,7 @@ mod test {
             "MOCK:c.6_4delinsGG",
             "MOCK:c.6_4insA",
             "MOCK:c.5_-3del",
-            "MOCK:c.*2_5del",
+            "MOCK:c.*5_*2del",
             "MOCK:c.4+1_4del",
         ] {
             let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);

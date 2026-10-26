@@ -4,6 +4,7 @@ use thiserror::Error;
 
 /// Error type for validation of HGVS expressions.
 #[derive(Error, Debug, Clone)]
+#[non_exhaustive]
 pub enum Error {
     #[error("ref or alt must be non-empty in {0}")]
     RefOrAltMustBeNonEmpty(String),

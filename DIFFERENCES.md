@@ -46,23 +46,24 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 - **biocommons/hgvs:** `c_to_p` and the normalizer raise `HGVSInvalidVariantError` ([tests][bc-am-test], [normalizer tests][bc-norm-test]).
 - **hgvs-rs:** It does not check this yet. `c_to_p` gives `NP_000050.2:p.Glu2598LysfsTer50`, and the normalizer gives `NM_000059.3:c.7791delA` ([#96]). This difference is a gap, not a decision.
 
-### Positions after the CDS
+### Positions after the end of the transcript sequence
 
-- **Situation:** a c. position of the CDS that lies after the CDS, e.g. `c.5000A>T`, `c.1_5000del` or `c.5000_5001insA` on a transcript with a CDS of 30 bases, without `strict_bounds` or straight from `AltSeqBuilder`. With `strict_bounds`, both libraries reject the position before building the alt transcript.
-- **biocommons/hgvs:** `AltSeqBuilder` clamps the position to the end of the transcript sequence or appends the inserted bases there ([altseqbuilder.py][bc-delins]), so `c.5000A>T` and `c.5000_5001insA` give `p.(=)` and `c.1_5000del` gives `p.0?`.
-- **hgvs-rs:** `AltSeqBuilder` returns `CoordinateOutOfBounds`, whatever `strict_bounds` says ([#320]). A position after the end of the transcript sequence but within the CDS, as on an incomplete sequence, or a `c.*N` position is still clamped to the end, as in biocommons/hgvs.
+- **Situation:** a c. position, written without `*`, that lies after the last base of the transcript sequence and after the CDS, e.g. `c.5000A>T`, `c.1_5000del`, `c.5000_5001insA` or `c.34G>T` on a transcript of 42 bases whose CDS ends at c.30 (c.31 to c.33 are bases of its 3' UTR and not affected). With `strict_bounds`, both libraries reject such a position before they build the alt transcript; the difference is without `strict_bounds` and for `AltSeqBuilder` alone.
+- **biocommons/hgvs:** `AltSeqBuilder` clamps the position to the end of the transcript sequence or appends the inserted bases there ([altseqbuilder.py][bc-delins]), so `c.5000A>T`, `c.34G>T` and `c.5000_5001insA` give `p.(=)` and `c.1_5000del` gives `p.0?`.
+- **hgvs-rs:** `AltSeqBuilder` returns `CoordinateOutOfBounds`, whatever `strict_bounds` says ([#320]). A position after the end of the transcript sequence but within the CDS, as on an incomplete sequence, and a `c.*N` position are still clamped to the end, as in biocommons/hgvs.
 
 ### Intervals with the start after the end, and `c.0`
 
-- **Situation:** an interval whose start lies after its end, e.g. `c.6_4del` or `c.*2_5del`, or a position 0, e.g. `c.0A>T` or `c.*0A>T`.
+- **Situation:** an interval whose start lies after its end, e.g. `c.6_4del` or `c.5_-3del`, or a position 0, e.g. `c.0A>T` or `c.*0A>T`.
 - **biocommons/hgvs:** The intrinsic validator rejects both (`base start position must be <= end position`, `BaseOffsetPosition base may not be 0`), and `c_to_p` runs it. `AltSeqBuilder` alone does not check them: `c.6_4del` deletes nothing and gives `p.(Lys2LysfsTer?)`, `c.0A>T` changes c.-1.
 - **hgvs-rs:** `CdsInterval::validate()` rejects both (`StartMustBeLessThanEnd`, `PositionMustNotBeZero`), and `AltSeqBuilder` validates its interval itself, as the validator of the mapper only warns unless it is strict ([#320]). Before, the builder panicked on an interval with the start after the end and treated `c.0` as `c.-1`.
+- **Note:** biocommons/hgvs reads `c.*2_5del` as `c.*2_*5del`: the end inherits the `*`. The parser of hgvs-rs reads its end as `c.5`, so it is an inverted interval here. This is a difference of the parser that [#320] does not change.
 
 ### Whole-gene delins
 
 - **Situation:** a delins from the 5' UTR to the 3' UTR, e.g. `c.-3_*2delinsA` or `c.-3_*2del35insA`.
 - **biocommons/hgvs:** Only a deletion is a whole-gene deletion (`p.0?`); every other whole-gene edit leaves the protein as is and gives `p.?` ([altseqbuilder.py][bc-whole-gene]).
-- **hgvs-rs:** A delins is a whole-gene deletion too, with a warning, as the deletion removes the whole CDS: `p.0?`. Since [#320], a delins with a count is treated like one with a sequence.
+- **hgvs-rs:** A delins is a whole-gene deletion too, with a warning, as the deletion removes the whole CDS: `p.0?`. Since [#320], a delins with a count is treated like one with a sequence. An identity, e.g. `c.-3_*2=`, deletes nothing: it leaves the protein as is and gives `p.?`, as in biocommons/hgvs; hgvs-rs gave `p.0?` before [#320].
 
 ### Deletion past the end of the transcript
 
@@ -94,7 +95,7 @@ Unless an entry says otherwise, the examples use a transcript whose 5' UTR ends 
 
 ### Identity without bases
 
-- **Situation:** an identity without bases, e.g. `c.4=` or `c.4_6=`, without `replace_reference`, which would turn it into `c.4A=`.
+- **Situation:** an identity without bases, e.g. `c.4=` or `c.4_6=`, that reaches `AltSeqBuilder` as such. `c_to_p` fills in the reference base first, as biocommons/hgvs does, so it builds `c.4A=`; the identity stays empty with `replace_reference: false` and in a direct call of `AltSeqBuilder`.
 - **biocommons/hgvs:** `AltSeqBuilder` reads the empty reference and alternative as a delins with no bases and deletes the interval: `c.4=` gives `p.(Ala3ArgfsTer?)` ([altseqbuilder.py][bc-delins]).
 - **hgvs-rs:** The alt transcript is the reference, as for `c.4A=` ([#320]).
 
