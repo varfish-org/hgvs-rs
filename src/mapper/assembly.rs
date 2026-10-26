@@ -393,20 +393,26 @@ impl Mapper {
         if self.config.normalize {
             // spans_intron() checks offsets and returns false for g., m., p.
             // and returns true for c., n. (and r.) (depending on offsets).
+            // The default normalizer rejects such variants, so there is no fallback.
             if var.spans_intron() {
-                match self.normalize_intronic(var) {
-                    Ok(norm_var) => return Ok(norm_var),
-                    Err(e) => {
-                        tracing::warn!("Intronic normalization of variant {} failed: {}", &var, e);
-                    }
-                }
+                return Ok(self.normalize_intronic(var).unwrap_or_else(|_| {
+                    tracing::info!(
+                        "Cannot normalize {}; returning unnormalized variant",
+                        location(var)
+                    );
+                    var.clone()
+                }));
             }
 
-            // otherwise (or if intronic normalization failed): do default normalization
             let normalizer = self.inner.normalizer()?;
             normalizer
                 .normalize(var)
-                .map_err(|e| tracing::warn!("Normalization of variant {} failed: {}", &var, e))
+                .map_err(|_| {
+                    tracing::info!(
+                        "Cannot normalize {}; returning unnormalized variant",
+                        location(var)
+                    )
+                })
                 .or_else(|_| Ok(var.clone()))
         } else {
             Ok(var.clone())
@@ -579,6 +585,38 @@ impl Mapper {
 
     pub fn replace_reference(&self, var: HgvsVariant) -> Result<HgvsVariant, Error> {
         self.inner.replace_reference(var)
+    }
+}
+
+/// Accession and location of `var` for log lines, without the edit, as its bases can be large.
+fn location(var: &HgvsVariant) -> String {
+    match var {
+        HgvsVariant::CdsVariant {
+            accession,
+            loc_edit,
+            ..
+        } => format!("{}:c.{}", accession, loc_edit.loc),
+        HgvsVariant::GenomeVariant {
+            accession,
+            loc_edit,
+            ..
+        } => format!("{}:g.{}", accession, loc_edit.loc),
+        HgvsVariant::MtVariant {
+            accession,
+            loc_edit,
+            ..
+        } => format!("{}:m.{}", accession, loc_edit.loc),
+        HgvsVariant::TxVariant {
+            accession,
+            loc_edit,
+            ..
+        } => format!("{}:n.{}", accession, loc_edit.loc),
+        HgvsVariant::RnaVariant {
+            accession,
+            loc_edit,
+            ..
+        } => format!("{}:r.{}", accession, loc_edit.loc),
+        HgvsVariant::ProtVariant { accession, .. } => accession.to_string(),
     }
 }
 
@@ -1716,6 +1754,58 @@ mod test {
                 "NM_000314.4:n.1524-2A>C",
                 "NP_000305.3:p.?",
             )
+        }
+    }
+
+    mod unnormalizable {
+        use std::io;
+        use std::str::FromStr;
+        use std::sync::{Arc, Mutex};
+
+        use anyhow::Error;
+
+        use crate::parser::HgvsVariant;
+
+        use super::build_mapper_37;
+
+        #[derive(Clone, Default)]
+        struct Captured(Arc<Mutex<Vec<u8>>>);
+
+        impl io::Write for Captured {
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(buf);
+                Ok(buf.len())
+            }
+
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+
+        /// A variant that spans an intron and an exon cannot be normalized.  It is returned as
+        /// it is, with one info line that names its location but not its bases.
+        #[test]
+        fn spanning_variant_is_returned_with_one_info_line() -> Result<(), Error> {
+            let mapper = build_mapper_37(true)?;
+            let var = HgvsVariant::from_str("NM_000314.4:c.209_209+3delinsGTAC")?;
+
+            let captured = Captured::default();
+            let sink = captured.clone();
+            let subscriber = tracing_subscriber::fmt()
+                .with_writer(move || sink.clone())
+                .with_ansi(false)
+                .with_max_level(tracing::Level::INFO)
+                .finish();
+            let res =
+                tracing::subscriber::with_default(subscriber, || mapper.maybe_normalize(&var))?;
+
+            assert_eq!(res, var);
+            let log = String::from_utf8(captured.0.lock().unwrap().clone())?;
+            assert_eq!(log.lines().count(), 1, "{log}");
+            assert!(log.contains(" INFO "), "{log}");
+            assert!(log.contains("NM_000314.4:c.209_209+3"), "{log}");
+            assert!(!log.contains("GTAC"), "{log}");
+            Ok(())
         }
     }
 
