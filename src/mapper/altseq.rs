@@ -1344,7 +1344,10 @@ impl<'a> AltSeqBuilder<'a> {
 
         // A deletion or delins through the stop codon is a frameshift, see
         // `through_stop_codon()`.
-        let mut is_frameshift = net_base_change % 3 != 0 || self.through_stop_codon();
+        // An identity changes nothing, so it is no frameshift, whatever it spans.
+        let is_identity = !deletes && alt_len == 0;
+        let mut is_frameshift =
+            !is_identity && (net_base_change % 3 != 0 || self.through_stop_codon());
         if let Some((stop_end, alt_end)) = insert_stop {
             is_frameshift = false;
             seq.replace_range(stop_end..alt_end, "");
@@ -2728,6 +2731,9 @@ mod test {
             "MOCK:c.4_6AAA=",
             "MOCK:c.-3_*2=",
             "MOCK:c.-3_*2A=",
+            // An identity that crosses the stop codon is no frameshift.
+            "MOCK:c.4_*1=",
+            "MOCK:c.30_*1=",
         ] {
             let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
             let alt_data = builder.build_altseq()?.remove(0);
