@@ -46,6 +46,25 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 - **biocommons/hgvs:** `c_to_p` and the normalizer raise `HGVSInvalidVariantError` ([tests][bc-am-test], [normalizer tests][bc-norm-test]).
 - **hgvs-rs:** It does not check this yet. `c_to_p` gives `NP_000050.2:p.Glu2598LysfsTer50`, and the normalizer gives `NM_000059.3:c.7791delA` ([#96]). This difference is a gap, not a decision.
 
+### Positions after the end of the transcript sequence
+
+- **Situation:** a c. position, written without `*`, that lies after the last base of the transcript sequence and after the CDS, e.g. `c.5000A>T`, `c.1_5000del`, `c.5000_5001insA` or `c.34G>T` on a transcript of 42 bases whose CDS ends at c.30 (c.31 to c.33 are bases of its 3' UTR and not affected). With `strict_bounds`, both libraries reject such a position before they build the alt transcript; the difference is without `strict_bounds` and for `AltSeqBuilder` alone.
+- **biocommons/hgvs:** `AltSeqBuilder` clamps the position to the end of the transcript sequence or appends the inserted bases there ([altseqbuilder.py][bc-delins]), so `c.5000A>T`, `c.34G>T` and `c.5000_5001insA` give `p.(=)` and `c.1_5000del` gives `p.0?`.
+- **hgvs-rs:** `AltSeqBuilder` returns `CoordinateOutOfBounds`, whatever `strict_bounds` says ([#320]). A position after the end of the transcript sequence but within the CDS, as on an incomplete sequence, and a `c.*N` position are still clamped to the end, as in biocommons/hgvs.
+
+### Intervals with the start after the end, and `c.0`
+
+- **Situation:** an interval whose start lies after its end, e.g. `c.6_4del` or `c.5_-3del`, or a position 0, e.g. `c.0A>T` or `c.*0A>T`.
+- **biocommons/hgvs:** The intrinsic validator rejects both (`base start position must be <= end position`, `BaseOffsetPosition base may not be 0`), and `c_to_p` runs it. `AltSeqBuilder` alone does not check them: `c.6_4del` deletes nothing and gives `p.(Lys2LysfsTer?)`, `c.0A>T` changes c.-1.
+- **hgvs-rs:** `CdsInterval::validate()` rejects both (`StartMustBeLessThanEnd`, `PositionMustNotBeZero`), and `AltSeqBuilder` validates its interval itself, as the validator of the mapper only warns unless it is strict ([#320]). Before, the builder panicked on an interval with the start after the end and treated `c.0` as `c.-1`.
+- **Note:** biocommons/hgvs reads `c.*2_5del` as `c.*2_*5del`: the end inherits the `*`. The parser of hgvs-rs reads its end as `c.5`, so it is an inverted interval here. This is a difference of the parser, tracked in [#325].
+
+### Whole-gene delins
+
+- **Situation:** a delins from the 5' UTR to the 3' UTR, e.g. `c.-3_*2delinsA` or `c.-3_*2del35insA`.
+- **biocommons/hgvs:** Only a deletion is a whole-gene deletion (`p.0?`); every other whole-gene edit leaves the protein as is and gives `p.?` ([altseqbuilder.py][bc-whole-gene]).
+- **hgvs-rs:** A delins is a whole-gene deletion too, with a warning, as the deletion removes the whole CDS: `p.0?`. Since [#320], a delins with a count is treated like one with a sequence. An identity, e.g. `c.-3_*2=`, deletes nothing: it leaves the protein as is and gives `p.?`, as in biocommons/hgvs; hgvs-rs gave `p.0?` before [#320].
+
 ### Deletion past the end of the transcript
 
 - **Situation:** without `strict_bounds`, a deletion or delins from the CDS ends after the last base of the transcript sequence, e.g. `c.26_*20del` on a transcript that ends at c.*14.
@@ -73,6 +92,18 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 ## Proposed fixes for biocommons/hgvs
 
 Unless an entry says otherwise, the examples use a transcript whose 5' UTR ends with `AAAATCAAAC`, whose CDS is `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`), and whose 3' UTR starts with `GGGGGCCCCC`, in a single exon. So c.-6 is a T, c.-1 a C, c.30 a G and c.*1 a G.
+
+### Identity without bases
+
+- **Situation:** an identity without bases, e.g. `c.4=` or `c.4_6=`, that reaches `AltSeqBuilder` as such. `c_to_p` fills in the reference base first, as biocommons/hgvs does, so it builds `c.4A=`; the identity stays empty with `replace_reference: false` and in a direct call of `AltSeqBuilder`.
+- **biocommons/hgvs:** `AltSeqBuilder` reads the empty reference and alternative as a delins with no bases and deletes the interval: `c.4=` gives `p.(Ala3ArgfsTer?)` ([altseqbuilder.py][bc-delins]).
+- **hgvs-rs:** The alt transcript is the reference, as for `c.4A=` ([#320]).
+
+### Identity that spans the stop codon
+
+- **Situation:** an identity from the CDS into the 3' UTR, e.g. `c.4_*1=`. `c_to_p` fills in its reference bases first, as biocommons/hgvs does, so `AltSeqBuilder` gets them.
+- **biocommons/hgvs:** It treats every edit from a c. to a c.* position as a frameshift ([altseqbuilder.py][bc-del-stop]), an identity too: with the reference bases, `c.4_*1=` gives `p.(Lys2LysfsTer?)` although nothing changes.
+- **hgvs-rs:** An edit that changes no base is no frameshift, whatever it spans: `c.4_*1=` gives `p.(Lys2=)`, with and without `replace_reference` ([#320]).
 
 ### Deletion that ends with the stop codon
 
@@ -151,6 +182,8 @@ Unless an entry says otherwise, the examples use a transcript whose 5' UTR ends 
 [bc-norm-test]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/tests/test_hgvs_normalizer.py#L187-L188
 [bc-cds-len]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/reftranscriptdata.py#L28-L39
 [bc-setup]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseqbuilder.py#L376-L413
+[bc-delins]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseqbuilder.py#L243-L268
+[bc-whole-gene]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseqbuilder.py#L145-L160
 [bc-region]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/altseqbuilder.py#L205-L225
 [bc-ext]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/tests/data/ext.tsv#L12
 [bc-dup-cds-end]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/tests/test_hgvs_variantmapper.py#L113-L117
@@ -173,4 +206,6 @@ Unless an entry says otherwise, the examples use a transcript whose 5' UTR ends 
 [#218]: https://github.com/varfish-org/hgvs-rs/pull/218
 [#257]: https://github.com/varfish-org/hgvs-rs/pull/257
 [#299]: https://github.com/varfish-org/hgvs-rs/pull/299
+[#320]: https://github.com/varfish-org/hgvs-rs/pull/320
+[#325]: https://github.com/varfish-org/hgvs-rs/issues/325
 [#301]: https://github.com/varfish-org/hgvs-rs/pull/301

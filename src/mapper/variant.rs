@@ -3134,6 +3134,126 @@ mod test {
         Mapper::new(&config, provider)
     }
 
+    /// Without `replace_reference`, edits with a count reach `AltSeqBuilder` as such and
+    /// give the same protein as the ones with the sequence.  Invalid intervals give an error
+    /// instead of a panic (#298).
+    #[test]
+    fn c_to_p_counted_edits_sanity() -> Result<(), Error> {
+        let provider = std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+            sanity_mock::ProviderRecord {
+                accession: "NM_999999.1".to_string(),
+                transcript_sequence: "AAAATCAAAATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGG".to_string(),
+                cds_start_i: 9,
+                cds_end_i: 39,
+                translation_exceptions: Vec::new(),
+                lengths: vec![10, 25, 30],
+            },
+        ]));
+        let config = Config {
+            replace_reference: false,
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(&config, provider);
+
+        for (counted, with_sequence, expected) in [
+            (
+                "NM_999999.1:c.4_6del3",
+                "NM_999999.1:c.4_6delAAA",
+                "MOCK:p.(Lys2del)",
+            ),
+            (
+                "NM_999999.1:c.4_6del3insGG",
+                "NM_999999.1:c.4_6delAAAinsGG",
+                "MOCK:p.(Lys2GlyfsTer?)",
+            ),
+            (
+                "NM_999999.1:c.-3_*2del35insA",
+                "NM_999999.1:c.-3_*2delinsA",
+                "MOCK:p.0?",
+            ),
+        ] {
+            for hgvs_c in [counted, with_sequence] {
+                check_c_to_p(&mapper, hgvs_c, Some("MOCK"), Some(expected))?;
+            }
+        }
+        // A whole-gene identity deletes nothing: `p.?`, as in biocommons/hgvs.
+        check_c_to_p(
+            &mapper,
+            "NM_999999.1:c.-3_*2=",
+            Some("MOCK"),
+            Some("MOCK:p.?"),
+        )?;
+        for hgvs_c in ["NM_999999.1:c.6_4del", "NM_999999.1:c.6_4dup"] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvs_c)?, Some("MOCK"));
+            assert!(
+                matches!(
+                    var_p,
+                    Err(crate::mapper::Error::ValidationFailed(
+                        crate::validator::Error::StartMustBeLessThanEnd(_)
+                    ))
+                ),
+                "{hgvs_c} gave {var_p:?}"
+            );
+        }
+        let var_p = mapper.c_to_p(
+            &HgvsVariant::from_str("NM_999999.1:c.5000_5001insA")?,
+            Some("MOCK"),
+        );
+        assert!(
+            matches!(var_p, Err(crate::mapper::Error::CoordinateOutOfBounds(ref pos)) if pos == "5000"),
+            "{var_p:?}"
+        );
+
+        Ok(())
+    }
+
+    /// An identity that crosses the stop codon is no frameshift, whether `c_to_p` fills in its
+    /// reference bases (the default) or not.
+    #[test]
+    fn c_to_p_identity_through_stop_codon_sanity() -> Result<(), Error> {
+        let build = |replace_reference: bool| {
+            let provider = std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+                sanity_mock::ProviderRecord {
+                    accession: "NM_999999.1".to_string(),
+                    transcript_sequence: "AAAATCAAAATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGG".to_string(),
+                    cds_start_i: 9,
+                    cds_end_i: 39,
+                    translation_exceptions: Vec::new(),
+                    lengths: vec![10, 25, 30],
+                },
+            ]));
+            let config = Config {
+                replace_reference,
+                strict_bounds: false,
+                renormalize_g: false,
+                ..Default::default()
+            };
+            Mapper::new(&config, provider)
+        };
+
+        for replace_reference in [false, true] {
+            let mapper = build(replace_reference);
+            for hgvs_c in ["NM_999999.1:c.4_*1=", "NM_999999.1:c.28_*1="] {
+                let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvs_c)?, Some("MOCK"))?;
+                let shown = format!("{var_p}");
+                assert!(
+                    !shown.contains("fs"),
+                    "{hgvs_c} with replace_reference {replace_reference} gave {shown}"
+                );
+            }
+            check_c_to_p(
+                &mapper,
+                "NM_999999.1:c.4_*1=",
+                Some("MOCK"),
+                Some("MOCK:p.(Lys2=)"),
+            )?;
+        }
+
+        Ok(())
+    }
+
     /// With `false`, the dups of intron bases fail: there is no genome to take their reference
     /// from.
     #[test]

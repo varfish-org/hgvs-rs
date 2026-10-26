@@ -12,6 +12,7 @@ use crate::{
         ProtLocEdit, ProtPos, ProteinEdit, UncertainLengthChange,
     },
     sequences::{revcomp, translate_cds, translate_cds_with_exceptions, TranslationTable},
+    validator::Validateable,
 };
 
 /// How the CDS of a transcript ends.
@@ -615,7 +616,18 @@ fn keeps_ref_suffix_and_prefix(
 
 /// Utility enum for edit type.
 enum EditType {
-    NaRefAlt,
+    /// A substitution or delins: the interval is replaced by the given bases.
+    Delins {
+        alternative: String,
+    },
+    /// An identity without bases, e.g. `c.4=`: nothing changes.
+    Identity,
+    /// A deletion of the interval.
+    Del,
+    /// An insertion of the given bases after the start of the interval.
+    Ins {
+        alternative: String,
+    },
     Dup,
     Inv,
     NotCds,
@@ -682,10 +694,16 @@ impl<'a> AltSeqBuilder<'a> {
     /// sequence, but with an additional parameter denoting the start of a frameshift that should
     /// affect all bases downstream.
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// Variant sequence data, or `Error::ExpectedCdsVariant` if `var_c` is not a
-    /// `HgvsVariant::CdsVariant`.
+    /// - `Error::ExpectedCdsVariant` if `var_c` is not a `HgvsVariant::CdsVariant`.
+    /// - `Error::ValidationFailed` with `StartMustBeLessThanEnd` if the start of the
+    ///   interval lies after its end, e.g. `c.6_4del`, and with `PositionMustNotBeZero` for
+    ///   `c.0` or `c.*0`, see `CdsInterval::validate()`.
+    /// - `Error::CoordinateOutOfBounds` for a c. position, written without `*`, that lies
+    ///   after the end of the transcript sequence and after the CDS, e.g. `c.5000_5001insA` on
+    ///   a shorter transcript.  A position within the CDS or a `c.*N` position after the end
+    ///   of the transcript sequence is clamped to its last base instead, as in biocommons/hgvs.
     pub fn build_altseq(&self) -> Result<Vec<AltTranscriptData>, Error> {
         self.build_altseq_in(self.variant_location()?, false)
     }
@@ -704,16 +722,29 @@ impl<'a> AltSeqBuilder<'a> {
         let HgvsVariant::CdsVariant { loc_edit, .. } = &self.var_c else {
             return Err(Error::ExpectedCdsVariant(self.var_c.to_string()));
         };
+        // The validator of the mapper only warns unless it is strict, so check the interval
+        // here: its start must not lie after its end, and there is no c.0 or c.*0.
+        loc_edit.loc.inner().validate()?;
         let na_edit = loc_edit.edit.inner();
         let edit_type = match region {
             // Without a stop codon, the amino acids after the CDS are unknown.
             VariantLocation::Cds if self.after_cds_without_stop() => EditType::NotCds,
             VariantLocation::Cds => match na_edit {
-                NaEdit::RefAlt { .. }
-                | NaEdit::NumAlt { .. }
-                | NaEdit::DelRef { .. }
-                | NaEdit::DelNum { .. }
-                | NaEdit::Ins { .. } => EditType::NaRefAlt,
+                NaEdit::RefAlt {
+                    reference,
+                    alternative,
+                } if reference.is_empty() && alternative.is_empty() => EditType::Identity,
+                // The deleted bases are those of the interval, whether the edit gives them
+                // as a sequence or as a count, as in biocommons/hgvs.
+                NaEdit::RefAlt { alternative, .. } | NaEdit::NumAlt { alternative, .. } => {
+                    EditType::Delins {
+                        alternative: alternative.clone(),
+                    }
+                }
+                NaEdit::DelRef { .. } | NaEdit::DelNum { .. } => EditType::Del,
+                NaEdit::Ins { alternative } => EditType::Ins {
+                    alternative: alternative.clone(),
+                },
                 NaEdit::Dup { .. } => EditType::Dup,
                 NaEdit::InvRef { .. } | NaEdit::InvNum { .. } => EditType::Inv,
             },
@@ -734,17 +765,34 @@ impl<'a> AltSeqBuilder<'a> {
                     tracing::warn!("Whole-gene inversion; consequence assumed to not affected protein product");
                     EditType::NotCds
                 }
-                NaEdit::RefAlt { .. } => {
+                // An identity, e.g. `c.-3_*2=`, changes nothing.
+                NaEdit::RefAlt {
+                    reference,
+                    alternative,
+                } if reference == alternative => EditType::NotCds,
+                NaEdit::RefAlt { .. } | NaEdit::NumAlt { .. } => {
                     tracing::warn!("The whole-gene variant {} is not a clean deletion. Assuming whole gene deletion.", self.var_c);
                     EditType::WholeGeneDeleted
                 }
-                _ => panic!("Invalid combination of whole gene variant location and NaEdit {na_edit:?}"),
+                // Reachable without a stop codon only, e.g. `c.-1_*1insA`: with one, the
+                // insertion is a 3' UTR variant.
+                NaEdit::Ins { .. } => {
+                    tracing::warn!("Whole-gene insertion; consequence assumed to not affect protein product");
+                    EditType::NotCds
+                }
             },
         };
 
         // Get the start of the "terminal" frameshift (i.e. one never "cancelled out").
         let alt_data = match edit_type {
-            EditType::NaRefAlt => self.incorporate_delins(until_stop),
+            EditType::Delins { alternative } => {
+                self.incorporate_delins(true, Some(alternative), until_stop)
+            }
+            EditType::Del => self.incorporate_delins(true, None, until_stop),
+            EditType::Identity => self.incorporate_delins(false, None, until_stop),
+            EditType::Ins { alternative } => {
+                self.incorporate_delins(false, Some(alternative), until_stop)
+            }
             EditType::Dup => self.incorporate_dup(until_stop),
             EditType::Inv => self.incorporate_inv(until_stop),
             EditType::NotCds => self.create_alt_equals_ref_noncds(),
@@ -1067,53 +1115,77 @@ impl<'a> AltSeqBuilder<'a> {
     ///
     /// `(transcript sequence, cds start [1-based], cds stop [1-based], cds start index in
     /// seq [inc, 0-based], cds end index in seq [excl, 0-based])`
-    fn setup_incorporate(&self) -> (String, i32, i32, usize, usize) {
-        let mut start_end = Vec::new();
+    ///
+    /// # Errors
+    ///
+    /// `Error::CoordinateOutOfBounds` for a c. position, written without `*`, that lies after
+    /// the end of the transcript sequence and after the CDS.  A position after the end of the
+    /// transcript sequence that is still within the CDS, and a `c.*N` position, are clamped
+    /// to the end, as in biocommons/hgvs.  `build_altseq_in()` has validated the interval, so
+    /// there is no c.0 or c.*0.
+    fn setup_incorporate(&self) -> Result<(String, i32, i32, usize, usize), Error> {
+        let HgvsVariant::CdsVariant { loc_edit, .. } = &self.var_c else {
+            unreachable!("build_altseq_in checked for a CDS variant");
+        };
+        let seq = self.reference_data.transcript_sequence.to_string();
+        let cds_start = usize::try_from(self.reference_data.cds_start)
+            .map_err(|_| Error::CdsUndefined(self.var_c.to_string()))?;
+        let cds_stop = usize::try_from(self.reference_data.cds_stop)
+            .map_err(|_| Error::CdsUndefined(self.var_c.to_string()))?;
 
-        match &self.var_c {
-            HgvsVariant::CdsVariant { loc_edit, .. } => {
-                for pos in &[&loc_edit.loc.inner().start, &loc_edit.loc.inner().end] {
-                    match pos.cds_from {
-                        CdsFrom::Start => {
-                            if pos.base < 0 {
-                                // 5' UTR
-                                start_end.push(self.reference_data.cds_start as usize - 1);
-                            } else if pos.offset.unwrap_or(0) < 0 {
-                                // Intron before `pos.base`: the exon base before it.
-                                start_end.push(
-                                    self.reference_data.cds_start as usize - 1 + pos.base as usize
-                                        - 2,
-                                );
-                            } else {
-                                start_end.push(
-                                    self.reference_data.cds_start as usize - 1 + pos.base as usize
-                                        - 1,
-                                );
-                            }
-                        }
-                        CdsFrom::End => {
-                            // 3' UTR
-                            start_end.push(
-                                self.reference_data.cds_stop as usize + pos.base as usize - 1,
-                            );
-                        }
+        let mut start_end = Vec::new();
+        for pos in [&loc_edit.loc.inner().start, &loc_edit.loc.inner().end] {
+            let out_of_bounds = || Error::CoordinateOutOfBounds(pos.to_string());
+            let index = match pos.cds_from {
+                CdsFrom::Start if pos.base < 0 => {
+                    // 5' UTR
+                    cds_start - 1
+                }
+                CdsFrom::Start => {
+                    let base = usize::try_from(pos.base).map_err(|_| out_of_bounds())?;
+                    let index = if pos.offset.unwrap_or(0) < 0 {
+                        // Intron before `pos.base`: the exon base before it.
+                        (cds_start - 1 + base).checked_sub(2)
+                    } else {
+                        Some(cds_start - 1 + base - 1)
+                    }
+                    .ok_or_else(out_of_bounds)?;
+                    // A position of the CDS that is past the end of the transcript sequence
+                    // is clamped to the end, as a c.*N position; one past the CDS is an
+                    // error.
+                    if index < seq.len() {
+                        index
+                    } else if index < cds_stop {
+                        seq.len()
+                    } else {
+                        return Err(out_of_bounds());
                     }
                 }
-            }
-            _ => panic!("invalid variant"),
+                CdsFrom::End => {
+                    let base = usize::try_from(pos.base).map_err(|_| out_of_bounds())?;
+                    // 3' UTR, clamped to the end of the transcript.
+                    std::cmp::min(cds_stop + base - 1, seq.len())
+                }
+            };
+            start_end.push(index);
         }
 
-        let seq = self.reference_data.transcript_sequence.to_string();
-        let start = std::cmp::min(start_end[0], seq.len());
+        // The validated interval maps to ordered indices; keep the slices safe anyway.
+        if start_end[0] > start_end[1] {
+            return Err(
+                crate::validator::Error::StartMustBeLessThanEnd(self.var_c.to_string()).into(),
+            );
+        }
+        let start = start_end[0];
         let end = std::cmp::min(start_end[1] + 1, seq.len());
 
-        (
+        Ok((
             seq,
             self.reference_data.cds_start,
             self.reference_data.cds_stop,
             start,
             end,
-        )
+        ))
     }
 
     /// The translation exceptions of the reference whose codons `alt_seq` keeps, as pairs of a
@@ -1219,74 +1291,69 @@ impl<'a> AltSeqBuilder<'a> {
         }
     }
 
-    /// Incorporate a substitution, deletion, insertion or delins into the transcript sequence.
-    fn incorporate_delins(&self, until_stop: bool) -> Result<AltTranscriptData, Error> {
-        let (mut seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
-        let loc_range_start;
-
-        let (reference, alternative) = match &self.var_c {
-            HgvsVariant::CdsVariant { loc_edit, .. } => {
-                loc_range_start = loc_edit.loc.inner().start.base;
-                match loc_edit.edit.inner() {
-                    NaEdit::RefAlt {
-                        reference,
-                        alternative,
-                    } => (Some(reference.clone()), Some(alternative.clone())),
-                    NaEdit::DelRef { reference } => (Some(reference.to_owned()), None),
-                    NaEdit::Ins { alternative } => (None, Some(alternative.to_owned())),
-                    _ => panic!("Can only work with concrete ref/alt"),
-                }
-            }
-            _ => panic!("Can only work on CDS variants"),
+    /// Incorporate a substitution or delins (`deletes` with `alternative`), a deletion
+    /// (`deletes` without `alternative`) or an insertion (`alternative` without `deletes`)
+    /// into the transcript sequence.
+    fn incorporate_delins(
+        &self,
+        deletes: bool,
+        alternative: Option<String>,
+        until_stop: bool,
+    ) -> Result<AltTranscriptData, Error> {
+        let (mut seq, cds_start, cds_stop, start, end) = self.setup_incorporate()?;
+        let loc_range_start = match &self.var_c {
+            HgvsVariant::CdsVariant { loc_edit, .. } => loc_edit.loc.inner().start.base,
+            _ => unreachable!("build_altseq_in checked for a CDS variant"),
         };
-        let ref_len = reference.as_ref().map(|_| end - start).unwrap_or(0) as i32;
-        // An insertion changes no base and goes in at `start + 1`.
-        let change_end = if reference.is_some() { end } else { start + 1 };
-        let alt_len = alternative.as_ref().map(|alt| alt.len()).unwrap_or(0) as i32;
-        let net_base_change = alt_len - ref_len;
+        // NB: as in biocommons/hgvs, the length of the deleted reference comes from the
+        // interval, not from the given reference or count.
+        let ref_len = if deletes { end - start } else { 0 };
+        // An insertion changes no base and goes in after the start base, or at the end of
+        // the sequence if the start base lies past it (see `setup_incorporate()`).
+        let insert_at = std::cmp::min(start + 1, seq.len());
+        let change_end = if deletes { end } else { insert_at };
+        let alt_len = alternative.as_ref().map(|alt| alt.len()).unwrap_or(0);
+        let net_base_change = alt_len as i32 - ref_len as i32;
         let mut cds_stop = cds_stop + net_base_change;
-        let insert_stop = match (&reference, &alternative) {
-            (None, Some(alternative)) => self
-                .insert_stop_seq_end(alternative, start + 1)?
-                .map(|stop_end| (stop_end, start + 1 + alternative.len())),
+        let insert_stop = match (deletes, &alternative) {
+            (false, Some(alternative)) => self
+                .insert_stop_seq_end(alternative, insert_at)?
+                .map(|stop_end| (stop_end, insert_at + alternative.len())),
             _ => None,
+        };
+
+        // An edit that changes no base, an identity with or without bases, is no frameshift,
+        // whatever it spans.
+        let unchanged = match (deletes, &alternative) {
+            (false, None) => true,
+            (true, Some(alternative)) => seq.get(start..end) == Some(alternative.as_str()),
+            _ => false,
         };
 
         // Incorporate the variant into the sequence (depending on the type).
         let mut is_substitution = false;
-        let range = if end > seq.len() && reference.is_some() {
-            tracing::warn!(
-                    "Altered sequence range {:?} is incompatible with sequence length {:?}, clamping. Variant description is {}",
-                    start..end,
-                    seq.len(),
-                    &self.var_c
-                );
-            start..seq.len()
-        } else {
-            start..end
-        };
-        match (reference, alternative) {
-            (Some(reference), Some(alternative)) => {
+        match (deletes, alternative) {
+            (true, Some(alternative)) => {
                 // delins or SNP
-                seq.replace_range(range, &alternative);
-                if reference.len() == 1 && alternative.len() == 1 {
+                seq.replace_range(start..end, &alternative);
+                if ref_len == 1 && alternative.len() == 1 {
                     is_substitution = true;
                 }
             }
-            (Some(_reference), None) => {
+            (true, None) => {
                 // deletion
-                seq.replace_range(range, "");
+                seq.replace_range(start..end, "");
             }
-            (None, Some(alternative)) => {
-                // insertion
-                seq.insert_str(start + 1, &alternative);
+            (false, alternative) => {
+                // insertion, or an identity without bases
+                seq.insert_str(insert_at, alternative.as_deref().unwrap_or(""));
             }
-            _ => panic!("This should not happen"),
         }
 
         // A deletion or delins through the stop codon is a frameshift, see
         // `through_stop_codon()`.
-        let mut is_frameshift = net_base_change % 3 != 0 || self.through_stop_codon();
+        let mut is_frameshift =
+            !unchanged && (net_base_change % 3 != 0 || self.through_stop_codon());
         if let Some((stop_end, alt_end)) = insert_stop {
             is_frameshift = false;
             seq.replace_range(stop_end..alt_end, "");
@@ -1361,7 +1428,7 @@ impl<'a> AltSeqBuilder<'a> {
     /// Incorporate a dup into the transcript sequence: its copy goes right after the duplicated
     /// bases.
     fn incorporate_dup(&self, until_stop: bool) -> Result<AltTranscriptData, Error> {
-        let (seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
+        let (seq, cds_start, cds_stop, start, end) = self.setup_incorporate()?;
 
         // Intron bases are not in the transcript sequence, so take them from the variant.
         let dup_seq = if self.var_c.spans_intron() {
@@ -1389,7 +1456,7 @@ impl<'a> AltSeqBuilder<'a> {
 
         let loc_end = match &self.var_c {
             HgvsVariant::CdsVariant { loc_edit, .. } => loc_edit.loc.inner().end.base,
-            _ => panic!("can only work on CDS variants"),
+            _ => unreachable!("build_altseq_in checked for a CDS variant"),
         };
         let variant_start_aa = ((loc_end + 1) as f64 / 3.0).ceil() as i32;
         let translation_exceptions = self.alt_translation_exceptions(&seq);
@@ -1415,7 +1482,7 @@ impl<'a> AltSeqBuilder<'a> {
 
     /// Incorporate inversion into sequence.
     fn incorporate_inv(&self, until_stop: bool) -> Result<AltTranscriptData, Error> {
-        let (seq, cds_start, cds_stop, start, end) = self.setup_incorporate();
+        let (seq, cds_start, cds_stop, start, end) = self.setup_incorporate()?;
 
         let seq = format!(
             "{}{}{}",
@@ -1426,7 +1493,7 @@ impl<'a> AltSeqBuilder<'a> {
 
         let loc_start = match &self.var_c {
             HgvsVariant::CdsVariant { loc_edit, .. } => loc_edit.loc.inner().start.base,
-            _ => panic!("can only work on CDS variants"),
+            _ => unreachable!("build_altseq_in checked for a CDS variant"),
         };
 
         let variant_start_aa = std::cmp::max(((loc_start as f64) / 3.0).ceil() as i32, 1);
@@ -2000,7 +2067,7 @@ impl<'a> AltSeqToHgvsp<'a> {
                 alternative.clone_from(insertion);
             }
         } else {
-            panic!("Unexpected variant: {:?}", record);
+            unreachable!("the branches before cover every case: {:?}", record);
         }
 
         self.create_variant(
@@ -2141,7 +2208,7 @@ mod test {
 
     use crate::{mapper::Error, parser::HgvsVariant, sequences::TranslationTable};
 
-    use super::{AltSeqBuilder, CdsEnd, RefTranscriptData};
+    use super::{AltSeqBuilder, AltTranscriptData, CdsEnd, RefTranscriptData, VariantLocation};
 
     /// Cache lookups only hit if the borrowed key hashes like the owned one.
     #[test]
@@ -2281,6 +2348,23 @@ mod test {
             Some((false, true)),
         ] {
             assert!(outcomes.contains(&outcome), "{outcome:?}");
+        }
+    }
+
+    /// `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`) with a 5' UTR of 9 and a 3'
+    /// UTR of 2 bases.
+    fn mock_reference_data() -> RefTranscriptData {
+        RefTranscriptData {
+            transcript_sequence: "AAAATCAAAATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGG".into(),
+            aa_sequence: "MKAKAFRAK*".into(),
+            cds_start: 10,
+            cds_stop: 39,
+            protein_accession: "MOCK".into(),
+            translation_table: TranslationTable::Standard,
+            translation_exceptions: Vec::new(),
+            exon_start_positions: Vec::new(),
+            exon_end_positions: Vec::new(),
+            cds_end: CdsEnd::StopCodon,
         }
     }
 
@@ -2574,6 +2658,225 @@ mod test {
                     "{hgvs_c} with ins_at_boundary_is_intronic = {ins_at_boundary_is_intronic}"
                 );
             }
+        }
+
+        Ok(())
+    }
+
+    /// Positions of the CDS that are not on the transcript.
+    #[test]
+    fn build_altseq_fails_for_positions_off_the_transcript() -> Result<(), anyhow::Error> {
+        let reference_data = mock_reference_data();
+
+        for (hgvs, position) in [
+            ("MOCK:c.5000_5001insA", "5000"),
+            ("MOCK:c.5000A>T", "5000"),
+            ("MOCK:c.5000del", "5000"),
+            ("MOCK:c.1_5000del", "5000"),
+            ("MOCK:c.5000_5001dup", "5000"),
+        ] {
+            let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
+            let result = builder.build_altseq();
+            assert!(
+                matches!(&result, Err(Error::CoordinateOutOfBounds(pos)) if pos == position),
+                "{hgvs} gave {result:?}"
+            );
+        }
+
+        Ok(())
+    }
+
+    /// On a transcript whose sequence ends before its CDS, a CDS position past the sequence
+    /// is clamped to the end, like a `c.*N` position; a position past the CDS is an error.
+    /// (A variant that ends after such a CDS, e.g. `c.15_*1del`, is a non-CDS variant, see
+    /// `after_cds_without_stop()`.)
+    #[test]
+    fn build_altseq_clamps_cds_positions_past_the_sequence() -> Result<(), anyhow::Error> {
+        let reference_data = RefTranscriptData {
+            transcript_sequence: "AAAATCAAAATGAAAGCGAAAGCGTTTCGC".into(),
+            aa_sequence: "MKAKAFR".into(),
+            cds_start: 10,
+            cds_stop: 39,
+            protein_accession: "MOCK".into(),
+            translation_table: TranslationTable::Standard,
+            translation_exceptions: Vec::new(),
+            exon_start_positions: Vec::new(),
+            exon_end_positions: Vec::new(),
+            cds_end: CdsEnd::NoStopCodon,
+        };
+
+        for (hgvs, alt_seq) in [
+            ("MOCK:c.15_30del", "AAAATCAAAATGAAAGCGAAAGC"),
+            // The insertion goes to the end of the sequence.
+            ("MOCK:c.22_23insA", "AAAATCAAAATGAAAGCGAAAGCGTTTCGCA"),
+        ] {
+            let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
+            let alt_data = builder.build_altseq()?.remove(0);
+            assert_eq!(alt_data.transcript_sequence, alt_seq, "{hgvs}");
+        }
+        let builder =
+            AltSeqBuilder::new(HgvsVariant::from_str("MOCK:c.15_31del")?, &reference_data);
+        assert!(
+            matches!(builder.build_altseq(), Err(Error::CoordinateOutOfBounds(pos)) if pos == "31")
+        );
+
+        Ok(())
+    }
+
+    /// An identity without bases changes nothing, like one with bases.
+    #[test]
+    fn build_altseq_keeps_identity_edits() -> Result<(), anyhow::Error> {
+        let reference_data = mock_reference_data();
+
+        // c.4 to c.*1, and c.28 to c.*1: `c_to_p` fills in the reference bases of an identity.
+        let seq = reference_data.transcript_sequence.as_ref();
+        let (bases_4_to_star_1, bases_28_to_star_1) = (&seq[12..40], &seq[36..40]);
+        // The `c.-3_*2` ones are whole-gene identities, which delete nothing.  An identity that
+        // crosses the stop codon is no frameshift, with or without bases.
+        for hgvs in [
+            "MOCK:c.4=".to_string(),
+            "MOCK:c.4_6=".to_string(),
+            "MOCK:c.30=".to_string(),
+            "MOCK:c.4A=".to_string(),
+            "MOCK:c.4_6AAA=".to_string(),
+            "MOCK:c.-3_*2=".to_string(),
+            "MOCK:c.-3_*2A=".to_string(),
+            "MOCK:c.4_*1=".to_string(),
+            "MOCK:c.30_*1=".to_string(),
+            format!("MOCK:c.4_*1{bases_4_to_star_1}="),
+            format!("MOCK:c.28_*1{bases_28_to_star_1}="),
+        ] {
+            let hgvs = hgvs.as_str();
+            let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
+            let alt_data = builder.build_altseq()?.remove(0);
+            assert_eq!(
+                alt_data.transcript_sequence,
+                reference_data.transcript_sequence.as_ref(),
+                "{hgvs}"
+            );
+            assert_eq!(alt_data.cds_stop, reference_data.cds_stop, "{hgvs}");
+            assert!(!alt_data.is_frameshift, "{hgvs}");
+        }
+
+        Ok(())
+    }
+
+    /// A whole-gene insertion reaches the whole-gene arm on a transcript without stop codon
+    /// only; it leaves the protein as is.
+    #[test]
+    fn build_altseq_whole_gene_insertion_without_stop_codon() -> Result<(), anyhow::Error> {
+        let reference_data = RefTranscriptData {
+            transcript_sequence: "AAAATCAAAATGAAAGCGAAAGCGTTTCGCGCGAAAGGGG".into(),
+            aa_sequence: "MKAKAFRAK".into(),
+            cds_stop: 36,
+            cds_end: CdsEnd::NoStopCodon,
+            ..mock_reference_data()
+        };
+
+        for hgvs in ["MOCK:c.-1_*1insA", "MOCK:c.-3_*2insA"] {
+            let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
+            assert_eq!(
+                builder.variant_location()?,
+                VariantLocation::WholeGene,
+                "{hgvs}"
+            );
+            let alt_data = builder.build_altseq()?.remove(0);
+            assert_eq!(
+                alt_data.transcript_sequence,
+                reference_data.transcript_sequence.as_ref(),
+                "{hgvs}"
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Intervals whose start lies after their end, within and across the CDS, and positions
+    /// 0, which do not exist: the builder validates the interval, see `CdsInterval`.
+    #[test]
+    fn build_altseq_fails_for_invalid_intervals() -> Result<(), anyhow::Error> {
+        let reference_data = mock_reference_data();
+
+        for hgvs in [
+            "MOCK:c.0A>T",
+            "MOCK:c.-1_0insA",
+            "MOCK:c.*0A>T",
+            "MOCK:c.30_*0del",
+        ] {
+            let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
+            let result = builder.build_altseq();
+            assert!(
+                matches!(
+                    &result,
+                    Err(Error::ValidationFailed(
+                        crate::validator::Error::PositionMustNotBeZero(_)
+                    ))
+                ),
+                "{hgvs} gave {result:?}"
+            );
+        }
+        for hgvs in [
+            "MOCK:c.6_4del",
+            "MOCK:c.6_4dup",
+            "MOCK:c.6_4inv",
+            "MOCK:c.6_4delinsGG",
+            "MOCK:c.6_4insA",
+            "MOCK:c.5_-3del",
+            "MOCK:c.*5_*2del",
+            "MOCK:c.4+1_4del",
+        ] {
+            let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
+            let result = builder.build_altseq();
+            assert!(
+                matches!(
+                    &result,
+                    Err(Error::ValidationFailed(
+                        crate::validator::Error::StartMustBeLessThanEnd(_)
+                    ))
+                ),
+                "{hgvs} gave {result:?}"
+            );
+        }
+
+        Ok(())
+    }
+
+    /// An edit with a count gives the same alt transcript as the one with the sequence, as
+    /// only the length of the reference is needed.
+    #[test]
+    fn build_altseq_supports_counted_edits() -> Result<(), anyhow::Error> {
+        let reference_data = mock_reference_data();
+
+        for (counted, with_sequence) in [
+            ("MOCK:c.4_6del3", "MOCK:c.4_6delAAA"),
+            ("MOCK:c.4_6del3insGG", "MOCK:c.4_6delAAAinsGG"),
+            ("MOCK:c.4del1insG", "MOCK:c.4delAinsG"),
+            ("MOCK:c.4_6inv3", "MOCK:c.4_6invAAA"),
+            ("MOCK:c.-3_*2del35insA", "MOCK:c.-3_*2delinsA"),
+            ("MOCK:c.-3_*2del35", "MOCK:c.-3_*2del"),
+        ] {
+            let build = |hgvs: &str| -> Result<AltTranscriptData, anyhow::Error> {
+                let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
+                Ok(builder.build_altseq()?.remove(0))
+            };
+            let (counted_data, sequence_data) = (build(counted)?, build(with_sequence)?);
+            assert_eq!(
+                counted_data.transcript_sequence, sequence_data.transcript_sequence,
+                "{counted}"
+            );
+            assert_eq!(
+                counted_data.aa_sequence, sequence_data.aa_sequence,
+                "{counted}"
+            );
+            assert_eq!(counted_data.cds_stop, sequence_data.cds_stop, "{counted}");
+            assert_eq!(
+                counted_data.is_frameshift, sequence_data.is_frameshift,
+                "{counted}"
+            );
+            assert_eq!(
+                counted_data.variant_start_aa, sequence_data.variant_start_aa,
+                "{counted}"
+            );
         }
 
         Ok(())
