@@ -235,6 +235,9 @@ mod test {
             ("NM_1.1:c.6_4insA", false),
             ("NM_1.1:c.5_-3del", false),
             ("NM_1.1:c.*5_*2del", false),
+            // HGVS lists the positions of a range from 5' to 3', and a `*` on the start
+            // does not carry over to the end: this is `c.*87` to `c.91`, so inverted.
+            ("NM_004006.2:c.*87_91del", false),
             ("NM_1.1:c.4+1_4del", false),
             ("NM_1.1:c.1-1_-1del", false),
             ("NM_1.1:c.0A>T", true),

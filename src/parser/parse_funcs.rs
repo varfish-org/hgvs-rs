@@ -1731,6 +1731,31 @@ mod test {
         );
     }
 
+    /// Each position of an interval is numbered on its own, as in HGVS: the `*` of the start
+    /// does not carry over to an end without `*`, so `*87_91` goes from the 3' UTR back into
+    /// the CDS.  biocommons/hgvs reads the end as `*91`, see `DIFFERENCES.md`.
+    #[test]
+    fn cdspos_int_star_on_the_start_only() {
+        let pos = |base, cds_from| CdsPos {
+            base,
+            offset: None,
+            cds_from,
+        };
+        for (input, start, end) in [
+            ("*87_91", pos(87, CdsFrom::End), pos(91, CdsFrom::Start)),
+            ("*5_3", pos(5, CdsFrom::End), pos(3, CdsFrom::Start)),
+            // With a `*` on both positions, and the other way round, nothing changes.
+            ("*87_*91", pos(87, CdsFrom::End), pos(91, CdsFrom::End)),
+            ("-3_*2", pos(-3, CdsFrom::Start), pos(2, CdsFrom::End)),
+        ] {
+            assert_eq!(
+                cds_pos::int(input),
+                Ok(("", CdsInterval { start, end })),
+                "{input}"
+            );
+        }
+    }
+
     #[test]
     fn cdspos_int() {
         assert_eq!(

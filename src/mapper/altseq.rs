@@ -2501,6 +2501,35 @@ mod test {
         }
     }
 
+    /// An interval from the 3' UTR back into the CDS, like `c.*1_2dup`, is inverted, as in HGVS:
+    /// the positions of a range are listed from 5' to 3'.  `c.*1_2dup` and `c.*1_2inv`
+    /// panicked before the interval was validated.
+    #[test]
+    fn build_altseq_rejects_star_on_the_start_only() -> Result<(), anyhow::Error> {
+        let reference_data = mock_reference_data();
+
+        for hgvs in [
+            "MOCK:c.*1_2dup",
+            "MOCK:c.*1_2inv",
+            "MOCK:c.*3_4inv",
+            "MOCK:c.*1_2del",
+        ] {
+            let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
+            let result = builder.build_altseq();
+            assert!(
+                matches!(
+                    &result,
+                    Err(Error::ValidationFailed(
+                        crate::validator::Error::StartMustBeLessThanEnd(_)
+                    ))
+                ),
+                "{hgvs} gave {result:?}"
+            );
+        }
+
+        Ok(())
+    }
+
     #[test]
     fn non_cds_variant_fails() -> Result<(), anyhow::Error> {
         let reference_data = RefTranscriptData {
