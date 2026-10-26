@@ -2106,10 +2106,9 @@ impl<'a> AltSeqToHgvsp<'a> {
     ) -> Result<HgvsVariant, Error> {
         assert_eq!(start.is_some(), end.is_some());
 
-        // If the `alternative` contains a stop codon (`*`/`X`) then we have to truncate
-        // after it.
-        let alternative = if let Some(pos) = alternative.find('*').or_else(|| alternative.find('X'))
-        {
+        // If the `alternative` contains a stop codon (`*`) then we have to truncate after it.
+        // An `X` is an unknown amino acid, e.g. of a codon with an `N`, not a stop.
+        let alternative = if let Some(pos) = alternative.find('*') {
             &alternative[..=pos]
         } else {
             alternative
