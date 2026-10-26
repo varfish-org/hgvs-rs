@@ -16,8 +16,8 @@ use crate::{
     mapper::Error,
     normalizer::{self, Direction, Normalizer},
     parser::{
-        Accession, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval, GenomeLocEdit,
-        HgvsVariant, Mu, NaEdit, ProtLocEdit, TxInterval, TxLocEdit, TxPos,
+        location, Accession, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval,
+        GenomeLocEdit, HgvsVariant, Mu, NaEdit, ProtLocEdit, TxInterval, TxLocEdit, TxPos,
     },
     sequences::revcomp,
     validator::{ValidationLevel, Validator},
@@ -697,7 +697,7 @@ impl Mapper {
     ///
     /// * `var_c` -- `HgvsVariant::CdsVariant` to project
     pub fn c_to_n(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, Error> {
-        tracing::debug!("c_to_n({})", var_c);
+        tracing::debug!("c_to_n({})", location(var_c));
         self.validator.validate(var_c)?;
         let var_c = if self.config.replace_reference {
             self.replace_reference(var_c.clone())?
@@ -729,7 +729,7 @@ impl Mapper {
                 var_n
             };
 
-            tracing::debug!("c_to_n({}) = {}", var_c, &var_n);
+            tracing::debug!("c_to_n({}) = {}", location(&var_c), location(&var_n));
             Ok(var_n)
         } else {
             Err(Error::ExpectedCdsVariant(format!("{}", var_c)))
@@ -906,8 +906,8 @@ impl Mapper {
             let shifted_var_g = match self.shift_var_g(&var_g, direction, alt_aln_method) {
                 Ok(shifted_var_g) => shifted_var_g,
                 Err(e) if is_data_error(&e) => return Err(e),
-                Err(e) => {
-                    debug!("Cannot shift {} over the boundary: {}", var_g, e);
+                Err(_) => {
+                    debug!("Cannot shift {} over the boundary", location(&var_g));
                     continue;
                 }
             };
@@ -919,8 +919,8 @@ impl Mapper {
             let shifted_var_c = match self.g_to_c(&shifted_var_g, &tx_ac, alt_aln_method) {
                 Ok(shifted_var_c) => shifted_var_c,
                 Err(e) if is_data_error(&e) => return Err(e),
-                Err(e) => {
-                    debug!("Cannot map {} to {}: {}", shifted_var_g, tx_ac, e);
+                Err(_) => {
+                    debug!("Cannot map {} to {}", location(&shifted_var_g), tx_ac);
                     continue;
                 }
             };
@@ -1049,7 +1049,8 @@ impl Mapper {
             Err(e) => {
                 debug!(
                     "No intron bases at the boundary of {}: {}",
-                    builder.var_c, e
+                    location(&builder.var_c),
+                    e
                 );
                 Ok(None)
             }
@@ -1151,11 +1152,11 @@ impl Mapper {
 
         let (start, end) = if interval.start > r.start || interval.start > r.end {
             tracing::warn!(
-                "Altered sequence range start {} is greater than variant range start {} or end {}, clamping. Variant description is {}",
+                "Altered sequence range start {} is greater than variant range start {} or end {}, clamping. Variant: {}",
                 interval.start,
                 r.end,
                 r.start,
-                &var
+                location(var)
             );
             // FIXME: workaround for cases that would end up with negative start positions
             //  this needs more investigation
@@ -1178,10 +1179,10 @@ impl Mapper {
         let r = start..end;
         let r = if r.end > seq.len() {
             tracing::warn!(
-                    "Altered sequence range {:?} is incompatible with sequence length {:?}, clamping. Variant description is {}",
+                    "Altered sequence range {:?} is incompatible with sequence length {:?}, clamping. Variant: {}",
                     r,
                     seq.len(),
-                    &var
+                    location(var)
                 );
             r.start..seq.len()
         } else {
@@ -1281,7 +1282,7 @@ impl Mapper {
         if var.spans_intron() && alt.is_none() {
             debug!(
                 "Can't update reference sequence for intronic variant {}",
-                var
+                location(&var)
             );
             return Ok(var);
         }
@@ -1342,7 +1343,7 @@ impl Mapper {
         )?;
         if seq.len() != r.len() {
             // Tried to read beyond seq end; this is an out-of-bounds variant.
-            tracing::debug!("Bailing out on out-of-bounds variant: {}", &var);
+            tracing::debug!("Bailing out on out-of-bounds variant: {}", location(&var));
             return Ok(var);
         }
         let seq = if strand == -1 { revcomp(&seq) } else { seq };

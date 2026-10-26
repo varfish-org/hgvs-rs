@@ -9,7 +9,7 @@ use crate::mapper::altseq::{AltSeqBuilder, RefTranscriptData, VariantLocation};
 use crate::mapper::error::Error;
 use crate::mapper::variant::{self, ShiftOverBoundaryPreference};
 use crate::normalizer::Direction;
-use crate::parser::HgvsVariant;
+use crate::parser::{location, HgvsVariant};
 use crate::{data::interface::Provider, validator::ValidationLevel};
 
 #[derive(Debug, PartialEq, Eq, Default, Clone, Copy)]
@@ -585,38 +585,6 @@ impl Mapper {
 
     pub fn replace_reference(&self, var: HgvsVariant) -> Result<HgvsVariant, Error> {
         self.inner.replace_reference(var)
-    }
-}
-
-/// Accession and location of `var` for log lines, without the edit, as its bases can be large.
-fn location(var: &HgvsVariant) -> String {
-    match var {
-        HgvsVariant::CdsVariant {
-            accession,
-            loc_edit,
-            ..
-        } => format!("{}:c.{}", accession, loc_edit.loc),
-        HgvsVariant::GenomeVariant {
-            accession,
-            loc_edit,
-            ..
-        } => format!("{}:g.{}", accession, loc_edit.loc),
-        HgvsVariant::MtVariant {
-            accession,
-            loc_edit,
-            ..
-        } => format!("{}:m.{}", accession, loc_edit.loc),
-        HgvsVariant::TxVariant {
-            accession,
-            loc_edit,
-            ..
-        } => format!("{}:n.{}", accession, loc_edit.loc),
-        HgvsVariant::RnaVariant {
-            accession,
-            loc_edit,
-            ..
-        } => format!("{}:r.{}", accession, loc_edit.loc),
-        HgvsVariant::ProtVariant { accession, .. } => accession.to_string(),
     }
 }
 
@@ -1758,29 +1726,14 @@ mod test {
     }
 
     mod unnormalizable {
-        use std::io;
         use std::str::FromStr;
-        use std::sync::{Arc, Mutex};
 
         use anyhow::Error;
 
         use crate::parser::HgvsVariant;
+        use crate::test_log;
 
         use super::build_mapper_37;
-
-        #[derive(Clone, Default)]
-        struct Captured(Arc<Mutex<Vec<u8>>>);
-
-        impl io::Write for Captured {
-            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-                self.0.lock().unwrap().extend_from_slice(buf);
-                Ok(buf.len())
-            }
-
-            fn flush(&mut self) -> io::Result<()> {
-                Ok(())
-            }
-        }
 
         /// A variant that spans an intron and an exon cannot be normalized.  It is returned as
         /// it is, with one info line that names its location but not its bases.
@@ -1789,18 +1742,10 @@ mod test {
             let mapper = build_mapper_37(true)?;
             let var = HgvsVariant::from_str("NM_000314.4:c.209_209+3delinsGTAC")?;
 
-            let captured = Captured::default();
-            let sink = captured.clone();
-            let subscriber = tracing_subscriber::fmt()
-                .with_writer(move || sink.clone())
-                .with_ansi(false)
-                .with_max_level(tracing::Level::INFO)
-                .finish();
-            let res =
-                tracing::subscriber::with_default(subscriber, || mapper.maybe_normalize(&var))?;
+            let (res, log) =
+                test_log::capture(tracing::Level::INFO, || mapper.maybe_normalize(&var));
 
-            assert_eq!(res, var);
-            let log = String::from_utf8(captured.0.lock().unwrap().clone())?;
+            assert_eq!(res?, var);
             assert_eq!(log.lines().count(), 1, "{log}");
             assert!(log.contains(" INFO "), "{log}");
             assert!(log.contains("NM_000314.4:c.209_209+3"), "{log}");
