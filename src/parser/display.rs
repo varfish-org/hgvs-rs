@@ -639,6 +639,38 @@ impl Display for NoRef<'_, HgvsVariant> {
     }
 }
 
+/// Accession and location of `var` for log lines, without the edit, as its bases can be large.
+pub(crate) fn location(var: &HgvsVariant) -> String {
+    match var {
+        HgvsVariant::CdsVariant {
+            accession,
+            loc_edit,
+            ..
+        } => format!("{}:c.{}", accession, loc_edit.loc),
+        HgvsVariant::GenomeVariant {
+            accession,
+            loc_edit,
+            ..
+        } => format!("{}:g.{}", accession, loc_edit.loc),
+        HgvsVariant::MtVariant {
+            accession,
+            loc_edit,
+            ..
+        } => format!("{}:m.{}", accession, loc_edit.loc),
+        HgvsVariant::TxVariant {
+            accession,
+            loc_edit,
+            ..
+        } => format!("{}:n.{}", accession, loc_edit.loc),
+        HgvsVariant::RnaVariant {
+            accession,
+            loc_edit,
+            ..
+        } => format!("{}:r.{}", accession, loc_edit.loc),
+        HgvsVariant::ProtVariant { accession, .. } => accession.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod test {
     use anyhow::Error;

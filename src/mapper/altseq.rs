@@ -8,7 +8,7 @@ use crate::{
     data::interface::{Provider, TranslationException},
     mapper::{error::Error, provider_id, CacheEntry},
     parser::{
-        Accession, CdsFrom, CdsInterval, CdsPos, HgvsVariant, Mu, NaEdit, ProtInterval,
+        location, Accession, CdsFrom, CdsInterval, CdsPos, HgvsVariant, Mu, NaEdit, ProtInterval,
         ProtLocEdit, ProtPos, ProteinEdit, UncertainLengthChange,
     },
     sequences::{revcomp, translate_cds, translate_cds_with_exceptions, TranslationTable},
@@ -896,7 +896,7 @@ impl<'a> AltSeqBuilder<'a> {
                     alternative,
                 } if reference == alternative => EditType::NotCds,
                 NaEdit::RefAlt { .. } | NaEdit::NumAlt { .. } => {
-                    tracing::warn!("The whole-gene variant {} is not a clean deletion. Assuming whole gene deletion.", self.var_c);
+                    tracing::warn!("The whole-gene variant {} is not a clean deletion. Assuming whole gene deletion.", location(&self.var_c));
                     EditType::WholeGeneDeleted
                 }
                 // Reachable without a stop codon only, e.g. `c.-1_*1insA`: with one, the
