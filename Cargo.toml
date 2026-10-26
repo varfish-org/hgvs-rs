@@ -18,7 +18,6 @@ base16ct = "1.0"
 bio = "4.0"
 chrono = { version = "0.4", features = ["serde"] }
 flate2 = "1.0"
-log = "0.4"
 md-5 = "0.11"
 nom = "8.0"
 nom-language = "0.1.0"
@@ -32,7 +31,7 @@ thiserror = "2.0"
 indexmap = { version = "2", features = ["serde"] }
 biocommons-bioutils = "0.2"
 ahash = "0.8.11"
-tracing = "0.1.41"
+tracing = { version = "0.1.41", features = ["log"] }
 
 [dev-dependencies]
 anyhow = "1.0"

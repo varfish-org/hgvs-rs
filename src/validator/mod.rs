@@ -4,7 +4,7 @@ mod error;
 
 use std::sync::Arc;
 
-use log::{error, warn};
+use tracing::{error, warn};
 
 pub use crate::validator::error::Error;
 use crate::{

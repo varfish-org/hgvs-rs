@@ -3,7 +3,7 @@
 use std::ops::{Deref, Range};
 
 use crate::parser::error::Error;
-use log::warn;
+use tracing::{trace, warn};
 
 /// Expression of "maybe uncertain".
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -616,7 +616,7 @@ impl TryFrom<CdsInterval> for Range<i32> {
     /// `range_without_zero()`.
     fn try_from(value: CdsInterval) -> Result<Self, Self::Error> {
         if value.start.offset.is_some() || value.end.offset.is_some() {
-            warn!("Converting interval {:?} with offset to range!", value);
+            trace!("Converting interval {:?} with offset to range!", value);
         }
         if value.start.cds_from != value.end.cds_from {
             Err(Error::IllDefinedConversion(format!("{:?}", value)))
@@ -823,7 +823,7 @@ impl From<TxInterval> for Range<i32> {
     /// `range_without_zero()`.
     fn from(val: TxInterval) -> Self {
         if val.start.offset.is_some() || val.end.offset.is_some() {
-            warn!("Converting interval {:?} with offset to range!", val);
+            trace!("Converting interval {:?} with offset to range!", val);
         }
         range_without_zero(val.start.base, val.end.base)
     }
@@ -885,7 +885,7 @@ impl From<RnaInterval> for Range<i32> {
     /// `range_without_zero()`.
     fn from(val: RnaInterval) -> Self {
         if val.start.offset.is_some() || val.end.offset.is_some() {
-            warn!("Converting interval {:?} with offset to range!", val);
+            trace!("Converting interval {:?} with offset to range!", val);
         }
         range_without_zero(val.start.base, val.end.base)
     }

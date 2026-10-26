@@ -1,10 +1,10 @@
 //! Code for mapping variants between sequences.
 
-use log::{debug, info};
 use quick_cache::{unsync::Cache, Equivalent};
 use std::cell::RefCell;
 use std::ops::Deref;
 use std::{ops::Range, sync::Arc};
+use tracing::{debug, info};
 
 use crate::mapper::alignment;
 use crate::mapper::altseq::{
