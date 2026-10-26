@@ -85,17 +85,25 @@ fn codon_exceptions(exceptions: &[TranslationException]) -> Vec<(usize, char)> {
 /// codons, or else with the first one behind them, so it needs no more.  This spares most of
 /// the 3' UTR.  Without a stop codon in the reference, the alt protein ends after `codons`
 /// codons, but this still goes on to the first stop codon behind them.
+///
+/// `same` gives codons that need no translation, as their amino acids are those of the
+/// reference.
 fn translate_until_stop(
     seq: &str,
     codons: usize,
     translation_table: TranslationTable,
     exceptions: &[(usize, char)],
+    same: Option<SameCodons<'_>>,
 ) -> Result<String, Error> {
     // The codons to translate at a time behind the first `codons`.
     const CHUNK: usize = 64;
     let mut end = codons.saturating_mul(3).min(seq.len());
-    let mut aa =
-        translate_cds_with_exceptions(&seq[..end], false, "X", translation_table, exceptions)?;
+    let mut aa = match same.filter(|_| end == codons * 3) {
+        Some(same) => same.translate(&seq[..end], translation_table)?,
+        None => {
+            translate_cds_with_exceptions(&seq[..end], false, "X", translation_table, exceptions)?
+        }
+    };
     let mut stop = aa.contains('*');
     while !stop && end < seq.len() {
         let start = end;
@@ -128,6 +136,100 @@ fn common_prefix_len(a: &[u8], b: &[u8]) -> usize {
         + (a[chunks..].iter().zip(&b[chunks..]))
             .take_while(|(a, b)| a == b)
             .count()
+}
+
+/// The codons of an alt CDS that are codons of the reference CDS, so that they translate to
+/// the amino acids of the reference protein `ref_aa`: the first `prefix` codons, and, with
+/// `suffix` set to `(start, ref_start)`, the codons from `start` on, which are the reference
+/// codons from `ref_start` on.  See `same_codons()`.
+#[derive(Debug, Clone, Copy)]
+struct SameCodons<'a> {
+    ref_aa: &'a str,
+    prefix: usize,
+    suffix: Option<(usize, usize)>,
+}
+
+impl SameCodons<'_> {
+    /// `translate_cds(cds, false, "X", ..)` of the complete codons `cds`, with the amino acids
+    /// of the same codons taken from `ref_aa`.
+    fn translate(&self, cds: &str, translation_table: TranslationTable) -> Result<String, Error> {
+        let codons = cds.len() / 3;
+        let prefix = self.prefix.min(codons);
+        let (changed_end, suffix) = match self.suffix {
+            Some((start, ref_start)) if start < codons => {
+                let start_in_suffix = start.max(prefix);
+                let ref_range = ref_start + start_in_suffix - start..ref_start + codons - start;
+                (start_in_suffix, Some(ref_range))
+            }
+            _ => (codons, None),
+        };
+        let changed = translate_cds(
+            &cds[3 * prefix..3 * changed_end],
+            false,
+            "X",
+            translation_table,
+        )?;
+        let mut aa = String::with_capacity(codons);
+        aa.push_str(&self.ref_aa[..prefix]);
+        aa.push_str(&changed);
+        if let Some(range) = suffix {
+            aa.push_str(&self.ref_aa[range]);
+        }
+        Ok(aa)
+    }
+}
+
+/// The codons among the first `codons` codons of the alt CDS that are codons of the reference
+/// CDS, see `SameCodons`.  The alt transcript has `alt_len` bases.  Its first `prefix_len` and
+/// its last `suffix_len` bases are those of the reference transcript, as the variant changes
+/// the bases between.  The alt CDS starts at the 0-based index `cds_index`, as the reference
+/// CDS, and its first `same_len` bases are those of the alt transcript.
+///
+/// A codon in the first bases is the reference codon at the same index.  A codon in the last
+/// bases is the reference codon that is as many codons away as the lengths of the transcripts
+/// differ, if they differ by a multiple of 3.  Only codons of the reference CDS count, not the
+/// one that its poly(A) tail completes.  `None` if no codon is the same, and with translation
+/// exceptions, which the alt CDS may keep at other codons, see
+/// `AltSeqBuilder::alt_translation_exceptions()`.
+#[allow(clippy::too_many_arguments)]
+fn same_codons(
+    reference: &RefTranscriptData,
+    alt_len: usize,
+    prefix_len: usize,
+    suffix_len: usize,
+    cds_index: usize,
+    same_len: usize,
+    codons: usize,
+) -> Option<SameCodons<'_>> {
+    let ref_len = reference.transcript_sequence.len();
+    if !reference.translation_exceptions.is_empty()
+        || usize::try_from(reference.cds_start - 1).ok()? != cds_index
+        || 3 * codons > same_len
+        || prefix_len + suffix_len > ref_len.min(alt_len)
+    {
+        return None;
+    }
+    let ref_codons = usize::try_from(reference.cds_stop - reference.cds_start + 1).ok()? / 3;
+    let prefix = (prefix_len.saturating_sub(cds_index) / 3)
+        .min(ref_codons)
+        .min(codons);
+    let shift = alt_len as isize - ref_len as isize;
+    let suffix = (shift % 3 == 0)
+        .then(|| {
+            let start = (alt_len - suffix_len)
+                .saturating_sub(cds_index)
+                .div_ceil(3)
+                .max(prefix);
+            let ref_start = usize::try_from(start as isize - shift / 3).ok()?;
+            (start < codons && ref_start + (codons - start) <= ref_codons)
+                .then_some((start, ref_start))
+        })
+        .flatten();
+    (prefix > 0 || suffix.is_some()).then_some(SameCodons {
+        ref_aa: &reference.aa_sequence,
+        prefix,
+        suffix,
+    })
 }
 
 /// Cache key of `ref_transcript_data_shared`.  The provider is `provider_id()` of it.
@@ -384,6 +486,7 @@ impl AltTranscriptData {
             &[],
             None,
             false,
+            None,
         )
     }
 
@@ -395,7 +498,10 @@ impl AltTranscriptData {
     /// `translate_until_stop()`.  This gives the same `aa_sequence`, but an invalid base behind
     /// the translated codons no longer fails the translation.  Without a stop codon in the
     /// reference, `aa_sequence` can end before the translated codons, and an invalid base in
-    /// between still fails the translation.
+    /// between still fails the translation.  With `until_stop` and `reference` set to the
+    /// reference data that `seq` derives from and the numbers of first and last bases of `seq`
+    /// that the variant leaves as they are, it takes the amino acids of the codons in them from
+    /// the reference protein, see `same_codons()`.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_owned(
         seq: String,
@@ -411,10 +517,13 @@ impl AltTranscriptData {
         translation_exceptions: &[(usize, char)],
         poly_a: Option<(usize, &str)>,
         until_stop: bool,
+        reference: Option<(&RefTranscriptData, usize, usize)>,
     ) -> Result<Self, Error> {
         let transcript_sequence = seq;
         let aa_sequence = if !transcript_sequence.is_empty() {
             let cds_index = (cds_start - 1) as usize;
+            // The bases of `seq_cds` that are those of `transcript_sequence` from `cds_index` on.
+            let mut same_len = transcript_sequence.len().saturating_sub(cds_index);
             let with_poly_a;
             // In case of SEPHS2 / HGNC:19686, the last amino acid is both a selenocysteine
             // and a stop codon.
@@ -429,6 +538,7 @@ impl AltTranscriptData {
                     &transcript_sequence[cds_index..index],
                     &transcript_sequence[index..]
                 );
+                same_len = index - cds_index;
                 with_poly_a.as_str()
             } else if translation_table == TranslationTable::Selenocysteine
                 && ref_aa_sequence.ends_with('U')
@@ -437,16 +547,29 @@ impl AltTranscriptData {
             } else {
                 &transcript_sequence[((cds_start - 1) as usize)..]
             };
+            same_len = same_len.min(seq_cds.len());
 
             let orig_aa_len = (cds_stop - cds_start + 1) as usize / 3;
             let seq_aa = if variant_start_aa.is_none() {
                 ref_aa_sequence.to_owned()
             } else if until_stop {
+                let same = reference.and_then(|(reference, prefix_len, suffix_len)| {
+                    same_codons(
+                        reference,
+                        transcript_sequence.len(),
+                        prefix_len,
+                        suffix_len,
+                        cds_index,
+                        same_len,
+                        orig_aa_len,
+                    )
+                });
                 translate_until_stop(
                     seq_cds,
                     orig_aa_len,
                     translation_table,
                     translation_exceptions,
+                    same,
                 )?
             } else {
                 translate_cds_with_exceptions(
@@ -1334,6 +1457,14 @@ impl<'a> AltSeqBuilder<'a> {
 
         // Incorporate the variant into the sequence (depending on the type).
         let mut is_substitution = false;
+        // The bases in front of and behind the changed ones stay, also if a stop codon in the
+        // inserted bases cuts them.
+        let changed = if deletes {
+            start..end
+        } else {
+            insert_at..insert_at
+        };
+        let same_ends = (changed.start, seq.len().saturating_sub(changed.end));
         match (deletes, alternative) {
             (true, Some(alternative)) => {
                 // delins or SNP
@@ -1382,6 +1513,7 @@ impl<'a> AltSeqBuilder<'a> {
             &translation_exceptions,
             poly_a,
             until_stop,
+            Some((self.reference_data, same_ends.0, same_ends.1)),
         )
     }
 
@@ -1441,6 +1573,8 @@ impl<'a> AltSeqBuilder<'a> {
         } else {
             &seq[start..end]
         };
+        // The copy goes in at `end`, between bases that stay.
+        let same_ends = (end, seq.len() - end);
         let mut seq = format!("{}{}{}", &seq[..end], dup_seq, &seq[end..]);
 
         let mut is_frameshift = dup_seq.len() % 3 != 0;
@@ -1479,6 +1613,7 @@ impl<'a> AltSeqBuilder<'a> {
             &translation_exceptions,
             poly_a,
             until_stop,
+            Some((self.reference_data, same_ends.0, same_ends.1)),
         )
     }
 
@@ -1486,6 +1621,7 @@ impl<'a> AltSeqBuilder<'a> {
     fn incorporate_inv(&self, until_stop: bool) -> Result<AltTranscriptData, Error> {
         let (seq, cds_start, cds_stop, start, end) = self.setup_incorporate()?;
 
+        let same_ends = (start, seq.len() - end);
         let seq = format!(
             "{}{}{}",
             &seq[..start],
@@ -1516,6 +1652,7 @@ impl<'a> AltSeqBuilder<'a> {
             &translation_exceptions,
             poly_a,
             until_stop,
+            Some((self.reference_data, same_ends.0, same_ends.1)),
         )
     }
 
@@ -1535,6 +1672,7 @@ impl<'a> AltSeqBuilder<'a> {
             &[],
             None,
             false,
+            None,
         )
     }
 
@@ -1554,6 +1692,7 @@ impl<'a> AltSeqBuilder<'a> {
             &[],
             None,
             false,
+            None,
         )
     }
 }
@@ -1635,22 +1774,17 @@ impl<'a> AltSeqToHgvsp<'a> {
                 }
                 do_delins = false;
             } else if self.is_substitution() && ref_len == alt_len {
-                let mut diff_records = ref_seq
-                    .as_bytes()
-                    .iter()
-                    .zip(alt_seq.as_bytes().iter())
-                    .enumerate()
-                    .filter(|(_i, (r, a))| r != a)
-                    .map(|(i, (r, a))| AdHocRecord {
+                // A substitution of the one amino acid in which the proteins differ, if they
+                // differ in one only.
+                let (ref_bytes, alt_bytes) = (ref_seq.as_bytes(), alt_seq.as_bytes());
+                let i = common_prefix_len(ref_bytes, alt_bytes);
+                if i < ref_len && ref_bytes[i + 1..] == alt_bytes[i + 1..] {
+                    records.push(AdHocRecord {
                         start: i as i32 + 1,
-                        del: (*r as char).to_string(),
-                        ins: (*a as char).to_string(),
+                        del: (ref_bytes[i] as char).to_string(),
+                        ins: (alt_bytes[i] as char).to_string(),
                         is_frameshift: self.alt_data.is_frameshift,
-                    })
-                    .collect::<Vec<_>>();
-
-                if diff_records.len() == 1 {
-                    records.push(diff_records.drain(..).next().unwrap());
+                    });
                     do_delins = false;
                 }
             }
@@ -1666,11 +1800,10 @@ impl<'a> AltSeqToHgvsp<'a> {
 
                 let safe_start = clamp_index(initial_start, ref_len.min(alt_len), "shared prefix");
 
-                let matching_len = &ref_seq.as_bytes()[safe_start..]
-                    .iter()
-                    .zip(&alt_seq.as_bytes()[safe_start..])
-                    .take_while(|(r, a)| r == a)
-                    .count();
+                let matching_len = &common_prefix_len(
+                    &ref_seq.as_bytes()[safe_start..],
+                    &alt_seq.as_bytes()[safe_start..],
+                );
 
                 let start = safe_start + matching_len;
 
@@ -2440,6 +2573,7 @@ mod test {
                         codons,
                         TranslationTable::Standard,
                         exceptions,
+                        None,
                     )?;
                     let head = codons.min(full.len());
                     let expected = match full[..head].find('*') {
@@ -2458,49 +2592,93 @@ mod test {
         Ok(())
     }
 
-    /// `c_to_p` translates the alt transcript only as far as the alt protein reaches.  This
-    /// gives the same alt data and `p.` as the full translation of `build_altseq()`, for
-    /// substitutions, deletions, insertions, dups, delins and inversions at every CDS position
-    /// and across c.N: with a 3' UTR with `N` bases, without a stop codon, with a 3' UTR without
-    /// stop codons that frameshifts and extensions read into, and with an invalid base in the
-    /// 3' UTR.  Only there the full translation fails, where the alt protein ends before it.
+    /// `c_to_p` translates the alt transcript only as far as the alt protein reaches, and not
+    /// the codons that it takes from the reference protein.  This gives the same alt data and
+    /// `p.` as the full translation of `build_altseq()`, for substitutions, deletions,
+    /// insertions, dups, delins and inversions at every CDS position and across c.N: with a 3'
+    /// UTR with `N` bases, without a stop codon, with a 3' UTR without stop codons that
+    /// frameshifts and extensions read into, with an invalid base in the 3' UTR, with a Sec
+    /// codon, and with a mitochondrial stop codon that the poly(A) tail completes.  Only with
+    /// the invalid base the full translation fails, where the alt protein ends before it.
     #[test]
     fn translation_until_stop_gives_the_same_protein() -> Result<(), anyhow::Error> {
-        use super::{AltSeqToHgvsp, VariantLocation};
-        use crate::sequences::translate_cds;
+        use super::{codon_exceptions, poly_a, AltSeqToHgvsp, VariantLocation};
+        use crate::data::interface::TranslationException;
+        use crate::sequences::translate_cds_with_exceptions;
         use std::collections::HashSet;
 
         let gcc = "GCC".repeat(80);
-        // The 5' UTR, the CDS, the 3' UTR, and whether the 3' UTR has an invalid base.
+        let standard = TranslationTable::Standard;
+        // The 5' UTR, the CDS, the 3' UTR, whether the 3' UTR has an invalid base, the
+        // translation table, and the 1-based Sec codons.
         let transcripts = [
             (
                 "AAAATCAAAC",
                 "ATGAAAGCGAAAGCGTTTCGCGCGAAATAG",
                 "GCCAAATAAGGNNNCCTGAGGGTAGCCCCC".to_string(),
                 false,
+                standard,
+                vec![],
             ),
             (
                 "AAAATCAAAC",
                 "ATGAAAGCGAAAGCGTTTCGCGCGAAA",
                 "GGGGGCCCCC".to_string(),
                 false,
+                standard,
+                vec![],
             ),
             (
                 "AAAATCAAAC",
                 "ATGAAAGCGAAAGCGTTTCGCGCGAAATAG",
                 format!("{gcc}NNN{gcc}"),
                 false,
+                standard,
+                vec![],
             ),
             (
                 "AAAATCAAAC",
                 "ATGAAAGCGAAAGCGTTTCGCGCGAAATAG",
                 "GCCAAATAAGGZGGCCCCC".to_string(),
                 true,
+                standard,
+                vec![],
+            ),
+            (
+                "AAAATCAAAC",
+                "ATGGCCAAGCTGTGGGAACCATGACGCGTTTAA",
+                "GCCAAATAAGGCCCC".to_string(),
+                false,
+                standard,
+                vec![8],
+            ),
+            (
+                "AAAATCAAAC",
+                "ATGGCCAAGCTGTGGT",
+                "".to_string(),
+                false,
+                TranslationTable::VertebrateMitochondrial,
+                vec![],
             ),
         ];
-        for (utr5, cds, utr3, invalid) in transcripts {
+        for (utr5, cds, utr3, invalid, translation_table, sec_codons) in transcripts {
             let transcript_sequence = format!("{utr5}{cds}{utr3}");
-            let aa_sequence = translate_cds(cds, true, "*", TranslationTable::Standard)?;
+            let translation_exceptions = (sec_codons.into_iter())
+                .map(|position| TranslationException {
+                    position,
+                    amino_acid: 'U',
+                })
+                .collect::<Vec<_>>();
+            // As `RefTranscriptData::new()`.
+            let cds_poly_a = format!("{cds}{}", poly_a(translation_table, cds));
+            let full_codons_len = cds_poly_a.len() - cds_poly_a.len() % 3;
+            let aa_sequence = translate_cds_with_exceptions(
+                &cds_poly_a[..full_codons_len],
+                true,
+                "*",
+                translation_table,
+                &codon_exceptions(&translation_exceptions),
+            )?;
             let cds_end = if aa_sequence.ends_with('*') {
                 CdsEnd::StopCodon
             } else {
@@ -2512,8 +2690,8 @@ mod test {
                 cds_start: utr5.len() as i32 + 1,
                 cds_stop: (utr5.len() + cds.len()) as i32,
                 protein_accession: "MOCK".into(),
-                translation_table: TranslationTable::Standard,
-                translation_exceptions: Vec::new(),
+                translation_table,
+                translation_exceptions,
                 exon_start_positions: vec![-(utr5.len() as i32)],
                 exon_end_positions: vec![(transcript_sequence.len() - utr5.len()) as i32],
                 cds_end,
