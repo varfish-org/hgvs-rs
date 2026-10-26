@@ -234,7 +234,7 @@ mod test {
             ("NM_1.1:c.6_4del", false),
             ("NM_1.1:c.6_4insA", false),
             ("NM_1.1:c.5_-3del", false),
-            ("NM_1.1:c.*2_5del", false),
+            ("NM_1.1:c.*5_*2del", false),
             ("NM_1.1:c.4+1_4del", false),
             ("NM_1.1:c.1-1_-1del", false),
             ("NM_1.1:c.0A>T", true),
