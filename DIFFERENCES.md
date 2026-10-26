@@ -12,6 +12,12 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 - **biocommons/hgvs:** The normalizer raises `HGVSUnsupportedOperationError` for an intronic variant, and `AssemblyMapper` returns the variant unnormalized ([normalizer.py][bc-norm-intron], [assemblymapper.py][bc-am-norm]).
 - **hgvs-rs:** It maps the variant to the genome, normalizes it there within its intron, and maps it back. The variant thus follows the 3' rule on the transcript, as in VariantValidator ([#257]).
 
+### Substitutions without an alignment
+
+- **Situation:** the normalizer, without `cross_boundaries`, gets a substitution of one base by another on a transcript without an alignment for its `alt_aln_method`, e.g. `NM_001001656.1:c.935T>C` with `alt_aln_method` set to `no-such-method`.
+- **biocommons/hgvs:** It looks up the exon boundaries for every variant ([`_get_boundary()`][bc-norm-boundary]). It raises `HGVSDataNotAvailableError` if the transcript has no alignment at all, and `IndexError` if it has none for `alt_aln_method`, as in the example.
+- **hgvs-rs:** A substitution has nothing to trim and cannot shift, so the normalizer only reads its reference base and needs no exon boundaries. The example gives `NM_001001656.1:c.935T>C`. Every other variant still needs the alignment.
+
 ## Genome data
 
 ### Genome alignment in `c_to_p`
@@ -176,6 +182,7 @@ Unless an entry says otherwise, the examples use a transcript whose 5' UTR ends 
 [bc]: https://github.com/biocommons/hgvs
 [bc-commit]: https://github.com/biocommons/hgvs/tree/13289ab3b9db3c751918906c543991c74917ff61
 [bc-norm-intron]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/normalizer.py#L99-L101
+[bc-norm-boundary]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/normalizer.py#L212-L223
 [bc-am-norm]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/assemblymapper.py#L251-L262
 [bc-am-c-to-p]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/assemblymapper.py#L169-L206
 [bc-am-test]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/tests/test_hgvs_assemblymapper.py#L39-L43
