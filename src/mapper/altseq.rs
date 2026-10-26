@@ -1739,11 +1739,11 @@ impl<'a> AltSeqToHgvsp<'a> {
             let ref_len = ref_seq.len();
             let alt_len = alt_seq.len();
 
-            // Helper to clamp indices safely and log a warning if out-of-bounds
+            // Helper to clamp indices safely and trace if out-of-bounds
             let clamp_index = |idx: usize, seq_len: usize, seq_name: &str| -> usize {
                 let clamped = idx.min(seq_len);
                 if clamped != idx {
-                    log::warn!(
+                    tracing::trace!(
                         "Variant index {} exceeds {} sequence bounds (len {}). Clamping to {}.",
                         idx,
                         seq_name,
