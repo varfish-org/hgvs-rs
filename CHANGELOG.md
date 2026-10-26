@@ -1,5 +1,27 @@
 # Changelog
 
+## [4.0.0](https://github.com/varfish-org/hgvs-rs/compare/v3.0.0...v4.0.0) (2026-10-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* **mapper:** return errors instead of panicking in AltSeqBuilder ([#320](https://github.com/varfish-org/hgvs-rs/issues/320))
+
+### Bug Fixes
+
+* keep sequences out of log lines ([#334](https://github.com/varfish-org/hgvs-rs/issues/334)) ([1515650](https://github.com/varfish-org/hgvs-rs/commit/151565075c619600007841ff16b588cf4404c07f))
+* log through tracing with its log feature ([#333](https://github.com/varfish-org/hgvs-rs/issues/333)) ([cb3babd](https://github.com/varfish-org/hgvs-rs/commit/cb3babd2efb11a4268333d4785464879c33e5461))
+* **mapper:** cut the alt protein at stops, not at X ([#328](https://github.com/varfish-org/hgvs-rs/issues/328)) ([c603f1b](https://github.com/varfish-org/hgvs-rs/commit/c603f1b107e8e1cf9d58e75d1c505fc59f5f0ff9))
+* **mapper:** log an unnormalizable variant once ([#332](https://github.com/varfish-org/hgvs-rs/issues/332)) ([5aa68a7](https://github.com/varfish-org/hgvs-rs/commit/5aa68a7022128dc7809215907920047646c26069))
+* **mapper:** return errors instead of panicking in AltSeqBuilder ([#320](https://github.com/varfish-org/hgvs-rs/issues/320)) ([3c6daf9](https://github.com/varfish-org/hgvs-rs/commit/3c6daf93f66cecb052b83eb9b3e8df9263e3d5fb))
+
+
+### Performance Improvements
+
+* **mapper:** key caches by provider identity ([#330](https://github.com/varfish-org/hgvs-rs/issues/330)) ([56d3fbd](https://github.com/varfish-org/hgvs-rs/commit/56d3fbd297cb6101436af9c9856ebb5b3c1cf698))
+* **mapper:** translate only changed codons in c_to_p ([#331](https://github.com/varfish-org/hgvs-rs/issues/331)) ([c7f0b6d](https://github.com/varfish-org/hgvs-rs/commit/c7f0b6d11b6ea8378763b9c406d2c169a4b73afd))
+* **normalizer:** skip shuffling for substitutions ([#329](https://github.com/varfish-org/hgvs-rs/issues/329)) ([64bc8ae](https://github.com/varfish-org/hgvs-rs/commit/64bc8ae9ae6651fbaa966104b30144622d2dfc3d))
+
 ## [3.0.0](https://github.com/varfish-org/hgvs-rs/compare/v2.0.1...v3.0.0) (2026-10-22)
 
 
