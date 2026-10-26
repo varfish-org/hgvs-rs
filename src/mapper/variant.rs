@@ -3209,6 +3209,51 @@ mod test {
         Ok(())
     }
 
+    /// An identity that crosses the stop codon is no frameshift, whether `c_to_p` fills in its
+    /// reference bases (the default) or not.
+    #[test]
+    fn c_to_p_identity_through_stop_codon_sanity() -> Result<(), Error> {
+        let build = |replace_reference: bool| {
+            let provider = std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+                sanity_mock::ProviderRecord {
+                    accession: "NM_999999.1".to_string(),
+                    transcript_sequence: "AAAATCAAAATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGG".to_string(),
+                    cds_start_i: 9,
+                    cds_end_i: 39,
+                    translation_exceptions: Vec::new(),
+                    lengths: vec![10, 25, 30],
+                },
+            ]));
+            let config = Config {
+                replace_reference,
+                strict_bounds: false,
+                renormalize_g: false,
+                ..Default::default()
+            };
+            Mapper::new(&config, provider)
+        };
+
+        for replace_reference in [false, true] {
+            let mapper = build(replace_reference);
+            for hgvs_c in ["NM_999999.1:c.4_*1=", "NM_999999.1:c.28_*1="] {
+                let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvs_c)?, Some("MOCK"))?;
+                let shown = format!("{var_p}");
+                assert!(
+                    !shown.contains("fs"),
+                    "{hgvs_c} with replace_reference {replace_reference} gave {shown}"
+                );
+            }
+            check_c_to_p(
+                &mapper,
+                "NM_999999.1:c.4_*1=",
+                Some("MOCK"),
+                Some("MOCK:p.(Lys2=)"),
+            )?;
+        }
+
+        Ok(())
+    }
+
     /// With `false`, the dups of intron bases fail: there is no genome to take their reference
     /// from.
     #[test]

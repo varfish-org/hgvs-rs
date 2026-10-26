@@ -1322,6 +1322,14 @@ impl<'a> AltSeqBuilder<'a> {
             _ => None,
         };
 
+        // An edit that changes no base, an identity with or without bases, is no frameshift,
+        // whatever it spans.
+        let unchanged = match (deletes, &alternative) {
+            (false, None) => true,
+            (true, Some(alternative)) => seq.get(start..end) == Some(alternative.as_str()),
+            _ => false,
+        };
+
         // Incorporate the variant into the sequence (depending on the type).
         let mut is_substitution = false;
         match (deletes, alternative) {
@@ -1344,10 +1352,8 @@ impl<'a> AltSeqBuilder<'a> {
 
         // A deletion or delins through the stop codon is a frameshift, see
         // `through_stop_codon()`.
-        // An identity changes nothing, so it is no frameshift, whatever it spans.
-        let is_identity = !deletes && alt_len == 0;
         let mut is_frameshift =
-            !is_identity && (net_base_change % 3 != 0 || self.through_stop_codon());
+            !unchanged && (net_base_change % 3 != 0 || self.through_stop_codon());
         if let Some((stop_end, alt_end)) = insert_stop {
             is_frameshift = false;
             seq.replace_range(stop_end..alt_end, "");
@@ -2722,19 +2728,25 @@ mod test {
     fn build_altseq_keeps_identity_edits() -> Result<(), anyhow::Error> {
         let reference_data = mock_reference_data();
 
-        // The last two are whole-gene identities, which delete nothing.
+        // c.4 to c.*1, and c.28 to c.*1: `c_to_p` fills in the reference bases of an identity.
+        let seq = reference_data.transcript_sequence.as_ref();
+        let (bases_4_to_star_1, bases_28_to_star_1) = (&seq[12..40], &seq[36..40]);
+        // The `c.-3_*2` ones are whole-gene identities, which delete nothing.  An identity that
+        // crosses the stop codon is no frameshift, with or without bases.
         for hgvs in [
-            "MOCK:c.4=",
-            "MOCK:c.4_6=",
-            "MOCK:c.30=",
-            "MOCK:c.4A=",
-            "MOCK:c.4_6AAA=",
-            "MOCK:c.-3_*2=",
-            "MOCK:c.-3_*2A=",
-            // An identity that crosses the stop codon is no frameshift.
-            "MOCK:c.4_*1=",
-            "MOCK:c.30_*1=",
+            "MOCK:c.4=".to_string(),
+            "MOCK:c.4_6=".to_string(),
+            "MOCK:c.30=".to_string(),
+            "MOCK:c.4A=".to_string(),
+            "MOCK:c.4_6AAA=".to_string(),
+            "MOCK:c.-3_*2=".to_string(),
+            "MOCK:c.-3_*2A=".to_string(),
+            "MOCK:c.4_*1=".to_string(),
+            "MOCK:c.30_*1=".to_string(),
+            format!("MOCK:c.4_*1{bases_4_to_star_1}="),
+            format!("MOCK:c.28_*1{bases_28_to_star_1}="),
         ] {
+            let hgvs = hgvs.as_str();
             let builder = AltSeqBuilder::new(HgvsVariant::from_str(hgvs)?, &reference_data);
             let alt_data = builder.build_altseq()?.remove(0);
             assert_eq!(

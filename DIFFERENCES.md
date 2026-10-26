@@ -99,6 +99,12 @@ Unless an entry says otherwise, the examples use a transcript whose 5' UTR ends 
 - **biocommons/hgvs:** `AltSeqBuilder` reads the empty reference and alternative as a delins with no bases and deletes the interval: `c.4=` gives `p.(Ala3ArgfsTer?)` ([altseqbuilder.py][bc-delins]).
 - **hgvs-rs:** The alt transcript is the reference, as for `c.4A=` ([#320]).
 
+### Identity that spans the stop codon
+
+- **Situation:** an identity from the CDS into the 3' UTR, e.g. `c.4_*1=`. `c_to_p` fills in its reference bases first, as biocommons/hgvs does, so `AltSeqBuilder` gets them.
+- **biocommons/hgvs:** It treats every edit from a c. to a c.* position as a frameshift ([altseqbuilder.py][bc-del-stop]), an identity too: with the reference bases, `c.4_*1=` gives `p.(Lys2LysfsTer?)` although nothing changes.
+- **hgvs-rs:** An edit that changes no base is no frameshift, whatever it spans: `c.4_*1=` gives `p.(Lys2=)`, with and without `replace_reference` ([#320]).
+
 ### Deletion that ends with the stop codon
 
 - **Situation:** a deletion starts in front of the stop codon and ends with its last base c.N, e.g. `c.25_30del`, which removes `AAA TAG` from the CDS of the example.
