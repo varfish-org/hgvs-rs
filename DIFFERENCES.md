@@ -57,7 +57,7 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 - **Situation:** an interval whose start lies after its end, e.g. `c.6_4del` or `c.5_-3del`, or a position 0, e.g. `c.0A>T` or `c.*0A>T`.
 - **biocommons/hgvs:** The intrinsic validator rejects both (`base start position must be <= end position`, `BaseOffsetPosition base may not be 0`), and `c_to_p` runs it. `AltSeqBuilder` alone does not check them: `c.6_4del` deletes nothing and gives `p.(Lys2LysfsTer?)`, `c.0A>T` changes c.-1.
 - **hgvs-rs:** `CdsInterval::validate()` rejects both (`StartMustBeLessThanEnd`, `PositionMustNotBeZero`), and `AltSeqBuilder` validates its interval itself, as the validator of the mapper only warns unless it is strict ([#320]). Before, the builder panicked on an interval with the start after the end and treated `c.0` as `c.-1`.
-- **Note:** biocommons/hgvs reads `c.*2_5del` as `c.*2_*5del`: the end inherits the `*`. The parser of hgvs-rs reads its end as `c.5`, so it is an inverted interval here. This is a difference of the parser that [#320] does not change.
+- **Note:** biocommons/hgvs reads `c.*2_5del` as `c.*2_*5del`: the end inherits the `*`. The parser of hgvs-rs reads its end as `c.5`, so it is an inverted interval here. This is a difference of the parser, tracked in [#325].
 
 ### Whole-gene delins
 
@@ -201,4 +201,5 @@ Unless an entry says otherwise, the examples use a transcript whose 5' UTR ends 
 [#257]: https://github.com/varfish-org/hgvs-rs/pull/257
 [#299]: https://github.com/varfish-org/hgvs-rs/pull/299
 [#320]: https://github.com/varfish-org/hgvs-rs/pull/320
+[#325]: https://github.com/varfish-org/hgvs-rs/issues/325
 [#301]: https://github.com/varfish-org/hgvs-rs/pull/301
