@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.0.1](https://github.com/varfish-org/hgvs-rs/compare/v4.0.0...v4.0.1) (2026-10-27)
+
+
+### Bug Fixes
+
+* CigarMapper needs to know about strand to tie break correctly according to hgvs ([#259](https://github.com/varfish-org/hgvs-rs/issues/259)) ([3110de7](https://github.com/varfish-org/hgvs-rs/commit/3110de701bb3c04daf0b6f9163f15e7d2eeddda8))
+* **mapper:** p.? for an inversion past the transcript ([#336](https://github.com/varfish-org/hgvs-rs/issues/336)) ([a45da36](https://github.com/varfish-org/hgvs-rs/commit/a45da364b3b22c4182bb428bc66f6b566b945c47))
+
 ## [4.0.0](https://github.com/varfish-org/hgvs-rs/compare/v3.0.0...v4.0.0) (2026-10-26)
 
 
