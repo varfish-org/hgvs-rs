@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           lfs: true
 
@@ -68,7 +68,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           lfs: 'true'
 
@@ -89,7 +89,7 @@ jobs:
         with:
           components: llvm-tools-preview  # needed for cargo llvm-cov
 
-      - uses: Swatinem/rust-cache@v2.8.2
+      - uses: Swatinem/rust-cache@v2.9.3
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
@@ -113,7 +113,7 @@ jobs:
         if: ${{ matrix.label == 'full' }}
 
       - name: Codecov submission of fast test results
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           verbose: true
           token: ${{ secrets.CODECOV_TOKEN }}

@@ -2,9 +2,9 @@
 
 use chrono::NaiveDateTime;
 use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
 
 use crate::{data::error::Error, sequences::TranslationTable};
-use biocommons_bioutils::assemblies::Assembly;
 
 /// Information about a gene.
 ///
@@ -16,7 +16,7 @@ use biocommons_bioutils::assemblies::Assembly;
 /// aliases | AT1,ATA,ATC,ATD,ATE,ATDC,TEL1,TELO1
 /// added   | 2014-02-04 21:39:32.57125
 /// ```
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct GeneInfoRecord {
     pub hgnc: String,
     pub maploc: String,
@@ -45,7 +45,7 @@ pub struct GeneInfoRecord {
 /// structure means that the transcripts are defined on the same
 /// reference sequence and have the same exon spans on that
 /// sequence.
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct TxSimilarityRecord {
     /// Accession of first transcript.
     pub tx_ac1: String,
@@ -82,7 +82,7 @@ pub struct TxSimilarityRecord {
 /// alt_exon_id     | 6063334
 /// exon_aln_id     | 3461425
 ///```
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct TxExonsRecord {
     pub hgnc: String,
     pub tx_ac: String,
@@ -112,7 +112,7 @@ pub struct TxExonsRecord {
 /// start_i        | 95226307
 /// end_i          | 95248406
 /// ```
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct TxForRegionRecord {
     pub tx_ac: String,
     pub alt_ac: String,
@@ -133,7 +133,7 @@ pub struct TxForRegionRecord {
 /// ```
 ///
 /// For non-coding transcripts (e.g., NR_*), `cds_start_i` and `cds_end_i` are `None`.
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct TxIdentityInfo {
     pub tx_ac: String,
     pub alt_ac: String,
@@ -155,6 +155,19 @@ impl TxIdentityInfo {
     }
 }
 
+/// An amino acid that the annotation of a transcript assigns to one codon, whatever the
+/// translation table says.
+///
+/// Examples are selenocysteine at a UGA codon and methionine at a non-AUG start codon.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+pub struct TranslationException {
+    /// 1-based position of the codon in the protein.
+    pub position: u32,
+    /// The amino acid as one-letter code, e.g., `U` for selenocysteine, `X` for an unspecified
+    /// amino acid, or `*` for a stop codon.
+    pub amino_acid: char,
+}
+
 /// ```text
 /// hgnc           | ATM
 /// cds_start_i    | 385
@@ -163,7 +176,7 @@ impl TxIdentityInfo {
 /// alt_ac         | AC_000143.1
 /// alt_aln_method | splign
 /// ```
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct TxInfoRecord {
     pub hgnc: String,
     pub cds_start_i: Option<i32>,
@@ -183,7 +196,7 @@ pub struct TxInfoRecord {
 /// alt_ac         | NC_000012.11
 /// alt_aln_method | genebuild
 /// ```
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct TxMappingOptionsRecord {
     pub tx_ac: String,
     pub alt_ac: String,
@@ -206,7 +219,7 @@ pub trait Provider {
     /// # Arguments
     ///
     /// * `assembly` - The assembly to build the map for.
-    fn get_assembly_map(&self, assembly: Assembly) -> IndexMap<String, String>;
+    fn get_assembly_map(&self, assembly: &str) -> Result<IndexMap<String, String>, Error>;
 
     /// Returns the basic information about the gene.
     ///
@@ -275,6 +288,33 @@ pub trait Provider {
         alt_aln_method: &str,
     ) -> Result<Vec<TxExonsRecord>, Error>;
 
+    /// Fast-path to obtain only transcript exon boundaries (tx_start_i, tx_end_i).
+    /// Defaults to retrieving them via `self.get_tx_exons`.
+    fn get_tx_exon_coords(
+        &self,
+        tx_ac: &str,
+        alt_ac: &str,
+        alt_aln_method: &str,
+    ) -> Result<Vec<(i32, i32)>, Error> {
+        let exons = self.get_tx_exons(tx_ac, alt_ac, alt_aln_method)?;
+        Ok(exons
+            .into_iter()
+            .map(|e| (e.tx_start_i, e.tx_end_i))
+            .collect())
+    }
+
+    /// Fast-path to obtain CDS start and end bounds.
+    /// Defaults to retrieving them via `self.get_tx_info`.
+    fn get_cds_start_end(
+        &self,
+        tx_ac: &str,
+        alt_ac: &str,
+        alt_aln_method: &str,
+    ) -> Result<(Option<i32>, Option<i32>), Error> {
+        let info = self.get_tx_info(tx_ac, alt_ac, alt_aln_method)?;
+        Ok((info.cds_start_i, info.cds_end_i))
+    }
+
     /// Return transcript info records for supplied gene, in order of decreasing length.
     ///
     /// # Arguments
@@ -304,6 +344,21 @@ pub trait Provider {
     ///
     /// * `tx_ac` -- transcript accession with version (e.g., 'NM_199425.2')
     fn get_tx_identity_info(&self, tx_ac: &str) -> Result<TxIdentityInfo, Error>;
+
+    /// Return the translation exceptions of a transcript.
+    ///
+    /// At these codons, the given amino acid applies.  Elsewhere, the `translation_table` of
+    /// `get_tx_identity_info()` applies.  The default implementation returns no exceptions.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx_ac` -- transcript accession with version (e.g., 'NM_080430.4')
+    fn get_tx_translation_exceptions(
+        &self,
+        _tx_ac: &str,
+    ) -> Result<Vec<TranslationException>, Error> {
+        Ok(Vec::new())
+    }
 
     /// Return a single transcript info for supplied accession (tx_ac, alt_ac, alt_aln_method), or None if not found.
     ///

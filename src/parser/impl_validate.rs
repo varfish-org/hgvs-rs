@@ -6,8 +6,8 @@ use crate::validator::Error;
 use crate::validator::Validateable;
 
 use super::{
-    CdsInterval, CdsLocEdit, GenomeInterval, GenomeLocEdit, HgvsVariant, MtLocEdit, NaEdit,
-    ProtLocEdit, RnaLocEdit, TxLocEdit,
+    CdsFrom, CdsInterval, CdsLocEdit, CdsPos, GenomeInterval, GenomeLocEdit, HgvsVariant,
+    MtLocEdit, NaEdit, ProtLocEdit, RnaLocEdit, TxLocEdit,
 };
 
 impl Validateable for NaEdit {
@@ -106,9 +106,28 @@ impl Validateable for CdsLocEdit {
     }
 }
 
+/// Key that orders c. positions along the transcript: 5' UTR and CDS positions by their base
+/// (there is no c.0), then the 3' UTR, and within a base the intron before it, the base, the
+/// intron after it.
+fn cds_pos_order_key(pos: &CdsPos) -> (bool, i32, i32) {
+    (
+        pos.cds_from == CdsFrom::End,
+        pos.base,
+        pos.offset.unwrap_or(0),
+    )
+}
+
 impl Validateable for CdsInterval {
     fn validate(&self) -> Result<(), Error> {
-        Ok(()) // TODO
+        // There is no c.0 and no c.*0.
+        if self.start.base == 0 || self.end.base == 0 {
+            return Err(Error::PositionMustNotBeZero(format!("{:?}", self)));
+        }
+        if cds_pos_order_key(&self.start) > cds_pos_order_key(&self.end) {
+            return Err(Error::StartMustBeLessThanEnd(format!("{:?}", self)));
+        }
+
+        Ok(())
     }
 }
 
@@ -167,10 +186,80 @@ impl Validateable for ProtLocEdit {
 
 #[cfg(test)]
 mod test {
+    use std::str::FromStr;
+
     use crate::{
-        parser::GenomeInterval,
+        parser::{GenomeInterval, HgvsVariant},
         validator::{Error, Validateable},
     };
+
+    /// There is no c.0, so `c.-1_1` has 2 bases, as in biocommons/hgvs.
+    #[test]
+    fn validate_cds_length_without_c0() -> Result<(), anyhow::Error> {
+        for (hgvs_c, valid) in [
+            ("NM_000314.4:c.-1_1del2", true),
+            ("NM_000314.4:c.-1_1del3", false),
+            ("NM_000314.4:c.-2_1inv3", true),
+            ("NM_000314.4:c.-3_-1del3", true),
+            ("NM_000314.4:c.1_3del3", true),
+        ] {
+            let var_c = HgvsVariant::from_str(hgvs_c)?;
+            assert_eq!(var_c.validate().is_ok(), valid, "{hgvs_c}");
+        }
+        Ok(())
+    }
+
+    /// Intervals in c. coordinates: the start must not lie after the end, and there is no
+    /// position 0.
+    #[test]
+    fn validate_cds_interval() -> Result<(), anyhow::Error> {
+        for hgvs in [
+            "NM_1.1:c.4_6del",
+            "NM_1.1:c.-1_1insA",
+            "NM_1.1:c.1-1_1insA",
+            "NM_1.1:c.30_30+1insA",
+            "NM_1.1:c.30+5_31-5del",
+            "NM_1.1:c.*1_*2del",
+            "NM_1.1:c.30_*1del",
+            "NM_1.1:c.-3_*2del",
+            "NM_1.1:c.5-3_5-1del",
+            "NM_1.1:c.5+1_5+3del",
+        ] {
+            let HgvsVariant::CdsVariant { loc_edit, .. } = HgvsVariant::from_str(hgvs)? else {
+                unreachable!();
+            };
+            assert!(loc_edit.loc.inner().validate().is_ok(), "{hgvs}");
+        }
+        for (hgvs, zero) in [
+            ("NM_1.1:c.6_4del", false),
+            ("NM_1.1:c.6_4insA", false),
+            ("NM_1.1:c.5_-3del", false),
+            ("NM_1.1:c.*5_*2del", false),
+            // HGVS lists the positions of a range from 5' to 3', and a `*` on the start
+            // does not carry over to the end: this is `c.*87` to `c.91`, so inverted.
+            ("NM_004006.2:c.*87_91del", false),
+            ("NM_1.1:c.4+1_4del", false),
+            ("NM_1.1:c.1-1_-1del", false),
+            ("NM_1.1:c.0A>T", true),
+            ("NM_1.1:c.-1_0insA", true),
+            ("NM_1.1:c.*0A>T", true),
+        ] {
+            let HgvsVariant::CdsVariant { loc_edit, .. } = HgvsVariant::from_str(hgvs)? else {
+                unreachable!();
+            };
+            let result = loc_edit.loc.inner().validate();
+            assert!(
+                matches!(
+                    (&result, zero),
+                    (Err(Error::PositionMustNotBeZero(_)), true)
+                        | (Err(Error::StartMustBeLessThanEnd(_)), false)
+                ),
+                "{hgvs} gave {result:?}"
+            );
+        }
+
+        Ok(())
+    }
 
     #[test]
     fn validate_genomeinterval() -> Result<(), Error> {

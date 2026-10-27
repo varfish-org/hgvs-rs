@@ -3,7 +3,7 @@
 use std::ops::{Deref, Range};
 
 use crate::parser::error::Error;
-use log::warn;
+use tracing::{trace, warn};
 
 /// Expression of "maybe uncertain".
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -612,21 +612,26 @@ impl TryFrom<CdsInterval> for Range<i32> {
     type Error = Error;
 
     /// The CDS interval will be converted from 1-based inclusive coordinates
-    /// `[start, end]` to 0-based, half-open Rust range `[start - 1, end)`.
+    /// `[start, end]` to 0-based, half-open Rust range `[start - 1, end)`, see
+    /// `range_without_zero()`.
     fn try_from(value: CdsInterval) -> Result<Self, Self::Error> {
         if value.start.offset.is_some() || value.end.offset.is_some() {
-            warn!("Converting interval {:?} with offset to range!", &value);
+            trace!("Converting interval {:?} with offset to range!", value);
         }
         if value.start.cds_from != value.end.cds_from {
             Err(Error::IllDefinedConversion(format!("{:?}", value)))
         } else {
-            Ok(if value.start.base > 0 {
-                (value.start.base - 1)..value.end.base
-            } else {
-                value.start.base..(value.end.base + 1)
-            })
+            Ok(range_without_zero(value.start.base, value.end.base))
         }
     }
+}
+
+/// The 0-based, half-open range of the 1-based positions `start` to `end`.  There is no
+/// position 0, e.g., c.0, so c.-1 has the index -1, and c.1 the index 0.  As in
+/// `BaseOffsetPosition.__sub__` of biocommons/hgvs, `c.-1_1` thus has 2 bases, not 3.
+fn range_without_zero(start: i32, end: i32) -> Range<i32> {
+    let index = |base: i32| if base > 0 { base - 1 } else { base };
+    index(start)..(index(end) + 1)
 }
 
 /// Specifies whether the CDS position is relative to the CDS start or
@@ -814,16 +819,13 @@ pub struct TxInterval {
 
 impl From<TxInterval> for Range<i32> {
     /// The transcript interval will be converted from 1-based inclusive coordinates
-    /// `[start, end]` to 0-based, half-open Rust range `[start - 1, end)`.
+    /// `[start, end]` to 0-based, half-open Rust range `[start - 1, end)`, see
+    /// `range_without_zero()`.
     fn from(val: TxInterval) -> Self {
         if val.start.offset.is_some() || val.end.offset.is_some() {
-            warn!("Converting interval {:?} with offset to range!", &val);
+            trace!("Converting interval {:?} with offset to range!", val);
         }
-        if val.start.base > 0 {
-            (val.start.base - 1)..val.end.base
-        } else {
-            val.start.base..(val.end.base + 1)
-        }
+        range_without_zero(val.start.base, val.end.base)
     }
 }
 
@@ -879,16 +881,13 @@ pub struct RnaInterval {
 
 impl From<RnaInterval> for Range<i32> {
     /// The RNA interval will be converted from 1-based inclusive coordinates
-    /// `[start, end]` to 0-based, half-open Rust range `[start - 1, end)`.
+    /// `[start, end]` to 0-based, half-open Rust range `[start - 1, end)`, see
+    /// `range_without_zero()`.
     fn from(val: RnaInterval) -> Self {
         if val.start.offset.is_some() || val.end.offset.is_some() {
-            warn!("Converting interval {:?} with offset to range!", &val);
+            trace!("Converting interval {:?} with offset to range!", val);
         }
-        if val.start.base > 0 {
-            (val.start.base - 1)..val.end.base
-        } else {
-            val.start.base..(val.end.base + 1)
-        }
+        range_without_zero(val.start.base, val.end.base)
     }
 }
 
@@ -954,8 +953,46 @@ pub struct ProtPos {
 mod test {
     use pretty_assertions::assert_eq;
 
-    use super::{TxInterval, TxPos};
+    use super::{RnaInterval, RnaPos, TxInterval, TxPos};
     use crate::parser::Mu;
+
+    /// There is no position 0, so `n.-1_1` and `r.-1_1` have 2 bases.
+    #[test]
+    fn range_without_zero() {
+        let interval = |start, end| TxInterval {
+            start: TxPos {
+                base: start,
+                offset: None,
+            },
+            end: TxPos {
+                base: end,
+                offset: None,
+            },
+        };
+        for (start, end, range) in [
+            (-1, 1, -1..1),
+            (-3, -1, -3..0),
+            (1, 3, 0..3),
+            (-2, 2, -2..2),
+        ] {
+            assert_eq!(
+                std::ops::Range::<i32>::from(interval(start, end)),
+                range,
+                "{start}_{end}"
+            );
+            let rna = RnaInterval {
+                start: RnaPos {
+                    base: start,
+                    offset: None,
+                },
+                end: RnaPos {
+                    base: end,
+                    offset: None,
+                },
+            };
+            assert_eq!(std::ops::Range::<i32>::from(rna), range, "r.{start}_{end}");
+        }
+    }
 
     #[test]
     fn mu_construct() {

@@ -6,7 +6,7 @@
 
 use std::fmt::Display;
 
-use crate::{parser::ds::*, sequences::aa_to_aa3};
+use crate::{parser::ds::*, sequences::aa_to_aa3_cow};
 
 /// Newtype that allows to suppress printing of reference bases.
 pub struct NoRef<'a, T>(pub &'a T)
@@ -163,51 +163,51 @@ impl Display for ProteinEdit {
                 (Some(alt), None, UncertainLengthChange::None) => write!(f, "{alt}fsTer"),
                 (Some(alt), None, UncertainLengthChange::Unknown) => write!(f, "{alt}fsTer?"),
                 (Some(alt), None, UncertainLengthChange::Known(count)) => {
-                    let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
+                    let alt = aa_to_aa3_cow(alt).expect("aa_to_aa3_cow conversion failed");
                     write!(f, "{alt}fsTer{count}")
                 }
                 (None, Some(ter), UncertainLengthChange::None) => {
-                    let mut ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    let mut ter = aa_to_aa3_cow(ter).expect("aa_to_aa3_cow conversion failed");
                     if ter.is_empty() {
-                        ter = "Ter".to_string();
+                        ter = "Ter".into();
                     }
                     write!(f, "fs{ter}")
                 }
                 (None, Some(ter), UncertainLengthChange::Unknown) => {
-                    let mut ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    let mut ter = aa_to_aa3_cow(ter).expect("aa_to_aa3_cow conversion failed");
                     if ter.is_empty() {
-                        ter = "Ter".to_string();
+                        ter = "Ter".into();
                     }
                     write!(f, "fs{ter}?")
                 }
                 (None, Some(ter), UncertainLengthChange::Known(count)) => {
-                    let mut ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    let mut ter = aa_to_aa3_cow(ter).expect("aa_to_aa3_cow conversion failed");
                     if ter.is_empty() {
-                        ter = "Ter".to_string();
+                        ter = "Ter".into();
                     }
                     write!(f, "fs{ter}{count}")
                 }
                 (Some(alt), Some(ter), UncertainLengthChange::None) => {
-                    let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
-                    let mut ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    let alt = aa_to_aa3_cow(alt).expect("aa_to_aa3_cow conversion failed");
+                    let mut ter = aa_to_aa3_cow(ter).expect("aa_to_aa3_cow conversion failed");
                     if ter.is_empty() {
-                        ter = "Ter".to_string();
+                        ter = "Ter".into();
                     }
                     write!(f, "{alt}fs{ter}")
                 }
                 (Some(alt), Some(ter), UncertainLengthChange::Unknown) => {
-                    let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
-                    let mut ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    let alt = aa_to_aa3_cow(alt).expect("aa_to_aa3_cow conversion failed");
+                    let mut ter = aa_to_aa3_cow(ter).expect("aa_to_aa3_cow conversion failed");
                     if ter.is_empty() {
-                        ter = "Ter".to_string();
+                        ter = "Ter".into();
                     }
                     write!(f, "{alt}fs{ter}?")
                 }
                 (Some(alt), Some(ter), UncertainLengthChange::Known(count)) => {
-                    let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
-                    let mut ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    let alt = aa_to_aa3_cow(alt).expect("aa_to_aa3_cow conversion failed");
+                    let mut ter = aa_to_aa3_cow(ter).expect("aa_to_aa3_cow conversion failed");
                     if ter.is_empty() {
-                        ter = "Ter".to_string();
+                        ter = "Ter".into();
                     }
                     write!(f, "{alt}fs{ter}{count}")
                 }
@@ -221,41 +221,42 @@ impl Display for ProteinEdit {
                 (None, None, UncertainLengthChange::Unknown) => write!(f, "ext?"),
                 (None, None, UncertainLengthChange::Known(count)) => write!(f, "ext{count}"),
                 (Some(alt), None, UncertainLengthChange::None) => {
-                    let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
+                    let alt = aa_to_aa3_cow(alt).expect("aa_to_aa3_cow conversion failed");
                     write!(f, "{alt}ext")
                 }
                 (Some(alt), None, UncertainLengthChange::Unknown) => {
-                    let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
+                    let alt = aa_to_aa3_cow(alt).expect("aa_to_aa3_cow conversion failed");
                     write!(f, "{alt}ext?")
                 }
                 (Some(alt), None, UncertainLengthChange::Known(count)) => {
-                    let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
+                    let alt = aa_to_aa3_cow(alt).expect("aa_to_aa3_cow conversion failed");
                     write!(f, "{alt}ext{count}")
                 }
                 (None, Some(ter), UncertainLengthChange::None) => write!(f, "ext{ter}"),
                 (None, Some(ter), UncertainLengthChange::Unknown) => write!(f, "ext{ter}?"),
                 (None, Some(ter), UncertainLengthChange::Known(count)) => {
-                    let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    let ter = aa_to_aa3_cow(ter).expect("aa_to_aa3_cow conversion failed");
                     write!(f, "ext{ter}{count}")
                 }
                 (Some(alt), Some(ter), UncertainLengthChange::None) => {
-                    let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
-                    let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    let alt = aa_to_aa3_cow(alt).expect("aa_to_aa3_cow conversion failed");
+                    let ter = aa_to_aa3_cow(ter).expect("aa_to_aa3_cow conversion failed");
                     write!(f, "{alt}ext{ter}")
                 }
                 (Some(alt), Some(ter), UncertainLengthChange::Unknown) => {
-                    let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
-                    let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    let alt = aa_to_aa3_cow(alt).expect("aa_to_aa3_cow conversion failed");
+                    let ter = aa_to_aa3_cow(ter).expect("aa_to_aa3_cow conversion failed");
                     write!(f, "{alt}ext{ter}?")
                 }
                 (Some(alt), Some(ter), UncertainLengthChange::Known(count)) => {
-                    let alt = aa_to_aa3(alt).expect("aa_to_aa3 conversion failed");
-                    let ter = aa_to_aa3(ter).expect("aa_to_aa3 conversion failed");
+                    let alt = aa_to_aa3_cow(alt).expect("aa_to_aa3_cow conversion failed");
+                    let ter = aa_to_aa3_cow(ter).expect("aa_to_aa3_cow conversion failed");
                     write!(f, "{alt}ext{ter}{count}")
                 }
             },
             ProteinEdit::Subst { alternative } => {
-                let alternative = aa_to_aa3(alternative).expect("aa_to_aa3 conversion failed");
+                let alternative =
+                    aa_to_aa3_cow(alternative).expect("aa_to_aa3_cow conversion failed");
                 if alternative.is_empty() {
                     write!(f, "=")
                 } else {
@@ -263,11 +264,13 @@ impl Display for ProteinEdit {
                 }
             }
             ProteinEdit::DelIns { alternative } => {
-                let alternative = aa_to_aa3(alternative).expect("aa_to_aa3 conversion failed");
+                let alternative =
+                    aa_to_aa3_cow(alternative).expect("aa_to_aa3_cow conversion failed");
                 write!(f, "delins{alternative}")
             }
             ProteinEdit::Ins { alternative } => {
-                let alternative = aa_to_aa3(alternative).expect("aa_to_aa3 conversion failed");
+                let alternative =
+                    aa_to_aa3_cow(alternative).expect("aa_to_aa3_cow conversion failed");
                 write!(f, "ins{alternative}")
             }
             ProteinEdit::Del => write!(f, "del"),
@@ -279,7 +282,7 @@ impl Display for ProteinEdit {
 
 impl Display for ProtPos {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let aa = aa_to_aa3(&self.aa).expect("aa_to_aa3 conversion failed");
+        let aa = aa_to_aa3_cow(&self.aa).expect("aa_to_aa3_cow conversion failed");
         write!(f, "{aa}{}", self.number)
     }
 }
@@ -296,8 +299,12 @@ impl Display for ProtInterval {
 
 impl Display for ProtLocEdit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // TODO: make configurable whether inferred protein is uncertain or not?
         match self {
+            // An uncertain change as a whole, e.g., `(Gly2Arg)`, as biocommons/hgvs writes it.
+            ProtLocEdit::Ordinary {
+                loc: Mu::Uncertain(loc),
+                edit: Mu::Uncertain(edit),
+            } => write!(f, "({loc}{edit})"),
             ProtLocEdit::Ordinary { loc, edit } => write!(f, "{loc}{edit}"),
             ProtLocEdit::NoChange => write!(f, "="),
             ProtLocEdit::NoChangeUncertain => write!(f, "(=)"),
@@ -629,6 +636,38 @@ impl Display for NoRef<'_, HgvsVariant> {
                 write!(f, ":r.{}", NoRef(loc_edit))
             }
         }
+    }
+}
+
+/// Accession and location of `var` for log lines, without the edit, as its bases can be large.
+pub(crate) fn location(var: &HgvsVariant) -> String {
+    match var {
+        HgvsVariant::CdsVariant {
+            accession,
+            loc_edit,
+            ..
+        } => format!("{}:c.{}", accession, loc_edit.loc),
+        HgvsVariant::GenomeVariant {
+            accession,
+            loc_edit,
+            ..
+        } => format!("{}:g.{}", accession, loc_edit.loc),
+        HgvsVariant::MtVariant {
+            accession,
+            loc_edit,
+            ..
+        } => format!("{}:m.{}", accession, loc_edit.loc),
+        HgvsVariant::TxVariant {
+            accession,
+            loc_edit,
+            ..
+        } => format!("{}:n.{}", accession, loc_edit.loc),
+        HgvsVariant::RnaVariant {
+            accession,
+            loc_edit,
+            ..
+        } => format!("{}:r.{}", accession, loc_edit.loc),
+        HgvsVariant::ProtVariant { accession, .. } => accession.to_string(),
     }
 }
 
@@ -2108,7 +2147,7 @@ mod test {
             let line = line.trim();
             if !line.starts_with('#') && !line.is_empty() {
                 let hgvs_variant = HgvsVariant::from_str(line)?;
-                let hgvs_str = format!("{}", &hgvs_variant);
+                let hgvs_str = format!("{}", hgvs_variant);
                 assert_eq!(
                     hgvs_str, line,
                     "round-trip failed for variant {:?}; line= {}",

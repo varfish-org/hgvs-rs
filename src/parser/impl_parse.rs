@@ -6,7 +6,7 @@ use nom::{
     character::complete::char,
     character::complete::{alphanumeric1, digit1, satisfy},
     combinator::{all_consuming, map, opt, recognize},
-    sequence::pair,
+    sequence::{delimited, pair},
     AsChar, IResult,
 };
 
@@ -324,7 +324,11 @@ impl Parseable for ProtInterval {
 
 impl ProtLocEdit {
     fn parse_initiation_uncertain(input: &str) -> IResult<&str, Self> {
-        map(tag("Met1?"), |_| ProtLocEdit::InitiationUncertain).parse(input)
+        // `Met1?` is uncertain already, so `(Met1?)` is the same.
+        map(alt((tag("Met1?"), tag("(Met1?)"))), |_| {
+            ProtLocEdit::InitiationUncertain
+        })
+        .parse(input)
     }
 
     fn parse_no_change(input: &str) -> IResult<&str, Self> {
@@ -347,6 +351,22 @@ impl ProtLocEdit {
         map(tag("0?"), |_| ProtLocEdit::NoProteinUncertain).parse(input)
     }
 
+    /// An uncertain change as a whole, e.g., `(Gly2Arg)`.
+    fn parse_ordinary_uncertain(input: &str) -> IResult<&str, Self> {
+        map(
+            delimited(
+                tag("("),
+                pair(ProtInterval::parse, ProteinEdit::parse),
+                tag(")"),
+            ),
+            |(loc, edit)| ProtLocEdit::Ordinary {
+                loc: Mu::Uncertain(loc),
+                edit: Mu::Uncertain(edit),
+            },
+        )
+        .parse(input)
+    }
+
     fn parse_ordinary(input: &str) -> IResult<&str, Self> {
         map(
             pair(Mu::<ProtInterval>::parse, Mu::<ProteinEdit>::parse),
@@ -360,6 +380,7 @@ impl Parseable for ProtLocEdit {
     fn parse(input: &str) -> IResult<&str, Self> {
         alt((
             Self::parse_initiation_uncertain,
+            Self::parse_ordinary_uncertain,
             Self::parse_ordinary,
             Self::parse_no_protein_uncertain,
             Self::parse_no_protein,
@@ -887,7 +908,7 @@ mod test {
     /// - one: input is a single value
     /// - string: input is a string; test each character in the string separately
     /// - list: input is a list delimited by a pipe character ("|")
-    /// Expected: expected result (if stringifying input does not return the same answer, e,g. "+1" -> "1")
+    ///   Expected: expected result (if stringifying input does not return the same answer, e,g. "+1" -> "1")
     /// - if expected is left blank, then it is assumed that stringifying the parsed input returns the same answer.
     mod grammar_full {
         use anyhow::Error;
@@ -931,7 +952,7 @@ mod test {
                     .to_lowercase()
                     == "true";
 
-                for (input, expected) in inputs.into_iter().zip(expected_results.into_iter()) {
+                for (input, expected) in inputs.into_iter().zip(expected_results) {
                     let func = row.get(0).expect("problem with test input file");
                     match func {
                         "accn" => {
@@ -964,7 +985,7 @@ mod test {
             } else if in_type == "one" {
                 vec![in_string.to_string()]
             } else {
-                panic!("should never reach here (in_type={:?})", &in_type)
+                panic!("should never reach here (in_type={:?})", in_type)
             };
 
             Ok(inputs

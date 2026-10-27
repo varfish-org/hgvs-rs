@@ -4,6 +4,7 @@ use thiserror::Error;
 
 /// Error type for validation of HGVS expressions.
 #[derive(Error, Debug, Clone)]
+#[non_exhaustive]
 pub enum Error {
     #[error("ref or alt must be non-empty in {0}")]
     RefOrAltMustBeNonEmpty(String),
@@ -22,4 +23,6 @@ pub enum Error {
     EndMustBePositive(String),
     #[error("sart <= end must hold in {0}")]
     StartMustBeLessThanEnd(String),
+    #[error("there is no position 0 in {0}")]
+    PositionMustNotBeZero(String),
 }

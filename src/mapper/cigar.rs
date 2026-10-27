@@ -133,7 +133,7 @@ impl std::ops::DerefMut for CigarString {
 impl Display for CigarString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for item in &self.elems {
-            write!(f, "{}", &item)?
+            write!(f, "{}", item)?
         }
         Ok(())
     }
@@ -248,7 +248,23 @@ impl CigarMapper {
         (ref_pos, tgt_pos, cigar_op)
     }
 
+    /// Map `pos` from the reference to the target.  The center of a skip of odd length maps to
+    /// the segment on its left.
     pub fn map_ref_to_tgt(
+        &self,
+        pos: i32,
+        end: &str,
+        strict_bounds: bool,
+    ) -> Result<CigarMapperResult, Error> {
+        self.map_ref_to_tgt_on_strand(pos, end, strict_bounds, 1)
+    }
+
+    /// Map `pos` from the reference to a target on `strand` of the reference.
+    ///
+    /// The center of a skip of odd length maps to the upstream segment of the target, which is
+    /// the segment on its right on strand -1.  HGVS numbers the central base of an intron from
+    /// the upstream exon.
+    pub fn map_ref_to_tgt_on_strand(
         &self,
         pos: i32,
         end: &str,
@@ -270,16 +286,9 @@ impl CigarMapper {
         pos: i32,
         end: &str,
         strict_bounds: bool,
-        strand: i16,
     ) -> Result<CigarMapperResult, Error> {
-        self.map(
-            &self.tgt_pos,
-            &self.ref_pos,
-            pos,
-            end,
-            strict_bounds,
-            strand,
-        )
+        // A skip has no target bases, so the strand plays no role.
+        self.map(&self.tgt_pos, &self.ref_pos, pos, end, strict_bounds, 1)
     }
 
     /// Map position between aligned segments.
@@ -336,16 +345,7 @@ impl CigarMapper {
         } else if cigar_op == CigarOp::Skip {
             let dist_left = pos - from_pos[pos_i] + 1;
             let dist_right = from_pos[pos_i + 1] - pos;
-            let anchor_left = if dist_left < dist_right {
-                true
-            } else if dist_left > dist_right {
-                false
-            } else {
-                // This is a tie, pick upstream exon depending on strand, as mandated by hgvs
-                strand == 1
-            };
-
-            if anchor_left {
+            if dist_left < dist_right || (dist_left == dist_right && strand == 1) {
                 Ok(CigarMapperResult {
                     pos: to_pos[pos_i] - 1,
                     offset: dist_left,
@@ -496,7 +496,7 @@ mod test {
             ];
             for (arg_pos, arg_end, pos, offset, cigar_op) in cases {
                 assert_eq!(
-                    cigar_mapper.map_ref_to_tgt(arg_pos, arg_end, true, 1)?,
+                    cigar_mapper.map_ref_to_tgt(arg_pos, arg_end, true)?,
                     CigarMapperResult {
                         pos,
                         offset,
@@ -534,7 +534,7 @@ mod test {
             ];
             for (arg_pos, arg_end, pos, offset, cigar_op) in cases {
                 assert_eq!(
-                    cigar_mapper.map_tgt_to_ref(arg_pos, arg_end, true, 1)?,
+                    cigar_mapper.map_tgt_to_ref(arg_pos, arg_end, true)?,
                     CigarMapperResult {
                         pos,
                         offset,
@@ -550,6 +550,41 @@ mod test {
     }
 
     #[test]
+    fn cigar_mapper_skip_center_on_strand() -> Result<(), Error> {
+        // As in `cigar_mapper_simple()`: ref 3 and 4 are a skip of even length, ref 8 to 10 one
+        // of odd length with its center at ref 9.
+        let cigar_mapper = CigarMapper::new(&parse_cigar_string("3=2N=X=3N=I=D=")?);
+
+        // (ref pos, strand, tgt pos, offset)
+        let cases = vec![
+            (3, 1, 2, 1),
+            (3, -1, 2, 1),
+            (4, 1, 3, -1),
+            (4, -1, 3, -1),
+            (8, 1, 5, 1),
+            (8, -1, 5, 1),
+            (9, 1, 5, 2),
+            (9, -1, 6, -2),
+            (10, 1, 6, -1),
+            (10, -1, 6, -1),
+        ];
+        for (arg_pos, strand, pos, offset) in cases {
+            assert_eq!(
+                cigar_mapper.map_ref_to_tgt_on_strand(arg_pos, "start", true, strand)?,
+                CigarMapperResult {
+                    pos,
+                    offset,
+                    cigar_op: CigarOp::Skip
+                },
+                "case = {:?}",
+                (arg_pos, strand, pos, offset)
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
     fn cigar_mapper_strict_bounds() -> Result<(), Error> {
         // 0   1   2           3   4   5               6       7   8   9  tgt
         // =   =   =   N   N   =   X   =   N   N   N   =   I   =   D   =
@@ -559,15 +594,15 @@ mod test {
         let cigar_mapper = CigarMapper::new(&cigar_str);
 
         // error for out of bounds on left?
-        assert!(cigar_mapper.map_ref_to_tgt(-1, "start", true, 1).is_err());
+        assert!(cigar_mapper.map_ref_to_tgt(-1, "start", true).is_err());
         // ... and right?
         assert!(cigar_mapper
-            .map_ref_to_tgt(cigar_mapper.ref_len + 1, "start", true, 1)
+            .map_ref_to_tgt(cigar_mapper.ref_len + 1, "start", true)
             .is_err());
 
         // test whether 1 base outside bounds results in correct position
         assert_eq!(
-            cigar_mapper.map_ref_to_tgt(0, "start", true, 1)?,
+            cigar_mapper.map_ref_to_tgt(0, "start", true)?,
             CigarMapperResult {
                 pos: 0,
                 offset: 0,
@@ -575,7 +610,7 @@ mod test {
             }
         );
         assert_eq!(
-            cigar_mapper.map_ref_to_tgt(-1, "start", false, 1)?,
+            cigar_mapper.map_ref_to_tgt(-1, "start", false)?,
             CigarMapperResult {
                 pos: -1,
                 offset: 0,
@@ -583,7 +618,7 @@ mod test {
             }
         );
         assert_eq!(
-            cigar_mapper.map_ref_to_tgt(cigar_mapper.ref_len, "start", true, 1)?,
+            cigar_mapper.map_ref_to_tgt(cigar_mapper.ref_len, "start", true)?,
             CigarMapperResult {
                 pos: cigar_mapper.tgt_len,
                 offset: 0,
@@ -591,7 +626,7 @@ mod test {
             }
         );
         assert_eq!(
-            cigar_mapper.map_ref_to_tgt(cigar_mapper.ref_len - 1, "start", false, 1)?,
+            cigar_mapper.map_ref_to_tgt(cigar_mapper.ref_len - 1, "start", false)?,
             CigarMapperResult {
                 pos: cigar_mapper.tgt_len - 1,
                 offset: 0,

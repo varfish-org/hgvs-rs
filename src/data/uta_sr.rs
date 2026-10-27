@@ -4,16 +4,17 @@
 //! * https://github.com/biocommons/biocommons.seqrepo
 //! * https://github.com/varfish-org/seqrepo-rs
 
-use std::path::PathBuf;
-use std::sync::Arc;
-
+use crate::data;
 use crate::data::uta;
 use crate::data::{
     error::Error, interface, interface::GeneInfoRecord, interface::TxExonsRecord,
     interface::TxForRegionRecord, interface::TxIdentityInfo, interface::TxInfoRecord,
     interface::TxMappingOptionsRecord, interface::TxSimilarityRecord,
 };
+use indexmap::IndexMap;
 use seqrepo::{self, AliasOrSeqId, SeqRepo};
+use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Configuration for the `data::uta_sr::Provider`.
 #[derive(Debug, PartialEq, Clone)]
@@ -92,8 +93,8 @@ impl interface::Provider for Provider {
 
     fn get_assembly_map(
         &self,
-        assembly: biocommons_bioutils::assemblies::Assembly,
-    ) -> indexmap::IndexMap<String, String> {
+        assembly: &str,
+    ) -> Result<IndexMap<String, String>, data::error::Error> {
         self.inner.get_assembly_map(assembly)
     }
 
@@ -211,7 +212,7 @@ pub mod test_helpers {
             tracing::debug!("writing provider...");
             build_writing_sr(sr_cache_path)?
         } else {
-            panic!("Invalid cache mode {}", &sr_cache_mode);
+            panic!("Invalid cache mode {}", sr_cache_mode);
         };
         tracing::debug!("now returning provider...");
 
@@ -236,7 +237,7 @@ pub mod test_helpers {
             .parent()
             .ok_or(anyhow::anyhow!(
                 "Could not get parent from {}",
-                &seqrepo_path
+                seqrepo_path
             ))?
             .to_str()
             .expect("problem with path to string conversion")
@@ -245,7 +246,7 @@ pub mod test_helpers {
             .file_name()
             .ok_or(anyhow::anyhow!(
                 "Could not get basename from {}",
-                &seqrepo_path
+                seqrepo_path
             ))?
             .to_str()
             .expect("problem with path to string conversion")

@@ -1,19 +1,23 @@
 //! Code for mapping variants between sequences.
 
-use cached::proc_macro::cached;
-use cached::SizedCache;
-use log::{debug, info};
+use quick_cache::{unsync::Cache, Equivalent};
+use std::cell::RefCell;
 use std::ops::Deref;
 use std::{ops::Range, sync::Arc};
+use tracing::{debug, info};
 
 use crate::mapper::alignment;
+use crate::mapper::altseq::{
+    ref_transcript_data_shared, AltSeqBuilder, RefTranscriptData, VariantLocation,
+};
+use crate::mapper::{provider_id, CacheEntry};
 use crate::{
     data::interface::Provider,
     mapper::Error,
     normalizer::{self, Direction, Normalizer},
     parser::{
-        Accession, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval, GenomeLocEdit,
-        HgvsVariant, Mu, NaEdit, TxInterval, TxLocEdit, TxPos,
+        location, Accession, CdsInterval, CdsLocEdit, CdsPos, GeneSymbol, GenomeInterval,
+        GenomeLocEdit, HgvsVariant, Mu, NaEdit, ProtLocEdit, TxInterval, TxLocEdit, TxPos,
     },
     sequences::revcomp,
     validator::{ValidationLevel, Validator},
@@ -37,6 +41,34 @@ pub struct Config {
     pub genome_seq_available: bool,
     pub shuffle_direction: Direction,
     pub window_size: usize,
+    /// Treat insertions and duplications that touch an exon boundary as intronic in `c_to_p`,
+    /// giving `p.?`.  With `false`, e.g., `c.26_26+1insC` and `c.26+1dup` change the protein.
+    /// Before c.1 and after the stop codon, they change no base of the CDS and give `p.?` like
+    /// a variant in the UTR.
+    pub ins_at_boundary_is_intronic: bool,
+    /// Decide for each insertion or dup at an exon boundary whether its bases are intronic,
+    /// instead of by `ins_at_boundary_is_intronic`.  They are intronic if the alt sequence keeps
+    /// the splice-site dinucleotide of the intron right at the exon edge: `+1` and `+2` after the
+    /// last exon base, or `-2` and `-1` before the first one.  Else the exon boundary moves, and
+    /// they join the exon.  E.g., the copy of `c.26+1_26+7dup` starts with the `GT` of the
+    /// donor, so it is intronic, and `c.26_26+1insC` moves the `GT` by one base, so the `C`
+    /// extends the exon.  This needs the intron bases from the genome, which
+    /// `assembly::Mapper` looks up.  Without them, a dup of at least two intron bases tells them
+    /// itself, and else `ins_at_boundary_is_intronic` decides.  `false` by default.
+    pub ins_at_boundary_by_sequence: bool,
+    /// Let `c_to_p` move an insertion or duplication in an exon or intron to the other side
+    /// of an exon boundary, as preferred by `shift_over_boundary_preference`.  The shifts need
+    /// the genome alignment.  `assembly::Mapper::c_to_p()` provides it if `genome_seq_available`
+    /// is set.  Without it, `c_to_p` fails with `Error::ShiftOverBoundaryNeedsAlignment` for
+    /// such variants, unless the preference is `Default`.
+    pub shift_over_boundary: bool,
+    /// See `shift_over_boundary`.
+    pub shift_over_boundary_preference: ShiftOverBoundaryPreference,
+    /// Mark the protein change that `c_to_p` predicts as uncertain, e.g., `p.(Gly2Arg)`,
+    /// `p.(=)` and `p.0?`, as in biocommons/hgvs.  `p.?` and `p.Met1?` stay as they are.  With
+    /// `false`, these are `p.Gly2Arg`, `p.=` and `p.0`.  `true` by default, as in
+    /// biocommons/hgvs.
+    pub inferred_p_is_uncertain: bool,
 }
 
 impl Default for Config {
@@ -51,8 +83,31 @@ impl Default for Config {
             genome_seq_available: true,
             shuffle_direction: Default::default(),
             window_size: 20,
+            ins_at_boundary_is_intronic: true,
+            ins_at_boundary_by_sequence: false,
+            shift_over_boundary: false,
+            shift_over_boundary_preference: Default::default(),
+            inferred_p_is_uncertain: true,
         }
     }
+}
+
+/// Where `c_to_p` with `Config::shift_over_boundary` puts an insertion or duplication that fits
+/// on both sides of an exon boundary.
+///
+/// `c_to_p` shifts the variant fully 3' and fully 5' on the genome.  If one of these shifts
+/// lies on the other side of an exon boundary, `c_to_p` uses it for the protein if it is in
+/// the preferred region.  The c. variant itself does not change.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
+#[non_exhaustive]
+pub enum ShiftOverBoundaryPreference {
+    /// Keep the variant where the HGVS rules put it.
+    #[default]
+    Default,
+    /// Prefer the intron, which gives `p.?`.
+    Intron,
+    /// Prefer the exon, which gives a protein change.
+    Exon,
 }
 
 /// Projects variants between sequences using `alignment::Mapper`.
@@ -125,9 +180,9 @@ impl Mapper {
         tx_ac: &str,
         alt_ac: &str,
         alt_aln_method: &str,
-    ) -> Result<alignment::Mapper, Error> {
+    ) -> Result<Arc<alignment::Mapper>, Error> {
         build_alignment_mapper_cached(
-            self.provider.clone(),
+            &self.provider,
             self.config.strict_bounds,
             tx_ac,
             alt_ac,
@@ -262,7 +317,7 @@ impl Mapper {
                 if let NaEdit::Ins { alternative } = edit_n.inner() {
                     if pos_n.start.offset.is_none()
                         && pos_n.end.offset.is_none()
-                        && pos_n.end.base - pos_n.start.base > 1
+                        && distance_without_zero(pos_n.start.base, pos_n.end.base) > 1
                     {
                         (
                             Mu::Certain(TxInterval {
@@ -324,7 +379,7 @@ impl Mapper {
 
             Ok(var_n)
         } else {
-            Err(Error::ExpectedGenomeVariant(format!("{}", &var_g)))
+            Err(Error::ExpectedGenomeVariant(format!("{}", var_g)))
         }
     }
 
@@ -413,7 +468,7 @@ impl Mapper {
 
             Ok(var_g)
         } else {
-            Err(Error::ExpectedTxVariant(format!("{}", &var_n)))
+            Err(Error::ExpectedTxVariant(format!("{}", var_n)))
         }
     }
 
@@ -451,7 +506,7 @@ impl Mapper {
                     if pos_c.start.offset.is_none()
                         && pos_c.end.offset.is_none()
                         && pos_c.start.cds_from == pos_c.end.cds_from
-                        && pos_c.end.base - pos_c.start.base > 1
+                        && distance_without_zero(pos_c.start.base, pos_c.end.base) > 1
                     {
                         (
                             Mu::Certain(CdsInterval {
@@ -505,7 +560,7 @@ impl Mapper {
 
             Ok(var_c)
         } else {
-            Err(Error::ExpectedGenomeVariant(format!("{}", &var_g)))
+            Err(Error::ExpectedGenomeVariant(format!("{}", var_g)))
         }
     }
 
@@ -573,7 +628,7 @@ impl Mapper {
                         edit: Mu::Certain(
                             var_c
                                 .na_edit()
-                                .ok_or(Error::NoNAEditInHgvsC(format!("{}", &var_c)))?
+                                .ok_or(Error::NoNAEditInHgvsC(format!("{}", var_c)))?
                                 .clone(),
                         ),
                     },
@@ -606,7 +661,7 @@ impl Mapper {
 
             Ok(var_g)
         } else {
-            Err(Error::ExpectedCdsVariant(format!("{}", &var_c)))
+            Err(Error::ExpectedCdsVariant(format!("{}", var_c)))
         }
     }
 
@@ -632,7 +687,7 @@ impl Mapper {
         match var_t {
             HgvsVariant::TxVariant { .. } => self.n_to_g(&var_t, alt_ac, alt_aln_method),
             HgvsVariant::CdsVariant { .. } => self.c_to_g(&var_t, alt_ac, alt_aln_method),
-            _ => Err(Error::ExpectedCdsVariant(format!("{}", &var_t))),
+            _ => Err(Error::ExpectedCdsVariant(format!("{}", var_t))),
         }
     }
 
@@ -642,7 +697,7 @@ impl Mapper {
     ///
     /// * `var_c` -- `HgvsVariant::CdsVariant` to project
     pub fn c_to_n(&self, var_c: &HgvsVariant) -> Result<HgvsVariant, Error> {
-        tracing::debug!("c_to_n({})", var_c);
+        tracing::debug!("c_to_n({})", location(var_c));
         self.validator.validate(var_c)?;
         let var_c = if self.config.replace_reference {
             self.replace_reference(var_c.clone())?
@@ -674,10 +729,10 @@ impl Mapper {
                 var_n
             };
 
-            tracing::debug!("c_to_n({}) = {}", var_c, &var_n);
+            tracing::debug!("c_to_n({}) = {}", location(&var_c), location(&var_n));
             Ok(var_n)
         } else {
-            Err(Error::ExpectedCdsVariant(format!("{}", &var_c)))
+            Err(Error::ExpectedCdsVariant(format!("{}", var_c)))
         }
     }
 
@@ -720,7 +775,7 @@ impl Mapper {
 
             Ok(var_c)
         } else {
-            Err(Error::ExpectedTxVariant(format!("{}", &var_n)))
+            Err(Error::ExpectedTxVariant(format!("{}", var_n)))
         }
     }
 
@@ -731,6 +786,29 @@ impl Mapper {
     /// * `var_c` -- `HgvsVariant::TxVariant` to project
     /// * `pro_ac` -- Protein accession
     pub fn c_to_p(&self, var_c: &HgvsVariant, prot_ac: Option<&str>) -> Result<HgvsVariant, Error> {
+        self.c_to_p_with_region(var_c, prot_ac)
+            .map(|(var_p, _)| var_p)
+    }
+
+    /// Like `c_to_p()`, but also returns the region of the transcript that it built the protein
+    /// for, see `AltSeqBuilder::variant_location()`.  With `Config::shift_over_boundary`, this
+    /// is the region of the shift that it uses.
+    pub fn c_to_p_with_region(
+        &self,
+        var_c: &HgvsVariant,
+        prot_ac: Option<&str>,
+    ) -> Result<(HgvsVariant, VariantLocation), Error> {
+        self.c_to_p_with_alt(var_c, prot_ac, None)
+    }
+
+    /// Like `c_to_p_with_region()`, but takes the reference of intron bases from the genome
+    /// alignment `alt`, given as `(alt_ac, alt_aln_method)`.
+    pub(crate) fn c_to_p_with_alt(
+        &self,
+        var_c: &HgvsVariant,
+        prot_ac: Option<&str>,
+        alt: Option<(&str, &str)>,
+    ) -> Result<(HgvsVariant, VariantLocation), Error> {
         use super::altseq::*;
 
         if let HgvsVariant::CdsVariant {
@@ -742,27 +820,29 @@ impl Mapper {
             self.validator.validate(var_c)?;
 
             let var_c = if self.config.replace_reference {
-                self.replace_reference(var_c.clone())?
+                self.replace_reference_with_alt(var_c.clone(), alt)?
             } else {
                 var_c.clone()
             };
 
-            let reference_data = ref_transcript_data_cached(
-                self.provider.clone(),
+            let reference_data = ref_transcript_data_shared(
+                &self.provider,
                 accession.deref(),
                 prot_ac.map(|s| s.to_string()).as_deref(),
             )?;
-            let builder = AltSeqBuilder::new(var_c, reference_data.clone());
+            let builder = self.alt_seq_builder(var_c, &reference_data, alt)?;
+            let (builder, region) = self.shift_over_boundary(builder, alt)?;
 
             // NB: the following comment is from the original code.
             // TODO: handle case where you get 2+ alt sequences back;  currently get list of 1 element
             // loop structure implemented to handle this, but doesn't really do anything currently.
 
             let var_ps: Result<Vec<_>, Error> = builder
-                .build_altseq()?
+                // `p.` reads no amino acid behind the alt protein, so the translation can stop.
+                .build_altseq_in(region, true)?
                 .into_iter()
                 .map(|alt_data| {
-                    let builder = AltSeqToHgvsp::new(reference_data.clone(), alt_data);
+                    let builder = AltSeqToHgvsp::new(&reference_data, alt_data);
                     builder.build_hgvsp()
                 })
                 .collect();
@@ -787,10 +867,261 @@ impl Mapper {
                 return Err(Error::NotProtVariant);
             };
 
-            Ok(var_p)
+            Ok((
+                with_inferred_p_uncertainty(var_p, self.config.inferred_p_is_uncertain),
+                region,
+            ))
         } else {
-            Err(Error::ExpectedCdsVariant(format!("{}", &var_c)))
+            Err(Error::ExpectedCdsVariant(format!("{}", var_c)))
         }
+    }
+
+    /// Apply `Config::shift_over_boundary` to the variant of `builder`, as `c_to_p` of
+    /// biocommons/hgvs does.
+    ///
+    /// For an insertion or duplication in an exon or intron, take the first shift, 3' then
+    /// 5', that lies on the other side of an exon boundary.  Return its builder and region if
+    /// that side is the preferred one, else `builder` and its region.  `alt` is the genome
+    /// alignment as `(alt_ac, alt_aln_method)`.
+    fn shift_over_boundary<'a>(
+        &self,
+        builder: AltSeqBuilder<'a>,
+        alt: Option<(&str, &str)>,
+    ) -> Result<(AltSeqBuilder<'a>, VariantLocation), Error> {
+        let region = builder.variant_location()?;
+        let Some(preferred) = self.shift_preference(&builder.var_c)? else {
+            return Ok((builder, region));
+        };
+        if !matches!(region, VariantLocation::Intron | VariantLocation::Cds) {
+            return Ok((builder, region));
+        }
+        let (alt_ac, alt_aln_method) =
+            alt.ok_or_else(|| Error::ShiftOverBoundaryNeedsAlignment(builder.var_c.to_string()))?;
+
+        let tx_ac = builder.var_c.accession().to_string();
+        let var_g = self.c_to_g(&builder.var_c, alt_ac, alt_aln_method)?;
+        let mut seen = vec![var_g.to_string()];
+        for direction in [Direction::FiveToThree, Direction::ThreeToFive] {
+            // Skip a shift that fails, unless data is missing, see `DIFFERENCES.md`.
+            let shifted_var_g = match self.shift_var_g(&var_g, direction, alt_aln_method) {
+                Ok(shifted_var_g) => shifted_var_g,
+                Err(e) if is_data_error(&e) => return Err(e),
+                Err(_) => {
+                    debug!("Cannot shift {} over the boundary", location(&var_g));
+                    continue;
+                }
+            };
+            let key = shifted_var_g.to_string();
+            if seen.contains(&key) {
+                continue;
+            }
+            seen.push(key);
+            let shifted_var_c = match self.g_to_c(&shifted_var_g, &tx_ac, alt_aln_method) {
+                Ok(shifted_var_c) => shifted_var_c,
+                Err(e) if is_data_error(&e) => return Err(e),
+                Err(_) => {
+                    debug!("Cannot map {} to {}", location(&shifted_var_g), tx_ac);
+                    continue;
+                }
+            };
+
+            let shifted = self.alt_seq_builder(shifted_var_c, builder.reference_data, alt)?;
+            let shifted_region = shifted.variant_location()?;
+            if matches!(
+                shifted_region,
+                VariantLocation::Intron | VariantLocation::Cds
+            ) && shifted_region != region
+            {
+                return Ok(if shifted_region == preferred {
+                    (shifted, shifted_region)
+                } else {
+                    (builder, region)
+                });
+            }
+        }
+        Ok((builder, region))
+    }
+
+    /// The region that `c_to_p` prefers for a shift of `var_c` over an exon boundary, or `None`
+    /// if it does not shift.  Only insertions and duplications shift.
+    fn shift_preference(&self, var_c: &HgvsVariant) -> Result<Option<VariantLocation>, Error> {
+        if !self.config.shift_over_boundary
+            || !var_c
+                .na_edit()
+                .is_some_and(|edit| edit.is_ins() || edit.is_dup())
+        {
+            return Ok(None);
+        }
+        // `Default` keeps the variant, so it needs no shift and no genome, see `DIFFERENCES.md`.
+        Ok(match self.config.shift_over_boundary_preference {
+            ShiftOverBoundaryPreference::Default => None,
+            ShiftOverBoundaryPreference::Intron => Some(VariantLocation::Intron),
+            ShiftOverBoundaryPreference::Exon => Some(VariantLocation::Cds),
+        })
+    }
+
+    /// Whether `c_to_p` shifts `var_c` over an exon boundary, which needs the genome alignment.
+    /// This is the case for an insertion or duplication in an exon or intron if the preference
+    /// is not `Default`.
+    pub(crate) fn shift_needs_alignment(&self, var_c: &HgvsVariant) -> Result<bool, Error> {
+        if self.shift_preference(var_c)?.is_none() {
+            return Ok(false);
+        }
+        let reference_data =
+            ref_transcript_data_shared(&self.provider, &var_c.accession().value, None)?;
+        let region = self
+            .alt_seq_builder(var_c.clone(), &reference_data, None)?
+            .variant_location()?;
+        Ok(matches!(
+            region,
+            VariantLocation::Intron | VariantLocation::Cds
+        ))
+    }
+
+    /// Whether `c_to_p` can use the genome alignment for `var_c` with
+    /// `Config::ins_at_boundary_by_sequence`, which a variant with an intron position gets
+    /// anyway.  This is the case for a dup of exon bases at an exon boundary.
+    pub(crate) fn boundary_wants_alignment(&self, var_c: &HgvsVariant) -> Result<bool, Error> {
+        if !self.config.ins_at_boundary_by_sequence
+            || var_c.spans_intron()
+            || !var_c.na_edit().is_some_and(NaEdit::is_dup)
+        {
+            return Ok(false);
+        }
+        let reference_data =
+            ref_transcript_data_shared(&self.provider, &var_c.accession().value, None)?;
+        Ok(AltSeqBuilder::new(var_c.clone(), &reference_data)
+            .boundary_intron_interval()
+            .is_some())
+    }
+
+    /// The `AltSeqBuilder` that `c_to_p` uses for `var_c`, with the settings of `Config`.  With
+    /// `ins_at_boundary_by_sequence`, it takes the intron bases next to an exon boundary from
+    /// the genome alignment `alt`, given as `(alt_ac, alt_aln_method)`.
+    pub(crate) fn alt_seq_builder<'a>(
+        &self,
+        var_c: HgvsVariant,
+        reference_data: &'a RefTranscriptData,
+        alt: Option<(&str, &str)>,
+    ) -> Result<AltSeqBuilder<'a>, Error> {
+        let builder = AltSeqBuilder {
+            ins_at_boundary_is_intronic: self.config.ins_at_boundary_is_intronic,
+            ins_at_boundary_by_sequence: self.config.ins_at_boundary_by_sequence,
+            ..AltSeqBuilder::new(var_c, reference_data)
+        };
+        let boundary_intron_bases = match alt {
+            Some(alt) if builder.ins_at_boundary_by_sequence => {
+                self.boundary_intron_bases(&builder, alt)?
+            }
+            _ => None,
+        };
+        Ok(AltSeqBuilder {
+            boundary_intron_bases,
+            ..builder
+        })
+    }
+
+    /// The two intron bases next to the exon boundary at which the variant of `builder` puts
+    /// its bases, in the orientation of the transcript, from the genome alignment `alt`.
+    /// `None` if the variant puts no bases there, or if the genome lacks the bases.
+    fn boundary_intron_bases(
+        &self,
+        builder: &AltSeqBuilder,
+        (alt_ac, alt_aln_method): (&str, &str),
+    ) -> Result<Option<String>, Error> {
+        let Some(interval) = builder.boundary_intron_interval() else {
+            return Ok(None);
+        };
+        let mapper =
+            self.build_alignment_mapper(&builder.var_c.accession().value, alt_ac, alt_aln_method)?;
+        let range: Range<i32> = mapper.c_to_g(&interval)?.inner().clone().try_into()?;
+        let (Ok(start), Ok(end)) = (usize::try_from(range.start), usize::try_from(range.end))
+        else {
+            return Ok(None);
+        };
+        match self.provider.get_seq_part(alt_ac, Some(start), Some(end)) {
+            Ok(seq) if seq.len() == 2 => Ok(Some(if mapper.strand == -1 {
+                revcomp(&seq)
+            } else {
+                seq
+            })),
+            Ok(_) => Ok(None),
+            Err(e) => {
+                debug!(
+                    "No intron bases at the boundary of {}: {}",
+                    location(&builder.var_c),
+                    e
+                );
+                Ok(None)
+            }
+        }
+    }
+
+    /// Shift `var_g` fully in `direction` and rewrite a duplication as an insertion, as
+    /// `_var_g_shift_with_rewrite` of biocommons/hgvs does.
+    ///
+    /// The insertion goes to the end of the duplicated bases that the shift reached: after
+    /// them for a 3' shift and before them for a 5' shift on the genome.  The dup is fully
+    /// shifted, so the insertion cannot move further in `direction` either.
+    ///
+    /// biocommons/hgvs picks the end by the strand of the transcript instead, see
+    /// `DIFFERENCES.md`.
+    fn shift_var_g(
+        &self,
+        var_g: &HgvsVariant,
+        direction: Direction,
+        alt_aln_method: &str,
+    ) -> Result<HgvsVariant, Error> {
+        // As in biocommons/hgvs, the normalizer does not validate.
+        let normalizer = Normalizer::new(
+            self,
+            self.provider.clone(),
+            ValidationLevel::Null.validator(false, self.provider.clone()),
+            normalizer::Config {
+                alt_aln_method: alt_aln_method.to_string(),
+                shuffle_direction: direction,
+                window_size: self.config.window_size,
+                ..Default::default()
+            },
+        );
+        let var_g = normalizer.normalize(var_g)?;
+        if !var_g.na_edit().is_some_and(NaEdit::is_dup) {
+            return Ok(var_g);
+        }
+
+        let var_g = self.replace_reference(var_g)?;
+        let HgvsVariant::GenomeVariant {
+            accession,
+            gene_symbol,
+            loc_edit,
+        } = &var_g
+        else {
+            return Err(Error::ExpectedGenomeVariant(var_g.to_string()));
+        };
+        let (Some(start), Some(end), NaEdit::Dup { reference }) = (
+            loc_edit.loc.inner().start,
+            loc_edit.loc.inner().end,
+            loc_edit.edit.inner(),
+        ) else {
+            return Err(Error::MissingGenomeIntervalPosition(var_g.to_string()));
+        };
+        let (start, end) = match direction {
+            Direction::FiveToThree => (end, end + 1),
+            Direction::ThreeToFive => (start - 1, start),
+        };
+        Ok(HgvsVariant::GenomeVariant {
+            accession: accession.clone(),
+            gene_symbol: gene_symbol.clone(),
+            loc_edit: GenomeLocEdit {
+                loc: Mu::Certain(GenomeInterval {
+                    start: Some(start),
+                    end: Some(end),
+                }),
+                edit: Mu::Certain(NaEdit::Ins {
+                    alternative: reference.clone(),
+                }),
+            },
+        })
     }
 
     fn get_altered_sequence(
@@ -821,11 +1152,11 @@ impl Mapper {
 
         let (start, end) = if interval.start > r.start || interval.start > r.end {
             tracing::warn!(
-                "Altered sequence range start {} is greater than variant range start {} or end {}, clamping. Variant description is {}",
+                "Altered sequence range start {} is greater than variant range start {} or end {}, clamping. Variant: {}",
                 interval.start,
                 r.end,
                 r.start,
-                &var
+                location(var)
             );
             // FIXME: workaround for cases that would end up with negative start positions
             //  this needs more investigation
@@ -848,10 +1179,10 @@ impl Mapper {
         let r = start..end;
         let r = if r.end > seq.len() {
             tracing::warn!(
-                    "Altered sequence range {:?} is incompatible with sequence length {:?}, clamping. Variant description is {}",
+                    "Altered sequence range {:?} is incompatible with sequence length {:?}, clamping. Variant: {}",
                     r,
                     seq.len(),
-                    &var
+                    location(var)
                 );
             r.start..seq.len()
         } else {
@@ -927,6 +1258,16 @@ impl Mapper {
 
     /// Fetch reference sequence for variant and return updated `HgvsVariant` if necessary.
     pub fn replace_reference(&self, var: HgvsVariant) -> Result<HgvsVariant, Error> {
+        self.replace_reference_with_alt(var, None)
+    }
+
+    /// Like `replace_reference()`, but takes the reference of an intronic c. variant from the
+    /// genome alignment `alt`, given as `(alt_ac, alt_aln_method)`.
+    pub(crate) fn replace_reference_with_alt(
+        &self,
+        var: HgvsVariant,
+        alt: Option<(&str, &str)>,
+    ) -> Result<HgvsVariant, Error> {
         match &var {
             HgvsVariant::ProtVariant { .. } => Err(Error::CannotUpdateReference),
             _ => Ok(()),
@@ -937,24 +1278,34 @@ impl Mapper {
             return Ok(var);
         }
 
-        if var.spans_intron() {
+        let alt = alt.filter(|_| matches!(var, HgvsVariant::CdsVariant { .. }));
+        if var.spans_intron() && alt.is_none() {
             debug!(
                 "Can't update reference sequence for intronic variant {}",
-                var
+                location(&var)
             );
             return Ok(var);
         }
 
         // For c. variants, we need coordinates on underlying sequence.
-        let (r, ac): (Range<_>, _) = match &var {
+        let mut strand = 1;
+        let (r, ac): (Range<_>, &str) = match &var {
             HgvsVariant::CdsVariant {
                 accession,
                 loc_edit,
                 ..
-            } => {
-                let mapper = self.build_alignment_mapper(accession, accession, "transcript")?;
-                (mapper.c_to_n(loc_edit.loc.inner())?.into(), accession)
-            }
+            } => match alt {
+                Some((alt_ac, alt_aln_method)) if var.spans_intron() => {
+                    let mapper = self.build_alignment_mapper(accession, alt_ac, alt_aln_method)?;
+                    strand = mapper.strand;
+                    let pos_g = mapper.c_to_g(loc_edit.loc.inner())?;
+                    (pos_g.inner().clone().try_into()?, alt_ac)
+                }
+                _ => {
+                    let mapper = self.build_alignment_mapper(accession, accession, "transcript")?;
+                    (mapper.c_to_n(loc_edit.loc.inner())?.into(), accession)
+                }
+            },
             HgvsVariant::GenomeVariant {
                 accession,
                 loc_edit,
@@ -992,9 +1343,10 @@ impl Mapper {
         )?;
         if seq.len() != r.len() {
             // Tried to read beyond seq end; this is an out-of-bounds variant.
-            tracing::debug!("Bailing out on out-of-bounds variant: {}", &var);
+            tracing::debug!("Bailing out on out-of-bounds variant: {}", location(&var));
             return Ok(var);
         }
+        let seq = if strand == -1 { revcomp(&seq) } else { seq };
 
         let na_edit = var
             .na_edit()
@@ -1026,45 +1378,153 @@ impl Mapper {
     }
 }
 
-/// A LRU cached version of `alignment::Mapper::new`.
-/// The indirection here is due to the fact that `cached` cannot deal with `self` arguments.
-/// The `convert` argument constructs the key to be used in the cache.
-/// All of this function's arguments contribute to the key;
-/// that is why the supplied provider's `data_version` and `schema_version`
-/// should return sensible values which allow distinguishing them from other providers.
+/// The distance from the position `start` to `end`, as `BaseOffsetPosition.__sub__` of
+/// biocommons/hgvs computes it for positions without offset.  There is no position 0, e.g.,
+/// c.0, so the distance from c.-1 to c.1 is 1.
+fn distance_without_zero(start: i32, end: i32) -> i32 {
+    end - start - i32::from(end > 0 && start < 0)
+}
+
+/// `var_p` with its change marked as uncertain or certain, see
+/// `Config::inferred_p_is_uncertain`.  `p.?` and `p.Met1?` stay as they are.
+pub(crate) fn with_inferred_p_uncertainty(var_p: HgvsVariant, uncertain: bool) -> HgvsVariant {
+    let HgvsVariant::ProtVariant {
+        accession,
+        gene_symbol,
+        loc_edit,
+    } = var_p
+    else {
+        return var_p;
+    };
+    let loc_edit = match (loc_edit, uncertain) {
+        (ProtLocEdit::Ordinary { loc, edit }, _) => ProtLocEdit::Ordinary {
+            loc: Mu::from(loc.unwrap(), !uncertain),
+            edit: Mu::from(edit.unwrap(), !uncertain),
+        },
+        (ProtLocEdit::NoChange | ProtLocEdit::NoChangeUncertain, true) => {
+            ProtLocEdit::NoChangeUncertain
+        }
+        (ProtLocEdit::NoChange | ProtLocEdit::NoChangeUncertain, false) => ProtLocEdit::NoChange,
+        (ProtLocEdit::NoProtein | ProtLocEdit::NoProteinUncertain, true) => {
+            ProtLocEdit::NoProteinUncertain
+        }
+        (ProtLocEdit::NoProtein | ProtLocEdit::NoProteinUncertain, false) => ProtLocEdit::NoProtein,
+        (loc_edit @ (ProtLocEdit::Unknown | ProtLocEdit::InitiationUncertain), _) => loc_edit,
+    };
+    HgvsVariant::ProtVariant {
+        accession,
+        gene_symbol,
+        loc_edit,
+    }
+}
+
+/// Whether `e` reports missing data rather than a problem with the variant.  The normalizer
+/// reports a failed lookup of the reference as `ReplaceReferenceFailed`.
+fn is_data_error(e: &Error) -> bool {
+    matches!(
+        e,
+        Error::DataError(_)
+            | Error::NormalizationFailed(
+                normalizer::Error::DataError(_) | normalizer::Error::ReplaceReferenceFailed(_)
+            )
+    )
+}
+
+/// Cache key of `build_alignment_mapper_cached`.  The provider is `provider_id()` of it.
+#[derive(Hash, PartialEq, Eq)]
+struct AlignmentMapperKey {
+    provider: usize,
+    strict_bounds: bool,
+    tx_ac: String,
+    alt_ac: String,
+    alt_aln_method: String,
+}
+
+/// Borrowed form of `AlignmentMapperKey`, so that lookups need no allocation.
+///
+/// It must hash like `AlignmentMapperKey`, hence the same fields in the same order.
+#[derive(Hash)]
+struct AlignmentMapperKeyRef<'a> {
+    provider: usize,
+    strict_bounds: bool,
+    tx_ac: &'a str,
+    alt_ac: &'a str,
+    alt_aln_method: &'a str,
+}
+
+impl Equivalent<AlignmentMapperKey> for AlignmentMapperKeyRef<'_> {
+    fn equivalent(&self, key: &AlignmentMapperKey) -> bool {
+        self.provider == key.provider
+            && self.strict_bounds == key.strict_bounds
+            && self.tx_ac == key.tx_ac
+            && self.alt_ac == key.alt_ac
+            && self.alt_aln_method == key.alt_aln_method
+    }
+}
+
+impl AlignmentMapperKeyRef<'_> {
+    fn to_owned(&self) -> AlignmentMapperKey {
+        AlignmentMapperKey {
+            provider: self.provider,
+            strict_bounds: self.strict_bounds,
+            tx_ac: self.tx_ac.to_string(),
+            alt_ac: self.alt_ac.to_string(),
+            alt_aln_method: self.alt_aln_method.to_string(),
+        }
+    }
+}
+
+type AlignmentMapperCache =
+    Cache<AlignmentMapperKey, CacheEntry<Result<Arc<alignment::Mapper>, Error>>>;
+
+thread_local! {
+    /// Each thread has its own cache.  Even hits update the eviction state, so a shared cache
+    /// needs a lock for them, and threads would also contend on the reference counts of the
+    /// shared values.
+    static ALIGNMENT_MAPPER_CACHE: RefCell<AlignmentMapperCache> =
+        RefCell::new(Cache::new(1000));
+}
+
+/// A cached version of `alignment::Mapper::new`.
+/// All of this function's arguments contribute to the key, the provider by its identity, see
+/// `provider_id()`.
 ///
 /// Because the cached value must implement `Clone`
-/// and the type is `Result<alignment::Mapper, Error>`,
+/// and the type is `Result<Arc<alignment::Mapper>, Error>`,
 /// `Error`, too, must implement `Clone`.
 /// Sadly, postgres Errors do not do that, so either:
 /// 1. wrap non-clonable errors in `Arc`
 /// 2. convert the result to an option instead
 /// 3. return a generic error instead
-#[cached(
-    ty = "SizedCache<String, Result<alignment::Mapper, Error>>",
-    create = "{ SizedCache::with_size(1000) }",
-    convert = r#"{ format!("{}{}{}{}{}{}",
-                       provider.data_version(),
-                       provider.schema_version(),
-                       strict_bounds,
-                       tx_ac,
-                       alt_ac,
-                       alt_aln_method) }"#
-)]
 fn build_alignment_mapper_cached(
-    provider: Arc<dyn Provider + Send + Sync>,
+    provider: &Arc<dyn Provider + Send + Sync>,
     strict_bounds: bool,
     tx_ac: &str,
     alt_ac: &str,
     alt_aln_method: &str,
-) -> Result<alignment::Mapper, Error> {
-    alignment::Mapper::new(
+) -> Result<Arc<alignment::Mapper>, Error> {
+    let key = AlignmentMapperKeyRef {
+        provider: provider_id(provider),
+        strict_bounds,
+        tx_ac,
+        alt_ac,
+        alt_aln_method,
+    };
+    if let Some(hit) = ALIGNMENT_MAPPER_CACHE.with_borrow(|c| c.get(&key).map(|e| e.value.clone()))
+    {
+        return hit;
+    }
+    let key = key.to_owned();
+    let result = alignment::Mapper::new(
         &alignment::Config { strict_bounds },
-        provider,
+        provider.clone(),
         tx_ac,
         alt_ac,
         alt_aln_method,
     )
+    .map(Arc::new);
+    ALIGNMENT_MAPPER_CACHE.with_borrow_mut(|c| c.insert(key, CacheEntry::new(provider, &result)));
+    result
 }
 #[cfg(test)]
 mod test {
@@ -1080,19 +1540,40 @@ mod test {
 
     use crate::{
         data::uta_sr::test_helpers::build_provider,
-        parser::{HgvsVariant, NoRef},
+        parser::{HgvsVariant, Mu, NoRef, ProtLocEdit},
     };
 
     use super::{Config, Mapper};
+
+    /// Cache lookups only hit if the borrowed key hashes like the owned one.
+    #[test]
+    fn alignment_mapper_key_ref_matches_key() {
+        use quick_cache::Equivalent;
+        use std::hash::{BuildHasher, RandomState};
+
+        let key_ref = super::AlignmentMapperKeyRef {
+            provider: 1,
+            strict_bounds: true,
+            tx_ac: "NM_001637.3",
+            alt_ac: "NC_000007.13",
+            alt_aln_method: "splign",
+        };
+        let key = key_ref.to_owned();
+        let state = RandomState::new();
+
+        assert_eq!(state.hash_one(&key_ref), state.hash_one(&key));
+        assert!(key_ref.equivalent(&key));
+    }
 
     #[test]
     fn issue_131() -> Result<(), Error> {
         let mapper = build_mapper()?;
 
+        // The insertion changes the stop codon `TAA` to `TAG`, like `c.417A>G`.
         let var_c = HgvsVariant::from_str("NM_001253909.2:c.416_417insGTG")?;
         let var_p_test = mapper.c_to_p(&var_c, None)?;
 
-        assert_eq!(format!("{}", &var_p_test), "NP_001240838.1:p.=");
+        assert_eq!(format!("{}", &var_p_test), "NP_001240838.1:p.(Ter139=)");
         insta::assert_yaml_snapshot!(&var_p_test);
 
         Ok(())
@@ -1203,13 +1684,15 @@ mod test {
     //     Ok(())
     // }
 
+    /// c.1257 is the last base of the stop codon, so the copy goes into the 3' UTR.
+    /// biocommons/hgvs gives `p.=`, see `DIFFERENCES.md`.
     #[test]
     fn map_of_dup_at_cds_end() -> Result<(), Error> {
         let mapper = build_mapper()?;
         let hgvs_c = "NM_001051.2:c.1257dupG"; // gene SSTR3
         let var_c = HgvsVariant::from_str(hgvs_c)?;
         let var_p = mapper.c_to_p(&var_c, None)?;
-        assert_eq!(format!("{}", &var_p), "NP_001042.1:p.=");
+        assert_eq!(format!("{}", &var_p), "NP_001042.1:p.?");
 
         Ok(())
     }
@@ -1250,7 +1733,6 @@ mod test {
     /// The following tests corresponds to the `test_hgvs_variantmapper_cp_sanity.py`
     /// test suite of the Python package.  It uses a mock data provider, defined
     /// in the `sanity_mock` module.
-
     mod sanity_mock {
         use std::{
             path::{Path, PathBuf},
@@ -1261,24 +1743,32 @@ mod test {
 
         use crate::data::interface;
         use crate::{
+            data,
             data::interface::TxIdentityInfo,
             mapper::variant::{Config, Mapper},
         };
+        use indexmap::IndexMap;
         use std::sync::atomic::AtomicUsize;
+
         static PROVIDER_COUNT: AtomicUsize = AtomicUsize::new(0);
 
         #[derive(Debug, serde::Deserialize)]
-        struct ProviderRecord {
+        pub struct ProviderRecord {
             pub accession: String,
             pub transcript_sequence: String,
             pub cds_start_i: i32,
             pub cds_end_i: i32,
+            #[serde(skip)]
+            pub translation_exceptions: Vec<interface::TranslationException>,
+            #[serde(skip)]
+            pub lengths: Vec<i32>,
         }
 
         pub struct Provider {
             data_version: String,
             schema_version: String,
             records: Vec<ProviderRecord>,
+            translation_table: crate::sequences::TranslationTable,
         }
 
         impl Provider {
@@ -1292,13 +1782,38 @@ mod test {
                 for record in rdr.deserialize() {
                     records.push(record?);
                 }
+                Ok(Self::with_records(records))
+            }
+
+            pub fn with_records(records: Vec<ProviderRecord>) -> Self {
                 let number = PROVIDER_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 let dummy_version = format!("provider_{number}");
-                Ok(Self {
+                Self {
                     records,
                     data_version: dummy_version.clone(),
                     schema_version: dummy_version,
-                })
+                    translation_table: Default::default(),
+                }
+            }
+
+            /// Use `version` as data and schema version.
+            pub fn with_version(self, version: &str) -> Self {
+                Self {
+                    data_version: version.to_string(),
+                    schema_version: version.to_string(),
+                    ..self
+                }
+            }
+
+            /// Use `translation_table` for every transcript.
+            pub fn with_translation_table(
+                self,
+                translation_table: crate::sequences::TranslationTable,
+            ) -> Self {
+                Self {
+                    translation_table,
+                    ..self
+                }
             }
         }
 
@@ -1313,8 +1828,8 @@ mod test {
 
             fn get_assembly_map(
                 &self,
-                _assembly: biocommons_bioutils::assemblies::Assembly,
-            ) -> indexmap::IndexMap<String, String> {
+                _assembly: &str,
+            ) -> Result<IndexMap<String, String>, data::error::Error> {
                 panic!("for test use only");
             }
 
@@ -1341,13 +1856,11 @@ mod test {
             ) -> Result<String, crate::data::error::Error> {
                 for record in &self.records {
                     if record.accession == tx_ac {
+                        // As seqrepo, return the part of the sequence within its bounds.
                         let seq = &record.transcript_sequence;
-                        return match (begin, end) {
-                            (None, None) => Ok(seq.to_string()),
-                            (None, Some(end)) => Ok(seq[..end].to_string()),
-                            (Some(begin), None) => Ok(seq[begin..].to_string()),
-                            (Some(begin), Some(end)) => Ok(seq[begin..end].to_string()),
-                        };
+                        let end = end.unwrap_or(seq.len()).min(seq.len());
+                        let begin = begin.unwrap_or(0).min(end);
+                        return Ok(seq[begin..end].to_string());
                     }
                 }
                 Err(crate::data::error::Error::NoSequenceRecord(
@@ -1411,15 +1924,27 @@ mod test {
                             alt_aln_method: "splign".to_string(),
                             cds_start_i: Some(record.cds_start_i),
                             cds_end_i: Some(record.cds_end_i),
-                            lengths: Vec::new(),
+                            lengths: record.lengths.clone(),
                             hgnc: "MOCK".to_string(),
-                            ..Default::default()
+                            translation_table: self.translation_table,
                         });
                     }
                 }
                 Err(crate::data::error::Error::NoSequenceRecord(
                     tx_ac.to_string(),
                 ))
+            }
+
+            fn get_tx_translation_exceptions(
+                &self,
+                tx_ac: &str,
+            ) -> Result<Vec<interface::TranslationException>, crate::data::error::Error>
+            {
+                self.records
+                    .iter()
+                    .find(|record| record.accession == tx_ac)
+                    .map(|record| record.translation_exceptions.clone())
+                    .ok_or_else(|| crate::data::error::Error::NoSequenceRecord(tx_ac.to_string()))
             }
 
             fn get_tx_info(
@@ -1455,6 +1980,418 @@ mod test {
         }
     }
 
+    /// Transcripts whose proteins need translation exceptions:
+    ///
+    /// * `NM_999990.1`: `MAKLWEPURV*`, with selenocysteine at the UGA codon 8.
+    /// * `NM_999991.1`: `MAKLWEPRV*`, with methionine at the ACG start codon.
+    /// * `NM_999992.1`: `MAKXLWERV*`, with an unspecified amino acid at the UAG codon 4, i.e.,
+    ///   a readthrough of this stop codon.
+    fn translation_exceptions_provider() -> std::sync::Arc<sanity_mock::Provider> {
+        use crate::data::interface::TranslationException;
+
+        std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+            sanity_mock::ProviderRecord {
+                accession: "NM_999990.1".to_string(),
+                transcript_sequence: "AAAATCAAAATGGCGAAACTGTGGGAACCGTGACGCGTGTAAGGGG".to_string(),
+                cds_start_i: 9,
+                cds_end_i: 42,
+                translation_exceptions: vec![TranslationException {
+                    position: 8,
+                    amino_acid: 'U',
+                }],
+                lengths: Vec::new(),
+            },
+            sanity_mock::ProviderRecord {
+                accession: "NM_999991.1".to_string(),
+                transcript_sequence: "AAAATCAAAACGGCGAAACTGTGGGAACCGCGCGTGTAAGGGG".to_string(),
+                cds_start_i: 9,
+                cds_end_i: 39,
+                translation_exceptions: vec![TranslationException {
+                    position: 1,
+                    amino_acid: 'M',
+                }],
+                lengths: Vec::new(),
+            },
+            sanity_mock::ProviderRecord {
+                accession: "NM_999992.1".to_string(),
+                transcript_sequence: "AAAATCAAAATGGCGAAATAGCTGTGGGAACGCGTGTAAGGGG".to_string(),
+                cds_start_i: 9,
+                cds_end_i: 39,
+                translation_exceptions: vec![TranslationException {
+                    position: 4,
+                    amino_acid: 'X',
+                }],
+                lengths: Vec::new(),
+            },
+        ]))
+    }
+
+    #[test]
+    fn translation_exceptions_in_reference_protein() -> Result<(), Error> {
+        for (tx_ac, aa_sequence) in [
+            ("NM_999990.1", "MAKLWEPURV*"),
+            ("NM_999991.1", "MAKLWEPRV*"),
+            ("NM_999992.1", "MAKXLWERV*"),
+        ] {
+            let ref_data = crate::mapper::altseq::RefTranscriptData::new(
+                translation_exceptions_provider(),
+                tx_ac,
+                Some("MOCK"),
+            )?;
+            assert_eq!(ref_data.aa_sequence.as_ref(), aa_sequence, "{tx_ac}");
+        }
+
+        Ok(())
+    }
+
+    /// A translation exception applies only at the codons of the reference that the variant
+    /// leaves unchanged and in frame.
+    #[test]
+    fn hgvs_c_to_p_translation_exceptions() -> Result<(), Error> {
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(&config, translation_exceptions_provider());
+
+        for (hgvsc, hgvsp_expected) in [
+            // A new UGA is a stop codon.
+            ("NM_999990.1:c.15G>A", "MOCK:p.(Trp5Ter)"),
+            // The selenocysteine codon changes.
+            ("NM_999990.1:c.24A>G", "MOCK:p.(Sec8Trp)"),
+            // The selenocysteine codon stays before a variant ...
+            ("NM_999990.1:c.26G>A", "MOCK:p.(Arg9His)"),
+            // ... and after an in-frame deletion.
+            ("NM_999990.1:c.16_18del", "MOCK:p.(Glu6del)"),
+            // The ACG start codon stays methionine.
+            ("NM_999991.1:c.16_18del", "MOCK:p.(Glu6del)"),
+            // The readthrough stop codon does not end the protein, before a variant ...
+            ("NM_999992.1:c.23G>A", "MOCK:p.(Arg8His)"),
+            // ... and after an in-frame deletion.
+            ("NM_999992.1:c.4_6del", "MOCK:p.(Ala2del)"),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
+        }
+
+        Ok(())
+    }
+
+    /// Transcripts whose CDS has no stop codon, e.g., GENCODE `cds_end_NF`:
+    ///
+    /// * `NM_999993.1`: `ATG GCC AAG CTG TGG GAA` (`MAKLWE`).
+    /// * `NM_999994.1`: `ATG GCC AAG CTG TGG GAA GC` (`MAKLWE` and an incomplete codon).
+    /// * `NM_999996.1`: `NM_999993.1` followed by `GGCTAACTGATAGG`, with stop codons after
+    ///   c.18 in two frames.
+    ///
+    /// The CDS of `NM_999995.1` has a stop codon, but its length is not a multiple of 3, as a
+    /// +1 ribosomal frameshift skips the `T` after `TCC`: `ATG GCC TCC T GAT GGC TAA`
+    /// (`MASDG*`).
+    fn no_stop_codon_provider() -> std::sync::Arc<sanity_mock::Provider> {
+        let record =
+            |accession: &str, transcript_sequence: &str, cds_end_i| sanity_mock::ProviderRecord {
+                accession: accession.to_string(),
+                transcript_sequence: transcript_sequence.to_string(),
+                cds_start_i: 9,
+                cds_end_i,
+                translation_exceptions: Vec::new(),
+                lengths: Vec::new(),
+            };
+        std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+            record("NM_999993.1", "AAAATCAAAATGGCCAAGCTGTGGGAA", 27),
+            record("NM_999994.1", "AAAATCAAAATGGCCAAGCTGTGGGAAGC", 29),
+            record("NM_999995.1", "AAAATCAAAATGGCCTCCTGATGGCTAAGGGG", 28),
+            record(
+                "NM_999996.1",
+                "AAAATCAAAATGGCCAAGCTGTGGGAAGGCTAACTGATAGG",
+                27,
+            ),
+        ]))
+    }
+
+    /// The reference protein holds the complete codons of the CDS, and `cds_end` tells how the
+    /// CDS ends.  A CDS with an incomplete codon is rejected if a stop codon in frame shows
+    /// that the CDS changes the frame.
+    #[test]
+    fn reference_protein_and_cds_end() -> Result<(), Error> {
+        use crate::mapper::altseq::{CdsEnd, RefTranscriptData};
+
+        for (provider, tx_ac, aa_sequence, cds_stop, cds_end) in [
+            (
+                translation_exceptions_provider(),
+                "NM_999991.1",
+                "MAKLWEPRV*",
+                39,
+                CdsEnd::StopCodon,
+            ),
+            (
+                no_stop_codon_provider(),
+                "NM_999993.1",
+                "MAKLWE",
+                27,
+                CdsEnd::NoStopCodon,
+            ),
+            (
+                no_stop_codon_provider(),
+                "NM_999994.1",
+                "MAKLWE",
+                29,
+                CdsEnd::IncompleteCodon("GC".to_string()),
+            ),
+        ] {
+            let ref_data = RefTranscriptData::new(provider, tx_ac, Some("MOCK"))?;
+            assert_eq!(
+                (
+                    ref_data.aa_sequence.as_ref(),
+                    ref_data.cds_stop,
+                    ref_data.cds_end
+                ),
+                (aa_sequence, cds_stop, cds_end),
+                "{tx_ac}"
+            );
+        }
+
+        assert!(matches!(
+            crate::mapper::altseq::RefTranscriptData::new(
+                no_stop_codon_provider(),
+                "NM_999995.1",
+                Some("MOCK"),
+            ),
+            Err(crate::mapper::error::Error::TranscriptLengthInvalid(tx_ac, 19))
+                if tx_ac == "NM_999995.1"
+        ));
+
+        Ok(())
+    }
+
+    /// Without a stop codon, the last amino acid is an ordinary one, and the amino acids after
+    /// it are unknown.
+    #[test]
+    fn hgvs_c_to_p_no_stop_codon() -> Result<(), Error> {
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(&config, no_stop_codon_provider());
+
+        for (hgvsc, hgvsp_expected) in [
+            ("NM_999993.1:c.18A>G", "MOCK:p.(Glu6=)"),
+            ("NM_999993.1:c.18A>C", "MOCK:p.(Glu6Asp)"),
+            ("NM_999993.1:c.16_18del", "MOCK:p.(Glu6del)"),
+            ("NM_999993.1:c.13_15del", "MOCK:p.(Trp5del)"),
+            ("NM_999993.1:c.15_16insGGG", "MOCK:p.(Trp5_Glu6insGly)"),
+            ("NM_999993.1:c.15G>A", "MOCK:p.(Trp5Ter)"),
+            ("NM_999993.1:c.13_14insCCTA", "MOCK:p.(Trp5SerfsTer2)"),
+            ("NM_999993.1:c.17_18insC", "MOCK:p.(Glu6AspfsTer?)"),
+            // A new stop codon gives the same result as with a stop codon at the end.
+            (
+                "NM_999993.1:c.15_16insGGGTAA",
+                "MOCK:p.(Trp5_Glu6insGlyTer)",
+            ),
+            ("NM_999993.1:c.4_6delinsGGGTAA", "MOCK:p.(Ala2delinsGlyTer)"),
+            // The protein ends at c.18 also if a stop codon follows.
+            ("NM_999996.1:c.18A>G", "MOCK:p.(Glu6=)"),
+            ("NM_999996.1:c.18A>C", "MOCK:p.(Glu6Asp)"),
+            ("NM_999996.1:c.4_6dup", "MOCK:p.(Ala2dup)"),
+            (
+                "NM_999996.1:c.15_16insGGGTAA",
+                "MOCK:p.(Trp5_Glu6insGlyTer)",
+            ),
+            ("NM_999996.1:c.17_18insCC", "MOCK:p.(Glu6AspfsTer?)"),
+            // The alt protein keeps the last amino acid after an in-frame dup.
+            ("NM_999993.1:c.4_6dup", "MOCK:p.(Ala2dup)"),
+            ("NM_999993.1:c.6_7insGCC", "MOCK:p.(Ala2dup)"),
+            // The CDS goes on after c.18, so there is no 3' UTR, and the amino acids after
+            // c.18 are unknown.  This also holds for a variant that starts in the CDS.
+            ("NM_999996.1:c.18_*1insA", "MOCK:p.?"),
+            ("NM_999996.1:c.*1G>A", "MOCK:p.?"),
+            ("NM_999996.1:c.*2dup", "MOCK:p.?"),
+            ("NM_999996.1:c.*1_*3inv", "MOCK:p.?"),
+            ("NM_999996.1:c.17_*1del", "MOCK:p.?"),
+            ("NM_999996.1:c.18_*1delinsTC", "MOCK:p.?"),
+            // The CDS ends before the new frame changes a complete codon.
+            ("NM_999993.1:c.18del", "MOCK:p.?"),
+            ("NM_999993.1:c.16del", "MOCK:p.?"),
+            // The copy follows the last amino acid.
+            ("NM_999993.1:c.16_18dup", "MOCK:p.?"),
+            ("NM_999994.1:c.18A>G", "MOCK:p.(Glu6=)"),
+            ("NM_999994.1:c.18A>C", "MOCK:p.(Glu6Asp)"),
+            ("NM_999994.1:c.16_18del", "MOCK:p.(Glu6del)"),
+            ("NM_999994.1:c.4_6dup", "MOCK:p.(Ala2dup)"),
+            ("NM_999994.1:c.15G>A", "MOCK:p.(Trp5Ter)"),
+            ("NM_999994.1:c.13_14insCCTA", "MOCK:p.(Trp5SerfsTer2)"),
+            // The new frame completes the incomplete codon ...
+            ("NM_999994.1:c.16del", "MOCK:p.(Glu6LysfsTer?)"),
+            // ... but can keep the last amino acid.
+            ("NM_999994.1:c.18del", "MOCK:p.?"),
+            // Changes after the last complete codon.
+            ("NM_999994.1:c.19G>A", "MOCK:p.?"),
+            ("NM_999994.1:c.19_20insGTGGGAAC", "MOCK:p.?"),
+            ("NM_999994.1:c.18_19insTAA", "MOCK:p.?"),
+            ("NM_999994.1:c.20dup", "MOCK:p.?"),
+            ("NM_999994.1:c.19_20dup", "MOCK:p.?"),
+            // c.-1 is an A, so the deletion keeps the ATG.
+            ("NM_999994.1:c.1del", "MOCK:p.?"),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
+        }
+
+        Ok(())
+    }
+
+    /// Transcripts whose CDS ends with an incomplete stop codon, as many mitochondrial ones do:
+    ///
+    /// * `NM_999982.1`: `ATG GCC AAG CTG TGG T`, followed by `CCCC`.
+    /// * `NM_999981.1`: `ATG GCC AAG CTG TGG TA`, followed by `CCCC`.
+    /// * `NM_999980.1`: `ATG GCC AAG CTG TGG C`, followed by `CCCC`.
+    fn poly_a_provider(
+        translation_table: crate::sequences::TranslationTable,
+    ) -> std::sync::Arc<sanity_mock::Provider> {
+        let record =
+            |accession: &str, transcript_sequence: &str, cds_end_i| sanity_mock::ProviderRecord {
+                accession: accession.to_string(),
+                transcript_sequence: transcript_sequence.to_string(),
+                cds_start_i: 5,
+                cds_end_i,
+                translation_exceptions: Vec::new(),
+                lengths: Vec::new(),
+            };
+        std::sync::Arc::new(
+            sanity_mock::Provider::with_records(vec![
+                record("NM_999982.1", "AAAACATGGCCAAGCTGTGGTCCCC", 21),
+                record("NM_999981.1", "AAAACATGGCCAAGCTGTGGTACCCC", 22),
+                record("NM_999980.1", "AAAACATGGCCAAGCTGTGGCCCCC", 21),
+            ])
+            .with_translation_table(translation_table),
+        )
+    }
+
+    /// As in biocommons/hgvs, the poly(A) tail completes a stop codon that ends with `T` or
+    /// `TA`, but only with the vertebrate mitochondrial translation table.  The completing
+    /// `A`s go into the translated bases only, so the transcript sequence and `cds_stop` stay.
+    #[test]
+    fn poly_a_completes_mitochondrial_stop_codon() -> Result<(), Error> {
+        use crate::mapper::altseq::{CdsEnd, RefTranscriptData};
+        use crate::sequences::TranslationTable;
+
+        for (translation_table, tx_ac, transcript_sequence, aa_sequence, cds_stop, cds_end) in [
+            (
+                TranslationTable::VertebrateMitochondrial,
+                "NM_999982.1",
+                "AAAACATGGCCAAGCTGTGGTCCCC",
+                "MAKLW*",
+                21,
+                CdsEnd::StopCodon,
+            ),
+            (
+                TranslationTable::VertebrateMitochondrial,
+                "NM_999981.1",
+                "AAAACATGGCCAAGCTGTGGTACCCC",
+                "MAKLW*",
+                22,
+                CdsEnd::StopCodon,
+            ),
+            (
+                TranslationTable::VertebrateMitochondrial,
+                "NM_999980.1",
+                "AAAACATGGCCAAGCTGTGGCCCCC",
+                "MAKLW",
+                21,
+                CdsEnd::IncompleteCodon("C".to_string()),
+            ),
+            (
+                TranslationTable::Standard,
+                "NM_999982.1",
+                "AAAACATGGCCAAGCTGTGGTCCCC",
+                "MAKLW",
+                21,
+                CdsEnd::IncompleteCodon("T".to_string()),
+            ),
+        ] {
+            let ref_data =
+                RefTranscriptData::new(poly_a_provider(translation_table), tx_ac, Some("MOCK"))?;
+            assert_eq!(
+                (
+                    ref_data.transcript_sequence.as_ref(),
+                    ref_data.aa_sequence.as_ref(),
+                    ref_data.cds_stop,
+                    ref_data.cds_end,
+                ),
+                (transcript_sequence, aa_sequence, cds_stop, cds_end),
+                "{tx_ac} with {translation_table:?}"
+            );
+        }
+
+        Ok(())
+    }
+
+    /// `c_to_p` on the mitochondrial transcripts of `poly_a_provider()`.  The expectations are
+    /// those of biocommons/hgvs, without the parentheses, except where marked.
+    #[test]
+    fn hgvs_c_to_p_mitochondrial_poly_a() -> Result<(), Error> {
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(
+            &config,
+            poly_a_provider(crate::sequences::TranslationTable::VertebrateMitochondrial),
+        );
+
+        for (hgvsc, hgvsp_expected) in [
+            ("NM_999982.1:c.4G>A", "MOCK:p.(Ala2Thr)"),
+            // `TGA` codes Trp in the vertebrate mitochondrial table.
+            ("NM_999982.1:c.15G>A", "MOCK:p.(Trp5=)"),
+            ("NM_999982.1:c.16T>C", "MOCK:p.(Ter6GlnextTer?)"),
+            ("NM_999982.1:c.13_15del", "MOCK:p.(Trp5Ter)"),
+            ("NM_999982.1:c.10_12dup", "MOCK:p.(Leu4dup)"),
+            ("NM_999982.1:c.*1C>G", "MOCK:p.?"),
+            // The c.* positions count the bases of the transcript, not the completing `A`s, so
+            // the deletions end with the `C`s after c.16.  biocommons/hgvs deletes the `A`s
+            // instead, see `DIFFERENCES.md`.
+            ("NM_999982.1:c.16_*1del", "MOCK:p.(Ter6ProextTer?)"),
+            ("NM_999982.1:c.16_*2del", "MOCK:p.(Ter6XaaextTer?)"),
+            // Bases inserted after the CDS go in front of the completing `A`s.  The CDS has 16
+            // bases, so `c.16_17insG` is not canonical.  It is used on purpose, as
+            // biocommons/hgvs counts it as exonic.  The canonical `c.16_*1insG` is a 3' UTR
+            // variant by its positions.
+            ("NM_999982.1:c.16dup", "MOCK:p.(Ter6LeuextTer?)"),
+            ("NM_999982.1:c.16_17insG", "MOCK:p.(Ter6TrpextTer?)"),
+            ("NM_999982.1:c.16_*1insG", "MOCK:p.?"),
+            ("NM_999981.1:c.4G>A", "MOCK:p.(Ala2Thr)"),
+            ("NM_999981.1:c.17A>C", "MOCK:p.(Ter6SerextTer?)"),
+            ("NM_999981.1:c.16_17del", "MOCK:p.(Ter6ThrextTer?)"),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
+        }
+
+        // The alt transcript has the bases of the transcript only.
+        let ref_data = crate::mapper::altseq::RefTranscriptData::new(
+            poly_a_provider(crate::sequences::TranslationTable::VertebrateMitochondrial),
+            "NM_999982.1",
+            Some("MOCK"),
+        )?;
+        for (hgvsc, transcript_sequence) in [
+            ("NM_999982.1:c.16_*1del", "AAAACATGGCCAAGCTGTGGCCC"),
+            ("NM_999982.1:c.16T>C", "AAAACATGGCCAAGCTGTGGCCCCC"),
+        ] {
+            let alt_data =
+                crate::mapper::altseq::AltSeqBuilder::new(HgvsVariant::from_str(hgvsc)?, &ref_data)
+                    .build_altseq()?;
+            assert_eq!(
+                alt_data[0].transcript_sequence, transcript_sequence,
+                "{hgvsc}"
+            );
+        }
+
+        Ok(())
+    }
+
     fn test_hgvs_c_to_p_conversion(hgvsc: &str, hgvsp_expected: &str) -> Result<(), Error> {
         let mapper = sanity_mock::build_mapper(false)?;
 
@@ -1462,7 +2399,7 @@ mod test {
         let ac_p = "MOCK";
 
         let var_p = mapper.c_to_p(&var_c, Some(ac_p))?;
-        let hgvsp_actual = format!("{}", &var_p);
+        let hgvsp_actual = format!("{}", var_p);
 
         assert_eq!(hgvsp_actual, hgvsp_expected);
 
@@ -1472,7 +2409,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_silent() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.6A>G";
-        let hgvsp_expected = "MOCK:p.Lys2=";
+        let hgvsp_expected = "MOCK:p.(Lys2=)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1481,7 +2418,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_substitution() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.6A>T";
-        let hgvsp_expected = "MOCK:p.Lys2Asn";
+        let hgvsp_expected = "MOCK:p.(Lys2Asn)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1490,7 +2427,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_substitution_introduces_stop_codon() -> Result<(), Error> {
         let hgvsc = "NM_999996.1:c.8C>A";
-        let hgvsp_expected = "MOCK:p.Ser3Ter";
+        let hgvsp_expected = "MOCK:p.(Ser3Ter)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1499,7 +2436,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_substitution_removes_stop_codon() -> Result<(), Error> {
         let hgvsc = "NM_999998.1:c.30G>T";
-        let hgvsp_expected = "MOCK:p.Ter10TyrextTer3";
+        let hgvsp_expected = "MOCK:p.(Ter10TyrextTer3)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1509,7 +2446,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_insertion_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.6_7insGGG";
-        let hgvsp_expected = "MOCK:p.Lys2_Ala3insGly";
+        let hgvsp_expected = "MOCK:p.(Lys2_Ala3insGly)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1518,7 +2455,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_insertion_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.22_23insT";
-        let hgvsp_expected = "MOCK:p.Ala8ValfsTer?";
+        let hgvsp_expected = "MOCK:p.(Ala8ValfsTer?)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1527,7 +2464,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_adds_stop() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.8_9insTT";
-        let hgvsp_expected = "MOCK:p.Lys4Ter";
+        let hgvsp_expected = "MOCK:p.(Lys4Ter)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1536,7 +2473,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.10_12del";
-        let hgvsp_expected = "MOCK:p.Lys4del";
+        let hgvsp_expected = "MOCK:p.(Lys4del)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1545,7 +2482,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion2_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.4_15del";
-        let hgvsp_expected = "MOCK:p.Lys2_Ala5del";
+        let hgvsp_expected = "MOCK:p.(Lys2_Ala5del)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1554,7 +2491,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion3_no_frameshift_c_term() -> Result<(), Error> {
         let hgvsc = "NM_999995.1:c.4_6del";
-        let hgvsp_expected = "MOCK:p.Lys3del";
+        let hgvsp_expected = "MOCK:p.(Lys3del)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1563,7 +2500,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion4_no_frameshift_c_term() -> Result<(), Error> {
         let hgvsc = "NM_999994.1:c.4_9del";
-        let hgvsp_expected = "MOCK:p.Lys3_Lys4del";
+        let hgvsp_expected = "MOCK:p.(Lys3_Lys4del)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1572,7 +2509,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion5_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999994.1:c.20_25del";
-        let hgvsp_expected = "MOCK:p.Ala7_Arg9delinsGly";
+        let hgvsp_expected = "MOCK:p.(Ala7_Arg9delinsGly)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1581,7 +2518,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion6_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.5_7del";
-        let hgvsp_expected = "MOCK:p.Lys2_Ala3delinsThr";
+        let hgvsp_expected = "MOCK:p.(Lys2_Ala3delinsThr)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1590,7 +2527,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion7_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999993.1:c.13_24del";
-        let hgvsp_expected = "MOCK:p.Arg5_Ala8del";
+        let hgvsp_expected = "MOCK:p.(Arg5_Ala8del)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1599,7 +2536,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion_frameshift_nostop() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.11_12del";
-        let hgvsp_expected = "MOCK:p.Lys4SerfsTer?";
+        let hgvsp_expected = "MOCK:p.(Lys4SerfsTer?)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1608,16 +2545,18 @@ mod test {
     #[test]
     fn hgvs_c_to_p_deletion_frameshift_adds_stop() -> Result<(), Error> {
         let hgvsc = "NM_999997.1:c.7del";
-        let hgvsp_expected = "MOCK:p.Ala3ArgfsTer6";
+        let hgvsp_expected = "MOCK:p.(Ala3ArgfsTer6)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
     }
 
+    /// The deletion starts before the stop codon and ends with it, so HGVS describes it as a
+    /// frameshift.  biocommons/hgvs gives `p.(Lys9_Ter10delinsGly)`, see `DIFFERENCES.md`.
     #[test]
     fn hgvs_c_to_p_deletion_no_frameshift_removes_stop_plus_previous() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.25_30del";
-        let hgvsp_expected = "MOCK:p.Lys9_Ter10delinsGly";
+        let hgvsp_expected = "MOCK:p.(Lys9GlyfsTer?)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1626,7 +2565,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_indel_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.11_12delinsTCCCA";
-        let hgvsp_expected = "MOCK:p.Lys4delinsIlePro";
+        let hgvsp_expected = "MOCK:p.(Lys4delinsIlePro)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1635,7 +2574,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_indel2_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.11_18delinsTCCCA";
-        let hgvsp_expected = "MOCK:p.Lys4_Phe6delinsIlePro";
+        let hgvsp_expected = "MOCK:p.(Lys4_Phe6delinsIlePro)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1644,7 +2583,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_indel_frameshift_nostop() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.8delinsGG";
-        let hgvsp_expected = "MOCK:p.Ala3GlyfsTer?";
+        let hgvsp_expected = "MOCK:p.(Ala3GlyfsTer?)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1653,7 +2592,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_dup_1aa_no_frameshift_2() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.10_12dup";
-        let hgvsp_expected = "MOCK:p.Lys4dup";
+        let hgvsp_expected = "MOCK:p.(Lys4dup)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1662,7 +2601,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_dup_1aa_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.16_18dup";
-        let hgvsp_expected = "MOCK:p.Phe6dup";
+        let hgvsp_expected = "MOCK:p.(Phe6dup)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1671,7 +2610,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_dup_2aa_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.16_21dup";
-        let hgvsp_expected = "MOCK:p.Phe6_Arg7dup";
+        let hgvsp_expected = "MOCK:p.(Phe6_Arg7dup)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1680,7 +2619,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_dup_2aa2_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999995.1:c.4_6dup";
-        let hgvsp_expected = "MOCK:p.Lys3dup";
+        let hgvsp_expected = "MOCK:p.(Lys3dup)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1689,7 +2628,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_3aa_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.16_24dup";
-        let hgvsp_expected = "MOCK:p.Phe6_Ala8dup";
+        let hgvsp_expected = "MOCK:p.(Phe6_Ala8dup)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1698,7 +2637,7 @@ mod test {
     #[test]
     fn hgvs_c_to_p_dup_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.12_13dup";
-        let hgvsp_expected = "MOCK:p.Ala5GlufsTer?";
+        let hgvsp_expected = "MOCK:p.(Ala5GlufsTer?)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
@@ -1749,29 +2688,223 @@ mod test {
         Ok(())
     }
 
+    /// As in biocommons/hgvs (biocommons/hgvs#775), a deletion from the CDS into the 3' UTR is
+    /// a frameshift, whatever its length.
     #[test]
     fn hgvs_c_to_p_deletion_into_three_prime_utr_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999999.1:c.27_*3del";
-        let hgvsp_expected = "MOCK:p.Lys9XaafsTer?";
+        let hgvsp_expected = "MOCK:p.(Lys9XaafsTer?)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
-        Ok(())
-    }
-
-    #[test]
-    fn hgvs_c_to_p_deletion_into_three_prime_utr_no_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999995.1:c.28_*3del";
-        let hgvsp_expected = "MOCK:p.Lys10_Ter11delinsArgGlnPheArg";
+        let hgvsp_expected = "MOCK:p.(Lys10ArgfsTer?)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
 
         Ok(())
     }
 
     #[test]
-    fn hgvs_c_to_p_delins_into_three_prime_utr_no_frameshift() -> Result<(), Error> {
+    fn hgvs_c_to_p_delins_into_three_prime_utr_frameshift() -> Result<(), Error> {
         let hgvsc = "NM_999995.1:c.28_*3delinsGGG";
-        let hgvsp_expected = "MOCK:p.Lys10_Ter11delinsGlyArgGlnPheArg";
+        let hgvsp_expected = "MOCK:p.(Lys10GlyfsTer?)";
         test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+
+        Ok(())
+    }
+
+    /// HGVS: "deletions starting 5' of and including the translation termination (stop) codon
+    /// are described as frameshift", whatever their length.  The CDS of both transcripts is
+    /// `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`).  The 3' UTR of `NM_999977.1` is
+    /// `GCTTAGGGGCCCCC` and the one of `NM_999976.1` is `GGCTTAGGGGCCCCC`.  The expectations are
+    /// those of biocommons/hgvs, without the parentheses, except where marked.
+    #[test]
+    fn hgvs_c_to_p_deletion_through_stop_codon() -> Result<(), Error> {
+        let record = |accession: &str, utr3: &str| sanity_mock::ProviderRecord {
+            accession: accession.to_string(),
+            transcript_sequence: format!("AAAATCAAACATGAAAGCGAAAGCGTTTCGCGCGAAATAG{utr3}"),
+            cds_start_i: 10,
+            cds_end_i: 40,
+            translation_exceptions: Vec::new(),
+            lengths: Vec::new(),
+        };
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(
+            &config,
+            std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+                record("NM_999977.1", "GCTTAGGGGCCCCC"),
+                record("NM_999976.1", "GGCTTAGGGGCCCCC"),
+            ])),
+        );
+
+        for (hgvsc, hgvsp_expected) in [
+            // In frame, but the new C-terminus comes from the 3' UTR.  The new stop codon sits
+            // where the old one was.
+            ("NM_999977.1:c.26_*1del", "MOCK:p.(Lys9ThrfsTer2)"),
+            // The same protein by a deletion of 7 bases.
+            ("NM_999976.1:c.26_*2del", "MOCK:p.(Lys9ThrfsTer2)"),
+            ("NM_999977.1:c.27_*1del", "MOCK:p.(Lys9AsnfsTer?)"),
+            ("NM_999977.1:c.26_*1delinsC", "MOCK:p.(Lys9ThrfsTer?)"),
+            ("NM_999977.1:c.26_*13del", "MOCK:p.(Lys9XaafsTer?)"),
+            // Ends with the stop codon.  biocommons/hgvs decides by the length here and gives
+            // `p.(Lys9Ala)`, see `DIFFERENCES.md`.
+            ("NM_999977.1:c.25_30del", "MOCK:p.(Lys9AlafsTer2)"),
+            ("NM_999977.1:c.26_30del", "MOCK:p.(Lys9SerfsTer?)"),
+            // A delins that ends with the stop codon counts by its length, as its bases can put
+            // a stop codon in the place of the old one.
+            ("NM_999977.1:c.27_30delinsGTAA", "MOCK:p.(Lys9=)"),
+            ("NM_999977.1:c.27_30delinsGTGA", "MOCK:p.(Lys9=)"),
+            ("NM_999977.1:c.25_30delinsGCGTAA", "MOCK:p.(Lys9Ala)"),
+            ("NM_999977.1:c.25_30delinsGCGTAAGCG", "MOCK:p.(Lys9Ala)"),
+            // Changes the stop codon first, so it is an extension.
+            ("NM_999977.1:c.27_30del", "MOCK:p.(Ter10LeuextTer?)"),
+            ("NM_999977.1:c.28_30delinsCCC", "MOCK:p.(Ter10ProextTer2)"),
+            // Ends inside the stop codon.
+            ("NM_999977.1:c.26_29del", "MOCK:p.(Lys9ArgfsTer?)"),
+            // Ends after the end of the transcript, so the bases after the deletion are
+            // unknown.  biocommons/hgvs rejects the variant as out of bounds, see
+            // `DIFFERENCES.md`.
+            ("NM_999977.1:c.26_*20del", "MOCK:p.?"),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
+        }
+
+        Ok(())
+    }
+
+    /// In-frame changes of the stop codon.  The CDS ends with `AAA TAG`, and the 3' UTR starts
+    /// with `GCTTAG`.  As in biocommons/hgvs and Mutalyzer, p. compares the proteins.  A longer
+    /// protein whose change starts at the stop codon is an extension.  One whose change starts
+    /// in front of it is a delins, not a frameshift, as the reading frame stays.
+    #[test]
+    fn hgvs_c_to_p_in_frame_change_of_stop_codon() -> Result<(), Error> {
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(
+            &config,
+            std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+                sanity_mock::ProviderRecord {
+                    accession: "NM_999977.1".to_string(),
+                    transcript_sequence: "AAAATCAAACATGAAAGCGAAAGCGTTTCGCGCGAAATAGGCTTAGGGGCCCCC"
+                        .to_string(),
+                    cds_start_i: 10,
+                    cds_end_i: 40,
+                    translation_exceptions: Vec::new(),
+                    lengths: Vec::new(),
+                },
+            ])),
+        );
+
+        for (hgvsc, hgvsp_expected) in [
+            // Only the stop codon changes, and the protein gets longer.
+            ("NM_999977.1:c.29A>T", "MOCK:p.(Ter10LeuextTer2)"),
+            ("NM_999977.1:c.27_28delinsGC", "MOCK:p.(Ter10GlnextTer2)"),
+            // Lys9 and the stop codon change, and the protein gets longer.  The first gives
+            // `AAC CAG GCT TAG`.
+            (
+                "NM_999977.1:c.27_28delinsCC",
+                "MOCK:p.(Lys9delinsAsnGlnAla)",
+            ),
+            ("NM_999977.1:c.27_29inv", "MOCK:p.(Lys9delinsAsnMetAla)"),
+            ("NM_999977.1:c.25_*3inv", "MOCK:p.(Lys9delinsSerLeuPhe)"),
+            // A stop codon takes the place of the old one, so the length stays.
+            ("NM_999977.1:c.27_30delinsCTGA", "MOCK:p.(Lys9Asn)"),
+            // A stop codon in front of the old one shortens the protein.
+            ("NM_999977.1:c.25_28delinsTAAC", "MOCK:p.(Lys9Ter)"),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
+        }
+
+        Ok(())
+    }
+
+    /// An inversion that ends after the end of the transcript inverts bases that are unknown,
+    /// so the protein is unknown, too, as for a deletion there.  The transcript ends at c.*14.
+    /// biocommons/hgvs inverts the bases up to the end of the transcript and gives
+    /// `p.(Lys9_Ter10delinsArgGlyProLeuSerLeuXaa)`, see `DIFFERENCES.md`.
+    #[test]
+    fn hgvs_c_to_p_inversion_past_transcript_end() -> Result<(), Error> {
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(
+            &config,
+            std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+                sanity_mock::ProviderRecord {
+                    accession: "NM_999977.1".to_string(),
+                    transcript_sequence: "AAAATCAAACATGAAAGCGAAAGCGTTTCGCGCGAAATAGGCTTAGGGGCCCCC"
+                        .to_string(),
+                    cds_start_i: 10,
+                    cds_end_i: 40,
+                    translation_exceptions: Vec::new(),
+                    lengths: Vec::new(),
+                },
+            ])),
+        );
+
+        for (hgvsc, hgvsp_expected) in [
+            ("NM_999977.1:c.26_*20inv", "MOCK:p.?"),
+            // Ends with the last base, so all inverted bases are known.  As in biocommons/hgvs.
+            (
+                "NM_999977.1:c.26_*14inv",
+                "MOCK:p.(Lys9_Ter10delinsArgGlyProLeuSerLeuXaa)",
+            ),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
+        }
+
+        Ok(())
+    }
+
+    /// A codon with an `N` translates to `X` (`Xaa`), an unknown amino acid, not a stop.  So
+    /// the inserted amino acids go on behind it.  The CDS is `ATG AAA GCG CAA CTG TGG TAA`
+    /// (`MKAQLW*`).  The expectations are those of biocommons/hgvs.
+    #[test]
+    fn hgvs_c_to_p_unknown_amino_acid() -> Result<(), Error> {
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(
+            &config,
+            std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+                sanity_mock::ProviderRecord {
+                    accession: "NM_999975.1".to_string(),
+                    transcript_sequence: "AAAATCAAACATGAAAGCGCAACTGTGGTAAGGGGGCCCCC".to_string(),
+                    cds_start_i: 10,
+                    cds_end_i: 31,
+                    translation_exceptions: Vec::new(),
+                    lengths: Vec::new(),
+                },
+            ])),
+        );
+
+        for (hgvsc, hgvsp_expected) in [
+            ("NM_999975.1:c.10delinsN", "MOCK:p.(Gln4Xaa)"),
+            (
+                "NM_999975.1:c.9_10insNNNNNNNNN",
+                "MOCK:p.(Ala3_Gln4insXaaXaaXaa)",
+            ),
+            (
+                "NM_999975.1:c.10delinsNNNNNNNNNNNAAAAAAAAAAA",
+                "MOCK:p.(Gln4delinsXaaXaaXaaXaaLysLysLysLys)",
+            ),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
+        }
 
         Ok(())
     }
@@ -1823,14 +2956,206 @@ mod test {
         Ok(())
     }
 
-    /// Check the case with multiple stop codons.  We introduced a change in hgvs-rs
-    /// that does not handle multiple stop codons in the transcript sequence as
-    /// conservatively as the Python version.
+    /// `inferred_p_is_uncertain` marks a predicted change as uncertain, as biocommons/hgvs does.
+    /// The expectations are those of biocommons/hgvs with the setting on and off.
+    #[test]
+    fn hgvs_c_to_p_inferred_p_is_uncertain() -> Result<(), Error> {
+        for (hgvsc, uncertain, certain) in [
+            ("NM_999999.1:c.6A>T", "MOCK:p.(Lys2Asn)", "MOCK:p.Lys2Asn"),
+            ("NM_999999.1:c.6A>G", "MOCK:p.(Lys2=)", "MOCK:p.Lys2="),
+            (
+                "NM_999999.1:c.8_9insTT",
+                "MOCK:p.(Lys4Ter)",
+                "MOCK:p.Lys4Ter",
+            ),
+            (
+                "NM_999999.1:c.10_12del",
+                "MOCK:p.(Lys4del)",
+                "MOCK:p.Lys4del",
+            ),
+            (
+                "NM_999999.1:c.6_7insGGG",
+                "MOCK:p.(Lys2_Ala3insGly)",
+                "MOCK:p.Lys2_Ala3insGly",
+            ),
+            (
+                "NM_999999.1:c.10_12dup",
+                "MOCK:p.(Lys4dup)",
+                "MOCK:p.Lys4dup",
+            ),
+            (
+                "NM_999999.1:c.22_23insT",
+                "MOCK:p.(Ala8ValfsTer?)",
+                "MOCK:p.Ala8ValfsTer?",
+            ),
+            (
+                "NM_999999.1:c.4_15delinsTTT",
+                "MOCK:p.(Lys2_Ala5delinsPhe)",
+                "MOCK:p.Lys2_Ala5delinsPhe",
+            ),
+            (
+                "NM_999998.1:c.30G>T",
+                "MOCK:p.(Ter10TyrextTer3)",
+                "MOCK:p.Ter10TyrextTer3",
+            ),
+            ("NM_999999.1:c.1A>G", "MOCK:p.Met1?", "MOCK:p.Met1?"),
+            ("NM_999999.1:c.*3G>A", "MOCK:p.?", "MOCK:p.?"),
+            ("NM_999999.1:c.-9_*3del", "MOCK:p.0?", "MOCK:p.0"),
+            ("NM_999992.1:c.4G>A", "MOCK:p.?", "MOCK:p.?"),
+        ] {
+            for (inferred_p_is_uncertain, expected) in [(true, uncertain), (false, certain)] {
+                let config = Config {
+                    strict_bounds: false,
+                    renormalize_g: false,
+                    inferred_p_is_uncertain,
+                    ..Default::default()
+                };
+                let mapper = Mapper::new(
+                    &config,
+                    std::sync::Arc::new(sanity_mock::Provider::new(&PathBuf::from(
+                        "tests/data/mapper/sanity_cp.tsv",
+                    ))?),
+                );
+                let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+                assert_eq!(
+                    format!("{}", &var_p),
+                    expected,
+                    "{hgvsc} with inferred_p_is_uncertain = {inferred_p_is_uncertain}"
+                );
+                // The protein variant parses back.
+                assert_eq!(
+                    HgvsVariant::from_str(expected)?.to_string(),
+                    expected,
+                    "{expected}"
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    /// `with_inferred_p_uncertainty()` changes each form in both directions.
+    #[test]
+    fn with_inferred_p_uncertainty() -> Result<(), Error> {
+        for (certain, uncertain) in [
+            ("MOCK:p.Gly2Arg", "MOCK:p.(Gly2Arg)"),
+            ("MOCK:p.=", "MOCK:p.(=)"),
+            ("MOCK:p.0", "MOCK:p.0?"),
+            ("MOCK:p.?", "MOCK:p.?"),
+            ("MOCK:p.Met1?", "MOCK:p.Met1?"),
+        ] {
+            for (input, flag, expected) in [
+                (certain, true, uncertain),
+                (uncertain, true, uncertain),
+                (certain, false, certain),
+                (uncertain, false, certain),
+            ] {
+                let var_p = super::with_inferred_p_uncertainty(HgvsVariant::from_str(input)?, flag);
+                assert_eq!(var_p.to_string(), expected, "{input} with {flag}");
+            }
+        }
+
+        // It leaves other variants as they are.
+        let var_c = HgvsVariant::from_str("NM_000314.4:c.209dup")?;
+        assert_eq!(
+            super::with_inferred_p_uncertainty(var_c.clone(), true),
+            var_c
+        );
+
+        Ok(())
+    }
+
+    /// As in biocommons/hgvs, a reference protein with more than one stop codon gives `p.?`
+    /// for every variant.  `NM_999992.1` codes `MG*ARQPAL*` after a 5' UTR of 9 bases, and
+    /// `NM_999986.1` codes `MGKP*A*` without a 5' UTR.
     #[test]
     fn hgvs_c_to_p_multiple_stop_codons() -> Result<(), Error> {
-        let hgvsc = "NM_999992.1:c.4G>A";
-        let hgvsp_expected = "MOCK:p.?";
-        test_hgvs_c_to_p_conversion(hgvsc, hgvsp_expected)?;
+        let sanity = sanity_mock::build_mapper(false)?;
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let no_utr = Mapper::new(
+            &config,
+            std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+                sanity_mock::ProviderRecord {
+                    accession: "NM_999986.1".to_string(),
+                    transcript_sequence: "ATGGGGAAACCCTAGGCCTAGGG".to_string(),
+                    cds_start_i: 0,
+                    cds_end_i: 21,
+                    translation_exceptions: Vec::new(),
+                    lengths: Vec::new(),
+                },
+            ])),
+        );
+
+        for (mapper, hgvsc) in [
+            (&sanity, "NM_999992.1:c.1A>G"),
+            (&sanity, "NM_999992.1:c.4G>A"),
+            (&sanity, "NM_999992.1:c.4_6dup"),
+            (&sanity, "NM_999992.1:c.6_7insGGG"),
+            (&sanity, "NM_999992.1:c.4_5inv"),
+            (&sanity, "NM_999992.1:c.13C>T"),
+            (&no_utr, "NM_999986.1:c.1A>G"),
+            (&no_utr, "NM_999986.1:c.4G>A"),
+            (&no_utr, "NM_999986.1:c.4_6dup"),
+            (&no_utr, "NM_999986.1:c.6_7insGGG"),
+            (&no_utr, "NM_999986.1:c.4_5inv"),
+            (&no_utr, "NM_999986.1:c.10C>T"),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), "MOCK:p.?", "{hgvsc}");
+        }
+
+        Ok(())
+    }
+
+    /// As in biocommons/hgvs (biocommons/hgvs#830), a stop codon that an insertion or dup forms
+    /// within its own bases ends the translation there, so the variant is in frame.  The CDS of
+    /// `NM_999985.1` is `ATG AAA GCG AAA GCG GCT AAG GCT GAA TAG` (`MKAKAAKAE*`), and the one
+    /// of `NM_999984.1` is `ATG AAA GCG AAA GCG TTT CGC GTA GAA TAG` (`MKAKAFRVE*`).  The
+    /// expectations are those of biocommons/hgvs, without the parentheses.
+    #[test]
+    fn hgvs_c_to_p_stop_codon_in_insertion() -> Result<(), Error> {
+        let record = |accession: &str, cds: &str| sanity_mock::ProviderRecord {
+            accession: accession.to_string(),
+            transcript_sequence: format!("AAAATCAAAC{cds}GGGGGCCCCC"),
+            cds_start_i: 10,
+            cds_end_i: 40,
+            translation_exceptions: Vec::new(),
+            lengths: Vec::new(),
+        };
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(
+            &config,
+            std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+                record("NM_999985.1", "ATGAAAGCGAAAGCGGCTAAGGCTGAATAG"),
+                record("NM_999984.1", "ATGAAAGCGAAAGCGTTTCGCGTAGAATAG"),
+            ])),
+        );
+
+        for (hgvs_c, expected) in [
+            // The copy holds the stop codons `TAA` and `TGA` in the new frame.
+            ("NM_999985.1:c.17_29dup", "MOCK:p.(Ter10TyrextTer1)"),
+            (
+                "NM_999985.1:c.29_30insCTAAGGCTGAATA",
+                "MOCK:p.(Ter10TyrextTer1)",
+            ),
+            ("NM_999985.1:c.6_7insTAAGG", "MOCK:p.(Ala3Ter)"),
+            // The stop codon is not in the frame of the CDS.
+            ("NM_999985.1:c.6_7insGGTAAGG", "MOCK:p.(Ala3GlyfsTer7)"),
+            // The copy forms the stop codon `TAG` in front of `AA TAG`.
+            ("NM_999984.1:c.21_25dup", "MOCK:p.(Glu9Ala)"),
+            ("NM_999984.1:c.22_26dup", "MOCK:p.(Glu9=)"),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvs_c)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), expected, "{hgvs_c}");
+        }
 
         Ok(())
     }
@@ -1874,6 +3199,587 @@ mod test {
         Ok(())
     }
 
+    /// There is no c.0, so an insertion between c.-1 and c.1 stays an insertion.
+    #[test]
+    fn g_to_c_ins_before_c1() -> Result<(), Error> {
+        let mapper = build_mapper()?;
+        for (hgvs_g, tx_ac, hgvs_c) in [
+            // PTEN, plus strand.
+            (
+                "NC_000010.10:g.89624226_89624227insA",
+                "NM_000314.4",
+                "NM_000314.4:c.-1_1insA",
+            ),
+            // KRAS, minus strand.
+            (
+                "NC_000012.11:g.25398318_25398319insT",
+                "NM_004985.4",
+                "NM_004985.4:c.-1_1insA",
+            ),
+        ] {
+            let var_g = HgvsVariant::from_str(hgvs_g)?;
+            let var_c = mapper.g_to_c(&var_g, tx_ac, "splign")?;
+            assert_eq!(var_c.to_string(), hgvs_c, "{hgvs_g}");
+            assert_eq!(
+                mapper.c_to_g(&var_c, var_g.accession(), "splign")?,
+                var_g,
+                "{hgvs_c}"
+            );
+        }
+        Ok(())
+    }
+
+    // The following tests correspond to `tests/issues/test_655.py` of biocommons/hgvs.
+
+    /// Check `c_to_p()` of `hgvs_c`, where `None` expects a dup without reference.
+    fn check_c_to_p(
+        mapper: &Mapper,
+        hgvs_c: &str,
+        prot_ac: Option<&str>,
+        expected: Option<&str>,
+    ) -> Result<(), Error> {
+        let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvs_c)?, prot_ac);
+        match expected {
+            Some(expected) => assert_eq!(format!("{}", &var_p?), expected, "{hgvs_c}"),
+            None => assert!(
+                matches!(
+                    var_p,
+                    Err(crate::mapper::Error::DuplicationReferenceMissing(_))
+                ),
+                "{hgvs_c} gave {var_p:?}"
+            ),
+        }
+        Ok(())
+    }
+
+    /// `NM_999999.1` of `sanity_cp.tsv` with exons of 10, 25, and 30 bases, so exon 2 spans
+    /// c.2 to c.26.
+    fn build_mapper_655_sanity(ins_at_boundary_is_intronic: bool) -> Mapper {
+        let provider = std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+            sanity_mock::ProviderRecord {
+                accession: "NM_999999.1".to_string(),
+                transcript_sequence: "AAAATCAAAATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGG".to_string(),
+                cds_start_i: 9,
+                cds_end_i: 39,
+                translation_exceptions: Vec::new(),
+                lengths: vec![10, 25, 30],
+            },
+        ]));
+        let config = Config {
+            prevalidation_level: crate::validator::ValidationLevel::Intrinsic,
+            strict_bounds: false,
+            renormalize_g: false,
+            ins_at_boundary_is_intronic,
+            ..Default::default()
+        };
+        Mapper::new(&config, provider)
+    }
+
+    /// Without `replace_reference`, edits with a count reach `AltSeqBuilder` as such and
+    /// give the same protein as the ones with the sequence.  Invalid intervals give an error
+    /// instead of a panic (#298).
+    #[test]
+    fn c_to_p_counted_edits_sanity() -> Result<(), Error> {
+        let provider = std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+            sanity_mock::ProviderRecord {
+                accession: "NM_999999.1".to_string(),
+                transcript_sequence: "AAAATCAAAATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGG".to_string(),
+                cds_start_i: 9,
+                cds_end_i: 39,
+                translation_exceptions: Vec::new(),
+                lengths: vec![10, 25, 30],
+            },
+        ]));
+        let config = Config {
+            replace_reference: false,
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(&config, provider);
+
+        for (counted, with_sequence, expected) in [
+            (
+                "NM_999999.1:c.4_6del3",
+                "NM_999999.1:c.4_6delAAA",
+                "MOCK:p.(Lys2del)",
+            ),
+            (
+                "NM_999999.1:c.4_6del3insGG",
+                "NM_999999.1:c.4_6delAAAinsGG",
+                "MOCK:p.(Lys2GlyfsTer?)",
+            ),
+            (
+                "NM_999999.1:c.-3_*2del35insA",
+                "NM_999999.1:c.-3_*2delinsA",
+                "MOCK:p.0?",
+            ),
+        ] {
+            for hgvs_c in [counted, with_sequence] {
+                check_c_to_p(&mapper, hgvs_c, Some("MOCK"), Some(expected))?;
+            }
+        }
+        // A whole-gene identity deletes nothing: `p.?`, as in biocommons/hgvs.
+        check_c_to_p(
+            &mapper,
+            "NM_999999.1:c.-3_*2=",
+            Some("MOCK"),
+            Some("MOCK:p.?"),
+        )?;
+        for hgvs_c in ["NM_999999.1:c.6_4del", "NM_999999.1:c.6_4dup"] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvs_c)?, Some("MOCK"));
+            assert!(
+                matches!(
+                    var_p,
+                    Err(crate::mapper::Error::ValidationFailed(
+                        crate::validator::Error::StartMustBeLessThanEnd(_)
+                    ))
+                ),
+                "{hgvs_c} gave {var_p:?}"
+            );
+        }
+        let var_p = mapper.c_to_p(
+            &HgvsVariant::from_str("NM_999999.1:c.5000_5001insA")?,
+            Some("MOCK"),
+        );
+        assert!(
+            matches!(var_p, Err(crate::mapper::Error::CoordinateOutOfBounds(ref pos)) if pos == "5000"),
+            "{var_p:?}"
+        );
+
+        Ok(())
+    }
+
+    /// An identity that crosses the stop codon is no frameshift, whether `c_to_p` fills in its
+    /// reference bases (the default) or not.
+    #[test]
+    fn c_to_p_identity_through_stop_codon_sanity() -> Result<(), Error> {
+        let build = |replace_reference: bool| {
+            let provider = std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+                sanity_mock::ProviderRecord {
+                    accession: "NM_999999.1".to_string(),
+                    transcript_sequence: "AAAATCAAAATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGG".to_string(),
+                    cds_start_i: 9,
+                    cds_end_i: 39,
+                    translation_exceptions: Vec::new(),
+                    lengths: vec![10, 25, 30],
+                },
+            ]));
+            let config = Config {
+                replace_reference,
+                strict_bounds: false,
+                renormalize_g: false,
+                ..Default::default()
+            };
+            Mapper::new(&config, provider)
+        };
+
+        for replace_reference in [false, true] {
+            let mapper = build(replace_reference);
+            for hgvs_c in ["NM_999999.1:c.4_*1=", "NM_999999.1:c.28_*1="] {
+                let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvs_c)?, Some("MOCK"))?;
+                let shown = format!("{var_p}");
+                assert!(
+                    !shown.contains("fs"),
+                    "{hgvs_c} with replace_reference {replace_reference} gave {shown}"
+                );
+            }
+            check_c_to_p(
+                &mapper,
+                "NM_999999.1:c.4_*1=",
+                Some("MOCK"),
+                Some("MOCK:p.(Lys2=)"),
+            )?;
+        }
+
+        Ok(())
+    }
+
+    /// With `false`, the dups of intron bases fail: there is no genome to take their reference
+    /// from.
+    #[test]
+    fn issue_655_sanity_c_to_p() -> Result<(), Error> {
+        let exonic = build_mapper_655_sanity(false);
+        let intronic = build_mapper_655_sanity(true);
+        for (hgvs_c, expected_exonic) in [
+            ("NM_999999.1:c.2-1_2insG", Some("MOCK:p.Met1?")),
+            ("NM_999999.1:c.26_26+1insC", Some("MOCK:p.(Lys9AsnfsTer?)")),
+            ("NM_999999.1:c.2dup", Some("MOCK:p.Met1?")),
+            ("NM_999999.1:c.2-1dup", None),
+            ("NM_999999.1:c.26dup", Some("MOCK:p.(Ter10IleextTer?)")),
+            ("NM_999999.1:c.26+1dup", None),
+        ] {
+            check_c_to_p(&exonic, hgvs_c, Some("MOCK"), expected_exonic)?;
+            check_c_to_p(&intronic, hgvs_c, Some("MOCK"), Some("MOCK:p.?"))?;
+        }
+        Ok(())
+    }
+
+    /// KRAS, minus strand, exon 2 ends at c.111.  Without `replace_reference`, as the
+    /// seqrepo cache lacks the transcript parts.
+    #[test]
+    fn issue_655_real_c_to_p() -> Result<(), Error> {
+        let build = |ins_at_boundary_is_intronic| -> Result<Mapper, Error> {
+            let config = Config {
+                replace_reference: false,
+                renormalize_g: false,
+                ins_at_boundary_is_intronic,
+                ..Default::default()
+            };
+            Ok(Mapper::new(&config, build_provider()?))
+        };
+        let exonic = build(false)?;
+        let intronic = build(true)?;
+        for (hgvs_c, expected_exonic) in [
+            (
+                "NM_004985.4:c.111dup",
+                Some("NP_004976.2:p.(Asp38GlyfsTer10)"),
+            ),
+            (
+                "NM_004985.4:c.110_111dup",
+                Some("NP_004976.2:p.(Asp38ArgfsTer8)"),
+            ),
+            ("NM_004985.4:c.111+1dup", None),
+            ("NM_004985.4:c.111+1_111+4dup", None),
+        ] {
+            check_c_to_p(&exonic, hgvs_c, None, expected_exonic)?;
+            check_c_to_p(&intronic, hgvs_c, None, Some("NP_004976.2:p.?"))?;
+        }
+        Ok(())
+    }
+
+    /// The cache of `ref_transcript_data_cached()` tells providers apart by identity, also with
+    /// the same versions, and also after one is dropped.
+    #[test]
+    fn ref_transcript_data_cached_per_provider() -> Result<(), Error> {
+        use crate::{data::interface::Provider, mapper::altseq::ref_transcript_data_cached};
+        use std::sync::Arc;
+
+        let provider = |transcript_sequence: &str| -> Arc<dyn Provider + Send + Sync> {
+            Arc::new(
+                sanity_mock::Provider::with_records(vec![sanity_mock::ProviderRecord {
+                    accession: "NM_999988.1".to_string(),
+                    transcript_sequence: transcript_sequence.to_string(),
+                    cds_start_i: 0,
+                    cds_end_i: 9,
+                    translation_exceptions: Vec::new(),
+                    lengths: vec![9],
+                }])
+                .with_version("same"),
+            )
+        };
+        let aa_sequence = |provider: &Arc<dyn Provider + Send + Sync>| -> Result<String, Error> {
+            let data = ref_transcript_data_cached(provider.clone(), "NM_999988.1", Some("MOCK"))?;
+            Ok(data.aa_sequence.to_string())
+        };
+
+        let first = provider("ATGAAATAG");
+        let second = provider("ATGGGGTAG");
+        assert_eq!(aa_sequence(&first)?, "MK*");
+        assert_eq!(aa_sequence(&second)?, "MG*");
+        drop(first);
+        let third = provider("ATGTTTTAG");
+        assert_eq!(aa_sequence(&third)?, "MF*");
+        assert_eq!(aa_sequence(&second)?, "MG*");
+
+        Ok(())
+    }
+
+    /// `AltSeqBuilder::variant_location()` gives the region that `c_to_p` uses, if both have the
+    /// same `ins_at_boundary_is_intronic`.  `NM_999989.1` has exons of 10, 15, and 25 bases:
+    /// exon 1 is the 5' UTR, exon 2 spans c.1 to c.15, and exon 3 spans c.16 to c.*10.  The CDS
+    /// is `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`), and c.-2 to c.3 and c.30 to
+    /// c.*2 are `AC ATG` and `TAG GG`.  The proteins are those of biocommons/hgvs, without the
+    /// parentheses, except where marked.
+    #[test]
+    fn variant_location_agrees_with_c_to_p() -> Result<(), Error> {
+        use crate::mapper::altseq::{ref_transcript_data_cached, AltSeqBuilder, VariantLocation};
+        use VariantLocation::*;
+
+        let provider = std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+            sanity_mock::ProviderRecord {
+                accession: "NM_999989.1".to_string(),
+                transcript_sequence: "AAAATCAAACATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGGGGCCCCC"
+                    .to_string(),
+                cds_start_i: 10,
+                cds_end_i: 40,
+                translation_exceptions: Vec::new(),
+                lengths: vec![10, 15, 25],
+            },
+        ]));
+        let reference_data =
+            ref_transcript_data_cached(provider.clone(), "NM_999989.1", Some("MOCK"))?;
+
+        for ins_at_boundary_is_intronic in [false, true] {
+            let config = Config {
+                strict_bounds: false,
+                renormalize_g: false,
+                ins_at_boundary_is_intronic,
+                ..Default::default()
+            };
+            let mapper = Mapper::new(&config, provider.clone());
+            // With `ins_at_boundary_is_intronic`, the insertions and dups at an exon boundary
+            // within the CDS are intronic.
+            let (boundary, boundary_p) = if ins_at_boundary_is_intronic {
+                (Intron, "MOCK:p.?")
+            } else {
+                (Cds, "MOCK:p.(Arg7SerfsTer?)")
+            };
+            for (hgvs_c, location, hgvs_p) in [
+                ("c.4A>G", Cds, "MOCK:p.(Lys2Glu)"),
+                ("c.-2_2del", Cds, "MOCK:p.Met1?"),
+                ("c.2dup", Cds, "MOCK:p.Met1?"),
+                ("c.29_30insC", Cds, "MOCK:p.(Ter10TyrextTer?)"),
+                // These differ from biocommons/hgvs on purpose: the same change fits in front
+                // of c.1 or after the stop codon and keeps both intact, see `DIFFERENCES.md`.
+                ("c.-1_1insGCC", FivePrimeUtr, "MOCK:p.?"),
+                ("c.1_2insA", FivePrimeUtr, "MOCK:p.?"),
+                ("c.-1_1del", FivePrimeUtr, "MOCK:p.?"),
+                ("c.1dup", FivePrimeUtr, "MOCK:p.?"),
+                ("c.30dup", ThreePrimeUtr, "MOCK:p.?"),
+                ("c.28_30dup", ThreePrimeUtr, "MOCK:p.?"),
+                ("c.30del", ThreePrimeUtr, "MOCK:p.?"),
+                ("c.-5C>G", FivePrimeUtr, "MOCK:p.?"),
+                ("c.-1+5del", FivePrimeUtr, "MOCK:p.?"),
+                ("c.*3G>T", ThreePrimeUtr, "MOCK:p.?"),
+                ("c.30_*1insA", ThreePrimeUtr, "MOCK:p.?"),
+                ("c.-5_*2dup", ThreePrimeUtr, "MOCK:p.?"),
+                ("c.15+5del", Intron, "MOCK:p.?"),
+                ("c.15_15+3del", Intron, "MOCK:p.?"),
+                ("c.16-1_16insT", boundary, boundary_p),
+                ("c.16dup", boundary, boundary_p),
+                ("c.-10_*10del", WholeGene, "MOCK:p.0?"),
+                ("c.-5_*5inv", WholeGene, "MOCK:p.?"),
+            ] {
+                let var_c = HgvsVariant::from_str(&format!("NM_999989.1:{hgvs_c}"))?;
+                let builder = AltSeqBuilder {
+                    ins_at_boundary_is_intronic,
+                    ..AltSeqBuilder::new(var_c.clone(), &reference_data)
+                };
+                let var_p = mapper.c_to_p(&var_c, Some("MOCK"))?;
+                assert_eq!(
+                    (builder.variant_location()?, var_p.to_string().as_str()),
+                    (location, hgvs_p),
+                    "{hgvs_c} with ins_at_boundary_is_intronic = {ins_at_boundary_is_intronic}"
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    /// `NM_999989.1` with exons of 10, 30, and 10 bases: exon 1 is the 5' UTR, exon 2 the CDS
+    /// `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`), and exon 3 the 3' UTR.
+    /// `NM_999988.1` has the same sequence in a single exon.  `NM_999987.1` has the CDS
+    /// without the stop codon, `MKAKAFRAK`, in a single exon.
+    /// `c_to_p` translates the alt transcript here only up to the original length, as the alt
+    /// protein has a stop codon there, so the invalid base `Z` in the 3' UTR does not fail the
+    /// translation.  The CDS is `ATG AAA GCG AAA GCG TTT CGC GCG AAA TAG` (`MKAKAFRAK*`).
+    #[test]
+    fn c_to_p_ignores_invalid_bases_behind_the_protein() -> Result<(), Error> {
+        let provider = std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+            sanity_mock::ProviderRecord {
+                accession: "NM_999986.1".to_string(),
+                transcript_sequence: "AAAATCAAACATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGGGGZCCCCC"
+                    .to_string(),
+                cds_start_i: 10,
+                cds_end_i: 40,
+                translation_exceptions: Vec::new(),
+                lengths: vec![51],
+            },
+        ]));
+        let config = Config {
+            prevalidation_level: crate::validator::ValidationLevel::Intrinsic,
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(&config, provider);
+        for (hgvs_c, hgvs_p) in [
+            ("c.4A>G", "MOCK:p.(Lys2Glu)"),
+            ("c.4A>T", "MOCK:p.(Lys2Ter)"),
+        ] {
+            let var_c = HgvsVariant::from_str(&format!("NM_999986.1:{hgvs_c}"))?;
+            assert_eq!(
+                mapper.c_to_p(&var_c, Some("MOCK"))?.to_string(),
+                hgvs_p,
+                "{hgvs_c}"
+            );
+        }
+        Ok(())
+    }
+
+    fn build_mapper_cds_boundary(ins_at_boundary_is_intronic: bool) -> Mapper {
+        let record = |accession: &str, transcript_sequence: &str, cds_end_i, lengths| {
+            sanity_mock::ProviderRecord {
+                accession: accession.to_string(),
+                transcript_sequence: transcript_sequence.to_string(),
+                cds_start_i: 10,
+                cds_end_i,
+                translation_exceptions: Vec::new(),
+                lengths,
+            }
+        };
+        let sequence = "AAAATCAAACATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGGGGCCCCC";
+        let provider = std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+            record("NM_999989.1", sequence, 40, vec![10, 30, 10]),
+            record("NM_999988.1", sequence, 40, vec![50]),
+            record(
+                "NM_999987.1",
+                "AAAATCAAACATGAAAGCGAAAGCGTTTCGCGCGAAAGGGGGCCCCC",
+                37,
+                vec![47],
+            ),
+        ]));
+        let config = Config {
+            prevalidation_level: crate::validator::ValidationLevel::Intrinsic,
+            strict_bounds: false,
+            renormalize_g: false,
+            ins_at_boundary_is_intronic,
+            ..Default::default()
+        };
+        Mapper::new(&config, provider)
+    }
+
+    /// An insertion that can go before c.1 or after the stop codon changes no base of the CDS,
+    /// so it gives `p.?` like a variant in the UTR.  With `ins_at_boundary_is_intronic` set to
+    /// `false`, this includes the insertions and dups at the exon boundaries next to c.1 and
+    /// the stop codon.
+    #[test]
+    fn cds_boundary_ins_c_to_p() -> Result<(), Error> {
+        let exonic = build_mapper_cds_boundary(false);
+        let intronic = build_mapper_cds_boundary(true);
+        for (hgvs_c, expected) in [
+            // In the UTRs.
+            ("NM_999989.1:c.-3_-2insA", "MOCK:p.?"),
+            ("NM_999989.1:c.-1dup", "MOCK:p.?"),
+            ("NM_999989.1:c.*1_*2insA", "MOCK:p.?"),
+            ("NM_999989.1:c.*1dup", "MOCK:p.?"),
+            // At the start of the CDS.  In `NM_999989.1`, c.1 is at an exon boundary, in
+            // `NM_999988.1` it is not.
+            ("NM_999989.1:c.-1_1insGCC", "MOCK:p.?"),
+            ("NM_999989.1:c.1-1_1insGCC", "MOCK:p.?"),
+            ("NM_999989.1:c.1-1dupG", "MOCK:p.?"),
+            ("NM_999989.1:c.1-1dup", "MOCK:p.?"),
+            ("NM_999989.1:c.1-2_1-1dupAG", "MOCK:p.?"),
+            ("NM_999988.1:c.-1_1insGCC", "MOCK:p.?"),
+            // The copy can go before c.1.
+            ("NM_999989.1:c.1dup", "MOCK:p.?"),
+            ("NM_999989.1:c.1_3dup", "MOCK:p.?"),
+            ("NM_999988.1:c.1dup", "MOCK:p.?"),
+            ("NM_999988.1:c.1_3dup", "MOCK:p.?"),
+            ("NM_999988.1:c.-2_2dup", "MOCK:p.?"),
+            // Also if the dup starts before the transcript.  `NM_999988.1` starts with c.-10.
+            // With `GG` before it, `c.-12_2dup` is `c.2_3insGGAAAATCAAACAT`.
+            ("NM_999988.1:c.-12_2dup", "MOCK:p.?"),
+            ("NM_999988.1:c.2_3insGGAAAATCAAACAT", "MOCK:p.?"),
+            // The inserted A can go before c.1, like `c.1dup`.
+            ("NM_999988.1:c.1_2insA", "MOCK:p.?"),
+            // At the end of the CDS, likewise.
+            ("NM_999989.1:c.30_*1insA", "MOCK:p.?"),
+            ("NM_999989.1:c.30_30+1insA", "MOCK:p.?"),
+            ("NM_999989.1:c.30+1dupG", "MOCK:p.?"),
+            ("NM_999989.1:c.30+1dup", "MOCK:p.?"),
+            ("NM_999989.1:c.30+1_30+2dupGT", "MOCK:p.?"),
+            ("NM_999988.1:c.30_*1insA", "MOCK:p.?"),
+            // The copy can go after the stop codon.
+            ("NM_999989.1:c.30dup", "MOCK:p.?"),
+            ("NM_999989.1:c.28_30dup", "MOCK:p.?"),
+            ("NM_999988.1:c.30dup", "MOCK:p.?"),
+            ("NM_999988.1:c.28_30dup", "MOCK:p.?"),
+            // Also if the dup ends after the transcript.  `NM_999988.1` ends with c.*10.  With
+            // `TT` after it, `c.29_*12dup` is `c.28_29insAGGGGGGCCCCCTT`.
+            ("NM_999988.1:c.29_*12dup", "MOCK:p.?"),
+            ("NM_999988.1:c.28_29insAGGGGGGCCCCCTT", "MOCK:p.?"),
+            // The inserted G can go after the stop codon, like `c.30dup`.
+            ("NM_999988.1:c.29_30insG", "MOCK:p.?"),
+            // Without a stop codon, the CDS goes on after c.27, so the copy changes the CDS.
+            // The amino acids after the last complete codon are unknown.
+            ("NM_999987.1:c.26dup", "MOCK:p.?"),
+            ("NM_999987.1:c.27_*1insA", "MOCK:p.?"),
+            // Likewise for the bases after c.27, e.g., for `c.*1dup`, which is `c.27_*1insG`.
+            ("NM_999987.1:c.*1dup", "MOCK:p.?"),
+            ("NM_999987.1:c.*1_*3dup", "MOCK:p.?"),
+            // These cannot go outside the CDS.
+            ("NM_999989.1:c.1_2insGCC", "MOCK:p.Met1?"),
+            ("NM_999989.1:c.2dup", "MOCK:p.Met1?"),
+            ("NM_999989.1:c.29_30insC", "MOCK:p.(Ter10TyrextTer?)"),
+            ("NM_999989.1:c.29dup", "MOCK:p.(Ter10=)"),
+            ("NM_999988.1:c.1_2insGCC", "MOCK:p.Met1?"),
+            ("NM_999988.1:c.2dup", "MOCK:p.Met1?"),
+            ("NM_999988.1:c.29_30insC", "MOCK:p.(Ter10TyrextTer?)"),
+            ("NM_999988.1:c.29dup", "MOCK:p.(Ter10=)"),
+            // The copy forms the stop codon TAA in front of TAG.  Each placement changes the
+            // stop codon and keeps the protein, like `c.30G>A`.
+            ("NM_999989.1:c.26_28dup", "MOCK:p.(Ter10=)"),
+            ("NM_999989.1:c.27_29dup", "MOCK:p.(Ter10=)"),
+            ("NM_999989.1:c.25_26insAAT", "MOCK:p.(Ter10=)"),
+            ("NM_999989.1:c.28_29insAAT", "MOCK:p.(Ter10=)"),
+            ("NM_999989.1:c.29_30insATA", "MOCK:p.(Ter10=)"),
+            ("NM_999989.1:c.29_30insATAG", "MOCK:p.(Ter10=)"),
+            ("NM_999988.1:c.26_28dup", "MOCK:p.(Ter10=)"),
+            ("NM_999988.1:c.28_29insAAT", "MOCK:p.(Ter10=)"),
+        ] {
+            check_c_to_p(&exonic, hgvs_c, Some("MOCK"), Some(expected))?;
+            check_c_to_p(&intronic, hgvs_c, Some("MOCK"), Some(expected))?;
+        }
+        Ok(())
+    }
+
+    /// Like an insertion, a deletion, delins, or inversion that can go before c.1 or after the
+    /// stop codon changes no base of the CDS, so it gives `p.?`.
+    #[test]
+    fn cds_boundary_del_c_to_p() -> Result<(), Error> {
+        let exonic = build_mapper_cds_boundary(false);
+        let intronic = build_mapper_cds_boundary(true);
+        for tx_ac in ["NM_999989.1", "NM_999988.1"] {
+            for (edit, expected) in [
+                // c.-2_-1 is `AC`, so deleting `CA` gives the same sequence.
+                ("c.-1_1del", "MOCK:p.?"),
+                // Changes the C at c.-1 to a G and keeps the A at c.1.
+                ("c.-1_1delinsGA", "MOCK:p.?"),
+                // c.*1 is a G, like c.30.
+                ("c.30del", "MOCK:p.?"),
+                ("c.30_*1del", "MOCK:p.?"),
+                // Changes the G at c.*1 to a C and keeps the G at c.30.
+                ("c.30_*1delinsGC", "MOCK:p.?"),
+                // c.-6 is a T, so the inversion keeps the A at c.1, like `c.-5_-1inv`.
+                ("c.-6_1inv", "MOCK:p.?"),
+                ("c.-5_-1inv", "MOCK:p.?"),
+                // c.*6 is a C, so the inversion keeps the G at c.30, like `c.*1_*5inv`.
+                ("c.30_*6inv", "MOCK:p.?"),
+                ("c.*1_*5inv", "MOCK:p.?"),
+                // These cannot go outside the CDS.
+                ("c.1del", "MOCK:p.Met1?"),
+                ("c.-1_1delinsGG", "MOCK:p.Met1?"),
+                ("c.-5_1inv", "MOCK:p.Met1?"),
+                ("c.29del", "MOCK:p.(Ter10TrpextTer?)"),
+                ("c.28_30del", "MOCK:p.(Ter10GlyextTer?)"),
+                // An identity changes no base.  c.7_8 is `GC`, so its inversion is one, too.
+                ("c.30=", "MOCK:p.(Ter10=)"),
+                ("c.7_8inv", "MOCK:p.(Ala3=)"),
+            ] {
+                let hgvs_c = format!("{tx_ac}:{edit}");
+                check_c_to_p(&exonic, &hgvs_c, Some("MOCK"), Some(expected))?;
+                check_c_to_p(&intronic, &hgvs_c, Some("MOCK"), Some(expected))?;
+            }
+        }
+        // Without a stop codon, the CDS goes on after c.27, and the amino acids there are
+        // unknown.  `c.27_*1delinsAC` keeps the A at c.27.
+        for edit in [
+            "c.*1G>A",
+            "c.*1G=",
+            "c.*1_*3del",
+            "c.*1_*3inv",
+            "c.27_*1delinsAC",
+        ] {
+            let hgvs_c = format!("NM_999987.1:{edit}");
+            check_c_to_p(&exonic, &hgvs_c, Some("MOCK"), Some("MOCK:p.?"))?;
+            check_c_to_p(&intronic, &hgvs_c, Some("MOCK"), Some("MOCK:p.?"))?;
+        }
+        Ok(())
+    }
+
     mod gcp_tests {
         use std::path::Path;
 
@@ -1904,9 +3810,7 @@ mod test {
                 .comment(Some(b'#'))
                 .from_path(path)?;
             for record in rdr.deserialize() {
-                let mut record: Record = record?;
-                // p.(*) => p.
-                record.hgvs_p = record.hgvs_p.map(|s| s.replace(['(', ')'], ""));
+                let record: Record = record?;
                 records.push(record);
             }
 
@@ -1930,8 +3834,14 @@ mod test {
                 .next()
                 .map(|s| s.to_string());
             let var_p = mapper.c_to_p(&var_c, prot_ac.as_deref())?;
-            let result = format!("{}", &var_p);
             let expected = &record.hgvs_p.expect("problem with result in test");
+            // As in biocommons/hgvs, compare a certain expectation with the certain form.
+            let var_p = if expected.contains(":p.(") || expected.ends_with(":p.0?") {
+                var_p
+            } else {
+                super::with_inferred_p_uncertainty(var_p, false)
+            };
+            let result = format!("{}", var_p);
 
             let expected = if &result != expected {
                 expected.replace('*', "Ter")
@@ -1949,7 +3859,7 @@ mod test {
     fn run_gxp_test(path: &str, noref: bool) -> Result<(), Error> {
         fn rm_del_seq(var: &HgvsVariant, noref: bool) -> String {
             let tmp = if noref {
-                format!("{}", &NoRef(var))
+                format!("{}", NoRef(var))
             } else {
                 format!("{var}")
             };
@@ -1959,6 +3869,7 @@ mod test {
 
         let mapper = build_mapper()?;
         let records = gcp_tests::load_records(Path::new(path))?;
+        let re = Regex::new(r"Ter\d+$").expect("problem with regex in test");
 
         for record in &records {
             let var_g = HgvsVariant::from_str(&record.hgvs_g)?;
@@ -2034,15 +3945,28 @@ mod test {
                 let hgvs_p_exp = format!("{var_p}");
                 let var_p_test = mapper.c_to_p(&var_x, Some(var_p.accession()))?;
 
-                // TODO: if expected value isn't uncertain, strip uncertain from test
-                // if var_p.posedit and not var_p.posedit.uncertain:
-                //     # if expected value isn't uncertain, strip uncertain from test
-                //     var_p_test.posedit.uncertain = False
+                // As in biocommons/hgvs: if the expected value isn't uncertain, strip
+                // uncertain from the test.
+                let expected_is_uncertain = matches!(
+                    var_p,
+                    HgvsVariant::ProtVariant {
+                        loc_edit: ProtLocEdit::Ordinary {
+                            loc: Mu::Uncertain(_),
+                            ..
+                        } | ProtLocEdit::NoChangeUncertain
+                            | ProtLocEdit::NoProteinUncertain,
+                        ..
+                    }
+                );
+                let var_p_test = if expected_is_uncertain {
+                    var_p_test
+                } else {
+                    super::with_inferred_p_uncertainty(var_p_test, false)
+                };
 
-                let mut hgvs_p_test = format!("{}", &var_p_test);
+                let mut hgvs_p_test = format!("{}", var_p_test);
 
                 if hgvs_p_exp.ends_with("Ter") {
-                    let re = Regex::new(r"Ter\d+$").expect("problem with regex in test");
                     hgvs_p_test = re.replace(&hgvs_p_test, "Ter").to_string();
                 }
 
@@ -2134,7 +4058,7 @@ mod test {
     //     let mapper = build_mapper()?;
 
     //     let s_c = "NM_000425.3:c.3772dupT";
-    //     let s_p = "NP_000416.1:p.Ter1258Leuext*96";
+    //     let s_p = "NP_000416.1:p.(Ter1258Leuext*96)";
 
     //     let var_c = HgvsVariant::from_str(s_c)?;
     //     let var_p = mapper.c_to_p(&var_c, None)?;

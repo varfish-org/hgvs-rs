@@ -4,13 +4,13 @@ mod error;
 
 use std::sync::Arc;
 
-use log::{error, warn};
+use tracing::{error, warn};
 
 pub use crate::validator::error::Error;
 use crate::{
     data::interface::Provider,
     mapper::{variant::Config, variant::Mapper},
-    parser::HgvsVariant,
+    parser::{location, HgvsVariant},
 };
 
 /// Trait for validating of variants, locations etc.
@@ -106,11 +106,11 @@ impl Validator for IntrinsicValidator {
         match (&res, self.is_strict()) {
             (Ok(_), _) => Ok(()),
             (Err(_), false) => {
-                warn!("Validation of {} failed: {:?}", var, res);
+                warn!("Validation of {} failed", location(var));
                 Ok(())
             }
             (Err(_), true) => {
-                error!("Validation of {} failed: {:?}", var, res);
+                error!("Validation of {} failed", location(var));
                 res
             }
         }
@@ -136,6 +136,11 @@ impl ExtrinsicValidator {
             genome_seq_available: true,
             shuffle_direction: Default::default(),
             window_size: 20,
+            ins_at_boundary_is_intronic: true,
+            ins_at_boundary_by_sequence: false,
+            shift_over_boundary: false,
+            shift_over_boundary_preference: Default::default(),
+            inferred_p_is_uncertain: true,
         };
         Self {
             strict,
@@ -156,10 +161,10 @@ impl Validator for ExtrinsicValidator {
                 let res = self.check_tx_bound(var);
                 if res.is_err() {
                     if self.is_strict() {
-                        error!("Validation of {} failed: {:?}", var, res);
+                        error!("Validation of {} failed", location(var));
                         return res;
                     } else {
-                        warn!("Validation of {} failed: {:?}", var, res);
+                        warn!("Validation of {} failed", location(var));
                     }
                 }
             }
@@ -171,10 +176,10 @@ impl Validator for ExtrinsicValidator {
             let res = self.check_cds_bound(var);
             if res.is_err() {
                 if self.is_strict() {
-                    error!("Validation of {} failed: {:?}", var, res);
+                    error!("Validation of {} failed", location(var));
                     return res;
                 } else {
-                    warn!("Validation of {} failed: {:?}", var, res);
+                    warn!("Validation of {} failed", location(var));
                 }
             }
         }
@@ -184,10 +189,10 @@ impl Validator for ExtrinsicValidator {
             let res = self.check_ref(var);
             if res.is_err() {
                 if self.is_strict() {
-                    error!("Validation of {} failed: {:?}", var, res);
+                    error!("Validation of {} failed", location(var));
                     return res;
                 } else {
-                    warn!("Validation of {} failed: {:?}", var, res);
+                    warn!("Validation of {} failed", location(var));
                 }
             }
         }
@@ -233,6 +238,36 @@ impl Validator for FullValidator {
     fn validate(&self, var: &HgvsVariant) -> Result<(), Error> {
         self.intrinsic.validate(var)?;
         self.extrinsic.validate(var)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+
+    use crate::{parser::HgvsVariant, test_log};
+
+    use super::{IntrinsicValidator, Validator};
+
+    /// A failed validation logs the accession and location of the variant, not its bases.
+    #[test]
+    fn failure_is_logged_without_bases() -> Result<(), anyhow::Error> {
+        // The count 2 does not match the 3 positions.
+        let var = HgvsVariant::from_str("NM_000314.4:c.10_12del2insGTAC")?;
+
+        let (res, log) = test_log::capture(tracing::Level::WARN, || {
+            IntrinsicValidator::new(false).validate(&var)
+        });
+
+        assert!(res.is_ok());
+        assert_eq!(log.lines().count(), 1, "{log}");
+        assert!(log.contains(" WARN "), "{log}");
+        assert!(
+            log.contains("Validation of NM_000314.4:c.10_12 failed"),
+            "{log}"
+        );
+        assert!(!log.contains("GTAC"), "{log}");
+        Ok(())
     }
 }
 

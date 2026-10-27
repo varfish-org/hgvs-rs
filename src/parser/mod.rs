@@ -123,7 +123,7 @@ mod test {
             let line = line.trim();
             if !line.starts_with('#') && !line.is_empty() {
                 let result = HgvsVariant::from_str(line);
-                assert!(result.is_ok(), "line = {}; result = {:?}", &line, &result);
+                assert!(result.is_ok(), "line = {}; result = {:?}", line, result);
             }
         }
 

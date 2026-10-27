@@ -8,14 +8,14 @@ use quick_cache::sync::Cache;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 
-use crate::sequences::{seq_md5, TranslationTable};
-use biocommons_bioutils::assemblies::{Assembly, ASSEMBLY_INFOS};
-
+use crate::data;
 use crate::data::{
     error::Error, interface, interface::GeneInfoRecord, interface::TxExonsRecord,
     interface::TxForRegionRecord, interface::TxIdentityInfo, interface::TxInfoRecord,
     interface::TxMappingOptionsRecord, interface::TxSimilarityRecord,
 };
+use crate::sequences::{seq_md5, TranslationTable};
+use biocommons_bioutils::assemblies::ASSEMBLY_INFOS;
 
 /// Configuration for the `data::uta::Provider`.
 #[derive(Debug, PartialEq, Clone)]
@@ -260,13 +260,21 @@ impl interface::Provider for Provider {
         &self.schema_version
     }
 
-    fn get_assembly_map(&self, assembly: Assembly) -> IndexMap<String, String> {
-        IndexMap::from_iter(
-            ASSEMBLY_INFOS[assembly]
-                .sequences
-                .iter()
-                .map(|record| (record.refseq_ac.clone(), record.name.clone())),
-        )
+    fn get_assembly_map(
+        &self,
+        assembly: &str,
+    ) -> Result<IndexMap<String, String>, data::error::Error> {
+        assembly
+            .try_into()
+            .map(|a| {
+                IndexMap::from_iter(
+                    ASSEMBLY_INFOS[a]
+                        .sequences
+                        .iter()
+                        .map(|record| (record.refseq_ac.clone(), record.name.clone())),
+                )
+            })
+            .map_err(Error::UnknownAssembly)
     }
 
     fn get_gene_info(&self, hgnc: &str) -> Result<GeneInfoRecord, Error> {
@@ -385,7 +393,7 @@ impl interface::Provider for Provider {
             result.push(row.get(0));
         }
         // Add sentinel sequence.
-        result.push(format!("MD5_{}", &md5));
+        result.push(format!("MD5_{}", md5));
 
         self.caches
             .get_acs_for_protein_seq
@@ -637,7 +645,6 @@ impl interface::Provider for Provider {
 mod test {
     use crate::data::interface::Provider as InterfaceProvider;
     use anyhow::Error;
-    use biocommons_bioutils::assemblies::Assembly;
 
     use super::{Config, Provider};
 
@@ -671,11 +678,11 @@ mod test {
     fn get_assembly_map() -> Result<(), Error> {
         let provider = Provider::with_config(&get_config())?;
 
-        let am37 = provider.get_assembly_map(Assembly::Grch37);
+        let am37 = provider.get_assembly_map("grch37")?;
         assert_eq!(am37.len(), 92);
         assert_eq!(am37.get("NC_000001.10"), Some(&"1".to_string()));
 
-        let am38 = provider.get_assembly_map(Assembly::Grch38);
+        let am38 = provider.get_assembly_map("grch38")?;
         assert_eq!(am38.len(), 455);
         assert_eq!(am38.get("NC_000001.11"), Some(&"1".to_string()));
 
@@ -741,7 +748,7 @@ mod test {
 
         assert_eq!(records.len(), 38,);
         assert_eq!(
-            format!("{:?}", &records[0]),
+            format!("{:?}", records[0]),
             "TxSimilarityRecord { tx_ac1: \"NM_001354664.1\", tx_ac2: \
             \"ENST00000361150\", hgnc_eq: true, cds_eq: false, es_fp_eq: \
             false, cds_es_fp_eq: false, cds_exon_lengths_fp_eq: false }",
@@ -758,7 +765,7 @@ mod test {
 
         assert_eq!(records.len(), 30,);
         assert_eq!(
-            format!("{:?}", &records[0]),
+            format!("{:?}", records[0]),
             "TxExonsRecord { hgnc: \"OPA1\", tx_ac: \"NM_001354664.1\", \
             alt_ac: \"NC_000003.11\", alt_aln_method: \"splign\", alt_strand: 1, \
             ord: 0, tx_start_i: 0, tx_end_i: 266, alt_start_i: 193310932, alt_end_i: \
@@ -778,7 +785,7 @@ mod test {
 
         assert_eq!(records.len(), 21,);
         assert_eq!(
-            format!("{:?}", &records[0]),
+            format!("{:?}", records[0]),
             "TxInfoRecord { hgnc: \"OMA1\", cds_start_i: Some(0), cds_end_i: \
             Some(985), tx_ac: \"ENST00000421528\", alt_ac: \"NC_000001.10\", \
             alt_aln_method: \"genebuild\" }",
@@ -795,7 +802,7 @@ mod test {
 
         assert_eq!(records.len(), 2,);
         assert_eq!(
-            format!("{:?}", &records[0]),
+            format!("{:?}", records[0]),
             "TxForRegionRecord { tx_ac: \"NM_145243.3\", alt_ac: \"NC_000001.10\", \
             alt_strand: -1, alt_aln_method: \"splign\", start_i: 58946390, \
             end_i: 59012446 }",
@@ -811,7 +818,7 @@ mod test {
         let record = provider.get_tx_identity_info("ENST00000421528")?;
 
         assert_eq!(
-            format!("{:?}", &record),
+            format!("{:?}", record),
             "TxIdentityInfo { tx_ac: \"ENST00000421528\", alt_ac: \"ENST00000421528\", \
             alt_aln_method: \"transcript\", cds_start_i: Some(0), cds_end_i: Some(985), lengths: \
             [24, 229, 174, 108, 129, 75, 150, 143, 1073], hgnc: \"OMA1\", translation_table: \
@@ -828,7 +835,7 @@ mod test {
         let record = provider.get_tx_info("ENST00000421528", "NC_000001.10", "genebuild")?;
 
         assert_eq!(
-            format!("{:?}", &record),
+            format!("{:?}", record),
             "TxInfoRecord { hgnc: \"OMA1\", cds_start_i: Some(0), cds_end_i: \
             Some(985), tx_ac: \"ENST00000421528\", alt_ac: \"NC_000001.10\", \
             alt_aln_method: \"genebuild\" }",
@@ -845,7 +852,7 @@ mod test {
 
         assert_eq!(records.len(), 1);
         assert_eq!(
-            format!("{:?}", &records[0]),
+            format!("{:?}", records[0]),
             "TxMappingOptionsRecord { tx_ac: \"ENST00000421528\", alt_ac: \"NC_000001.10\", \
             alt_aln_method: \"genebuild\" }",
         );

@@ -1,0 +1,300 @@
+{
+  "cdot_version": "0.2.35",
+  "genes": {
+    "140606": {
+      "aliases": "SELM, SEPM",
+      "biotype": [
+        "mRNA",
+        "protein_coding"
+      ],
+      "description": "selenoprotein M",
+      "gene_symbol": "SELENOM",
+      "hgnc": "30397",
+      "map_location": "22q12.2",
+      "source": [
+        "BestRefSeq"
+      ],
+      "summary": "The protein encoded by this gene belongs to the selenoprotein M/SEP15 family. The exact function of this protein is not known. It is localized in the perinuclear region, is highly expressed in the brain, and may be involved in neurodegenerative disorders. Transgenic mice with targeted deletion of this gene exhibit increased weight gain, suggesting a role for this gene in the regulation of body weight and energy metabolism. This protein is a selenoprotein, containing the rare amino acid selenocysteine (Sec). Sec is encoded by the UGA codon, which normally signals translation termination. The 3' UTRs of selenoprotein mRNAs contain a conserved stem-loop structure, designated the Sec insertion sequence (SECIS) element, that is necessary for the recognition of UGA as a Sec codon, rather than as a stop signal. [provided by RefSeq, Dec 2016]",
+      "url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9606/GCF_000001405.40-RS_2025_08/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
+    },
+    "4524": {
+      "aliases": "",
+      "biotype": [
+        "mRNA",
+        "protein_coding"
+      ],
+      "description": "methylenetetrahydrofolate reductase",
+      "gene_symbol": "MTHFR",
+      "hgnc": "7436",
+      "map_location": "1p36.22",
+      "source": [
+        "BestRefSeq%2CGnomon"
+      ],
+      "summary": "The protein encoded by this gene catalyzes the conversion of 5,10-methylenetetrahydrofolate to 5-methyltetrahydrofolate, a co-substrate for homocysteine remethylation to methionine. Genetic variation in this gene influences susceptibility to occlusive vascular disease, neural tube defects, colon cancer and acute leukemia, and mutations in this gene are associated with methylenetetrahydrofolate reductase deficiency.[provided by RefSeq, Oct 2009]",
+      "url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9606/GCF_000001405.40-RS_2025_08/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
+    },
+    "4535": {
+      "aliases": "MTND1",
+      "biotype": [
+        "mRNA",
+        "protein_coding"
+      ],
+      "description": "mitochondrially encoded NADH dehydrogenase 1",
+      "gene_symbol": "ND1",
+      "hgnc": "7455",
+      "map_location": "MT",
+      "source": [
+        "RefSeq"
+      ],
+      "summary": "Enables NADH dehydrogenase (ubiquinone) activity. Involved in mitochondrial electron transport, NADH to ubiquinone and mitochondrial respiratory chain complex I assembly. Located in mitochondrial inner membrane. Part of respiratory chain complex I. Implicated in several diseases, including MELAS syndrome; neurodegenerative disease (multiple); optic nerve disease (multiple); toxic shock syndrome; and type 2 diabetes mellitus. Biomarker of Alzheimer's disease; Parkinson's disease; and multiple sclerosis. [provided by Alliance of Genome Resources, Jul 2025]",
+      "url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9606/GCF_000001405.40-RS_2025_08/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
+    }
+  },
+  "genome_builds": [
+    "GRCh38"
+  ],
+  "transcripts": {
+    "NM_005957.1": {
+      "biotype": [
+        "mRNA"
+      ],
+      "gene_name": "MTHFR",
+      "gene_version": "4524",
+      "genome_builds": {
+        "GRCh38": {
+          "cds_end": 11803116,
+          "cds_start": 11790679,
+          "contig": "NC_000001.11",
+          "exons": [
+            [
+              11790466,
+              11790898,
+              10,
+              1765,
+              2196,
+              null
+            ],
+            [
+              11791206,
+              11791326,
+              9,
+              1645,
+              1764,
+              null
+            ],
+            [
+              11792277,
+              11792379,
+              8,
+              1543,
+              1644,
+              null
+            ],
+            [
+              11793906,
+              11794089,
+              7,
+              1360,
+              1542,
+              null
+            ],
+            [
+              11794357,
+              11794538,
+              6,
+              1179,
+              1359,
+              null
+            ],
+            [
+              11794728,
+              11794863,
+              5,
+              1044,
+              1178,
+              null
+            ],
+            [
+              11795097,
+              11795348,
+              4,
+              793,
+              1043,
+              null
+            ],
+            [
+              11796205,
+              11796399,
+              3,
+              599,
+              792,
+              null
+            ],
+            [
+              11800211,
+              11800322,
+              2,
+              488,
+              598,
+              null
+            ],
+            [
+              11801160,
+              11801399,
+              1,
+              249,
+              487,
+              null
+            ],
+            [
+              11802880,
+              11803120,
+              0,
+              9,
+              248,
+              null
+            ]
+          ],
+          "genome_mismatch": {
+            "exceptions": [
+              "annotated by transcript or proteomic data"
+            ]
+          },
+          "note": "The RefSeq protein has 1 substitution compared to this genomic sequence",
+          "source": [
+            "BestRefSeq"
+          ],
+          "strand": "-",
+          "url": "https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/historical/GRCh38/GCF_000001405.40-RS_2024_08_historical/GCF_000001405.40-RS_2024_08_knownrefseq_alns.gff.gz"
+        }
+      },
+      "hgnc": "7436",
+      "id": "NM_005957.1",
+      "protein": "NP_005948.1",
+      "start_codon": 12,
+      "stop_codon": 1983,
+      "translation": {
+        "transl_table": 11
+      }
+    },
+    "NM_080430.4": {
+      "biotype": [
+        "mRNA"
+      ],
+      "gene_name": "SELENOM",
+      "gene_version": "140606",
+      "genome_builds": {
+        "GRCh38": {
+          "ccds": "CCDS43003.1",
+          "cds_end": 31107505,
+          "cds_start": 31104969,
+          "contig": "NC_000022.11",
+          "exons": [
+            [
+              31104776,
+              31105128,
+              4,
+              343,
+              694,
+              null
+            ],
+            [
+              31105207,
+              31105286,
+              3,
+              264,
+              342,
+              null
+            ],
+            [
+              31105657,
+              31105692,
+              2,
+              229,
+              263,
+              null
+            ],
+            [
+              31105929,
+              31105965,
+              1,
+              193,
+              228,
+              null
+            ],
+            [
+              31107376,
+              31107568,
+              0,
+              1,
+              192,
+              null
+            ]
+          ],
+          "note": "UGA stop codon recoded as selenocysteine",
+          "source": [
+            "BestRefSeq"
+          ],
+          "strand": "-",
+          "tag": "MANE Select",
+          "url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9606/GCF_000001405.40-RS_2025_08/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
+        }
+      },
+      "hgnc": "30397",
+      "id": "NM_080430.4",
+      "protein": "NP_536355.1",
+      "start_codon": 63,
+      "stop_codon": 501,
+      "translation": {
+        "transl_except": {
+          "Sec": [
+            48
+          ]
+        }
+      }
+    },
+    "fake-rna-ND1": {
+      "biotype": [
+        "mRNA"
+      ],
+      "gene_name": "ND1",
+      "gene_version": "4535",
+      "genome_builds": {
+        "GRCh38": {
+          "cds_end": 4262,
+          "cds_start": 3306,
+          "contig": "NC_012920.1",
+          "exons": [
+            [
+              3306,
+              4262,
+              0,
+              1,
+              956,
+              null
+            ]
+          ],
+          "note": "TAA stop codon is completed by the addition of 3' A residues to the mRNA",
+          "source": [
+            "RefSeq"
+          ],
+          "strand": "+",
+          "url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9606/GCF_000001405.40-RS_2025_08/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"
+        }
+      },
+      "hgnc": "7455",
+      "id": "fake-rna-ND1",
+      "protein": "YP_003024026.1",
+      "start_codon": 0,
+      "stop_codon": 956,
+      "translation": {
+        "transl_except": {
+          "TERM": [
+            319
+          ]
+        },
+        "transl_table": 2
+      }
+    }
+  }
+}

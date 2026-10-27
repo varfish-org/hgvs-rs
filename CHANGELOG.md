@@ -1,5 +1,145 @@
 # Changelog
 
+## [4.0.0](https://github.com/varfish-org/hgvs-rs/compare/v3.0.0...v4.0.0) (2026-10-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* **mapper:** return errors instead of panicking in AltSeqBuilder ([#320](https://github.com/varfish-org/hgvs-rs/issues/320))
+
+### Bug Fixes
+
+* keep sequences out of log lines ([#334](https://github.com/varfish-org/hgvs-rs/issues/334)) ([1515650](https://github.com/varfish-org/hgvs-rs/commit/151565075c619600007841ff16b588cf4404c07f))
+* log through tracing with its log feature ([#333](https://github.com/varfish-org/hgvs-rs/issues/333)) ([cb3babd](https://github.com/varfish-org/hgvs-rs/commit/cb3babd2efb11a4268333d4785464879c33e5461))
+* **mapper:** cut the alt protein at stops, not at X ([#328](https://github.com/varfish-org/hgvs-rs/issues/328)) ([c603f1b](https://github.com/varfish-org/hgvs-rs/commit/c603f1b107e8e1cf9d58e75d1c505fc59f5f0ff9))
+* **mapper:** log an unnormalizable variant once ([#332](https://github.com/varfish-org/hgvs-rs/issues/332)) ([5aa68a7](https://github.com/varfish-org/hgvs-rs/commit/5aa68a7022128dc7809215907920047646c26069))
+* **mapper:** return errors instead of panicking in AltSeqBuilder ([#320](https://github.com/varfish-org/hgvs-rs/issues/320)) ([3c6daf9](https://github.com/varfish-org/hgvs-rs/commit/3c6daf93f66cecb052b83eb9b3e8df9263e3d5fb))
+
+
+### Performance Improvements
+
+* **mapper:** key caches by provider identity ([#330](https://github.com/varfish-org/hgvs-rs/issues/330)) ([56d3fbd](https://github.com/varfish-org/hgvs-rs/commit/56d3fbd297cb6101436af9c9856ebb5b3c1cf698))
+* **mapper:** translate only changed codons in c_to_p ([#331](https://github.com/varfish-org/hgvs-rs/issues/331)) ([c7f0b6d](https://github.com/varfish-org/hgvs-rs/commit/c7f0b6d11b6ea8378763b9c406d2c169a4b73afd))
+* **normalizer:** skip shuffling for substitutions ([#329](https://github.com/varfish-org/hgvs-rs/issues/329)) ([64bc8ae](https://github.com/varfish-org/hgvs-rs/commit/64bc8ae9ae6651fbaa966104b30144622d2dfc3d))
+
+## [3.0.0](https://github.com/varfish-org/hgvs-rs/compare/v2.0.1...v3.0.0) (2026-10-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* c_to_p gives p.(Gly2Arg) instead of p.Gly2Arg and p.(=) instead of p.= by default. Set inferred_p_is_uncertain to false for the certain forms. variant::Config and assembly::Config have the new public field inferred_p_is_uncertain.
+* variant::Config and assembly::Config have the new public fields shift_over_boundary and shift_over_boundary_preference. mapper::Error has the new variant ShiftOverBoundaryNeedsAlignment.
+
+### Features
+
+* **mapper:** complete mitochondrial stop codons by poly(A) ([#314](https://github.com/varfish-org/hgvs-rs/issues/314)) ([28e1161](https://github.com/varfish-org/hgvs-rs/commit/28e1161bcd56f1a2a65fc5cba675545f79092ef2))
+* **mapper:** decide boundary insertions by the splice site ([#317](https://github.com/varfish-org/hgvs-rs/issues/317)) ([3d2c1bf](https://github.com/varfish-org/hgvs-rs/commit/3d2c1bfb73ac3b0c287e0ec4b517492e664d0dfd))
+* **mapper:** expose the variant region of a c. variant ([#306](https://github.com/varfish-org/hgvs-rs/issues/306)) ([58f7c2b](https://github.com/varfish-org/hgvs-rs/commit/58f7c2bc071a005760eceb3706c3928465f544ae))
+* **mapper:** return the region that c_to_p uses, and speed up c_to_p ([#321](https://github.com/varfish-org/hgvs-rs/issues/321)) ([dbded42](https://github.com/varfish-org/hgvs-rs/commit/dbded4216c3985e8df450282eb2c0f3e5c9a3d44))
+* port inferred_p_is_uncertain from biocommons/hgvs ([#318](https://github.com/varfish-org/hgvs-rs/issues/318)) ([cd43758](https://github.com/varfish-org/hgvs-rs/commit/cd43758dd38fa0d017148b762d72f0a6cfbead34))
+* port shift_over_boundary from biocommons/hgvs ([#307](https://github.com/varfish-org/hgvs-rs/issues/307)) ([e76f3bb](https://github.com/varfish-org/hgvs-rs/commit/e76f3bb03a1dba04e758e019bdbdf0fd02c6004b))
+
+
+### Bug Fixes
+
+* **mapper:** count no c.0 in g_to_c insertions ([#313](https://github.com/varfish-org/hgvs-rs/issues/313)) ([e854006](https://github.com/varfish-org/hgvs-rs/commit/e85400639f5ee2a6733dd56d81740c192156965f))
+* **mapper:** decide CDS boundary variants by sequence ([#315](https://github.com/varfish-org/hgvs-rs/issues/315)) ([633fe38](https://github.com/varfish-org/hgvs-rs/commit/633fe38bb7fcacdd64d297b29b75c428fd907c26))
+* **mapper:** describe deletions through the stop codon as frameshifts ([#316](https://github.com/varfish-org/hgvs-rs/issues/316)) ([d800a5f](https://github.com/varfish-org/hgvs-rs/commit/d800a5fb5bbe2223f1a0841290957d61984f412b))
+* **mapper:** give p.? for a reference with several stop codons ([#304](https://github.com/varfish-org/hgvs-rs/issues/304)) ([c6c1546](https://github.com/varfish-org/hgvs-rs/commit/c6c15467db4dd81f3a31df1100b0c8f704fcd155))
+* **mapper:** port _insert_stop_seq_end and fix CDSs without stop codon ([#305](https://github.com/varfish-org/hgvs-rs/issues/305)) ([07ca9b6](https://github.com/varfish-org/hgvs-rs/commit/07ca9b6057518ca1c8c53c705e4caf281799dbc1))
+
+## [2.0.1](https://github.com/varfish-org/hgvs-rs/compare/v2.0.0...v2.0.1) (2026-10-21)
+
+
+### Performance Improvements
+
+* avoid allocations and copies on mapper cache hits ([#312](https://github.com/varfish-org/hgvs-rs/issues/312)) ([9814309](https://github.com/varfish-org/hgvs-rs/commit/9814309595c876a47b5406481065ebd8812607d6))
+* use per-thread caches for alignment mappers and transcript data ([#310](https://github.com/varfish-org/hgvs-rs/issues/310)) ([7dde8d9](https://github.com/varfish-org/hgvs-rs/commit/7dde8d9649ccee9baa60401463c0b6c554717e72))
+
+## [2.0.0](https://github.com/varfish-org/hgvs-rs/compare/v1.0.0...v2.0.0) (2026-10-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* RefTranscriptData has the new public field cds_end of the new type CdsEnd. Code that builds the struct literally must set it.
+* variant::Config, assembly::Config, AltSeqBuilder and RefTranscriptData have new public fields. mapper::Error has the new variant DuplicationReferenceMissing. By default, c_to_p gives p.? for a dup of the first or last bases of an exon.
+
+### Features
+
+* port ins_at_boundary_is_intronic from biocommons/hgvs ([#301](https://github.com/varfish-org/hgvs-rs/issues/301)) ([69ec384](https://github.com/varfish-org/hgvs-rs/commit/69ec3845595bb30d3561c67e154b88797978bbaa))
+* support c_to_p for a CDS with an incomplete 3' end ([#299](https://github.com/varfish-org/hgvs-rs/issues/299)) ([8d7a3bc](https://github.com/varfish-org/hgvs-rs/commit/8d7a3bc65af2cac2b8c698eeb910f4a0604139cf))
+
+
+### Bug Fixes
+
+* return error for non-c. variants in AltSeqBuilder ([#300](https://github.com/varfish-org/hgvs-rs/issues/300)) ([3f3465a](https://github.com/varfish-org/hgvs-rs/commit/3f3465a5a02103fa4aa6cca2f54e5b8dcdead28e))
+
+## [1.0.0](https://github.com/varfish-org/hgvs-rs/compare/v0.22.0...v1.0.0) (2026-10-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* RefTranscriptData has the new public field translation_exceptions. Code that builds the struct literally must set it, for example to an empty Vec. data::error::Error has the new variant UnsupportedTranslationException.
+
+### Features
+
+* apply translation exceptions such as selenocysteine per codon ([#292](https://github.com/varfish-org/hgvs-rs/issues/292)) ([#293](https://github.com/varfish-org/hgvs-rs/issues/293)) ([c239487](https://github.com/varfish-org/hgvs-rs/commit/c2394878d02c3b63a51dfafcf6afde9baf38b500))
+
+## [0.22.0](https://github.com/varfish-org/hgvs-rs/compare/v0.21.0...v0.22.0) (2026-04-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* allow arbitrary assemblies ([#276](https://github.com/varfish-org/hgvs-rs/issues/276))
+
+### Features
+
+* allow arbitrary assemblies ([#276](https://github.com/varfish-org/hgvs-rs/issues/276)) ([eec574a](https://github.com/varfish-org/hgvs-rs/commit/eec574a04fb5072e78089d2f9385c6a683e353b7))
+
+
+### Miscellaneous Chores
+
+* update release-please configuration ([5e5a89b](https://github.com/varfish-org/hgvs-rs/commit/5e5a89b3711d71b53ce342045f8fca97464b577a))
+
+## [0.21.0](https://github.com/varfish-org/hgvs-rs/compare/v0.20.2...v0.21.0) (2026-04-07)
+
+
+### Features
+
+* derive Serialize/Deserialize for Provider record types ([#266](https://github.com/varfish-org/hgvs-rs/issues/266)) ([3bfe99f](https://github.com/varfish-org/hgvs-rs/commit/3bfe99fb292dee3e2ee80867b4c1138a731e3dc3))
+
+
+### Performance Improvements
+
+* misc improvements ([#275](https://github.com/varfish-org/hgvs-rs/issues/275)) ([6d2cb1d](https://github.com/varfish-org/hgvs-rs/commit/6d2cb1d17d330e1a6ddba07466a47a8b7821d521))
+
+## [0.20.2](https://github.com/varfish-org/hgvs-rs/compare/v0.20.1...v0.20.2) (2026-04-01)
+
+
+### Performance Improvements
+
+* avoid double cloning in AltSeq::new internally ([#270](https://github.com/varfish-org/hgvs-rs/issues/270)) ([60f635d](https://github.com/varfish-org/hgvs-rs/commit/60f635d7bd24a88a4f1d73cb6213b5489c5af558))
+* pre calculate dna to iupac lookup tables ([#271](https://github.com/varfish-org/hgvs-rs/issues/271)) ([3d3223a](https://github.com/varfish-org/hgvs-rs/commit/3d3223a7ed4b04220cd7f1327cfdc8ad60e6f6c5))
+
+## [0.20.1](https://github.com/varfish-org/hgvs-rs/compare/v0.20.0...v0.20.1) (2026-03-05)
+
+
+### Bug Fixes
+
+* mimic python slice behaviour in build_hgvsp ([#260](https://github.com/varfish-org/hgvs-rs/issues/260)) ([e519539](https://github.com/varfish-org/hgvs-rs/commit/e5195396a0a2f8c32c4e2a034091f2532f0a6299))
+
+## [0.20.0](https://github.com/varfish-org/hgvs-rs/compare/v0.19.1...v0.20.0) (2026-03-02)
+
+
+### Features
+
+* normalize intronic variants ([#257](https://github.com/varfish-org/hgvs-rs/issues/257)) ([712bb81](https://github.com/varfish-org/hgvs-rs/commit/712bb81ad025747a7e77402a5f11de89bdd4cf2e))
+
+
+### Bug Fixes
+
+* support non-coding transcripts (NR_) in TxIdentityInfo ([#256](https://github.com/varfish-org/hgvs-rs/issues/256)) ([c092507](https://github.com/varfish-org/hgvs-rs/commit/c092507bb9e521786377ee850fd7ffc18ba2cfaa))
+
 ## [0.19.1](https://github.com/varfish-org/hgvs-rs/compare/v0.19.0...v0.19.1) (2025-08-13)
 
 
