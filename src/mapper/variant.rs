@@ -2776,6 +2776,97 @@ mod test {
         Ok(())
     }
 
+    /// In-frame changes of the stop codon.  The CDS ends with `AAA TAG`, and the 3' UTR starts
+    /// with `GCTTAG`.  As in biocommons/hgvs and Mutalyzer, p. compares the proteins.  A longer
+    /// protein whose change starts at the stop codon is an extension.  One whose change starts
+    /// in front of it is a delins, not a frameshift, as the reading frame stays.
+    #[test]
+    fn hgvs_c_to_p_in_frame_change_of_stop_codon() -> Result<(), Error> {
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(
+            &config,
+            std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+                sanity_mock::ProviderRecord {
+                    accession: "NM_999977.1".to_string(),
+                    transcript_sequence: "AAAATCAAACATGAAAGCGAAAGCGTTTCGCGCGAAATAGGCTTAGGGGCCCCC"
+                        .to_string(),
+                    cds_start_i: 10,
+                    cds_end_i: 40,
+                    translation_exceptions: Vec::new(),
+                    lengths: Vec::new(),
+                },
+            ])),
+        );
+
+        for (hgvsc, hgvsp_expected) in [
+            // Only the stop codon changes, and the protein gets longer.
+            ("NM_999977.1:c.29A>T", "MOCK:p.(Ter10LeuextTer2)"),
+            ("NM_999977.1:c.27_28delinsGC", "MOCK:p.(Ter10GlnextTer2)"),
+            // Lys9 and the stop codon change, and the protein gets longer.  The first gives
+            // `AAC CAG GCT TAG`.
+            (
+                "NM_999977.1:c.27_28delinsCC",
+                "MOCK:p.(Lys9delinsAsnGlnAla)",
+            ),
+            ("NM_999977.1:c.27_29inv", "MOCK:p.(Lys9delinsAsnMetAla)"),
+            ("NM_999977.1:c.25_*3inv", "MOCK:p.(Lys9delinsSerLeuPhe)"),
+            // A stop codon takes the place of the old one, so the length stays.
+            ("NM_999977.1:c.27_30delinsCTGA", "MOCK:p.(Lys9Asn)"),
+            // A stop codon in front of the old one shortens the protein.
+            ("NM_999977.1:c.25_28delinsTAAC", "MOCK:p.(Lys9Ter)"),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
+        }
+
+        Ok(())
+    }
+
+    /// An inversion that ends after the end of the transcript inverts bases that are unknown,
+    /// so the protein is unknown, too, as for a deletion there.  The transcript ends at c.*14.
+    /// biocommons/hgvs inverts the bases up to the end of the transcript and gives
+    /// `p.(Lys9_Ter10delinsArgGlyProLeuSerLeuXaa)`, see `DIFFERENCES.md`.
+    #[test]
+    fn hgvs_c_to_p_inversion_past_transcript_end() -> Result<(), Error> {
+        let config = Config {
+            strict_bounds: false,
+            renormalize_g: false,
+            ..Default::default()
+        };
+        let mapper = Mapper::new(
+            &config,
+            std::sync::Arc::new(sanity_mock::Provider::with_records(vec![
+                sanity_mock::ProviderRecord {
+                    accession: "NM_999977.1".to_string(),
+                    transcript_sequence: "AAAATCAAACATGAAAGCGAAAGCGTTTCGCGCGAAATAGGCTTAGGGGCCCCC"
+                        .to_string(),
+                    cds_start_i: 10,
+                    cds_end_i: 40,
+                    translation_exceptions: Vec::new(),
+                    lengths: Vec::new(),
+                },
+            ])),
+        );
+
+        for (hgvsc, hgvsp_expected) in [
+            ("NM_999977.1:c.26_*20inv", "MOCK:p.?"),
+            // Ends with the last base, so all inverted bases are known.  As in biocommons/hgvs.
+            (
+                "NM_999977.1:c.26_*14inv",
+                "MOCK:p.(Lys9_Ter10delinsArgGlyProLeuSerLeuXaa)",
+            ),
+        ] {
+            let var_p = mapper.c_to_p(&HgvsVariant::from_str(hgvsc)?, Some("MOCK"))?;
+            assert_eq!(format!("{}", &var_p), hgvsp_expected, "{hgvsc}");
+        }
+
+        Ok(())
+    }
+
     /// A codon with an `N` translates to `X` (`Xaa`), an unknown amino acid, not a stop.  So
     /// the inserted amino acids go on behind it.  The CDS is `ATG AAA GCG CAA CTG TGG TAA`
     /// (`MKAQLW*`).  The expectations are those of biocommons/hgvs.

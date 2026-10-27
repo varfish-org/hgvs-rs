@@ -1647,7 +1647,8 @@ impl<'a> AltSeqBuilder<'a> {
             &self.reference_data.protein_accession,
             &self.reference_data.aa_sequence,
             false,
-            self.ref_has_multiple_stops,
+            // The bases after the end of the transcript are unknown.
+            self.ref_has_multiple_stops || self.ends_after_transcript(),
             self.reference_data.translation_table,
             &translation_exceptions,
             poly_a,

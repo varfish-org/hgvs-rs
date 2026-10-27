@@ -71,11 +71,11 @@ Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does
 - **biocommons/hgvs:** Only a deletion is a whole-gene deletion (`p.0?`); every other whole-gene edit leaves the protein as is and gives `p.?` ([altseqbuilder.py][bc-whole-gene]).
 - **hgvs-rs:** A delins is a whole-gene deletion too, with a warning, as the deletion removes the whole CDS: `p.0?`. Since [#320], a delins with a count is treated like one with a sequence. An identity, e.g. `c.-3_*2=`, deletes nothing: it leaves the protein as is and gives `p.?`, as in biocommons/hgvs; hgvs-rs gave `p.0?` before [#320].
 
-### Deletion past the end of the transcript
+### Deletion or inversion past the end of the transcript
 
-- **Situation:** without `strict_bounds`, a deletion or delins from the CDS ends after the last base of the transcript sequence, e.g. `c.26_*20del` on a transcript that ends at c.*14.
-- **biocommons/hgvs:** It rejects the variant with `HGVSInvalidIntervalError`, as the position is out of bounds.
-- **hgvs-rs:** The bases that follow the deletion are unknown, so `c_to_p` gives `p.?`. HGVS gives `p.?` for a deletion of the last exons of DMD, which removes the stop codon, because "it is not known what sequences ... are added to the transcript". Before, hgvs-rs cut the deletion at the end of the transcript and built a protein from the bases that the transcript has, e.g. `p.Lys9XaafsTer?`.
+- **Situation:** without `strict_bounds`, a deletion, delins or inversion from the CDS ends after the last base of the transcript sequence, e.g. `c.26_*20del` or `c.26_*20inv` on a transcript that ends at c.*14.
+- **biocommons/hgvs:** It rejects the deletion or delins with `HGVSInvalidIntervalError`, as the position is out of bounds. It cuts the inversion at the end of the transcript and inverts the bases up to there. If the 3' UTR is `GCTTAGGGGCCCCC`, `c.26_*20inv` gives `p.(Lys9_Ter10delinsArgGlyProLeuSerLeuXaa)`, as `c.26_*14inv` does.
+- **hgvs-rs:** The bases that follow the deletion are unknown, so `c_to_p` gives `p.?`. HGVS gives `p.?` for a deletion of the last exons of DMD, which removes the stop codon, because "it is not known what sequences ... are added to the transcript". Before, hgvs-rs cut the deletion at the end of the transcript and built a protein from the bases that the transcript has, e.g. `p.Lys9XaafsTer?`. The bases that the inversion puts in place are unknown, too, so `c.26_*20inv` gives `p.?`. Before, hgvs-rs cut it as biocommons/hgvs does.
 
 ### Deletion of the stop codon up to the transcript end
 
