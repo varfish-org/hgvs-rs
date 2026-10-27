@@ -248,13 +248,37 @@ impl CigarMapper {
         (ref_pos, tgt_pos, cigar_op)
     }
 
+    /// Map `pos` from the reference to the target.  The center of a skip of odd length maps to
+    /// the segment on its left.
     pub fn map_ref_to_tgt(
         &self,
         pos: i32,
         end: &str,
         strict_bounds: bool,
     ) -> Result<CigarMapperResult, Error> {
-        self.map(&self.ref_pos, &self.tgt_pos, pos, end, strict_bounds)
+        self.map_ref_to_tgt_on_strand(pos, end, strict_bounds, 1)
+    }
+
+    /// Map `pos` from the reference to a target on `strand` of the reference.
+    ///
+    /// The center of a skip of odd length maps to the upstream segment of the target, which is
+    /// the segment on its right on strand -1.  HGVS numbers the central base of an intron from
+    /// the upstream exon.
+    pub fn map_ref_to_tgt_on_strand(
+        &self,
+        pos: i32,
+        end: &str,
+        strict_bounds: bool,
+        strand: i16,
+    ) -> Result<CigarMapperResult, Error> {
+        self.map(
+            &self.ref_pos,
+            &self.tgt_pos,
+            pos,
+            end,
+            strict_bounds,
+            strand,
+        )
     }
 
     pub fn map_tgt_to_ref(
@@ -263,7 +287,8 @@ impl CigarMapper {
         end: &str,
         strict_bounds: bool,
     ) -> Result<CigarMapperResult, Error> {
-        self.map(&self.tgt_pos, &self.ref_pos, pos, end, strict_bounds)
+        // A skip has no target bases, so the strand plays no role.
+        self.map(&self.tgt_pos, &self.ref_pos, pos, end, strict_bounds, 1)
     }
 
     /// Map position between aligned segments.
@@ -276,6 +301,7 @@ impl CigarMapper {
         pos: i32,
         end: &str,
         strict_bounds: bool,
+        strand: i16,
     ) -> Result<CigarMapperResult, Error> {
         if strict_bounds && (pos < 0 || pos > *from_pos.last().expect("no last position")) {
             return Err(Error::PositionBeyondTranscriptBounds(
@@ -317,16 +343,18 @@ impl CigarMapper {
                 cigar_op,
             })
         } else if cigar_op == CigarOp::Skip {
-            if pos - from_pos[pos_i] < from_pos[pos_i + 1] - pos {
+            let dist_left = pos - from_pos[pos_i] + 1;
+            let dist_right = from_pos[pos_i + 1] - pos;
+            if dist_left < dist_right || (dist_left == dist_right && strand == 1) {
                 Ok(CigarMapperResult {
                     pos: to_pos[pos_i] - 1,
-                    offset: pos - from_pos[pos_i] + 1,
+                    offset: dist_left,
                     cigar_op,
                 })
             } else {
                 Ok(CigarMapperResult {
                     pos: to_pos[pos_i],
-                    offset: -(from_pos[pos_i + 1] - pos),
+                    offset: -dist_right,
                     cigar_op,
                 })
             }
@@ -516,6 +544,41 @@ mod test {
                     (arg_pos, arg_end, pos, offset, cigar_op)
                 );
             }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn cigar_mapper_skip_center_on_strand() -> Result<(), Error> {
+        // As in `cigar_mapper_simple()`: ref 3 and 4 are a skip of even length, ref 8 to 10 one
+        // of odd length with its center at ref 9.
+        let cigar_mapper = CigarMapper::new(&parse_cigar_string("3=2N=X=3N=I=D=")?);
+
+        // (ref pos, strand, tgt pos, offset)
+        let cases = vec![
+            (3, 1, 2, 1),
+            (3, -1, 2, 1),
+            (4, 1, 3, -1),
+            (4, -1, 3, -1),
+            (8, 1, 5, 1),
+            (8, -1, 5, 1),
+            (9, 1, 5, 2),
+            (9, -1, 6, -2),
+            (10, 1, 6, -1),
+            (10, -1, 6, -1),
+        ];
+        for (arg_pos, strand, pos, offset) in cases {
+            assert_eq!(
+                cigar_mapper.map_ref_to_tgt_on_strand(arg_pos, "start", true, strand)?,
+                CigarMapperResult {
+                    pos,
+                    offset,
+                    cigar_op: CigarOp::Skip
+                },
+                "case = {:?}",
+                (arg_pos, strand, pos, offset)
+            );
         }
 
         Ok(())

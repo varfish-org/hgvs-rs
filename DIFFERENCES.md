@@ -4,6 +4,14 @@ hgvs-rs is a port of [biocommons/hgvs][bc] and aims to give the same results. Th
 
 Each entry names the situation, what biocommons/hgvs does, and what hgvs-rs does and why. The entries under [Proposed fixes for biocommons/hgvs](#proposed-fixes-for-biocommonshgvs) are deviations that hgvs-rs makes on purpose and that are to be proposed upstream. Links to the code of biocommons/hgvs point to commit [13289ab][bc-commit]. The examples on mock transcripts were run with both libraries. The protein changes of hgvs-rs are shown as `c_to_p` gives them with `inferred_p_is_uncertain` set to `false`, e.g. `p.Lys9Ala`, and those of biocommons/hgvs as it gives them by default, e.g. `p.(Lys9Ala)`.
 
+## Coordinate mapping
+
+### Central base of an intron
+
+- **Situation:** `g_to_n` or `g_to_c` of the central base of an intron of odd length, which is as far from the exon before it as from the exon after it. E.g., `NC_000003.11:g.38634142C>A` lies in the middle of the 10155 intron bases between c.2262 and c.2263 of `NM_001160161.1` (SCN5A, minus strand).
+- **biocommons/hgvs:** `CIGARMapper` numbers the base from the exon on its left on the genome, whatever the strand ([cigarmapper.py][bc-cigar-skip]). On the minus strand, this is the downstream exon, so the example gives `c.2263-5078G>T`. Before its CIGAR-based mapper of 2018, biocommons/hgvs took the upstream exon ([biocommons/hgvs#205][bc-205]).
+- **hgvs-rs:** It numbers the base from the upstream exon, as HGVS does: "in introns with an uneven number of nucleotides, the central nucleotide is numbered relative to the upstream exon followed by a `+` (plus)" ([numbering][hgvs-numbering]). The example gives `c.2262+5078G>T`, as in Mutalyzer ([#259]). On the plus strand, the exon on the left is the upstream one, so both libraries agree. `CigarMapper::map_ref_to_tgt()` keeps the choice of biocommons/hgvs, and `map_ref_to_tgt_on_strand()` takes the strand.
+
 ## Normalization
 
 ### Intronic variants
@@ -218,3 +226,7 @@ Unless an entry says otherwise, the examples use a transcript whose 5' UTR ends 
 [bc-330]: https://github.com/biocommons/hgvs/issues/330
 [hgvs-del]: https://hgvs-nomenclature.org/stable/recommendations/DNA/deletion/
 [#301]: https://github.com/varfish-org/hgvs-rs/pull/301
+[bc-cigar-skip]: https://github.com/biocommons/hgvs/blob/13289ab3b9db3c751918906c543991c74917ff61/src/hgvs/utils/cigarmapper.py#L100-L106
+[bc-205]: https://github.com/biocommons/hgvs/issues/205
+[hgvs-numbering]: https://hgvs-nomenclature.org/stable/background/numbering/
+[#259]: https://github.com/varfish-org/hgvs-rs/pull/259

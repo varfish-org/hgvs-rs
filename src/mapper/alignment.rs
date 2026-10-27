@@ -256,12 +256,18 @@ impl Mapper {
             // Compute start/end on forward strand with respect to the genome.
             //
             // frs, fre = (f)orward (r)na (s)tart & (e)nd
-            let frs = self
-                .cigar_mapper
-                .map_ref_to_tgt(grs, "start", self.config.strict_bounds)?;
-            let fre = self
-                .cigar_mapper
-                .map_ref_to_tgt(gre, "end", self.config.strict_bounds)?;
+            let frs = self.cigar_mapper.map_ref_to_tgt_on_strand(
+                grs,
+                "start",
+                self.config.strict_bounds,
+                self.strand,
+            )?;
+            let fre = self.cigar_mapper.map_ref_to_tgt_on_strand(
+                gre,
+                "end",
+                self.config.strict_bounds,
+                self.strand,
+            )?;
 
             // Project to reverse strand if necessary.
             let (frs, fre) = if self.strand == -1 {
@@ -1028,6 +1034,85 @@ mod test {
         ];
 
         run_test_cases(tx_ac, alt_ac, &test_cases)?;
+
+        Ok(())
+    }
+
+    /// HGVS numbers the central base of an intron of odd length from the upstream exon, on both
+    /// strands, as Mutalyzer does.
+    #[test]
+    fn test_intron_center() -> Result<(), Error> {
+        // NM_001042723.1: RYR1, strand = +1, introns of 1777 bases after c.14349
+        // (biocommons/hgvs#205) and of 4438 bases after c.14631.
+        let test_cases = vec![
+            (
+                GenomeInterval::from_str("39069732")?,
+                TxInterval::from_str("14479+888")?,
+                CdsInterval::from_str("14349+888")?,
+            ),
+            (
+                GenomeInterval::from_str("39069733")?,
+                TxInterval::from_str("14479+889")?,
+                CdsInterval::from_str("14349+889")?,
+            ),
+            (
+                GenomeInterval::from_str("39069734")?,
+                TxInterval::from_str("14480-888")?,
+                CdsInterval::from_str("14350-888")?,
+            ),
+            (
+                GenomeInterval::from_str("39073363")?,
+                TxInterval::from_str("14761+2219")?,
+                CdsInterval::from_str("14631+2219")?,
+            ),
+            (
+                GenomeInterval::from_str("39073364")?,
+                TxInterval::from_str("14762-2219")?,
+                CdsInterval::from_str("14632-2219")?,
+            ),
+        ];
+        run_test_cases("NM_001042723.1", "NC_000019.9", &test_cases)?;
+
+        // NM_001160161.1: SCN5A, strand = -1, introns of 10155 bases after c.2262 and of 1358
+        // bases after c.2436.
+        let test_cases = vec![
+            (
+                GenomeInterval::from_str("38634143")?,
+                TxInterval::from_str("2457+5077")?,
+                CdsInterval::from_str("2262+5077")?,
+            ),
+            (
+                GenomeInterval::from_str("38634142")?,
+                TxInterval::from_str("2457+5078")?,
+                CdsInterval::from_str("2262+5078")?,
+            ),
+            (
+                GenomeInterval::from_str("38634141")?,
+                TxInterval::from_str("2458-5077")?,
+                CdsInterval::from_str("2263-5077")?,
+            ),
+            (
+                GenomeInterval::from_str("38634142_38634143")?,
+                TxInterval::from_str("2457+5077_2457+5078")?,
+                CdsInterval::from_str("2262+5077_2262+5078")?,
+            ),
+            (
+                GenomeInterval::from_str("38634141_38634142")?,
+                TxInterval::from_str("2457+5078_2458-5077")?,
+                CdsInterval::from_str("2262+5078_2263-5077")?,
+            ),
+            (
+                GenomeInterval::from_str("38628212")?,
+                TxInterval::from_str("2631+679")?,
+                CdsInterval::from_str("2436+679")?,
+            ),
+            (
+                GenomeInterval::from_str("38628211")?,
+                TxInterval::from_str("2632-679")?,
+                CdsInterval::from_str("2437-679")?,
+            ),
+        ];
+        run_test_cases("NM_001160161.1", "NC_000003.11", &test_cases)?;
 
         Ok(())
     }
